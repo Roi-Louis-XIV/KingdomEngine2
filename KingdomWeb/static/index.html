@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kingdom Studio</title><link rel="stylesheet" href="/static/style.css?v=20260812.2"><link rel="stylesheet" href="/static/forms.css?v=20260812.2"><link rel="stylesheet" href="/static/interactions.css?v=20260812.5"></head>
+<body><aside><div class="brand"><span>♜</span><div><b>Kingdom</b><small>STUDIO · V2</small></div></div>
+<nav id="nav"><button data-type="building" class="active">🏰 Bâtiments</button><button data-type="item">🎒 Objets</button><button data-type="event">⚡ Événements</button><button data-type="bot">🤖 Bots Discord</button><button data-type="audio">🔊 Voix & audio</button></nav>
+<footer><span class="dot"></span> Moteur opérationnel</footer></aside>
+<main><header><div><p>MONDE / <span id="crumb">BÂTIMENTS</span></p><h1 id="title">Bâtiments</h1></div><button class="primary" id="new">＋ Nouvelle définition</button></header>
+<section class="stats"><article><small>DÉFINITIONS</small><strong id="count">0</strong><span>contenus versionnés</span></article><article><small>PUBLIÉES</small><strong id="published">0</strong><span>actives dans Discord</span></article><article><small>BROUILLONS</small><strong id="drafts">0</strong><span>à relire</span></article></section>
+<section class="workspace"><div class="toolbar"><input id="search" placeholder="Rechercher…"><span>Les changements publiés sont chargés par tous les modules.</span></div><div id="cards" class="cards"></div></section></main>
+<div id="editor" class="modal" hidden><div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="editor-title"><form id="editor-form" novalidate><div class="dialog-head"><div><small>ÉDITEUR NO-CODE</small><h2 id="editor-title">Nouvelle définition</h2></div><button type="button" id="close-editor" class="icon" aria-label="Fermer">×</button></div>
+<label>Identifiant technique<input id="key" pattern="[a-z][a-z0-9_]{2,63}" required placeholder="ex: haunted_castle"></label>
+<label>Nom visible<input id="name" required placeholder="Nom affiché aux joueurs"></label>
+<div class="cols"><label>Emoji<input id="emoji" placeholder="🏰"></label><label>Description<input id="description" placeholder="Courte description"></label></div>
+<section id="type-fields" class="type-fields"></section><p id="error"></p>
+<div class="actions"><button type="button" id="cancel-editor">Annuler</button><button type="button" class="primary" id="save">Enregistrer le brouillon</button></div></form></div></div>
+<script src="/static/app.js?v=20260812.7"></script></body></html>
