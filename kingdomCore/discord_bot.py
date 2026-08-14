@@ -132,6 +132,8 @@ class InterfaceView(discord.ui.View):
                 embed.set_image(url=str(props["url"]))
             elif component["type"] == "player_inventory" and self.owner_id is not None:
                 self._add_inventory(embed, str(props.get("title") or "Inventaire"))
+            elif component["type"] == "building_inventory":
+                self._add_building_inventory(embed, str(props.get("building") or self._building_key()), str(props.get("title") or "Stock commun"))
         embed.description = "\n\n".join(descriptions)[:4096] or None
         return embed
 
@@ -189,6 +191,12 @@ class InterfaceView(discord.ui.View):
         ) or "Aucun métier."
         embed.add_field(name="📜 Métiers", value=profession_text[:1024], inline=False)
 
+    def _add_building_inventory(self, embed: discord.Embed, building_key: str, title: str) -> None:
+        with self.engine.store.connection() as db:
+            rows = db.execute("SELECT item_key,quantity FROM building_stock WHERE building_key=? ORDER BY item_key", (building_key,)).fetchall()
+        content = "\n".join(f"• **{self._item_name(str(row[0]))}** : **{int(row[1])}**" for row in rows) or "Aucune matière enregistrée."
+        embed.add_field(name=title[:256], value=content[:1024], inline=False)
+
     def _render_interactions(self) -> None:
         self.clear_items()
         styles = {
@@ -221,7 +229,15 @@ class InterfaceView(discord.ui.View):
             button.callback = navigate_callback
         elif interaction.get("type") == "action":
             async def action_callback(discord_interaction: discord.Interaction, target: dict[str, Any] = interaction):
-                await self._execute_action(discord_interaction, target)
+                if target.get("confirm"):
+                    confirmation = discord.ui.View(timeout=300)
+                    confirm = discord.ui.Button(label="Confirmer", emoji="✅", style=discord.ButtonStyle.success)
+                    async def confirm_callback(confirm_interaction: discord.Interaction):
+                        await self._execute_action(confirm_interaction, target)
+                    confirm.callback = confirm_callback; confirmation.add_item(confirm)
+                    await discord_interaction.response.send_message(str(target["confirm"]), view=confirmation, ephemeral=True)
+                else:
+                    await self._execute_action(discord_interaction, target)
             button.callback = action_callback
         elif interaction.get("type") == "refresh":
             async def refresh_callback(discord_interaction: discord.Interaction):

@@ -10,6 +10,7 @@ from KingdomData import (
     ContentStore,
     interface_from_activity_modules,
     interface_from_building,
+    interface_from_workshop_modules,
     migrate_activity_profession_interfaces,
     migrate_published_building_interfaces,
 )
@@ -113,10 +114,10 @@ def _link_existing_v1_buildings(store: ContentStore, definitions: list[dict[str,
         canonical = definition["payload"]
         current_blueprint = payload.get("interface", {}).get("blueprint")
         target_blueprint = canonical.get("interface", {}).get("blueprint")
-        if current_blueprint and current_blueprint != target_blueprint and target_blueprint:
+        if target_blueprint and current_blueprint != target_blueprint:
             upgraded = {**payload, "interface_texts": canonical.get("interface_texts", payload.get("interface_texts", {}))}
             upgraded["actions"] = actions_from_modules(definition["key"], upgraded.get("modules", {}))
-            upgraded["interface"] = interface_from_activity_modules(definition["key"], upgraded, upgraded["actions"])
+            upgraded["interface"] = (interface_from_workshop_modules if str(target_blueprint).startswith("workshop_") else interface_from_activity_modules)(definition["key"], upgraded, upgraded["actions"])
             draft = store.save("building", definition["key"], upgraded, "migration-v1-interface-v2", current["version"])
             store.publish("building", definition["key"], draft["version"], "migration-v1-interface-v2")
             continue
@@ -134,12 +135,13 @@ def _link_existing_v1_buildings(store: ContentStore, definitions: list[dict[str,
 def _building_definitions(root: Path) -> list[dict[str, Any]]:
     buildings_root = root / "KingdomData" / "buildings"
     item_prices = _item_prices(root / "KingdomData" / "items")
+    item_catalogue = _item_catalogue(root / "KingdomData" / "items")
     delivery_markets = _read(buildings_root / "deliveries.json").get("buildings", {}) if (buildings_root / "deliveries.json").exists() else {}
     tavern_rumors = _read(buildings_root / "tavern_rumors.json").get("rumors", []) if (buildings_root / "tavern_rumors.json").exists() else []
     builders = {
         "mine": lambda data: _mine_payload(data),
         "forest": lambda data: _forest_payload(data),
-        "forge": lambda data: _forge_payload(data, item_prices),
+        "forge": lambda data: _forge_payload(data, item_prices, item_catalogue),
         "tavern": lambda data: _tavern_payload(data, tavern_rumors),
     }
     definitions: list[dict[str, Any]] = []
@@ -155,10 +157,8 @@ def _building_definitions(root: Path) -> list[dict[str, Any]]:
             payload["action_mode"] = "generated"
             payload["actions"] = actions_from_modules(key, payload["modules"])
             payload["interface_key"] = f"ui_{key}"
-            payload["interface"] = (
-                interface_from_activity_modules(key, payload, payload["actions"])
-                if key == "forest" else interface_from_building(key, payload, payload["actions"])
-            )
+            blueprint = payload.get("interface_blueprint")
+            payload["interface"] = (interface_from_activity_modules if blueprint == "activity_professions" else interface_from_workshop_modules if blueprint == "workshop_market" else interface_from_building)(key, payload, payload["actions"])
             definitions.append({"type": "building", "key": key, "payload": payload})
             definitions.append({"type": "interface", "key": f"ui_{key}", "payload": clone_interface(payload["interface"])})
     projects_path = buildings_root / "construction_projects.json"
@@ -184,6 +184,10 @@ def _item_prices(items_root: Path) -> dict[str, int]:
         for key, payload in _read(catalogue).items():
             prices[key] = int(payload.get("price", 0))
     return prices
+
+
+def _item_catalogue(items_root: Path) -> dict[str, dict[str, Any]]:
+    return {key: payload for catalogue in items_root.glob("*.json") for key, payload in _read(catalogue).items()}
 
 
 def _base_payload(data: dict[str, Any], emoji: str, description: str, kind: str) -> dict[str, Any]:
@@ -241,6 +245,7 @@ def _mine_payload(data: dict[str, Any]) -> dict[str, Any]:
 
 def _forest_payload(data: dict[str, Any]) -> dict[str, Any]:
     payload = _base_payload(data, "🌲", "Exploiter la foret, chasser et livrer ses ressources.", "harvest")
+    payload["interface_blueprint"] = "activity_professions"
     activities = []
     for profession, zones in data.get("zones", {}).items():
         for zone in zones:
@@ -286,6 +291,7 @@ def _forest_payload(data: dict[str, Any]) -> dict[str, Any]:
         "professions": professions,
         "activities": activities,
         "deliveries": deliveries,
+        "delivery_mode": "all_available",
         "products": [], "recipes": [], "repairs": {}, "upgrades": [],
     })
     payload["interface_texts"] = {
@@ -301,11 +307,13 @@ def _forest_payload(data: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
-def _forge_payload(data: dict[str, Any], item_prices: dict[str, int]) -> dict[str, Any]:
+def _forge_payload(data: dict[str, Any], item_prices: dict[str, int], item_catalogue: dict[str, dict[str, Any]]) -> dict[str, Any]:
     payload = _base_payload(data, "⚒️", "Forger, reparer, ameliorer et approvisionner les equipements du Royaume.", "production")
     initial_stock = int(data.get("initial_stock", 0))
     products = [
-        {"item_key": item, "price": item_prices.get(item, 0), "active": True, "initial_stock": initial_stock}
+        {"item_key": item, "price": item_prices.get(item, 0), "active": True, "initial_stock": initial_stock,
+         "name": item_catalogue.get(item, {}).get("name", item), "emoji": item_catalogue.get(item, {}).get("emoji", "📦"),
+         "description": item_catalogue.get(item, {}).get("description", "")}
         for item in data.get("products", [])
     ]
     deliveries = [
@@ -323,14 +331,22 @@ def _forge_payload(data: dict[str, Any], item_prices: dict[str, int]) -> dict[st
     ]
     payload["modules"].update({
         "rules": {"experience_per_level": data.get("experience_per_level", 100)},
-        "professions": [{"key": "blacksmith", "name": data.get("npc_profession", "Forgeron")}],
+        "professions": [{"key": "blacksmith", "name": "Forgeron"}],
         "products": products,
         "recipes": recipes,
         "activities": [],
         "deliveries": deliveries,
+        "delivery_mode": "all_available",
         "repairs": data.get("repair", {}),
         "upgrades": upgrades,
     })
+    payload["interface_blueprint"] = "workshop_market"
+    payload["interface_texts"] = {
+        "home_title": "🔥 LA FORGE DORÉE",
+        "welcome": "Le feu rugit tandis que les marteaux frappent l'acier.\n\n━━━━━━━━━━  **COMPTOIR DE WAGNER**  ━━━━━━━━━━",
+        "talk_label": "Discuter avec Wagner",
+        "upgrade_label": "Améliorer ma pioche",
+    }
     return payload
 
 
@@ -507,7 +523,11 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
             "requirements": {"profession": profession, "min_level": int(recipe.get("required_level", 1))} if profession else {},
         }
         _append_timed(actions, action, immediate_effects, deferred_effects)
-    for delivery in modules.get("deliveries", []):
+    deliveries = modules.get("deliveries", [])
+    if deliveries and modules.get("delivery_mode") == "all_available":
+        actions.append({"key": "deliver_resources", "name": "Livrer mes ressources", "emoji": "📦", "enabled": True, "effects": [{"type": "deliver_inventory", "items": [{"item": delivery["item_key"], "building": delivery.get("target_building_key", building_key), "unit_price": int(delivery.get("unit_price", 0))} for delivery in deliveries], "message": "Wagner réceptionne {items} et te verse **{total} écus**."}]})
+        deliveries = []
+    for delivery in deliveries:
         item = delivery["item_key"]
         actions.append({
             "key": f"deliver_{item}", "name": f"Livrer {item}", "emoji": "📦", "enabled": True,

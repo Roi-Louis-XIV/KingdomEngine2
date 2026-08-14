@@ -58,6 +58,23 @@ def test_missing_required_item_uses_its_readable_name(tmp_path):
         raise AssertionError("L'action devait refuser le joueur sans hache.")
 
 
+def test_grouped_delivery_moves_all_resources_and_pays_player(tmp_path):
+    store = ContentStore(tmp_path / "delivery.db"); store.initialize()
+    for key, name in (("iron_ore", "Minerai de fer"), ("wood", "Bois")):
+        draft = store.save("item", key, {"name": name}); store.publish("item", key, draft["version"])
+    building = store.save("building", "workshop", {"name": "Atelier", "actions": [{"key": "deliver", "name": "Livrer", "effects": [{"type": "deliver_inventory", "items": [{"item": "iron_ore", "unit_price": 5}, {"item": "wood", "unit_price": 2}]}]}]})
+    store.publish("building", "workshop", building["version"])
+    engine = GameEngine(store)
+    with store.connection() as db:
+        db.execute("INSERT INTO players(discord_id,updated_at) VALUES('9','now')")
+        db.execute("INSERT INTO inventory VALUES('9','iron_ore',3)"); db.execute("INSERT INTO inventory VALUES('9','wood',2)")
+    result = asyncio.run(engine.execute("9", "workshop", "deliver", "delivery-all"))
+    assert result["player"]["money"] == 19
+    assert result["player"]["inventory"] == {}
+    with store.connection() as db:
+        assert dict(db.execute("SELECT item_key,quantity FROM building_stock WHERE building_key='workshop'").fetchall()) == {"iron_ore": 3, "wood": 2}
+
+
 def test_generated_building_action_uses_published_module_parameters(tmp_path):
     store = ContentStore(tmp_path / "generated.db")
     store.initialize()

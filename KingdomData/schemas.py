@@ -10,7 +10,7 @@ KEY_RE = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
 ACTION_TYPES = {
     "message", "reward", "cost", "emit", "random_reward", "random_bundle", "random_result",
     "stock_cost", "stock_reward", "profession", "durability",
-    "repair", "upgrade", "random_message",
+    "repair", "upgrade", "random_message", "deliver_inventory",
     "schedule", "claim_scheduled", "state", "production",
     "profession_join", "profession_leave", "profession_experience",
     "tool_grant", "tool_modify", "contribution",
@@ -270,7 +270,7 @@ def _validate_interface(payload: dict[str, Any]) -> None:
             if component_id in component_ids:
                 raise ValidationError(f"Composant duplique : {component_id}")
             component_ids.add(component_id)
-            if component.get("type") not in {"hero", "text", "card", "stat", "divider", "image", "player_inventory", "button", "select"}:
+            if component.get("type") not in {"hero", "text", "card", "stat", "divider", "image", "player_inventory", "building_inventory", "button", "select"}:
                 raise ValidationError(f"Composant inconnu : {component.get('type')}")
             if component.get("type") in {"button", "select"}:
                 slot = int(component.get("slot", -1))

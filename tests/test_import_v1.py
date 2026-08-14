@@ -41,13 +41,21 @@ def test_all_v1_buildings_items_and_voice_profiles_are_discovered():
     assert any(component.get("props", {}).get("label") == "Discuter avec Gaspard" for component in camp_components)
     assert any(component.get("interaction", {}).get("type") == "refresh" for component in camp_components)
     assert any(component.get("interaction", {}).get("type") == "close" for component in camp_components)
-    assert any(component.get("type") == "select" and "Livrer" in component.get("props", {}).get("placeholder", "") for component in camp_components)
+    assert any(component.get("interaction", {}).get("action") == "deliver_resources" for component in camp_components)
     woodcutter_components = forest_interface["pages"][3]["components"]
     destinations = next(component for component in woodcutter_components if component["type"] == "select")
     assert [option["key"] for option in destinations["options"]] == [
         "royal_edge", "ancient_undergrowth", "deep_oakwood"
     ]
     assert all(option["interaction"]["type"] == "action" for option in destinations["options"])
+
+    forge_interface = buildings["forge"]["interface"]
+    assert forge_interface["blueprint"] == "workshop_market_v1"
+    assert {page["key"] for page in forge_interface["pages"]} >= {"home", "shop", "repairs", "upgrades", "stock", "job", "recipes_tool", "recipes_weapon"}
+    forge_labels = {component.get("props", {}).get("label") for page in forge_interface["pages"] for component in page["components"]}
+    assert {"Commander", "Réparer un équipement", "Améliorer ma pioche", "Inventaire du bâtiment", "Devenir Forgeron", "Discuter avec Wagner", "Actualiser", "Quitter"} <= forge_labels
+    assert any(component.get("interaction", {}).get("confirm") for page in forge_interface["pages"] for component in page["components"])
+    assert any(component.get("interaction", {}).get("action") == "deliver_resources" for component in forge_interface["pages"][0]["components"])
 
 
 def test_import_is_idempotent(tmp_path):
@@ -94,3 +102,14 @@ def test_existing_multi_profession_v1_building_is_upgraded_without_name_specific
     assert upgraded["custom_value"] == 42
     assert [effect["type"] for effect in effects] == ["reward", "reward", "profession", "emit"]
     assert migrate_weighted_activity_results(store) == 0
+
+
+def test_existing_forge_receives_workshop_interface_automatically(tmp_path):
+    store = ContentStore(tmp_path / "forge-interface.db"); store.initialize()
+    canonical = next(item["payload"] for item in definitions_from_v1() if item["type"] == "building" and item["key"] == "forge")
+    old = {**canonical, "interface": {"name": "Ancienne interface", "target_building_key": "forge", "start_page": "home", "pages": [{"key": "home", "name": "Accueil", "components": [{"id": "old_hero", "type": "hero", "props": {"title": "Forge"}}]}]}}
+    draft = store.save("building", "forge", old); store.publish("building", "forge", draft["version"])
+    import_v1(store)
+    migrated = store.get("building", "forge", published=True)["payload"]
+    assert migrated["interface"]["blueprint"] == "workshop_market_v1"
+    assert migrated["interface_texts"]["talk_label"] == "Discuter avec Wagner"

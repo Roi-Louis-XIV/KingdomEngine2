@@ -117,6 +117,19 @@ class GameEngine:
                     amount = self.rng.randint(minimum, maximum) * (1 if kind == "stock_reward" else -1)
                     stock_building = str(effect.get("building", building_key))
                     self._change_stock(db, stock_building, str(effect["item"]), amount, int(effect.get("initial_stock", 0)))
+                elif kind == "deliver_inventory":
+                    delivered, total = [], 0
+                    for entry in effect.get("items", []):
+                        item = str(entry["item"])
+                        row = db.execute("SELECT quantity FROM inventory WHERE discord_id=? AND item_key=?", (discord_id, item)).fetchone()
+                        quantity = int(row[0]) if row else 0
+                        if quantity <= 0: continue
+                        db.execute("DELETE FROM inventory WHERE discord_id=? AND item_key=?", (discord_id, item))
+                        self._change_stock(db, str(entry.get("building", effect.get("building", building_key))), item, quantity)
+                        total += quantity * int(entry.get("unit_price", 0)); delivered.append(f"{quantity} × {self._item_name(item)}")
+                    if not delivered: raise ValidationError(str(effect.get("empty_message") or "Tu ne possèdes aucune ressource acceptée à livrer."))
+                    self._change_resource(db, discord_id, "money", total)
+                    messages.append(str(effect.get("message") or "Livraison effectuée : {items}. Récompense : **{total} écus**.").format(items=" · ".join(delivered), total=total))
                 elif kind == "profession":
                     if effect.get("operation", "experience") == "join":
                         self._join_profession(db, discord_id, str(effect["profession"]), bool(effect.get("exclusive", True)))
