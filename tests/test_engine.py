@@ -2,7 +2,20 @@ import asyncio
 
 from KingdomData import ContentStore, ValidationError
 from kingdomCore import GameEngine
+from kingdomCore.discord_bot import PrivateInterfaceLauncher
 from kingdomEvent import EventBus
+
+
+def test_private_launcher_id_survives_core_restart():
+    async def build_ids():
+        first = PrivateInterfaceLauncher(None, {"target_building_key": "wildlands"}, 42)
+        second = PrivateInterfaceLauncher(None, {"target_building_key": "wildlands"}, 42)
+        other = PrivateInterfaceLauncher(None, {"target_building_key": "mine"}, 42)
+        return first.children[0].custom_id, second.children[0].custom_id, other.children[0].custom_id
+
+    first_id, second_id, other_id = asyncio.run(build_ids())
+    assert first_id == second_id == "kel:42:wildlands"
+    assert other_id != first_id
 
 
 def test_action_is_atomic_and_idempotent(tmp_path):

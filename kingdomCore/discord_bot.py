@@ -271,7 +271,14 @@ class PrivateInterfaceLauncher(discord.ui.View):
     def __init__(self, engine: GameEngine, definition: dict[str, Any], owner_id: int):
         super().__init__(timeout=600)
         self.engine, self.definition, self.owner_id = engine, definition, owner_id
-        button = discord.ui.Button(label="Ouvrir mon interface privée", emoji="🚪", style=discord.ButtonStyle.primary)
+        # L'identifiant déterministe permet au nouveau processus de reprendre les
+        # boutons déjà envoyés après un redémarrage du Core.
+        building_key = str(definition.get("target_building_key") or "building")
+        custom_id = f"kel:{owner_id}:{building_key}"[:100]
+        button = discord.ui.Button(
+            label="Ouvrir mon interface privée", emoji="🚪",
+            style=discord.ButtonStyle.primary, custom_id=custom_id,
+        )
         button.callback = self.open
         self.add_item(button)
 
