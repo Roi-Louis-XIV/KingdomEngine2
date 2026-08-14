@@ -45,6 +45,22 @@ def test_editor_has_non_validating_close_controls():
     assert 'class="modal" hidden' in html
 
 
+def test_building_editor_exposes_beginner_wizard_and_presets():
+    with TestClient(web.app) as client:
+        html = client.get("/").text
+        presets = client.get("/static/building-presets.js").text
+        script = client.get("/static/app.js").text
+
+    assert 'id="preset-step"' in html
+    assert 'id="context-help"' in html
+    assert 'id="wizard-back"' in html
+    assert "building-presets.js" in html
+    for preset in ("harvest", "production", "commerce", "social", "administration", "custom"):
+        assert f'key: "{preset}"' in presets
+    assert 'data-duplicate=' in script
+    assert 'openEditor(entity,true)' in script
+
+
 def test_voice_bot_invite_link_uses_its_application_id(tmp_path, monkeypatch):
     store = ContentStore(tmp_path / "invite.db")
     store.initialize()
