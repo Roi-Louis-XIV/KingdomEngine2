@@ -66,7 +66,19 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
     assert 'id="profession-modules"' in script
     assert 'id="activity-modules"' in script
     assert 'outcome-effects' in script
-    assert '["player","Tout le joueur"]' in script
+    assert 'condition-editors' in script
+    assert 'addConditionEditor' in script
+    assert 'readConditions' in script
+    assert 'Toutes les conditions' in script
+    assert 'Au moins une condition' in script
+    assert 'Inverser (NOT)' in script
+    assert 'module_activity_min_durability' in script
+    assert 'module_hook_claim' in script
+    assert 'action_hook_failure' in script
+    assert 'catalogOptions("building"' in script
+    assert '["player","Toutes mes activités"]' in script
+    assert '["player_building","Dans ce bâtiment"]' in script
+    assert '["player_action","Pour cette action"]' in script
     assert '["stock_reward","Ajouter au stock d’un bâtiment"]' in script
     assert 'data-field="modules_json"' in script
     assert 'Actions générées depuis les modules' in script

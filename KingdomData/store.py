@@ -49,6 +49,10 @@ class ContentStore:
                 db.execute("ALTER TABLE scheduled_actions ADD COLUMN category TEXT NOT NULL DEFAULT ''")
             if "limit_scope" not in columns:
                 db.execute("ALTER TABLE scheduled_actions ADD COLUMN limit_scope TEXT NOT NULL DEFAULT 'action'")
+            if "result_json" not in columns:
+                db.execute("ALTER TABLE scheduled_actions ADD COLUMN result_json TEXT NOT NULL DEFAULT '{}'")
+            if "claim_hooks_json" not in columns:
+                db.execute("ALTER TABLE scheduled_actions ADD COLUMN claim_hooks_json TEXT NOT NULL DEFAULT '[]'")
             profession_columns = {row[1] for row in db.execute("PRAGMA table_info(player_professions)")}
             if "active" not in profession_columns:
                 db.execute("ALTER TABLE player_professions ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
@@ -56,6 +60,7 @@ class ContentStore:
     def save(self, entity_type: str, key: str, payload: dict[str, Any], author: str = "web", expected_version: int | None = None) -> dict[str, Any]:
         key = validate_key(key)
         payload = validate_entity(entity_type, payload)
+        self._validate_references(entity_type, key, payload)
         now = _now()
         with self._lock, self.connection() as db:
             latest = int(db.execute("SELECT COALESCE(MAX(version),0) FROM content WHERE entity_type=? AND entity_key=?", (entity_type, key)).fetchone()[0])
@@ -65,6 +70,43 @@ class ContentStore:
             db.execute("INSERT INTO content VALUES(?,?,?,?,?,?,?,NULL,NULL)", (entity_type, key, version, "draft", _dump(payload), author, now))
             self._outbox(db, "content.draft.saved", entity_type, key, {"version": version})
         return self.get(entity_type, key, version)
+
+    def _validate_references(self, entity_type: str, entity_key: str, payload: dict[str, Any]) -> None:
+        """Valide les références du nouveau contrat sans rejeter les effets V1 opaques."""
+        if entity_type != "building":
+            return
+        items = {item["entity_key"] for item in self.list("item")}
+        buildings = {item["entity_key"] for item in self.list("building")} | {entity_key}
+        events = {item["entity_key"] for item in self.list("event")}
+
+        def hooks(value: Any) -> None:
+            if not isinstance(value, dict): return
+            for entries in value.values():
+                for entry in entries if isinstance(entries, list) else [entries]:
+                    if entry.get("event") not in events:
+                        raise ValidationError(f"Événement référencé introuvable : {entry.get('event')}")
+
+        def effects(values: Any) -> None:
+            for effect in values or []:
+                kind = effect.get("type")
+                if kind == "production":
+                    resource = str(effect.get("resource", effect.get("item", "")))
+                    if resource not in items | {"money", "energy"}:
+                        raise ValidationError(f"Ressource de production introuvable : {resource}")
+                    if effect.get("destination") == "building_stock" and str(effect.get("building", entity_key)) not in buildings:
+                        raise ValidationError(f"Bâtiment de destination introuvable : {effect.get('building')}")
+                if kind in {"tool_grant", "tool_modify"} and str(effect.get("tool")) not in items:
+                    raise ValidationError(f"Outil référencé introuvable : {effect.get('tool')}")
+                if kind in {"random_result", "random_bundle"}:
+                    for outcome in effect.get("outcomes", []): effects(outcome.get("effects", []))
+                if kind == "schedule":
+                    effects(effect.get("effects", [])); hooks(effect.get("hooks", {}))
+
+        for action in payload.get("actions", []):
+            effects(action.get("effects", [])); hooks(action.get("hooks", {}))
+        for activity in payload.get("modules", {}).get("activities", []):
+            hooks(activity.get("hooks", {}))
+            for outcome in activity.get("outcomes", []): effects(outcome.get("effects", []))
 
     def publish(self, entity_type: str, key: str, version: int, author: str = "web") -> dict[str, Any]:
         key = validate_key(key)
@@ -104,7 +146,10 @@ class ContentStore:
             return [_row(row) for row in db.execute(query, args)]
 
     def seed(self, definitions: list[dict[str, Any]]) -> None:
-        for item in definitions:
+        # Les catalogues référencés sont installés avant les bâtiments afin que
+        # la validation stricte soit également applicable aux imports V1.
+        ordered = sorted(enumerate(definitions), key=lambda pair: (pair[1]["type"] == "building", pair[0]))
+        for _, item in ordered:
             try: self.get(item["type"], item["key"])
             except NotFoundError:
                 draft = self.save(item["type"], item["key"], item["payload"], "seed")
@@ -137,6 +182,7 @@ CREATE TABLE IF NOT EXISTS player_tools(discord_id TEXT NOT NULL,tool_key TEXT N
 CREATE TABLE IF NOT EXISTS player_state(discord_id TEXT NOT NULL,state_key TEXT NOT NULL,value_json TEXT NOT NULL,PRIMARY KEY(discord_id,state_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
 CREATE TABLE IF NOT EXISTS building_stock(building_key TEXT NOT NULL,item_key TEXT NOT NULL,quantity INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(building_key,item_key));
 CREATE TABLE IF NOT EXISTS action_cooldowns(scope TEXT NOT NULL,building_key TEXT NOT NULL,action_key TEXT NOT NULL,ready_at REAL NOT NULL,PRIMARY KEY(scope,building_key,action_key));
-CREATE TABLE IF NOT EXISTS scheduled_actions(id INTEGER PRIMARY KEY AUTOINCREMENT,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,action_key TEXT NOT NULL,category TEXT NOT NULL DEFAULT '',limit_scope TEXT NOT NULL DEFAULT 'action',ready_at REAL NOT NULL,effects_json TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',created_at TEXT NOT NULL,completed_at TEXT);
+CREATE TABLE IF NOT EXISTS scheduled_actions(id INTEGER PRIMARY KEY AUTOINCREMENT,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,action_key TEXT NOT NULL,category TEXT NOT NULL DEFAULT '',limit_scope TEXT NOT NULL DEFAULT 'player_action',ready_at REAL NOT NULL,effects_json TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',created_at TEXT NOT NULL,completed_at TEXT,result_json TEXT NOT NULL DEFAULT '{}',claim_hooks_json TEXT NOT NULL DEFAULT '[]');
+CREATE TABLE IF NOT EXISTS collective_contributions(id INTEGER PRIMARY KEY AUTOINCREMENT,objective_key TEXT NOT NULL,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,resource_key TEXT NOT NULL,amount INTEGER NOT NULL,metadata_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS action_log(id INTEGER PRIMARY KEY AUTOINCREMENT,interaction_id TEXT UNIQUE NOT NULL,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,action_key TEXT NOT NULL,result_json TEXT NOT NULL,created_at TEXT NOT NULL);
 """

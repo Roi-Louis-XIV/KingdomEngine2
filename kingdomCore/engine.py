@@ -32,7 +32,25 @@ class GameEngine:
             payload["actions"] = actions_from_modules(key, payload.get("modules", {}))
         return entity
 
-    async def execute(self, discord_id: str, building_key: str, action_key: str, interaction_id: str) -> dict[str, Any]:
+    async def execute(
+        self, discord_id: str, building_key: str, action_key: str, interaction_id: str,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        try:
+            return await self._execute(discord_id, building_key, action_key, interaction_id, context or {})
+        except Exception as exc:
+            try:
+                action = next(item for item in self.building(building_key)["payload"].get("actions", []) if item.get("key") == action_key)
+                for event in self._hook_events(action.get("hooks", {}), "on_failure", discord_id, building_key, action_key, {"error": str(exc)}):
+                    await self.bus.publish(event)
+            except Exception:
+                pass
+            raise
+
+    async def _execute(
+        self, discord_id: str, building_key: str, action_key: str, interaction_id: str,
+        context: dict[str, Any],
+    ) -> dict[str, Any]:
         building = self.building(building_key)["payload"]
         actions = actions_from_modules(building_key, building.get("modules", {})) if building.get("action_mode") == "generated" else building.get("actions", [])
         action = next((a for a in actions if a.get("key") == action_key), None)
@@ -40,12 +58,15 @@ class GameEngine:
             raise NotFoundError("Cette action n’est pas disponible.")
         emitted: list[Event] = []
         messages: list[str] = []
+        selected_results: list[str] = []
         with self.store.connection() as db:
             previous = db.execute("SELECT result_json FROM action_log WHERE interaction_id=?", (interaction_id,)).fetchone()
             if previous: return json.loads(previous[0])
             db.execute("INSERT OR IGNORE INTO players(discord_id,updated_at) VALUES(?,?)", (discord_id, _now()))
             self._check_cooldowns(db, discord_id, building_key, action)
             self._check_requirements(db, discord_id, action.get("requirements", {}))
+            self._check_condition(db, discord_id, building_key, action_key, action.get("conditions"), context)
+            emitted.extend(self._hook_events(action.get("hooks", {}), "on_start", discord_id, building_key, action_key))
             effects = list(action.get("effects", []))
             while effects:
                 effect = effects.pop(0)
@@ -55,10 +76,19 @@ class GameEngine:
                     minimum, maximum = self._range(effect.get("amount", 0))
                     amount = self.rng.randint(minimum, maximum) * (1 if kind == "reward" else -1)
                     self._change_resource(db, discord_id, effect.get("resource", "money"), amount)
+                elif kind == "production":
+                    minimum, maximum = self._range(effect.get("amount", 0))
+                    amount = self.rng.randint(minimum, maximum)
+                    resource = str(effect.get("resource", effect.get("item")))
+                    if effect.get("destination", "player_inventory") in {"player", "player_inventory"}:
+                        self._change_resource(db, discord_id, resource, amount)
+                    else:
+                        self._change_stock(db, str(effect.get("building", building_key)), resource, amount)
                 elif kind == "random_reward":
                     choices = effect.get("choices", [])
                     chosen = self.rng.choices(choices, weights=[x.get("weight", 1) for x in choices], k=1)[0]
                     self._change_resource(db, discord_id, chosen["item"], self.rng.randint(int(chosen.get("min", 1)), int(chosen.get("max", 1))))
+                    selected_results.append(str(chosen.get("key", chosen["item"])))
                 elif kind == "random_bundle":
                     outcomes = effect.get("outcomes", [])
                     chosen = self.rng.choices(outcomes, weights=[x.get("weight", 1) for x in outcomes], k=1)[0]
@@ -69,9 +99,11 @@ class GameEngine:
                     for resource, quantity in chosen.get("rewards", {}).items():
                         minimum, maximum = self._range(quantity)
                         self._change_resource(db, discord_id, resource, self.rng.randint(minimum, maximum) + bonus)
+                    selected_results.append(str(chosen.get("key", "bundle")))
                 elif kind == "random_result":
                     outcomes = effect.get("outcomes", [])
                     chosen = self.rng.choices(outcomes, weights=[x.get("weight", 1) for x in outcomes], k=1)[0]
+                    selected_results.append(str(chosen.get("key", "result")))
                     # Les effets sélectionnés repassent dans le même interpréteur : aucune
                     # branche ne dépend du bâtiment ou du métier qui a produit le résultat.
                     effects[0:0] = list(chosen.get("effects", []))
@@ -79,6 +111,7 @@ class GameEngine:
                     choices = effect.get("choices", [])
                     chosen = self.rng.choices(choices, weights=[x.get("weight", 1) for x in choices], k=1)[0]
                     messages.append(str(chosen.get("text", "")))
+                    selected_results.append(str(chosen.get("key", "message")))
                 elif kind in {"stock_cost", "stock_reward"}:
                     minimum, maximum = self._range(effect.get("amount", 0))
                     amount = self.rng.randint(minimum, maximum) * (1 if kind == "stock_reward" else -1)
@@ -94,6 +127,16 @@ class GameEngine:
                             db, discord_id, str(effect["profession"]), int(effect.get("experience", 0)),
                             int(effect.get("experience_per_level", 100)),
                         )
+                elif kind == "profession_join":
+                    self._join_profession(db, discord_id, str(effect["profession"]), True)
+                elif kind == "profession_leave":
+                    self._leave_profession(db, discord_id, str(effect["profession"]), bool(effect.get("block_when_pending", True)))
+                elif kind == "profession_experience":
+                    self._award_experience(db, discord_id, str(effect["profession"]), int(effect.get("amount", effect.get("experience", 0))), int(effect.get("experience_per_level", 100)))
+                elif kind == "tool_grant":
+                    self._grant_tool(db, discord_id, effect)
+                elif kind == "tool_modify":
+                    self._modify_tool(db, discord_id, effect)
                 elif kind == "durability":
                     self._use_tool(
                         db, discord_id, str(effect["tool"]), int(effect.get("amount", 1)),
@@ -108,16 +151,23 @@ class GameEngine:
                     )
                 elif kind == "state":
                     self._change_state(db, discord_id, str(effect["key"]), str(effect.get("operation", "set")), effect.get("value"))
+                elif kind == "contribution":
+                    amount = int(effect.get("amount", 1))
+                    resource = str(effect.get("resource", "progress"))
+                    db.execute(
+                        "INSERT INTO collective_contributions(objective_key,discord_id,building_key,resource_key,amount,metadata_json,created_at) VALUES(?,?,?,?,?,?,?)",
+                        (str(effect["objective"]), discord_id, building_key, resource, amount, json.dumps(effect.get("metadata", {}), ensure_ascii=False), _now()),
+                    )
                 elif kind == "schedule":
-                    scope = str(effect.get("limit_scope", "action"))
-                    if scope not in {"player", "building", "action", "category"}:
+                    scope = self._normalise_activity_scope(str(effect.get("limit_scope", "player_action")))
+                    if scope not in {"player", "player_building", "player_action", "category"}:
                         raise ValidationError(f"Portée d'activité inconnue : {scope}.")
                     maximum = max(1, int(effect.get("max_active", 1)))
                     category = str(effect.get("category", ""))
                     clauses, parameters = ["discord_id=?", "status='pending'"], [discord_id]
-                    if scope in {"building", "action"}:
+                    if scope in {"player_building", "player_action"}:
                         clauses.append("building_key=?"); parameters.append(building_key)
-                    if scope == "action":
+                    if scope == "player_action":
                         clauses.append("action_key=?"); parameters.append(effect["action"])
                     elif scope == "category":
                         clauses.append("category=?"); parameters.append(category)
@@ -125,9 +175,12 @@ class GameEngine:
                     if count >= maximum:
                         raise ValidationError("La limite d'activites en cours est atteinte.")
                     ready_at = time.time() + int(effect.get("duration_seconds", 0))
+                    resolved_effects, scheduled_selected = self._resolve_random_effects(db, discord_id, list(effect.get("effects", [])))
+                    selected_results.extend(scheduled_selected)
+                    claim_hooks = effect.get("hooks", {}).get("on_claim", [])
                     db.execute(
-                        "INSERT INTO scheduled_actions(discord_id,building_key,action_key,category,limit_scope,ready_at,effects_json,status,created_at) VALUES(?,?,?,?,?,?,?,'pending',?)",
-                        (discord_id, building_key, effect["action"], category, scope, ready_at, json.dumps(effect.get("effects", []), ensure_ascii=False), _now()),
+                        "INSERT INTO scheduled_actions(discord_id,building_key,action_key,category,limit_scope,ready_at,effects_json,status,created_at,result_json,claim_hooks_json) VALUES(?,?,?,?,?,?,?,'pending',?,?,?)",
+                        (discord_id, building_key, effect["action"], category, scope, ready_at, json.dumps(resolved_effects, ensure_ascii=False), _now(), json.dumps({"selected_results": scheduled_selected}, ensure_ascii=False), json.dumps(claim_hooks, ensure_ascii=False)),
                     )
                     messages.append(f"Activite lancee. Recuperation disponible dans {int(effect.get('duration_seconds', 0))} seconde(s).")
                 elif kind == "claim_scheduled":
@@ -141,11 +194,17 @@ class GameEngine:
                         raise ValidationError(f"Cette activite sera terminee dans {int(float(job['ready_at']) - time.time()) + 1} seconde(s).")
                     db.execute("UPDATE scheduled_actions SET status='completed',completed_at=? WHERE id=?", (_now(), job["id"]))
                     effects[0:0] = json.loads(job["effects_json"])
+                    selected = json.loads(job["result_json"] or "{}").get("selected_results", [])
+                    selected_results.extend(map(str, selected))
+                    claim_hooks = json.loads(job["claim_hooks_json"] or "[]")
+                    effects[0:0] = [{"type": "emit", "event": hook["event"], "payload": {**hook.get("payload", {}), "selected_results": selected}} for hook in claim_hooks]
                 elif kind == "emit": emitted.append(Event(str(effect["event"]), f"building:{building_key}", {"discord_id": discord_id, **effect.get("payload", {})}))
+            emitted.extend(self._hook_events(action.get("hooks", {}), "on_success", discord_id, building_key, action_key, {"selected_results": selected_results}))
             snapshot = self.player(discord_id, db)
             result = {
                 "ok": True, "messages": messages, "player": snapshot, "action": action_key,
                 "duration_seconds": int(action.get("duration_seconds", 0)),
+                "selected_results": selected_results,
             }
             self._set_cooldowns(db, discord_id, building_key, action)
             db.execute("INSERT INTO action_log(interaction_id,discord_id,building_key,action_key,result_json,created_at) VALUES(?,?,?,?,?,?)", (interaction_id, discord_id, building_key, action_key, json.dumps(result, ensure_ascii=False), _now()))
@@ -225,6 +284,116 @@ class GameEngine:
             if not row or int(row[0]) != int(requirements.get("tool_level", 1)):
                 raise ValidationError(f"Niveau d'outil requis : {requirements.get('tool_level', 1)}.")
 
+    def _check_condition(
+        self, db, discord_id: str, building_key: str, action_key: str,
+        condition: dict[str, Any] | None, context: dict[str, Any],
+    ) -> None:
+        if condition and not self._condition_value(db, discord_id, building_key, action_key, condition, context):
+            raise ValidationError(str(condition.get("message") or "Les conditions de cette action ne sont pas remplies."))
+
+    def _condition_value(self, db, discord_id: str, building_key: str, action_key: str, condition: dict[str, Any], context: dict[str, Any]) -> bool:
+        if "all" in condition:
+            return all(self._condition_value(db, discord_id, building_key, action_key, item, context) for item in condition["all"])
+        if "any" in condition:
+            return any(self._condition_value(db, discord_id, building_key, action_key, item, context) for item in condition["any"])
+        if "not" in condition:
+            return not self._condition_value(db, discord_id, building_key, action_key, condition["not"], context)
+        kind, operator, expected = condition["type"], condition.get("operator", ">="), condition.get("value", 1)
+        actual: Any
+        if kind == "resource":
+            resource = str(condition["resource"])
+            if resource in {"money", "energy"}:
+                actual = db.execute(f"SELECT {resource} FROM players WHERE discord_id=?", (discord_id,)).fetchone()[0]
+            else:
+                row = db.execute("SELECT quantity FROM inventory WHERE discord_id=? AND item_key=?", (discord_id, resource)).fetchone(); actual = int(row[0]) if row else 0
+        elif kind in {"item_present", "item_absent"}:
+            row = db.execute("SELECT quantity FROM inventory WHERE discord_id=? AND item_key=?", (discord_id, condition["item"])).fetchone(); actual = int(row[0]) if row else 0
+            result = actual >= int(condition.get("value", 1)); return result if kind == "item_present" else not result
+        elif kind in {"profession_active", "profession_level"}:
+            row = db.execute("SELECT level FROM player_professions WHERE discord_id=? AND profession_key=? AND active=1", (discord_id, condition["profession"])).fetchone()
+            if kind == "profession_active": return row is not None
+            actual = int(row[0]) if row else 0
+        elif kind == "no_active_profession":
+            return db.execute("SELECT 1 FROM player_professions WHERE discord_id=? AND active=1", (discord_id,)).fetchone() is None
+        elif kind in {"tool_present", "tool_level", "tool_durability"}:
+            row = db.execute("SELECT level,durability FROM player_tools WHERE discord_id=? AND tool_key=?", (discord_id, condition["tool"])).fetchone()
+            if kind == "tool_present": return row is not None
+            actual = int(row[0 if kind == "tool_level" else 1]) if row else 0
+        elif kind == "voice_presence": actual = bool(context.get("voice_channel_id"))
+        elif kind == "discord_role": return str(condition["role"]) in set(map(str, context.get("roles", [])))
+        elif kind in {"no_pending_activity", "activity_limit_available"}:
+            scope = self._normalise_activity_scope(str(condition.get("scope", "player_action")))
+            count = self._pending_count(db, discord_id, building_key, str(condition.get("action", action_key)), scope, str(condition.get("category", "")))
+            if kind == "no_pending_activity": return count == 0
+            return count < int(condition.get("max_active", condition.get("value", 1)))
+        elif kind == "cooldown_available":
+            scope = "global" if condition.get("scope") == "global" else f"player:{discord_id}"
+            row = db.execute("SELECT ready_at FROM action_cooldowns WHERE scope=? AND building_key=? AND action_key=?", (scope, str(condition.get("building", building_key)), str(condition.get("action", action_key)))).fetchone()
+            return row is None or float(row[0]) <= time.time()
+        elif kind == "building_stock":
+            row = db.execute("SELECT quantity FROM building_stock WHERE building_key=? AND item_key=?", (str(condition.get("building", building_key)), condition["item"])).fetchone(); actual = int(row[0]) if row else 0
+        elif kind == "state":
+            row = db.execute("SELECT value_json FROM player_state WHERE discord_id=? AND state_key=?", (discord_id, condition["key"])).fetchone(); actual = json.loads(row[0]) if row else condition.get("default", 0)
+        else:
+            raise ValidationError(f"Condition inconnue : {kind}.")
+        return self._compare(actual, expected, operator)
+
+    @staticmethod
+    def _compare(actual: Any, expected: Any, operator: str) -> bool:
+        if operator == "=": return actual == expected
+        if operator == "!=": return actual != expected
+        if operator == ">": return actual > expected
+        if operator == ">=": return actual >= expected
+        if operator == "<": return actual < expected
+        if operator == "<=": return actual <= expected
+        raise ValidationError(f"Opérateur inconnu : {operator}.")
+
+    @staticmethod
+    def _normalise_activity_scope(scope: str) -> str:
+        return {"building": "player_building", "action": "player_action"}.get(scope, scope)
+
+    @staticmethod
+    def _pending_count(db, discord_id: str, building_key: str, action_key: str, scope: str, category: str) -> int:
+        clauses, parameters = ["discord_id=?", "status='pending'"], [discord_id]
+        if scope in {"player_building", "player_action"}: clauses.append("building_key=?"); parameters.append(building_key)
+        if scope == "player_action": clauses.append("action_key=?"); parameters.append(action_key)
+        if scope == "category": clauses.append("category=?"); parameters.append(category)
+        return int(db.execute(f"SELECT COUNT(*) FROM scheduled_actions WHERE {' AND '.join(clauses)}", parameters).fetchone()[0])
+
+    @staticmethod
+    def _hook_events(hooks: dict[str, Any], hook: str, discord_id: str, building_key: str, action_key: str, extra: dict[str, Any] | None = None) -> list[Event]:
+        entries = hooks.get(hook, []) if isinstance(hooks, dict) else []
+        entries = entries if isinstance(entries, list) else [entries]
+        return [Event(str(entry["event"]), f"building:{building_key}", {"discord_id": discord_id, "building": building_key, "action": action_key, **entry.get("payload", {}), **(extra or {})}) for entry in entries]
+
+    def _resolve_random_effects(self, db, discord_id: str, effects: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
+        resolved: list[dict[str, Any]] = []
+        selected: list[str] = []
+        for effect in effects:
+            kind = effect.get("type")
+            if kind == "random_result":
+                outcome = self.rng.choices(effect["outcomes"], weights=[item.get("weight", 1) for item in effect["outcomes"]], k=1)[0]
+                selected.append(str(outcome.get("key", "result")))
+                nested, nested_selected = self._resolve_random_effects(db, discord_id, list(outcome.get("effects", []))); resolved.extend(nested); selected.extend(nested_selected)
+            elif kind == "random_reward":
+                choice = self.rng.choices(effect["choices"], weights=[item.get("weight", 1) for item in effect["choices"]], k=1)[0]
+                resolved.append({"type": "reward", "resource": choice["item"], "amount": self.rng.randint(int(choice.get("min", 1)), int(choice.get("max", 1)))})
+                selected.append(str(choice.get("key", choice["item"])))
+            elif kind == "random_bundle":
+                outcome = self.rng.choices(effect["outcomes"], weights=[item.get("weight", 1) for item in effect["outcomes"]], k=1)[0]
+                bonus = 0
+                if effect.get("loot_bonus_tool"):
+                    row = db.execute("SELECT loot_bonus FROM player_tools WHERE discord_id=? AND tool_key=?", (discord_id, effect["loot_bonus_tool"])).fetchone(); bonus = int(row[0]) if row else 0
+                for resource, quantity in outcome.get("rewards", {}).items():
+                    minimum, maximum = self._range(quantity); resolved.append({"type": "reward", "resource": resource, "amount": self.rng.randint(minimum, maximum) + bonus})
+                selected.append(str(outcome.get("key", "bundle")))
+            elif kind == "random_message":
+                choice = self.rng.choices(effect["choices"], weights=[item.get("weight", 1) for item in effect["choices"]], k=1)[0]
+                resolved.append({"type": "message", "text": choice.get("text", "")}); selected.append(str(choice.get("key", "message")))
+            else:
+                resolved.append(effect)
+        return resolved, selected
+
     @staticmethod
     def _change_stock(db, building_key: str, item_key: str, amount: int, initial_stock: int = 0) -> None:
         row = db.execute("SELECT quantity FROM building_stock WHERE building_key=? AND item_key=?", (building_key, item_key)).fetchone()
@@ -299,6 +468,34 @@ class GameEngine:
             "ON CONFLICT(discord_id,tool_key) DO UPDATE SET durability=excluded.durability,max_durability=excluded.max_durability",
             (discord_id, tool, current - amount, maximum),
         )
+
+    @staticmethod
+    def _grant_tool(db, discord_id: str, effect: dict[str, Any]) -> None:
+        maximum = max(1, int(effect.get("max_durability", 1)))
+        durability = min(maximum, max(0, int(effect.get("durability", maximum))))
+        db.execute(
+            "INSERT INTO player_tools(discord_id,tool_key,durability,max_durability,level,loot_bonus) VALUES(?,?,?,?,?,?) "
+            "ON CONFLICT(discord_id,tool_key) DO NOTHING",
+            (discord_id, str(effect["tool"]), durability, maximum, max(1, int(effect.get("level", 1))), int(effect.get("loot_bonus", 0))),
+        )
+
+    @staticmethod
+    def _modify_tool(db, discord_id: str, effect: dict[str, Any]) -> None:
+        row = db.execute("SELECT durability,max_durability,level,loot_bonus FROM player_tools WHERE discord_id=? AND tool_key=?", (discord_id, effect["tool"])).fetchone()
+        if not row:
+            raise ValidationError(f"Outil requis : {effect['tool']}.")
+        durability, maximum, level, bonus = map(int, row)
+        operation = str(effect.get("operation", "consume_durability"))
+        amount = int(effect.get("amount", 0))
+        if operation == "consume_durability": durability -= amount
+        elif operation == "restore_durability": durability = min(maximum, durability + amount)
+        elif operation == "set_level": level = max(1, amount)
+        elif operation == "increment_level": level = max(1, level + amount)
+        elif operation == "set_max_durability": maximum = max(1, amount); durability = min(durability, maximum)
+        elif operation == "set_bonus": bonus = amount
+        else: raise ValidationError(f"Modification d'outil inconnue : {operation}.")
+        if durability < 0: raise ValidationError(f"L'outil {effect['tool']} doit être réparé.")
+        db.execute("UPDATE player_tools SET durability=?,max_durability=?,level=?,loot_bonus=? WHERE discord_id=? AND tool_key=?", (durability, maximum, level, bonus, discord_id, effect["tool"]))
 
     @classmethod
     def _repair_tool(cls, db, discord_id: str, tool: str, configured_maximum: int, price_per_point: int) -> None:

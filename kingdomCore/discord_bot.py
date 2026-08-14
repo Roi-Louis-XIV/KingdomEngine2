@@ -63,10 +63,19 @@ class BuildingView(discord.ui.View):
             self.add_item(following)
 
 
+def interaction_context(interaction: discord.Interaction) -> dict[str, Any]:
+    member = interaction.user if isinstance(interaction.user, discord.Member) else None
+    return {
+        "roles": [role.name for role in member.roles] if member else [],
+        "voice_channel_id": member.voice.channel.id if member and member.voice and member.voice.channel else None,
+        "guild_id": interaction.guild_id,
+    }
+
+
 async def execute_action(engine: GameEngine, interaction: discord.Interaction, building: str, action: str) -> None:
     await interaction.response.defer(ephemeral=True, thinking=True)
     try:
-        result = await engine.execute(str(interaction.user.id), building, action, str(interaction.id))
+        result = await engine.execute(str(interaction.user.id), building, action, str(interaction.id), interaction_context(interaction))
         await interaction.followup.send("\n".join(result["messages"]) or "Action effectuée.", ephemeral=True)
     except Exception as exc:
         await interaction.followup.send(str(exc), ephemeral=True)
@@ -254,7 +263,7 @@ class InterfaceView(discord.ui.View):
         await interaction.response.defer()
         try:
             result = await self.engine.execute(
-                str(interaction.user.id), str(target["building"]), str(target["action"]), str(interaction.id)
+                str(interaction.user.id), str(target["building"]), str(target["action"]), str(interaction.id), interaction_context(interaction)
             )
             self.notice = "\n".join(result["messages"]) or "Action effectuée."
             if target.get("on_success_page"):

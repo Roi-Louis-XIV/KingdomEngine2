@@ -11,8 +11,19 @@ ACTION_TYPES = {
     "message", "reward", "cost", "emit", "random_reward", "random_bundle", "random_result",
     "stock_cost", "stock_reward", "profession", "durability",
     "repair", "upgrade", "random_message",
-    "schedule", "claim_scheduled", "state",
+    "schedule", "claim_scheduled", "state", "production",
+    "profession_join", "profession_leave", "profession_experience",
+    "tool_grant", "tool_modify", "contribution",
 }
+CONDITION_TYPES = {
+    "resource", "item_present", "item_absent", "profession_active", "no_active_profession",
+    "profession_level", "tool_present", "tool_level", "tool_durability", "voice_presence",
+    "discord_role", "no_pending_activity", "activity_limit_available", "cooldown_available",
+    "building_stock", "state",
+}
+CONDITION_OPERATORS = {"=", "!=", ">", ">=", "<", "<="}
+ACTIVITY_SCOPES = {"player", "player_building", "player_action", "category", "building", "action"}
+PRODUCTION_DESTINATIONS = {"player_inventory", "building_stock", "player"}
 
 
 class ValidationError(ValueError):
@@ -48,6 +59,9 @@ def validate_entity(entity_type: str, payload: dict[str, Any]) -> dict[str, Any]
             if key in seen:
                 raise ValidationError(f"Action dupliquée : {key}")
             seen.add(key)
+            if "conditions" in action:
+                _validate_condition(action["conditions"])
+            _validate_hooks(action.get("hooks", {}))
             for effect in action.get("effects", []):
                 _validate_effect(effect)
         _validate_building_modules(payload)
@@ -77,7 +91,30 @@ def _validate_effect(effect: dict[str, Any]) -> None:
     """Valide récursivement un effet, y compris les branches aléatoires no-code."""
     if not isinstance(effect, dict) or effect.get("type") not in ACTION_TYPES:
         raise ValidationError(f"Effet inconnu : {getattr(effect, 'get', lambda _key: None)('type')}")
-    if effect.get("type") not in {"random_bundle", "random_result"}:
+    kind = effect.get("type")
+    if kind == "production":
+        if effect.get("destination", "player_inventory") not in PRODUCTION_DESTINATIONS:
+            raise ValidationError("Destination de production invalide.")
+        if not str(effect.get("resource", effect.get("item", ""))).strip():
+            raise ValidationError("Une production doit référencer une ressource.")
+    if kind in {"profession_join", "profession_leave", "profession_experience"} and not str(effect.get("profession", "")).strip():
+        raise ValidationError("Un effet de métier doit référencer un métier.")
+    if kind in {"tool_grant", "tool_modify"} and not str(effect.get("tool", "")).strip():
+        raise ValidationError("Un effet d'outil doit référencer un outil.")
+    if kind == "tool_modify" and effect.get("operation", "consume_durability") not in {"consume_durability", "restore_durability", "set_level", "increment_level", "set_max_durability", "set_bonus"}:
+        raise ValidationError("Opération d'outil invalide.")
+    if kind == "contribution" and not str(effect.get("objective", "")).strip():
+        raise ValidationError("Une contribution doit référencer un objectif collectif.")
+    if kind == "schedule":
+        scope = effect.get("limit_scope", "player_action")
+        if scope not in ACTIVITY_SCOPES:
+            raise ValidationError("Portée de limite d'activité invalide.")
+        if int(effect.get("max_active", 1)) < 1 or int(effect.get("duration_seconds", 0)) < 0:
+            raise ValidationError("La durée et la limite d'activité doivent être positives.")
+        for nested_effect in effect.get("effects", []):
+            _validate_effect(nested_effect)
+        _validate_hooks(effect.get("hooks", {}))
+    if kind not in {"random_bundle", "random_result"}:
         return
     outcomes = effect.get("outcomes", [])
     if not isinstance(outcomes, list) or not outcomes:
@@ -93,6 +130,51 @@ def _validate_effect(effect: dict[str, Any]) -> None:
                 _validate_effect(nested_effect)
 
 
+def _validate_condition(condition: Any) -> None:
+    if not isinstance(condition, dict):
+        raise ValidationError("Une condition doit être un objet.")
+    groups = [key for key in ("all", "any", "not") if key in condition]
+    if groups:
+        if len(groups) != 1:
+            raise ValidationError("Un groupe de conditions utilise un seul opérateur logique.")
+        key = groups[0]
+        children = condition[key] if key != "not" else [condition[key]]
+        if not isinstance(children, list) or not children:
+            raise ValidationError(f"Le groupe {key} doit contenir des conditions.")
+        for child in children:
+            _validate_condition(child)
+        return
+    kind = condition.get("type")
+    if kind not in CONDITION_TYPES:
+        raise ValidationError(f"Type de condition inconnu : {kind}")
+    if condition.get("operator", ">=") not in CONDITION_OPERATORS:
+        raise ValidationError("Opérateur de condition invalide.")
+    required = {
+        "resource": "resource", "item_present": "item", "item_absent": "item",
+        "profession_active": "profession", "profession_level": "profession",
+        "tool_present": "tool", "tool_level": "tool", "tool_durability": "tool",
+        "discord_role": "role", "building_stock": "item", "state": "key",
+    }.get(kind)
+    if required and not str(condition.get(required, "")).strip():
+        raise ValidationError(f"La condition {kind} exige le champ {required}.")
+    if kind == "activity_limit_available" and condition.get("scope", "player_action") not in ACTIVITY_SCOPES:
+        raise ValidationError("Portée de condition d'activité invalide.")
+
+
+def _validate_hooks(hooks: Any) -> None:
+    if not hooks:
+        return
+    if not isinstance(hooks, dict) or not set(hooks).issubset({"on_start", "on_success", "on_failure", "on_claim"}):
+        raise ValidationError("Hooks d'événements invalides.")
+    for hook, entries in hooks.items():
+        entries = entries if isinstance(entries, list) else [entries]
+        for entry in entries:
+            if not isinstance(entry, dict) or not str(entry.get("event", "")).strip():
+                raise ValidationError(f"Le hook {hook} doit référencer un événement.")
+            if "payload" in entry and not isinstance(entry["payload"], dict):
+                raise ValidationError("Le payload d'un hook doit être un objet.")
+
+
 def _validate_building_modules(payload: dict[str, Any]) -> None:
     """Valide les modules sans figer leur contenu : KingdomWeb reste la source de v\u00e9rit\u00e9."""
     modules = payload.get("modules", {})
@@ -102,6 +184,12 @@ def _validate_building_modules(payload: dict[str, Any]) -> None:
         value = modules.get(name, [])
         if not isinstance(value, list):
             raise ValidationError(f"Le module {name} doit \u00eatre une liste.")
+    profession_keys = {validate_key(item.get("key", "")) for item in modules.get("professions", [])}
+    if len(profession_keys) != len(modules.get("professions", [])):
+        raise ValidationError("Les identifiants de métiers doivent être uniques.")
+    activity_keys = {validate_key(item.get("key", "")) for item in modules.get("activities", [])}
+    if len(activity_keys) != len(modules.get("activities", [])):
+        raise ValidationError("Les identifiants d'activités doivent être uniques.")
     for product in modules.get("products", []):
         if int(product.get("price", 0)) < 0 or int(product.get("initial_stock", 0)) < 0:
             raise ValidationError("Le prix et le stock d'un produit ne peuvent pas \u00eatre n\u00e9gatifs.")
@@ -109,18 +197,23 @@ def _validate_building_modules(payload: dict[str, Any]) -> None:
         if int(recipe.get("duration_seconds", 0)) < 0 or int(recipe.get("energy_cost", 0)) < 0:
             raise ValidationError("La dur\u00e9e et le co\u00fbt en \u00e9nergie d'une recette doivent \u00eatre positifs.")
     for activity in modules.get("activities", []):
+        if activity.get("profession") and activity["profession"] not in profession_keys:
+            raise ValidationError(f"Métier inexistant pour l'activité {activity.get('key')} : {activity['profession']}")
         if int(activity.get("duration_seconds", 0)) < 0 or int(activity.get("energy_cost", 0)) < 0:
             raise ValidationError("La dur\u00e9e et le co\u00fbt en \u00e9nergie d'une activit\u00e9 doivent \u00eatre positifs.")
         limit = activity.get("activity_limit", {})
-        if limit and limit.get("scope", "action") not in {"player", "building", "action", "category"}:
+        if limit and limit.get("scope", "action") not in ACTIVITY_SCOPES:
             raise ValidationError("La portée de limite d'activité est invalide.")
         if limit and int(limit.get("max_active", 1)) < 1:
             raise ValidationError("La limite d'activités doit être au moins égale à 1.")
+        if int(activity.get("minimum_durability", 0)) < 0:
+            raise ValidationError("La durabilité minimale ne peut pas être négative.")
+        _validate_hooks(activity.get("hooks", {}))
         outcomes = activity.get("outcomes", [])
         if outcomes and all("effects" in outcome for outcome in outcomes):
             _validate_effect({"type": "random_result", "outcomes": outcomes})
     for recipe in modules.get("recipes", []):
-        if recipe.get("output_destination", "player") not in {"player", "building_stock"}:
+        if recipe.get("output_destination", "player") not in {"player", "player_inventory", "building_stock"}:
             raise ValidationError("La destination de production doit être player ou building_stock.")
 
 

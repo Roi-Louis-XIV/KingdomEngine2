@@ -367,6 +367,10 @@ def _project_payload(project: dict[str, Any]) -> dict[str, Any]:
 def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dict[str, Any]]:
     actions: list[dict[str, Any]] = []
     xp_per_level = int(modules.get("rules", {}).get("experience_per_level", 100))
+    tool_maxima = {
+        str(activity["tool"]): int(activity.get("tool_max_durability", 80))
+        for activity in modules.get("activities", []) if activity.get("tool")
+    }
     professions = {item["key"]: item for item in modules.get("professions", [])}
     for profession in professions.values():
         effects: list[dict[str, Any]] = [
@@ -376,6 +380,13 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
         required_item = profession.get("required_item")
         if required_item and profession.get("grant_required_item"):
             effects.insert(1, {"type": "reward", "resource": required_item, "amount": 1})
+        if required_item:
+            effects.insert(2 if profession.get("grant_required_item") else 1, {
+                "type": "tool_grant", "tool": required_item,
+                "durability": int(profession.get("initial_durability", profession.get("starter_tool", {}).get("durability", tool_maxima.get(required_item, 1)))),
+                "max_durability": int(profession.get("max_durability", profession.get("starter_tool", {}).get("durability", tool_maxima.get(required_item, 1)))),
+                "level": int(profession.get("tool_level", 1)),
+            })
         join_requirements = dict(profession.get("requirements", {}))
         join_requirements["no_active_profession"] = True
         if required_item and not profession.get("grant_required_item"):
@@ -398,10 +409,7 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
         if activity.get("energy_cost"):
             immediate_effects.append({"type": "cost", "resource": "energy", "amount": int(activity["energy_cost"])})
         if activity.get("durability_cost") and activity.get("tool"):
-            immediate_effects.append({
-                "type": "durability", "tool": activity["tool"], "amount": int(activity["durability_cost"]),
-                "max_durability": int(activity.get("tool_max_durability", 80)),
-            })
+            immediate_effects.append({"type": "tool_modify", "tool": activity["tool"], "operation": "consume_durability", "amount": int(activity["durability_cost"])})
         if activity.get("outcomes") and all("effects" in outcome for outcome in activity["outcomes"]):
             deferred_effects = [{"type": "random_result", "outcomes": activity["outcomes"]}]
         else:
@@ -417,7 +425,16 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
             "description": activity.get("description", ""), "enabled": activity.get("active", True),
             "duration_seconds": int(activity.get("duration_seconds", 0)), "requirements": requirements,
             "activity_limit": activity.get("activity_limit", {"scope": "building", "max_active": 1, "category": profession}),
+            "conditions": {"all": [condition for condition in [
+                {"type": "profession_active", "profession": profession} if profession else None,
+                {"type": "profession_level", "profession": profession, "operator": ">=", "value": int(activity.get("required_level", 1))} if profession else None,
+                {"type": "tool_present", "tool": activity["tool"]} if activity.get("tool") else None,
+                {"type": "tool_durability", "tool": activity["tool"], "operator": ">=", "value": int(activity.get("minimum_durability", activity.get("durability_cost", 0)))} if activity.get("tool") else None,
+            ] if condition]},
+            "hooks": activity.get("hooks", {}),
         }
+        if not action["conditions"]["all"]:
+            action.pop("conditions")
         _append_timed(actions, action, immediate_effects, deferred_effects)
     for product in modules.get("products", []):
         item = product["item_key"]
@@ -493,6 +510,7 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
                     "effects": [
                         {"type": "cost", "resource": resource, "amount": 1},
                         {"type": "stock_reward", "item": f"project_{stage['key']}_{requirement['key']}", "amount": 1, "building": building_key},
+                        {"type": "contribution", "objective": stage["key"], "resource": requirement["key"], "amount": 1, "metadata": {"accepted_resource": resource}},
                     ],
                 })
     rumors = modules.get("rumors", {})
@@ -509,16 +527,20 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
         })
     repair = modules.get("repairs", {})
     for tool, maximum in repair.get("durability", {}).items():
-        if tool == "simple_pickaxe":
-            price_per_point = int(repair.get("pickaxe_price_per_point", 1))
-        elif tool == "simple_axe":
-            price_per_point = int(repair.get("axe_price_per_point", 1))
-        else:
-            price_per_point = int(repair.get("equipment_price_per_point", 1))
+        rule = repair.get("rules", {}).get(tool, {})
+        # Compatibilité V1 pilotée par les noms de paramètres présents dans les
+        # données (ex. `<famille>_price_per_point`), sans liste d'outils codée.
+        legacy_prices = {
+            key.removesuffix("_price_per_point"): value
+            for key, value in repair.items() if key.endswith("_price_per_point") and key != "equipment_price_per_point"
+        }
+        family_price = next((value for family, value in legacy_prices.items() if family in str(tool).split("_")), repair.get("equipment_price_per_point", 1))
+        price_per_point = int(rule.get("price_per_point", repair.get("price_per_point_by_tool", {}).get(tool, family_price)))
+        configured_maximum = int(rule.get("max_durability", maximum))
         actions.append({
             "key": f"repair_{tool}", "name": f"Reparer {tool}", "emoji": "🔧", "enabled": True,
             "requirements": {"items": {tool: 1}},
-            "effects": [{"type": "repair", "tool": tool, "max_durability": int(maximum), "price_per_point": price_per_point}],
+            "effects": [{"type": "repair", "tool": tool, "max_durability": configured_maximum, "price_per_point": price_per_point}],
         })
     for upgrade in modules.get("upgrades", []):
         tool = upgrade.get("tool_key") or upgrade.get("tool") or upgrade.get("path")
@@ -565,6 +587,7 @@ def _append_timed(actions: list[dict[str, Any]], action: dict[str, Any], immedia
             "limit_scope": action.get("activity_limit", {}).get("scope", "action"),
             "max_active": int(action.get("activity_limit", {}).get("max_active", 1)),
             "category": action.get("activity_limit", {}).get("category", ""),
+            "hooks": action.get("hooks", {}),
         }],
     })
     actions.append({

@@ -117,8 +117,19 @@ Une action contient une liste d’effets génériques :
 - `profession` / `durability` : métiers, expérience et usure ;
 - `repair` / `upgrade` : réparation et amélioration paramétrées ;
 - `emit` : événement consommable par Voice ou un futur module.
+- `profession_join` / `profession_leave` / `profession_experience` : cycle de vie explicite d'un métier ;
+- `tool_grant` / `tool_modify` : état initial, niveau, bonus et durabilité d'un outil ;
+- `production` : ressource dirigée explicitement vers le joueur ou un stock de bâtiment ;
+- `schedule` / `claim_scheduled` : activité différée dont le hasard est figé au lancement ;
+- `contribution` : historique détaillé d'un objectif collectif.
 
-Un bâtiment peut utiliser des actions manuelles ou le mode `generated`. Dans ce second mode, le moteur régénère ses actions à chaque lecture depuis sa configuration `modules`. Tous les paramètres V1 — PNJ, énergie, métiers, niveaux, durées, butins, stocks, produits, recettes, livraisons, réparations, améliorations, rumeurs, jeux et chantiers — sont modifiables dans **Configuration modulaire complète** depuis KingdomWeb. Une publication suffit pour changer le comportement du Core ; aucune constante métier n’est recopiée dans un cog Discord.
+Les actions acceptent des conditions récursives `all`, `any` et `not`, avec les opérateurs `=`, `!=`, `>`, `>=`, `<` et `<=`. Elles peuvent vérifier ressources, inventaire, métier, niveau, outil, durabilité, vocal, rôle Discord, activités, cooldowns, stocks et états joueur. Les hooks `on_start`, `on_success`, `on_failure` et `on_claim` émettent des événements configurés dans les données.
+
+Un bâtiment peut utiliser des actions manuelles ou le mode `generated`. Dans ce second mode, le moteur régénère ses actions à chaque lecture depuis sa configuration `modules`. Les usages courants — métiers, zones, prérequis, outils, niveaux, durées, limites, résultats multi-effets, destinations et événements — disposent d'éditeurs structurés dans KingdomWeb. La zone de configuration intégrale reste uniquement un outil avancé de compatibilité pour les modules historiques. Une publication suffit pour changer le comportement du Core ; aucune constante métier n’est recopiée dans un cog Discord.
+
+### Migration du contrat Phase 0
+
+Au démarrage, `ContentStore.initialize()` ajoute sans perte `result_json` et `claim_hooks_json` aux activités existantes ainsi que la table `collective_contributions`. Les anciennes portées `building` et `action` sont interprétées comme `player_building` et `player_action`. Les effets historiques `profession`, `durability`, `reward`, `stock_reward`, `random_reward` et `random_bundle` restent compatibles. Les nouvelles activités tirent leurs résultats aléatoires une seule fois au lancement ; une activité déjà en attente avant la migration conserve son ancien document jusqu'à sa récupération.
 
 ## Éditeur visuel, tableau de bord et supervision
 
