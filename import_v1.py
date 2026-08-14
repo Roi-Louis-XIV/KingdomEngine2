@@ -56,9 +56,51 @@ def import_v1(store: ContentStore, v1_root: str | Path | None = None) -> int:
     definitions = definitions_from_v1(v1_root)
     store.seed(definitions)
     _link_existing_v1_buildings(store, definitions)
+    migrate_weighted_activity_results(store)
     migrate_published_building_interfaces(store)
     migrate_activity_profession_interfaces(store)
     return sum((x["type"], x["key"]) not in before for x in definitions)
+
+
+def migrate_weighted_activity_results(store: ContentStore) -> int:
+    """Convertit les anciens butins groupés en listes d'effets, sans nom de bâtiment.
+
+    Seuls les bâtiments multi-métiers importés et toujours publiés sans brouillon
+    sont concernés. Les personnalisations ajoutées autour des activités sont conservées.
+    """
+    migrated = 0
+    for published in store.list("building", published=True):
+        payload = published["payload"]
+        modules = payload.get("modules", {})
+        if payload.get("source") != "KingdomEngine V1" or len(modules.get("professions", [])) < 2:
+            continue
+        if not any("rewards" in outcome for activity in modules.get("activities", []) for outcome in activity.get("outcomes", [])):
+            continue
+        latest = store.get("building", published["entity_key"])
+        if latest["status"] != "published" or latest["version"] != published["version"]:
+            continue
+        xp_per_level = int(modules.get("rules", {}).get("experience_per_level", 100))
+        upgraded_activities = []
+        for activity in modules.get("activities", []):
+            outcomes = []
+            for outcome in activity.get("outcomes", []):
+                if "effects" in outcome:
+                    outcomes.append(outcome); continue
+                effects = [
+                    {"type": "reward", "resource": resource, "amount": amount}
+                    for resource, amount in outcome.get("rewards", {}).items()
+                ]
+                if activity.get("profession"):
+                    effects.append({"type": "profession", "profession": activity["profession"], "experience": int(activity.get("experience", 0)), "experience_per_level": xp_per_level})
+                effects.append({"type": "emit", "event": "building.activity.completed", "payload": {"building": published["entity_key"], "activity": activity["key"], "profession": activity.get("profession", ""), "outcome": outcome.get("key", "result")}})
+                outcomes.append({"key": outcome.get("key", "result"), "weight": outcome.get("weight", 1), "effects": effects})
+            upgraded_activities.append({**activity, "outcomes": outcomes})
+        upgraded = {**payload, "modules": {**modules, "activities": upgraded_activities}}
+        upgraded["actions"] = actions_from_modules(published["entity_key"], upgraded["modules"])
+        draft = store.save("building", published["entity_key"], upgraded, "migration-random-result", published["version"])
+        store.publish("building", published["entity_key"], draft["version"], "migration-random-result")
+        migrated += 1
+    return migrated
 
 
 def _link_existing_v1_buildings(store: ContentStore, definitions: list[dict[str, Any]]) -> None:
@@ -199,7 +241,18 @@ def _forest_payload(data: dict[str, Any]) -> dict[str, Any]:
                 "durability_cost": zone.get("durability_cost", 1 if profession == "hunter" else 0),
                 "tool_max_durability": tool_tier.get("max_durability", 90 if profession == "hunter" else data.get("axe_durability", 20)),
                 "outcomes": [
-                    {"key": outcome.get("key", "result"), "weight": outcome.get("weight", 1), "rewards": outcome.get("loot", {})}
+                    {
+                        "key": outcome.get("key", "result"),
+                        "weight": outcome.get("weight", 1),
+                        "effects": [
+                            *[
+                                {"type": "reward", "resource": resource, "amount": amount}
+                                for resource, amount in outcome.get("loot", {}).items()
+                            ],
+                            {"type": "profession", "profession": profession, "experience": int(zone.get("experience", 0)), "experience_per_level": int(data.get("experience_per_level", 100))},
+                            {"type": "emit", "event": "building.activity.completed", "payload": {"building": "forest", "activity": zone["key"], "profession": profession, "outcome": outcome.get("key", "result")}},
+                        ],
+                    }
                     for outcome in zone.get("outcomes", [])
                 ],
             })
@@ -317,18 +370,24 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
     professions = {item["key"]: item for item in modules.get("professions", [])}
     for profession in professions.values():
         effects: list[dict[str, Any]] = [
-            {"type": "profession", "profession": profession["key"], "experience": 0, "experience_per_level": xp_per_level},
+            {"type": "profession", "operation": "join", "exclusive": True, "profession": profession["key"]},
             {"type": "message", "text": f"Vous exercez maintenant le metier : {profession.get('name', profession['key'])}."},
         ]
         required_item = profession.get("required_item")
         if required_item and profession.get("grant_required_item"):
             effects.insert(1, {"type": "reward", "resource": required_item, "amount": 1})
-        join_requirements = {}
+        join_requirements = dict(profession.get("requirements", {}))
+        join_requirements["no_active_profession"] = True
         if required_item and not profession.get("grant_required_item"):
-            join_requirements = {"items": {required_item: 1}}
+            join_requirements.setdefault("items", {})[required_item] = 1
         actions.append({
             "key": f"join_{profession['key']}", "name": f"Devenir {profession.get('name', profession['key'])}",
             "emoji": "📜", "enabled": True, "requirements": join_requirements, "effects": effects,
+        })
+        actions.append({
+            "key": f"leave_{profession['key']}", "name": f"Quitter le métier {profession.get('name', profession['key'])}",
+            "emoji": "🚪", "enabled": True, "requirements": {"profession": profession["key"], "min_level": 1},
+            "effects": [{"type": "profession", "operation": "leave", "profession": profession["key"], "block_when_pending": True}],
         })
     for activity in modules.get("activities", []):
         profession = str(activity.get("profession", ""))
@@ -343,17 +402,21 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
                 "type": "durability", "tool": activity["tool"], "amount": int(activity["durability_cost"]),
                 "max_durability": int(activity.get("tool_max_durability", 80)),
             })
-        deferred_effects = [{
-            "type": "random_bundle", "outcomes": activity.get("outcomes", []) or [{"key": "empty", "weight": 1, "rewards": {}}],
-            "loot_bonus_tool": activity.get("tool") if profession == "miner" else None,
-        }]
-        if profession:
-            deferred_effects.append({"type": "profession", "profession": profession, "experience": int(activity.get("experience", 0)), "experience_per_level": xp_per_level})
-        deferred_effects.append({"type": "emit", "event": "building.activity.completed", "payload": {"building": building_key, "activity": activity["key"]}})
+        if activity.get("outcomes") and all("effects" in outcome for outcome in activity["outcomes"]):
+            deferred_effects = [{"type": "random_result", "outcomes": activity["outcomes"]}]
+        else:
+            deferred_effects = [{
+                "type": "random_bundle", "outcomes": activity.get("outcomes", []) or [{"key": "empty", "weight": 1, "rewards": {}}],
+                "loot_bonus_tool": activity.get("tool"),
+            }]
+            if profession:
+                deferred_effects.append({"type": "profession", "profession": profession, "experience": int(activity.get("experience", 0)), "experience_per_level": xp_per_level})
+            deferred_effects.append({"type": "emit", "event": "building.activity.completed", "payload": {"building": building_key, "activity": activity["key"]}})
         action = {
             "key": activity["key"], "name": activity.get("name", activity["key"]), "emoji": activity.get("emoji", "⚙️"),
             "description": activity.get("description", ""), "enabled": activity.get("active", True),
             "duration_seconds": int(activity.get("duration_seconds", 0)), "requirements": requirements,
+            "activity_limit": activity.get("activity_limit", {"scope": "building", "max_active": 1, "category": profession}),
         }
         _append_timed(actions, action, immediate_effects, deferred_effects)
     for product in modules.get("products", []):
@@ -497,7 +560,12 @@ def _append_timed(actions: list[dict[str, Any]], action: dict[str, Any], immedia
         return
     actions.append({
         **action,
-        "effects": [*immediate, {"type": "schedule", "action": action["key"], "duration_seconds": duration, "effects": deferred}],
+        "effects": [*immediate, {
+            "type": "schedule", "action": action["key"], "duration_seconds": duration, "effects": deferred,
+            "limit_scope": action.get("activity_limit", {}).get("scope", "action"),
+            "max_active": int(action.get("activity_limit", {}).get("max_active", 1)),
+            "category": action.get("activity_limit", {}).get("category", ""),
+        }],
     })
     actions.append({
         "key": f"claim_{action['key']}"[:64], "name": f"Recuperer : {action['name']}", "emoji": "✅",

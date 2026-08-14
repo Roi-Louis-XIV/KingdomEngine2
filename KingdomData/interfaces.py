@@ -209,6 +209,14 @@ def interface_from_activity_modules(
                 "props": {"label": "Retour au camp", "emoji": "↩️", "style": "secondary"},
                 "interaction": {"type": "navigate", "page": "camp"},
             },
+            {
+                "id": f"leave_{building_key}_{profession_key}"[:64],
+                "type": "button",
+                "slot": 24,
+                "props": {"label": f"Quitter le métier {profession_name}", "emoji": "🚪", "style": "danger"},
+                "visible_when": {"profession": profession_key, "no_pending_building": building_key},
+                "interaction": {"type": "action", "building": building_key, "action": f"leave_{profession_key}", "on_success_page": "camp"},
+            },
         ])
         pages.append({"key": page_key, "name": profession_name, "components": components})
 

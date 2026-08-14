@@ -134,7 +134,7 @@ class AdministrationService:
         with self.store.connection() as db:
             player_rows = db.execute("SELECT discord_id,money,energy,updated_at FROM players ORDER BY updated_at DESC").fetchall()
             inventories = db.execute("SELECT discord_id,item_key,quantity FROM inventory WHERE quantity>0 ORDER BY item_key").fetchall()
-            professions = db.execute("SELECT discord_id,profession_key,level,experience FROM player_professions ORDER BY profession_key").fetchall()
+            professions = db.execute("SELECT discord_id,profession_key,level,experience FROM player_professions WHERE active=1 ORDER BY profession_key").fetchall()
             stocks = db.execute("SELECT building_key,item_key,quantity FROM building_stock WHERE quantity>0 ORDER BY building_key,item_key").fetchall()
             pending = db.execute("SELECT building_key,COUNT(*) count FROM scheduled_actions WHERE status='pending' GROUP BY building_key").fetchall()
             activity = db.execute("SELECT discord_id,building_key,action_key,created_at FROM action_log ORDER BY id DESC LIMIT 30").fetchall()

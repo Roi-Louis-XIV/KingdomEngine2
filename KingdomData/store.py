@@ -44,6 +44,14 @@ class ContentStore:
     def initialize(self) -> None:
         with self.connection() as db:
             db.executescript(SCHEMA)
+            columns = {row[1] for row in db.execute("PRAGMA table_info(scheduled_actions)")}
+            if "category" not in columns:
+                db.execute("ALTER TABLE scheduled_actions ADD COLUMN category TEXT NOT NULL DEFAULT ''")
+            if "limit_scope" not in columns:
+                db.execute("ALTER TABLE scheduled_actions ADD COLUMN limit_scope TEXT NOT NULL DEFAULT 'action'")
+            profession_columns = {row[1] for row in db.execute("PRAGMA table_info(player_professions)")}
+            if "active" not in profession_columns:
+                db.execute("ALTER TABLE player_professions ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
 
     def save(self, entity_type: str, key: str, payload: dict[str, Any], author: str = "web", expected_version: int | None = None) -> dict[str, Any]:
         key = validate_key(key)
@@ -124,10 +132,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS one_published ON content(entity_type,entity_ke
 CREATE TABLE IF NOT EXISTS outbox(id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT NOT NULL,aggregate_type TEXT NOT NULL,aggregate_key TEXT NOT NULL,payload_json TEXT NOT NULL,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS players(discord_id TEXT PRIMARY KEY,money INTEGER NOT NULL DEFAULT 0,energy INTEGER NOT NULL DEFAULT 100,updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS inventory(discord_id TEXT NOT NULL,item_key TEXT NOT NULL,quantity INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(discord_id,item_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
-CREATE TABLE IF NOT EXISTS player_professions(discord_id TEXT NOT NULL,profession_key TEXT NOT NULL,level INTEGER NOT NULL DEFAULT 1,experience INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(discord_id,profession_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
+CREATE TABLE IF NOT EXISTS player_professions(discord_id TEXT NOT NULL,profession_key TEXT NOT NULL,level INTEGER NOT NULL DEFAULT 1,experience INTEGER NOT NULL DEFAULT 0,active INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(discord_id,profession_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
 CREATE TABLE IF NOT EXISTS player_tools(discord_id TEXT NOT NULL,tool_key TEXT NOT NULL,durability INTEGER NOT NULL,max_durability INTEGER NOT NULL,level INTEGER NOT NULL DEFAULT 1,loot_bonus INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(discord_id,tool_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
+CREATE TABLE IF NOT EXISTS player_state(discord_id TEXT NOT NULL,state_key TEXT NOT NULL,value_json TEXT NOT NULL,PRIMARY KEY(discord_id,state_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
 CREATE TABLE IF NOT EXISTS building_stock(building_key TEXT NOT NULL,item_key TEXT NOT NULL,quantity INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(building_key,item_key));
 CREATE TABLE IF NOT EXISTS action_cooldowns(scope TEXT NOT NULL,building_key TEXT NOT NULL,action_key TEXT NOT NULL,ready_at REAL NOT NULL,PRIMARY KEY(scope,building_key,action_key));
-CREATE TABLE IF NOT EXISTS scheduled_actions(id INTEGER PRIMARY KEY AUTOINCREMENT,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,action_key TEXT NOT NULL,ready_at REAL NOT NULL,effects_json TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',created_at TEXT NOT NULL,completed_at TEXT);
+CREATE TABLE IF NOT EXISTS scheduled_actions(id INTEGER PRIMARY KEY AUTOINCREMENT,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,action_key TEXT NOT NULL,category TEXT NOT NULL DEFAULT '',limit_scope TEXT NOT NULL DEFAULT 'action',ready_at REAL NOT NULL,effects_json TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',created_at TEXT NOT NULL,completed_at TEXT);
 CREATE TABLE IF NOT EXISTS action_log(id INTEGER PRIMARY KEY AUTOINCREMENT,interaction_id TEXT UNIQUE NOT NULL,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,action_key TEXT NOT NULL,result_json TEXT NOT NULL,created_at TEXT NOT NULL);
 """

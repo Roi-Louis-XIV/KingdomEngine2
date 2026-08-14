@@ -63,6 +63,11 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
     assert 'openEditor(entity,true)' in script
     assert 'catalogOptions(catalogType, value)' in script
     assert 'Choisir une ressource…' in script
+    assert 'id="profession-modules"' in script
+    assert 'id="activity-modules"' in script
+    assert 'outcome-effects' in script
+    assert '["player","Tout le joueur"]' in script
+    assert '["stock_reward","Ajouter au stock d’un bâtiment"]' in script
     assert 'data-field="modules_json"' in script
     assert 'Actions générées depuis les modules' in script
     assert 'clone(state.buildingBase || {})' in script

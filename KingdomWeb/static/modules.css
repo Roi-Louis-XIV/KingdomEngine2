@@ -11,3 +11,4 @@ textarea[data-field="modules_json"] {
   font: 13px/1.5 Consolas, monospace;
 }
 textarea[data-field="modules_json"]:focus { border-color: #b9924c; }
+.module-editor{border:1px solid #342e42;border-radius:12px;padding:18px;margin-top:18px;background:#100e14}.module-content{position:relative;padding:10px 14px 16px}.profession-module,.activity-module,.outcome-module{border-left:3px solid #b9924c}.profession-module summary,.activity-module summary,.outcome-module summary{display:flex;gap:10px;align-items:center;cursor:pointer;padding:13px 15px}.profession-module summary small,.activity-module summary small,.outcome-module summary small{margin-left:auto;color:#777}.outcome-modules{margin-left:18px}.outcome-effect-grid{display:grid;grid-template-columns:1.1fr 1.5fr .8fr .8fr;gap:9px;padding-right:25px}.outcome-effect-grid label{margin-top:0}@media(max-width:800px){.outcome-effect-grid{grid-template-columns:1fr}.outcome-modules{margin-left:0}}

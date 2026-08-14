@@ -1,5 +1,5 @@
 from KingdomData import ContentStore
-from import_v1 import actions_from_modules, definitions_from_v1, import_v1
+from import_v1 import actions_from_modules, definitions_from_v1, import_v1, migrate_weighted_activity_results
 
 
 def test_all_v1_buildings_items_and_voice_profiles_are_discovered():
@@ -15,6 +15,9 @@ def test_all_v1_buildings_items_and_voice_profiles_are_discovered():
     }
     assert buildings["mine"]["modules"]["activities"][0]["energy_cost"] == 15
     assert len(buildings["forest"]["modules"]["activities"]) == 6
+    forest_outcome = buildings["forest"]["modules"]["activities"][0]["outcomes"][0]
+    assert "effects" in forest_outcome
+    assert {effect["type"] for effect in forest_outcome["effects"]} >= {"reward", "profession", "emit"}
     assert buildings["forge"]["modules"]["repairs"]["pickaxe_price_per_point"] == 2
     assert len(buildings["tavern"]["modules"]["products"]) == 22
     assert len(buildings["tavern"]["modules"]["rumors"]["catalogue"]) == 6
@@ -68,3 +71,20 @@ def test_existing_v1_building_is_linked_without_losing_its_custom_parameters(tmp
 def test_incomplete_upgrade_does_not_break_generated_actions_or_supervision():
     actions = actions_from_modules("forge", {"upgrades": [{"name": "Brouillon incomplet"}]})
     assert actions == []
+
+
+def test_existing_multi_profession_v1_building_is_upgraded_without_name_specific_logic(tmp_path):
+    store = ContentStore(tmp_path / "weighted-upgrade.db"); store.initialize()
+    payload = {"name": "Étendues", "source": "KingdomEngine V1", "action_mode": "generated", "custom_value": 42, "actions": [], "modules": {
+        "rules": {"experience_per_level": 50},
+        "professions": [{"key": "job_one"}, {"key": "job_two"}],
+        "activities": [{"key": "zone_one", "profession": "job_one", "experience": 15, "outcomes": [{"key": "mixed", "weight": 2, "rewards": {"resource_one": [1, 2], "resource_two": 1}}]}],
+        "products": [], "recipes": [], "deliveries": [], "upgrades": [],
+    }}
+    draft=store.save("building","wild_expanse",payload);store.publish("building","wild_expanse",draft["version"])
+    assert migrate_weighted_activity_results(store) == 1
+    upgraded=store.get("building","wild_expanse",published=True)["payload"]
+    effects=upgraded["modules"]["activities"][0]["outcomes"][0]["effects"]
+    assert upgraded["custom_value"] == 42
+    assert [effect["type"] for effect in effects] == ["reward", "reward", "profession", "emit"]
+    assert migrate_weighted_activity_results(store) == 0

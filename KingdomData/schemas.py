@@ -8,10 +8,10 @@ from typing import Any
 ENTITY_TYPES = {"building", "item", "event", "bot", "audio", "npc", "recipe", "interface", "server_settings"}
 KEY_RE = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
 ACTION_TYPES = {
-    "message", "reward", "cost", "emit", "random_reward", "random_bundle",
+    "message", "reward", "cost", "emit", "random_reward", "random_bundle", "random_result",
     "stock_cost", "stock_reward", "profession", "durability",
     "repair", "upgrade", "random_message",
-    "schedule", "claim_scheduled",
+    "schedule", "claim_scheduled", "state",
 }
 
 
@@ -49,14 +49,7 @@ def validate_entity(entity_type: str, payload: dict[str, Any]) -> dict[str, Any]
                 raise ValidationError(f"Action dupliquée : {key}")
             seen.add(key)
             for effect in action.get("effects", []):
-                if effect.get("type") not in ACTION_TYPES:
-                    raise ValidationError(f"Effet inconnu : {effect.get('type')}")
-                if effect.get("type") == "random_bundle":
-                    outcomes = effect.get("outcomes", [])
-                    if not isinstance(outcomes, list) or not outcomes:
-                        raise ValidationError("Un butin group\u00e9 doit proposer au moins un r\u00e9sultat.")
-                    if any(float(outcome.get("weight", 0)) <= 0 for outcome in outcomes):
-                        raise ValidationError("Chaque r\u00e9sultat al\u00e9atoire doit avoir un poids positif.")
+                _validate_effect(effect)
         _validate_building_modules(payload)
         if payload.get("interface"):
             _validate_interface(payload["interface"])
@@ -80,6 +73,26 @@ def validate_entity(entity_type: str, payload: dict[str, Any]) -> dict[str, Any]
     return payload
 
 
+def _validate_effect(effect: dict[str, Any]) -> None:
+    """Valide récursivement un effet, y compris les branches aléatoires no-code."""
+    if not isinstance(effect, dict) or effect.get("type") not in ACTION_TYPES:
+        raise ValidationError(f"Effet inconnu : {getattr(effect, 'get', lambda _key: None)('type')}")
+    if effect.get("type") not in {"random_bundle", "random_result"}:
+        return
+    outcomes = effect.get("outcomes", [])
+    if not isinstance(outcomes, list) or not outcomes:
+        raise ValidationError("Un résultat aléatoire doit proposer au moins une issue.")
+    for outcome in outcomes:
+        if not isinstance(outcome, dict) or float(outcome.get("weight", 0)) <= 0:
+            raise ValidationError("Chaque résultat aléatoire doit avoir un poids positif.")
+        if effect.get("type") == "random_result":
+            nested = outcome.get("effects", [])
+            if not isinstance(nested, list):
+                raise ValidationError("Les effets d'un résultat aléatoire doivent former une liste.")
+            for nested_effect in nested:
+                _validate_effect(nested_effect)
+
+
 def _validate_building_modules(payload: dict[str, Any]) -> None:
     """Valide les modules sans figer leur contenu : KingdomWeb reste la source de v\u00e9rit\u00e9."""
     modules = payload.get("modules", {})
@@ -98,6 +111,17 @@ def _validate_building_modules(payload: dict[str, Any]) -> None:
     for activity in modules.get("activities", []):
         if int(activity.get("duration_seconds", 0)) < 0 or int(activity.get("energy_cost", 0)) < 0:
             raise ValidationError("La dur\u00e9e et le co\u00fbt en \u00e9nergie d'une activit\u00e9 doivent \u00eatre positifs.")
+        limit = activity.get("activity_limit", {})
+        if limit and limit.get("scope", "action") not in {"player", "building", "action", "category"}:
+            raise ValidationError("La portée de limite d'activité est invalide.")
+        if limit and int(limit.get("max_active", 1)) < 1:
+            raise ValidationError("La limite d'activités doit être au moins égale à 1.")
+        outcomes = activity.get("outcomes", [])
+        if outcomes and all("effects" in outcome for outcome in outcomes):
+            _validate_effect({"type": "random_result", "outcomes": outcomes})
+    for recipe in modules.get("recipes", []):
+        if recipe.get("output_destination", "player") not in {"player", "building_stock"}:
+            raise ValidationError("La destination de production doit être player ou building_stock.")
 
 
 def _validate_interface(payload: dict[str, Any]) -> None:

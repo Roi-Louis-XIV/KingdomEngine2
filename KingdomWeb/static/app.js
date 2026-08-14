@@ -423,15 +423,67 @@ function renderBuildingFields(payload, preset=null) {
   const access=payload.access||{};
   $(".wizard-panel").classList.add("visual-mode","building-mode");$("#context-help").hidden=true;
   root.innerHTML = `<div class="building-editor-tabs"><button type="button" class="active" data-building-tab="mechanics">⚙️ Fonctionnement</button><button type="button" data-building-tab="visual">🧩 Interface & navigation</button></div>
-  <div data-building-panel="mechanics"><section class="form-section"><div class="section-copy"><span class="step-dot">2</span><div><h3>Ce que les joueurs peuvent faire</h3><p>Les actions et l'interface sont enregistrées dans cette même fiche bâtiment.</p></div></div>${presetInfo?`<span class="preset-badge">${presetInfo.icon} Modèle ${presetInfo.name}</span>`:""}<div class="section-head"><span></span><button type="button" class="secondary" id="add-action">＋ Ajouter une action</button></div><div id="actions"></div></section>
+  <div data-building-panel="mechanics"><section class="form-section module-editor"><div class="section-copy"><span class="step-dot">2</span><div><h3>Métiers et zones d’activité</h3><p>Configure plusieurs métiers, leurs outils, leurs zones et leurs résultats sans écrire de JSON.</p></div></div><div class="section-head"><b>Métiers</b><button type="button" class="secondary" id="add-profession">＋ Ajouter un métier</button></div><div id="profession-modules"></div><div class="section-head"><b>Zones et activités</b><button type="button" class="secondary" id="add-activity">＋ Ajouter une zone</button></div><div id="activity-modules"></div></section><section class="form-section"><div class="section-copy"><span class="step-dot">3</span><div><h3>Actions complémentaires</h3><p>Les métiers et zones ci-dessus génèrent automatiquement leurs actions. Ajoute ici les autres actions du lieu.</p></div></div>${presetInfo?`<span class="preset-badge">${presetInfo.icon} Modèle ${presetInfo.name}</span>`:""}<div class="section-head"><span></span><button type="button" class="secondary" id="add-action">＋ Ajouter une action</button></div><div id="actions"></div></section>
   <details class="advanced"><summary>🏗️ Configuration modulaire complète ${moduleCount ? `(${moduleCount} éléments)` : ""}</summary><div class="advanced-content"><p class="field-note">Cette configuration est la source de vérité du bâtiment. Pour les bâtiments importés, les actions sont régénérées automatiquement à partir de ces valeurs.</p><label>Paramètres du bâtiment (JSON)<textarea data-field="modules_json" data-help="modules_json" rows="12" spellcheck="false">${escapeHtml(JSON.stringify(modules,null,2))}</textarea></label>${select("Origine des actions","action_mode",payload.action_mode||"manual",[["manual","Actions éditées ci-dessus"],["generated","Actions générées depuis les modules"]])}</div></details>
   <details class="advanced"><summary>🎭 Apparence et accès Discord</summary><div class="advanced-content form-grid">${input("Couleur Discord","color",payload.color||"7a1f1f")}${input("Personnage associé (facultatif)","npc_name",payload.npc_name||"")}${input("Rôles spéciaux autorisés (séparés par des virgules)","required_roles",(access.required_roles||[]).join(", "))}${check("Bâtiment visible dans le Royaume","building_visible",access.visible!==false)}${check("Salon textuel visible uniquement dans le vocal","temporary_text",access.temporary_text!==false)}</div></details></div>
   <div data-building-panel="visual" hidden>${visualStudioMarkup()}</div>`;
   (payload.actions||[]).forEach(addAction);
+  (modules.professions||[]).forEach(addProfessionModule);
+  (modules.activities||[]).forEach(addActivityModule);
+  $("#add-profession").onclick=()=>{addProfessionModule({});refreshActivityProfessionOptions();};
+  $("#add-activity").onclick=()=>addActivityModule({outcomes:[]});
   $("#add-action").onclick = () => { addAction({effects:[]}); setHelp("action_name"); };
   $("#add-action").dataset.help = "actions";
   bindVisualStudio();renderVisualStudio();
   $$('[data-building-tab]').forEach(button=>button.onclick=()=>{$$('[data-building-tab]').forEach(item=>item.classList.toggle("active",item===button));$$('[data-building-panel]').forEach(panel=>panel.hidden=panel.dataset.buildingPanel!==button.dataset.buildingTab);if(button.dataset.buildingTab==="visual")renderVisualStudio();});
+}
+
+function professionOptions(current="") {
+  const options=$$("#profession-modules > .profession-module").map(element=>{
+    const key=fieldValue("module_profession_key",element);
+    return [key,fieldValue("module_profession_name",element)||key];
+  }).filter(([key])=>key);
+  if(current&&!options.some(([key])=>key===current))options.push([current,current]);
+  return [["","Choisir un métier…"],...options];
+}
+
+function addProfessionModule(profession={}) {
+  const element=document.createElement("details");element.className="builder profession-module";element.open=!profession.key;element.dataset.original=JSON.stringify(profession);
+  element.innerHTML=`<summary><strong>📜 ${escapeHtml(profession.name||"Nouveau métier")}</strong><small>${escapeHtml(profession.key||"à configurer")}</small></summary><div class="module-content"><button type="button" class="remove">×</button><div class="form-grid">${input("Nom du métier","module_profession_name",profession.name||"")}${input("Identifiant","module_profession_key",profession.key||"")}${input("Emoji","module_profession_emoji",profession.emoji||"📜")}${select("Outil ou objet requis","module_profession_item",profession.required_item||"",catalogOptions("item",profession.required_item||""))}</div><div class="checks">${check("Donner automatiquement cet outil","module_profession_grant",profession.grant_required_item===true)}</div></div>`;
+  $("#profession-modules").append(element);element.querySelector(".remove").onclick=()=>{element.remove();refreshActivityProfessionOptions();};
+  element.querySelector('[data-field="module_profession_name"]').oninput=event=>{if(!element.querySelector('[data-field="module_profession_key"]').dataset.touched)element.querySelector('[data-field="module_profession_key"]').value=technicalKey(event.target.value,"metier");element.querySelector("summary strong").textContent=`📜 ${event.target.value||"Nouveau métier"}`;refreshActivityProfessionOptions();};
+  element.querySelector('[data-field="module_profession_key"]').oninput=event=>{event.target.dataset.touched="true";element.querySelector("summary small").textContent=event.target.value||"à configurer";refreshActivityProfessionOptions();};
+}
+
+function refreshActivityProfessionOptions(){
+  $$("#activity-modules .activity-module").forEach(element=>{const field=element.querySelector('[data-field="module_activity_profession"]'),value=field.value;field.innerHTML=professionOptions(value).map(([key,label])=>`<option value="${escapeHtml(key)}" ${key===value?"selected":""}>${escapeHtml(label)}</option>`).join("");});
+}
+
+function addActivityModule(activity={}) {
+  const element=document.createElement("details");element.className="builder activity-module";element.open=!activity.key;element.dataset.original=JSON.stringify(activity);
+  const limit=activity.activity_limit||{scope:"building",max_active:1,category:activity.profession||""};
+  element.innerHTML=`<summary><strong>${escapeHtml(activity.emoji||"🗺️")} ${escapeHtml(activity.name||"Nouvelle zone")}</strong><small>${escapeHtml(activity.profession||"métier à choisir")}</small></summary><div class="module-content"><button type="button" class="remove">×</button><div class="form-grid">${input("Nom de la zone","module_activity_name",activity.name||"")}${input("Identifiant","module_activity_key",activity.key||"")}${input("Emoji","module_activity_emoji",activity.emoji||"🗺️")}${select("Métier","module_activity_profession",activity.profession||"",professionOptions(activity.profession||""))}${select("Outil requis","module_activity_tool",activity.tool||"",catalogOptions("item",activity.tool||""))}${input("Niveau requis","module_activity_level",activity.required_level||1,"number","min=1")}${input("Durée (secondes)","module_activity_duration",activity.duration_seconds||0,"number","min=0")}${input("Coût en énergie","module_activity_energy",activity.energy_cost||0,"number","min=0")}${input("Usure de l’outil","module_activity_durability",activity.durability_cost||0,"number","min=0")}${input("Durabilité maximale","module_activity_max_durability",activity.tool_max_durability||80,"number","min=1")}${select("Limite des activités","module_activity_scope",limit.scope||"building",[["player","Tout le joueur"],["building","Ce bâtiment"],["action","Cette zone"],["category","Cette catégorie"]])}${input("Maximum simultané","module_activity_max_active",limit.max_active||1,"number","min=1")}${input("Catégorie de limite","module_activity_category",limit.category||activity.profession||"")}${input("Description","module_activity_description",activity.description||"")}</div><div class="section-head"><b>Résultats aléatoires</b><button type="button" class="secondary add-outcome">＋ Ajouter un résultat</button></div><div class="outcome-modules"></div></div>`;
+  $("#activity-modules").append(element);(activity.outcomes||[]).forEach(outcome=>addOutcomeModule(element.querySelector(".outcome-modules"),outcome));
+  element.querySelector(".add-outcome").onclick=()=>addOutcomeModule(element.querySelector(".outcome-modules"),{effects:[]});element.querySelector(".remove").onclick=()=>element.remove();
+}
+
+function addOutcomeModule(container,outcome={}) {
+  const element=document.createElement("details");element.className="builder outcome-module";element.open=!outcome.key;element.dataset.original=JSON.stringify(outcome);
+  element.innerHTML=`<summary><strong>🎲 ${escapeHtml(outcome.key||"Nouveau résultat")}</strong><small>Poids ${escapeHtml(outcome.weight||1)}</small></summary><div class="module-content"><button type="button" class="remove">×</button><div class="form-grid">${input("Nom technique","module_outcome_key",outcome.key||"")}${input("Poids","module_outcome_weight",outcome.weight||1,"number","min=0.01 step=0.01")}</div><div class="section-head"><b>Effets de ce résultat</b><button type="button" class="secondary add-outcome-effect">＋ Ajouter un effet</button></div><div class="outcome-effects"></div></div>`;
+  container.append(element);(outcome.effects||legacyOutcomeEffects(outcome)).forEach(effect=>addOutcomeEffect(element.querySelector(".outcome-effects"),effect));element.querySelector(".add-outcome-effect").onclick=()=>addOutcomeEffect(element.querySelector(".outcome-effects"),{});element.querySelector(".remove").onclick=()=>element.remove();
+}
+
+function legacyOutcomeEffects(outcome){return Object.entries(outcome.rewards||{}).map(([resource,amount])=>({type:"reward",resource,amount}));}
+
+function addOutcomeEffect(container,effect={}) {
+  const element=document.createElement("div");element.className="builder outcome-effect";element.dataset.original=JSON.stringify(effect);container.append(element);
+  const render=()=>{const type=element.querySelector('[data-field="outcome_effect_type"]')?.value||effect.type||"reward";let fields="";
+    if(["reward","cost","stock_reward"].includes(type)){const amount=effect.amount??1,min=Array.isArray(amount)?amount[0]:amount,max=Array.isArray(amount)?amount[1]:amount;fields=`${select("Ressource","outcome_effect_resource",effect.resource||effect.item||"",catalogOptions("item",effect.resource||effect.item||""))}${input("Minimum","outcome_effect_min",min,"number")}${input("Maximum","outcome_effect_max",max,"number")}${type==="stock_reward"?input("Stock du bâtiment","outcome_effect_building",effect.building||""):""}`;}
+    else if(type==="message")fields=input("Message","outcome_effect_text",effect.text||"");
+    else if(type==="profession")fields=`${select("Métier","outcome_effect_profession",effect.profession||"",professionOptions(effect.profession||""))}${input("Expérience","outcome_effect_experience",effect.experience||0,"number")}${input("XP par niveau","outcome_effect_xp_level",effect.experience_per_level||100,"number")}`;
+    else if(type==="emit")fields=`${input("Nom de l’événement","outcome_effect_event",effect.event||"")}`;
+    else fields=`${input("État à modifier","outcome_effect_state",effect.key||"")}${select("Opération","outcome_effect_operation",effect.operation||"set",[["set","Définir"],["increment","Ajouter"]])}${input("Valeur","outcome_effect_value",effect.value??1,"number")}`;
+    element.innerHTML=`<button type="button" class="remove">×</button><div class="outcome-effect-grid">${select("Type","outcome_effect_type",type,[["reward","Donner au joueur"],["stock_reward","Ajouter au stock d’un bâtiment"],["cost","Retirer au joueur"],["message","Afficher un message"],["profession","Donner de l’expérience"],["emit","Envoyer un événement"],["state","Modifier un état"]])}${fields}</div>`;element.querySelector('[data-field="outcome_effect_type"]').onchange=event=>{effect={type:event.target.value};render();};element.querySelector(".remove").onclick=()=>element.remove();};render();
 }
 
 function addAction(action={}) {
@@ -490,6 +542,48 @@ function readEffects(container) {
   });
 }
 
+function readProfessionModules() {
+  return $$("#profession-modules > .profession-module").map((element,index)=>({
+    ...JSON.parse(element.dataset.original||"{}"),
+    key:fieldValue("module_profession_key",element)||technicalKey(fieldValue("module_profession_name",element),`metier_${index+1}`),
+    name:fieldValue("module_profession_name",element),emoji:fieldValue("module_profession_emoji",element),
+    required_item:fieldValue("module_profession_item",element)||undefined,
+    grant_required_item:fieldValue("module_profession_grant",element),
+  }));
+}
+
+function readOutcomeEffects(container) {
+  return [...container.querySelectorAll(":scope > .outcome-effect")].map(element=>{
+    const type=fieldValue("outcome_effect_type",element);
+    if(["reward","cost","stock_reward"].includes(type)){
+      const minimum=fieldValue("outcome_effect_min",element),maximum=fieldValue("outcome_effect_max",element);
+      const amount=minimum===maximum?minimum:[minimum,maximum];
+      if(type==="stock_reward")return {type,item:fieldValue("outcome_effect_resource",element),building:fieldValue("outcome_effect_building",element),amount};
+      return {type,resource:fieldValue("outcome_effect_resource",element),amount};
+    }
+    if(type==="message")return {type,text:fieldValue("outcome_effect_text",element)};
+    if(type==="profession")return {type,profession:fieldValue("outcome_effect_profession",element),experience:fieldValue("outcome_effect_experience",element),experience_per_level:fieldValue("outcome_effect_xp_level",element)};
+    if(type==="emit")return {type,event:fieldValue("outcome_effect_event",element),payload:JSON.parse(element.dataset.original||"{}").payload||{}};
+    return {type:"state",key:fieldValue("outcome_effect_state",element),operation:fieldValue("outcome_effect_operation",element),value:fieldValue("outcome_effect_value",element)};
+  });
+}
+
+function readActivityModules() {
+  return $$("#activity-modules > .activity-module").map((element,index)=>({
+    ...JSON.parse(element.dataset.original||"{}"),
+    key:fieldValue("module_activity_key",element)||technicalKey(fieldValue("module_activity_name",element),`zone_${index+1}`),
+    name:fieldValue("module_activity_name",element),emoji:fieldValue("module_activity_emoji",element),description:fieldValue("module_activity_description",element),
+    profession:fieldValue("module_activity_profession",element),tool:fieldValue("module_activity_tool",element)||undefined,
+    required_level:fieldValue("module_activity_level",element),duration_seconds:fieldValue("module_activity_duration",element),energy_cost:fieldValue("module_activity_energy",element),
+    durability_cost:fieldValue("module_activity_durability",element),tool_max_durability:fieldValue("module_activity_max_durability",element),
+    activity_limit:{scope:fieldValue("module_activity_scope",element),max_active:fieldValue("module_activity_max_active",element),category:fieldValue("module_activity_category",element)},
+    outcomes:[...element.querySelectorAll(":scope > .module-content > .outcome-modules > .outcome-module")].map((outcome,outcomeIndex)=>({
+      key:fieldValue("module_outcome_key",outcome)||`result_${outcomeIndex+1}`,weight:Number(fieldValue("module_outcome_weight",outcome)),
+      effects:readOutcomeEffects(outcome.querySelector(".outcome-effects")),
+    })),
+  }));
+}
+
 function buildPayload() {
   const payload = state.type === "building" ? clone(state.buildingBase || {}) : state.type === "interface" ? clone(state.interfaceDraft || {}) : {};
   Object.assign(payload,{name:$("#name").value.trim(),emoji:$("#emoji").value.trim(),description:$("#description").value.trim()});
@@ -497,6 +591,8 @@ function buildPayload() {
     let modules = {};
     try { modules = JSON.parse(fieldValue("modules_json") || "{}"); }
     catch (_) { throw Error("La configuration modulaire contient un JSON invalide."); }
+    modules.professions=readProfessionModules();
+    modules.activities=readActivityModules();
     const buildingKey=$("#key").value.trim();
     const previousTarget=state.interfaceDraft?.target_building_key;
     const interfaceDefinition=clone(state.interfaceDraft||blankInterface(buildingKey,payload.name,payload.emoji,payload.color));
