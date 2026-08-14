@@ -203,13 +203,15 @@ class InterfaceView(discord.ui.View):
             "primary": discord.ButtonStyle.primary, "secondary": discord.ButtonStyle.secondary,
             "success": discord.ButtonStyle.success, "danger": discord.ButtonStyle.danger,
         }
-        interactive = [item for item in self._visible_components() if item.get("type") in {"button", "select"}]
+        interactive = [item for item in self._visible_components() if item.get("type") in {"button", "select", "dynamic_inventory_selector"}]
         next_slot = 0
         for component in interactive:
             slot = int(component.get("slot", next_slot))
             next_slot = max(next_slot, slot + (5 if component.get("type") == "select" else 1))
             row = min(4, slot // 5)
-            if component.get("type") == "select":
+            if component.get("type") == "dynamic_inventory_selector":
+                self._add_dynamic_delivery(component, row)
+            elif component.get("type") == "select":
                 self._add_select(component, row)
             else:
                 self._add_button(component, row, styles)
@@ -250,9 +252,49 @@ class InterfaceView(discord.ui.View):
                 await discord_interaction.response.defer()
                 await discord_interaction.delete_original_response()
             button.callback = close_callback
+        elif interaction.get("type") == "deliver_all":
+            async def deliver_all_callback(discord_interaction: discord.Interaction):
+                options = self.engine.delivery_options(str(discord_interaction.user.id), self._building_key())
+                await discord_interaction.response.defer()
+                try:
+                    result = await self.engine.execute_delivery(str(discord_interaction.user.id), self._building_key(), str(discord_interaction.id), {item["resource"]: item["quantity"] for item in options})
+                    self.notice = self._delivery_notice(result)
+                except Exception as exc: self.notice = str(exc)
+                self._render_interactions(); await discord_interaction.edit_original_response(embed=self.embed(), view=self)
+            button.callback = deliver_all_callback
         else:
             button.disabled = True
         self.add_item(button)
+
+    @staticmethod
+    def _delivery_notice(result: dict[str, Any]) -> str:
+        lines = " · ".join(f"{line['quantity']} × {line['resource']}" for line in result.get("delivery", []))
+        payments = " · ".join(f"{amount} {currency}" for currency, amount in result.get("payments", {}).items())
+        return f"Livraison effectuée : {lines}." + (f" Paiement : **{payments}**." if payments else "")
+
+    def _add_dynamic_delivery(self, component: dict[str, Any], row: int) -> None:
+        options_data = self.engine.delivery_options(str(self.owner_id), self._building_key()) if self.owner_id is not None else []
+        if not options_data: return
+        select = discord.ui.Select(placeholder=str(component.get("props", {}).get("placeholder", "Choisir une ressource à livrer…"))[:150], options=[discord.SelectOption(label=str(item["name"])[:100], value=item["resource"][:100], description=f"x{item['quantity']} · {item.get('unit_price', 0)} /u → {item.get('target_building_key', item.get('building', 'destination'))}"[:100]) for item in options_data[:25]], row=row)
+        async def choose(interaction: discord.Interaction):
+            resource = select.values[0]; selected = next(item for item in options_data if item["resource"] == resource)
+            parent = self
+            class QuantityModal(discord.ui.Modal, title="Quantité à livrer"):
+                quantity = discord.ui.TextInput(label="Quantité", placeholder=f"1 à {selected['quantity']}", required=True, max_length=10)
+                async def on_submit(modal_self, modal_interaction: discord.Interaction):
+                    try:
+                        amount = int(str(modal_self.quantity)); price = amount * int(selected.get("unit_price", 0)); destination = selected.get("target_building_key", selected.get("building", "destination"))
+                        confirmation = discord.ui.View(timeout=300); confirm = discord.ui.Button(label="Confirmer la livraison", emoji="✅", style=discord.ButtonStyle.success); cancel = discord.ui.Button(label="Annuler", emoji="✖️", style=discord.ButtonStyle.secondary)
+                        async def confirm_delivery(confirm_interaction: discord.Interaction):
+                            try: result = await parent.engine.execute_delivery(str(confirm_interaction.user.id), parent._building_key(), str(confirm_interaction.id), {resource: amount}); parent.notice = parent._delivery_notice(result)
+                            except Exception as exc: parent.notice = str(exc)
+                            parent._render_interactions(); await confirm_interaction.response.edit_message(content=None, embed=parent.embed(), view=parent)
+                        async def cancel_delivery(cancel_interaction: discord.Interaction): await cancel_interaction.response.edit_message(content="Livraison annulée.", view=None)
+                        confirm.callback = confirm_delivery; cancel.callback = cancel_delivery; confirmation.add_item(confirm); confirmation.add_item(cancel)
+                        await modal_interaction.response.send_message(f"**Récapitulatif**\n{amount} × {selected['name']}\n→ {destination}\n→ **{price} {selected.get('payment_resource', 'money')}**", view=confirmation, ephemeral=True)
+                    except Exception as exc: await modal_interaction.response.send_message(str(exc), ephemeral=True)
+            await interaction.response.send_modal(QuantityModal())
+        select.callback = choose; self.add_item(select)
 
     def _add_select(self, component: dict[str, Any], row: int) -> None:
         props = component.get("props", {})

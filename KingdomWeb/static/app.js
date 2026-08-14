@@ -438,11 +438,14 @@ function renderBuildingFields(payload, preset=null) {
   <details class="advanced"><summary>🏗️ Configuration modulaire complète ${moduleCount ? `(${moduleCount} éléments)` : ""}</summary><div class="advanced-content"><p class="field-note">Cette configuration est la source de vérité du bâtiment. Pour les bâtiments importés, les actions sont régénérées automatiquement à partir de ces valeurs.</p><label>Paramètres du bâtiment (JSON)<textarea data-field="modules_json" data-help="modules_json" rows="12" spellcheck="false">${escapeHtml(JSON.stringify(modules,null,2))}</textarea></label>${select("Origine des actions","action_mode",payload.action_mode||"manual",[["manual","Actions éditées ci-dessus"],["generated","Actions générées depuis les modules"]])}</div></details>
   <details class="advanced"><summary>🎭 Apparence et accès Discord</summary><div class="advanced-content form-grid">${input("Couleur Discord","color",payload.color||"7a1f1f")}${input("Personnage associé (facultatif)","npc_name",payload.npc_name||"")}${input("Rôles spéciaux autorisés (séparés par des virgules)","required_roles",(access.required_roles||[]).join(", "))}${check("Bâtiment visible dans le Royaume","building_visible",access.visible!==false)}${check("Salon textuel visible uniquement dans le vocal","temporary_text",access.temporary_text!==false)}</div></details></div>
   <div data-building-panel="visual" hidden>${visualStudioMarkup()}</div>`;
+  root.querySelector('[data-building-panel="mechanics"] > details').insertAdjacentHTML("beforebegin",`<section class="form-section"><div class="section-copy"><span class="step-dot">🚚</span><div><h3>Livraisons et transferts</h3><p>Discord propose uniquement les ressources acceptées réellement présentes dans l’inventaire.</p></div></div><div class="section-head"><b>Ressources livrables</b><button type="button" class="secondary" id="add-delivery">＋ Ajouter une ressource livrable</button></div><div id="delivery-modules"></div><div class="checks">${check("Autoriser Tout livrer","delivery_all",modules.delivery_mode==="all_available")}</div></section>`);
   (payload.actions||[]).forEach(addAction);
   (modules.professions||[]).forEach(addProfessionModule);
   (modules.activities||[]).forEach(addActivityModule);
+  (modules.deliveries||[]).forEach(addDeliveryModule);
   $("#add-profession").onclick=()=>{addProfessionModule({});refreshActivityProfessionOptions();};
   $("#add-activity").onclick=()=>addActivityModule({outcomes:[]});
+  $("#add-delivery").onclick=()=>addDeliveryModule({source:"player_inventory",destination:"building_stock",minimum_quantity:1,unit_price:0,payment_resource:"money"});
   $("#add-action").onclick = () => { addAction({effects:[]}); setHelp("action_name"); };
   $("#add-action").dataset.help = "actions";
   bindVisualStudio();renderVisualStudio();
@@ -576,6 +579,15 @@ function readConditions(actionElement){const conditions=[...actionElement.queryS
 
 function readHooks(element,prefix="action_hook_"){return Object.fromEntries([["on_start","start"],["on_success","success"],["on_failure","failure"],["on_claim","claim"]].map(([hook,suffix])=>[hook,fieldValue(prefix+suffix,element)?[{event:fieldValue(prefix+suffix,element),payload:{}}]:null]).filter(([,value])=>value));}
 
+function addDeliveryModule(rule={}) {
+  const element=document.createElement("div");element.className="builder delivery-module";element.dataset.original=JSON.stringify(rule);
+  const events=rule.events||{};element.innerHTML=`<button type="button" class="remove">×</button><div class="form-grid">${select("Ressource","delivery_resource",rule.item_key||rule.resource||"",catalogOptions("item",rule.item_key||rule.resource||""))}${select("Source","delivery_source",rule.source||"player_inventory",[["player_inventory","Inventaire du joueur"]])}${select("Destination","delivery_destination",rule.destination||"building_stock",[["building_stock","Stock d’un bâtiment"],["player_inventory","Inventaire joueur"]])}${select("Bâtiment destinataire","delivery_building",rule.target_building_key||rule.building||"",catalogOptions("building",rule.target_building_key||rule.building||""))}${input("Quantité minimale","delivery_min",rule.minimum_quantity??1,"number","min=1")}${input("Quantité maximale (0 = aucune)","delivery_max",rule.maximum_quantity??0,"number","min=0")}${input("Prix par unité","delivery_price",rule.unit_price??0,"number","min=0")}${select("Monnaie de paiement","delivery_currency",rule.payment_resource||rule.currency||"money",catalogOptions("item",rule.payment_resource||rule.currency||"money"))}${select("Événement au début","delivery_event_start",events.on_start?.event||"",catalogOptions("event",events.on_start?.event||""))}${select("Événement après livraison","delivery_event_success",events.on_success?.event||"",catalogOptions("event",events.on_success?.event||""))}${select("Événement en cas d’échec","delivery_event_failure",events.on_failure?.event||"",catalogOptions("event",events.on_failure?.event||""))}</div>`;
+  element.insertAdjacentHTML("beforeend",`<div class="section-head"><b>Conditions</b><button type="button" class="secondary add-delivery-condition">＋ Ajouter</button></div>${select("Combinaison","condition_group",rule.conditions?.any?"any":"all",[["all","Toutes les conditions"],["any","Au moins une condition"]])}<div class="condition-editors"></div>`);
+  $("#delivery-modules").append(element);const conditionRoot=rule.conditions||{},conditions=conditionRoot.all||conditionRoot.any||(Object.keys(conditionRoot).length?[conditionRoot]:[]);conditions.forEach(condition=>addConditionEditor(element.querySelector(".condition-editors"),condition));element.querySelector(".add-delivery-condition").onclick=()=>addConditionEditor(element.querySelector(".condition-editors"),{});element.querySelector(".remove").onclick=()=>element.remove();
+}
+
+function readDeliveryModules(){return $$("#delivery-modules > .delivery-module").map(element=>{const maximum=fieldValue("delivery_max",element),events={},conditions=readConditions(element);[["on_start","delivery_event_start"],["on_success","delivery_event_success"],["on_failure","delivery_event_failure"]].forEach(([key,field])=>{if(fieldValue(field,element))events[key]={event:fieldValue(field,element),payload:{}};});return {...JSON.parse(element.dataset.original||"{}"),item_key:fieldValue("delivery_resource",element),source:fieldValue("delivery_source",element),destination:fieldValue("delivery_destination",element),target_building_key:fieldValue("delivery_building",element),minimum_quantity:fieldValue("delivery_min",element),maximum_quantity:maximum>0?maximum:null,unit_price:fieldValue("delivery_price",element),payment_resource:fieldValue("delivery_currency",element)||"money",events,conditions};});}
+
 function readProfessionModules() {
   return $$("#profession-modules > .profession-module").map((element,index)=>({
     ...JSON.parse(element.dataset.original||"{}"),
@@ -629,6 +641,8 @@ function buildPayload() {
     catch (_) { throw Error("La configuration modulaire contient un JSON invalide."); }
     modules.professions=readProfessionModules();
     modules.activities=readActivityModules();
+    modules.deliveries=readDeliveryModules();
+    modules.delivery_mode=fieldValue("delivery_all")?"all_available":"selected_quantity";
     const buildingKey=$("#key").value.trim();
     const previousTarget=state.interfaceDraft?.target_building_key;
     const interfaceDefinition=clone(state.interfaceDraft||blankInterface(buildingKey,payload.name,payload.emoji,payload.color));

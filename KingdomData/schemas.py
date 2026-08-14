@@ -215,6 +215,22 @@ def _validate_building_modules(payload: dict[str, Any]) -> None:
     for recipe in modules.get("recipes", []):
         if recipe.get("output_destination", "player") not in {"player", "player_inventory", "building_stock"}:
             raise ValidationError("La destination de production doit être player ou building_stock.")
+    for delivery in modules.get("deliveries", []):
+        if not str(delivery.get("item_key", delivery.get("resource", ""))).strip():
+            raise ValidationError("Une livraison doit référencer une ressource.")
+        if delivery.get("source", "player_inventory") != "player_inventory":
+            raise ValidationError("La source de livraison doit être player_inventory.")
+        if delivery.get("destination", "building_stock") not in {"building_stock", "player_inventory"}:
+            raise ValidationError("Destination de livraison invalide.")
+        if int(delivery.get("minimum_quantity", 1)) < 1 or (delivery.get("maximum_quantity") is not None and int(delivery["maximum_quantity"]) < int(delivery.get("minimum_quantity", 1))):
+            raise ValidationError("Les limites de quantité d'une livraison sont invalides.")
+        if int(delivery.get("unit_price", 0)) < 0:
+            raise ValidationError("Le prix unitaire d'une livraison ne peut pas être négatif.")
+        if delivery.get("conditions"):
+            _validate_condition(delivery["conditions"])
+        for event_rule in delivery.get("events", {}).values():
+            if event_rule and not str(event_rule.get("event", "")).strip():
+                raise ValidationError("Un événement de livraison doit posséder un identifiant.")
 
 
 def _validate_interface(payload: dict[str, Any]) -> None:
@@ -270,7 +286,7 @@ def _validate_interface(payload: dict[str, Any]) -> None:
             if component_id in component_ids:
                 raise ValidationError(f"Composant duplique : {component_id}")
             component_ids.add(component_id)
-            if component.get("type") not in {"hero", "text", "card", "stat", "divider", "image", "player_inventory", "building_inventory", "button", "select"}:
+            if component.get("type") not in {"hero", "text", "card", "stat", "divider", "image", "player_inventory", "building_inventory", "button", "select", "dynamic_inventory_selector"}:
                 raise ValidationError(f"Composant inconnu : {component.get('type')}")
             if component.get("type") in {"button", "select"}:
                 slot = int(component.get("slot", -1))
@@ -309,8 +325,8 @@ def _validate_interface(payload: dict[str, Any]) -> None:
 def _validate_interaction(interaction: dict[str, Any] | None) -> None:
     if not interaction:
         return
-    if interaction.get("type") not in {"navigate", "action", "refresh", "close"}:
-        raise ValidationError("Une interaction doit être de type navigate, action, refresh ou close.")
+    if interaction.get("type") not in {"navigate", "action", "refresh", "close", "deliver_all"}:
+        raise ValidationError("Type d'interaction inconnu.")
     if interaction.get("type") == "action" and not (interaction.get("building") and interaction.get("action")):
         raise ValidationError("Une action doit cibler un bâtiment et une action publiée.")
 

@@ -41,7 +41,8 @@ def test_all_v1_buildings_items_and_voice_profiles_are_discovered():
     assert any(component.get("props", {}).get("label") == "Discuter avec Gaspard" for component in camp_components)
     assert any(component.get("interaction", {}).get("type") == "refresh" for component in camp_components)
     assert any(component.get("interaction", {}).get("type") == "close" for component in camp_components)
-    assert any(component.get("interaction", {}).get("action") == "deliver_resources" for component in camp_components)
+    assert any(component.get("type") == "dynamic_inventory_selector" for component in camp_components)
+    assert any(component.get("interaction", {}).get("type") == "deliver_all" for component in camp_components)
     woodcutter_components = forest_interface["pages"][3]["components"]
     destinations = next(component for component in woodcutter_components if component["type"] == "select")
     assert [option["key"] for option in destinations["options"]] == [
@@ -55,7 +56,8 @@ def test_all_v1_buildings_items_and_voice_profiles_are_discovered():
     forge_labels = {component.get("props", {}).get("label") for page in forge_interface["pages"] for component in page["components"]}
     assert {"Commander", "Réparer un équipement", "Améliorer ma pioche", "Inventaire du bâtiment", "Devenir Forgeron", "Discuter avec Wagner", "Actualiser", "Quitter"} <= forge_labels
     assert any(component.get("interaction", {}).get("confirm") for page in forge_interface["pages"] for component in page["components"])
-    assert any(component.get("interaction", {}).get("action") == "deliver_resources" for component in forge_interface["pages"][0]["components"])
+    assert any(component.get("type") == "dynamic_inventory_selector" for component in forge_interface["pages"][0]["components"])
+    assert any(component.get("interaction", {}).get("type") == "deliver_all" for component in forge_interface["pages"][0]["components"])
 
 
 def test_import_is_idempotent(tmp_path):

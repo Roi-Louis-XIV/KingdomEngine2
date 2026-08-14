@@ -107,6 +107,15 @@ class ContentStore:
         for activity in payload.get("modules", {}).get("activities", []):
             hooks(activity.get("hooks", {}))
             for outcome in activity.get("outcomes", []): effects(outcome.get("effects", []))
+        for delivery in payload.get("modules", {}).get("deliveries", []):
+            resource = str(delivery.get("item_key", delivery.get("resource", "")))
+            destination = str(delivery.get("target_building_key", delivery.get("building", entity_key)))
+            currency = str(delivery.get("payment_resource", delivery.get("currency", "money")))
+            if resource not in items and payload.get("source") != "KingdomEngine V1": raise ValidationError(f"Ressource livrable introuvable : {resource}")
+            if delivery.get("destination", "building_stock") == "building_stock" and destination not in buildings and payload.get("source") != "KingdomEngine V1": raise ValidationError(f"Bâtiment destinataire introuvable : {destination}")
+            if currency not in items | {"money", "energy"}: raise ValidationError(f"Monnaie de paiement introuvable : {currency}")
+            for event_rule in delivery.get("events", {}).values():
+                if event_rule and event_rule.get("event") not in events: raise ValidationError(f"Événement de livraison introuvable : {event_rule.get('event')}")
 
     def publish(self, entity_type: str, key: str, version: int, author: str = "web") -> dict[str, Any]:
         key = validate_key(key)
@@ -199,5 +208,7 @@ CREATE TABLE IF NOT EXISTS building_stock(building_key TEXT NOT NULL,item_key TE
 CREATE TABLE IF NOT EXISTS action_cooldowns(scope TEXT NOT NULL,building_key TEXT NOT NULL,action_key TEXT NOT NULL,ready_at REAL NOT NULL,PRIMARY KEY(scope,building_key,action_key));
 CREATE TABLE IF NOT EXISTS scheduled_actions(id INTEGER PRIMARY KEY AUTOINCREMENT,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,action_key TEXT NOT NULL,category TEXT NOT NULL DEFAULT '',limit_scope TEXT NOT NULL DEFAULT 'player_action',ready_at REAL NOT NULL,effects_json TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',created_at TEXT NOT NULL,completed_at TEXT,result_json TEXT NOT NULL DEFAULT '{}',claim_hooks_json TEXT NOT NULL DEFAULT '[]');
 CREATE TABLE IF NOT EXISTS collective_contributions(id INTEGER PRIMARY KEY AUTOINCREMENT,objective_key TEXT NOT NULL,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,resource_key TEXT NOT NULL,amount INTEGER NOT NULL,metadata_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS delivery_log(id INTEGER PRIMARY KEY AUTOINCREMENT,interaction_id TEXT NOT NULL,discord_id TEXT NOT NULL,source_building TEXT NOT NULL,destination_building TEXT NOT NULL,resource_key TEXT NOT NULL,quantity INTEGER NOT NULL,unit_price INTEGER NOT NULL,total_payment INTEGER NOT NULL,payment_resource TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS delivery_interaction_line ON delivery_log(interaction_id,resource_key,destination_building);
 CREATE TABLE IF NOT EXISTS action_log(id INTEGER PRIMARY KEY AUTOINCREMENT,interaction_id TEXT UNIQUE NOT NULL,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,action_key TEXT NOT NULL,result_json TEXT NOT NULL,created_at TEXT NOT NULL);
 """

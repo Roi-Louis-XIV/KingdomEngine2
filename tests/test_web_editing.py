@@ -84,6 +84,9 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
     assert 'id="activity-modules"' in script
     assert 'outcome-effects' in script
     assert 'condition-editors' in script
+    assert 'delivery-modules' in script
+    assert 'Ajouter une ressource livrable' in script
+    assert 'delivery_event_success' in script
     assert 'addConditionEditor' in script
     assert 'readConditions' in script
     assert 'Toutes les conditions' in script

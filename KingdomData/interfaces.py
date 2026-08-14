@@ -232,7 +232,8 @@ def interface_from_activity_modules(
 
     deliveries = list(modules.get("deliveries", []))
     if deliveries and modules.get("delivery_mode") == "all_available":
-        camp.insert(-1, {"id": f"deliver_all_{building_key}", "type": "button", "slot": 15, "props": {"label": building.get("interface_texts", {}).get("deliveries_label", "Livrer mes ressources"), "emoji": "📦", "style": "secondary"}, "interaction": {"type": "action", "building": building_key, "action": "deliver_resources"}})
+        camp.insert(-1, {"id": f"delivery_selector_{building_key}", "type": "dynamic_inventory_selector", "slot": 15, "props": {"placeholder": "Choisir une ressource à livrer…"}})
+        camp.insert(-1, {"id": f"deliver_all_{building_key}", "type": "button", "slot": 20, "props": {"label": building.get("interface_texts", {}).get("deliveries_label", "Tout livrer"), "emoji": "📦", "style": "secondary"}, "interaction": {"type": "deliver_all"}})
     elif deliveries:
         camp.insert(-1, {
             "id": f"deliveries_{building_key}"[:64], "type": "select", "slot": 15,
@@ -288,7 +289,8 @@ def interface_from_workshop_modules(building_key: str, building: dict[str, Any],
     ])
     deliveries = list(modules.get("deliveries", []))
     if deliveries and modules.get("delivery_mode") == "all_available":
-        home.append({"id": f"deliver_all_{building_key}"[:64], "type": "button", "slot": 15, "props": {"label": building.get("interface_texts", {}).get("deliveries_label", "Livrer mes ressources"), "emoji": "📦", "style": "secondary"}, "interaction": {"type": "action", "building": building_key, "action": "deliver_resources"}})
+        home.append({"id": f"delivery_selector_{building_key}"[:64], "type": "dynamic_inventory_selector", "slot": 15, "props": {"placeholder": "Choisir une ressource à livrer…"}})
+        home.append({"id": f"deliver_all_{building_key}"[:64], "type": "button", "slot": 20, "props": {"label": "Tout livrer", "emoji": "📦", "style": "secondary"}, "interaction": {"type": "deliver_all"}})
     elif deliveries:
         home.append({"id": f"deliveries_{building_key}", "type": "select", "slot": 15, "props": {"placeholder": "Livrer des ressources à l'atelier…"}, "options": [{"key": str(delivery["item_key"]), "label": f"Livrer {delivery['item_key']}", "emoji": "📦", "description": f"1 unité · {int(delivery.get('unit_price', 0))} écus", "interaction": {"type": "action", "building": building_key, "action": f"deliver_{delivery['item_key']}"}} for delivery in deliveries]})
     pages.append({"key": "home", "name": texts.get("home_title", name), "components": home})

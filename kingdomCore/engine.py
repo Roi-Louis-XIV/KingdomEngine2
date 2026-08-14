@@ -47,6 +47,70 @@ class GameEngine:
                 pass
             raise
 
+    def delivery_options(self, discord_id: str, building_key: str) -> list[dict[str, Any]]:
+        building = self.building(building_key)["payload"]
+        rules = building.get("modules", {}).get("deliveries", [])
+        with self.store.connection() as db:
+            inventory = {str(row[0]): int(row[1]) for row in db.execute("SELECT item_key,quantity FROM inventory WHERE discord_id=? AND quantity>0", (discord_id,))}
+        return [{**rule, "resource": str(rule.get("item_key", rule.get("resource"))), "quantity": inventory[str(rule.get("item_key", rule.get("resource")))], "name": self._item_name(str(rule.get("item_key", rule.get("resource"))))} for rule in rules if inventory.get(str(rule.get("item_key", rule.get("resource"))), 0) >= int(rule.get("minimum_quantity", 1))]
+
+    async def execute_delivery(self, discord_id: str, building_key: str, interaction_id: str, quantities: dict[str, int]) -> dict[str, Any]:
+        rules = self.building(building_key)["payload"].get("modules", {}).get("deliveries", [])
+        hooks = {name: [entry for rule in rules for entry in ([rule.get("events", {}).get(name)] if rule.get("events", {}).get(name) else [])] for name in ("on_start", "on_success", "on_failure")}
+        for event in self._hook_events(hooks, "on_start", discord_id, building_key, "delivery", {"quantities": quantities}): await self.bus.publish(event)
+        try:
+            result = await self._execute_delivery(discord_id, building_key, interaction_id, quantities)
+            for event in self._hook_events(hooks, "on_success", discord_id, building_key, "delivery", result): await self.bus.publish(event)
+            return result
+        except Exception as exc:
+            for event in self._hook_events(hooks, "on_failure", discord_id, building_key, "delivery", {"error": str(exc), "quantities": quantities}): await self.bus.publish(event)
+            raise
+
+    async def _execute_delivery(self, discord_id: str, building_key: str, interaction_id: str, quantities: dict[str, int]) -> dict[str, Any]:
+        building = self.building(building_key)["payload"]
+        rules = {str(rule.get("item_key", rule.get("resource"))): rule for rule in building.get("modules", {}).get("deliveries", [])}
+        if not quantities: raise ValidationError("Aucune ressource à livrer.")
+        unknown = set(quantities) - set(rules)
+        if unknown: raise ValidationError(f"Ressource non acceptée : {next(iter(unknown))}.")
+        for resource, quantity in quantities.items():
+            rule = rules[resource]; quantity = int(quantity)
+            if quantity < int(rule.get("minimum_quantity", 1)): raise ValidationError("La quantité doit être supérieure à zéro et respecter le minimum configuré.")
+            maximum = rule.get("maximum_quantity")
+            if maximum is not None and quantity > int(maximum): raise ValidationError(f"La quantité maximale acceptée est {maximum}.")
+            destination = str(rule.get("target_building_key", rule.get("building", "")))
+            if rule.get("destination", "building_stock") == "building_stock": self.store.get("building", destination, published=True)
+        with self.store.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            previous = db.execute("SELECT result_json FROM action_log WHERE interaction_id=?", (interaction_id,)).fetchone()
+            if previous: return json.loads(previous[0])
+            for resource, quantity in quantities.items():
+                row = db.execute("SELECT quantity FROM inventory WHERE discord_id=? AND item_key=?", (discord_id, resource)).fetchone()
+                if not row or int(row[0]) < int(quantity): raise ValidationError(f"Quantité insuffisante : {self._item_name(resource)}.")
+                rule = rules[resource]
+                if rule.get("conditions") and not self._condition_value(db, discord_id, building_key, "delivery", rule["conditions"], {}):
+                    raise ValidationError(str(rule.get("condition_message") or "Les conditions de cette livraison ne sont pas remplies."))
+                capacity = rule.get("destination_max_stock")
+                if capacity is not None and rule.get("destination", "building_stock") == "building_stock":
+                    destination = str(rule.get("target_building_key", rule.get("building", building_key)))
+                    current = db.execute("SELECT quantity FROM building_stock WHERE building_key=? AND item_key=?", (destination, resource)).fetchone()
+                    if (int(current[0]) if current else 0) + int(quantity) > int(capacity): raise ValidationError("Le stock destinataire ne peut pas accepter cette quantité.")
+            total_by_currency: dict[str, int] = {}; lines = []
+            for resource, quantity_value in quantities.items():
+                quantity, rule = int(quantity_value), rules[resource]
+                destination = str(rule.get("target_building_key", rule.get("building", building_key)))
+                currency, unit_price = str(rule.get("payment_resource", rule.get("currency", "money"))), int(rule.get("unit_price", 0))
+                db.execute("UPDATE inventory SET quantity=quantity-? WHERE discord_id=? AND item_key=?", (quantity, discord_id, resource)); db.execute("DELETE FROM inventory WHERE discord_id=? AND item_key=? AND quantity<=0", (discord_id, resource))
+                if rule.get("destination", "building_stock") == "building_stock": self._change_stock(db, destination, resource, quantity)
+                else: self._change_resource(db, discord_id, resource, quantity)
+                payment = quantity * unit_price; total_by_currency[currency] = total_by_currency.get(currency, 0) + payment
+                db.execute("INSERT INTO delivery_log VALUES(NULL,?,?,?,?,?,?,?,?,?,?)", (interaction_id, discord_id, building_key, destination, resource, quantity, unit_price, payment, currency, _now()))
+                lines.append({"resource": resource, "quantity": quantity, "destination": destination, "unit_price": unit_price, "payment": payment})
+            for currency, payment in total_by_currency.items():
+                if payment: self._change_resource(db, discord_id, currency, payment)
+            result = {"delivery": lines, "payments": total_by_currency, "player": self.player(discord_id, db)}
+            db.execute("INSERT INTO action_log(interaction_id,discord_id,building_key,action_key,result_json,created_at) VALUES(?,?,?,?,?,?)", (interaction_id, discord_id, building_key, "delivery", json.dumps(result, ensure_ascii=False), _now()))
+        return result
+
     async def _execute(
         self, discord_id: str, building_key: str, action_key: str, interaction_id: str,
         context: dict[str, Any],
