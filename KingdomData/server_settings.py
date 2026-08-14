@@ -42,7 +42,7 @@ DEFAULT_SERVER_SETTINGS: dict[str, Any] = {
         "welcome_channel": "bienvenue",
         "commands_channel": "commandes-du-royaume",
         "administration_channel": "administration-royaume",
-        "building_text_channel": "entree",
+        "building_text_channel": "{name}",
         "building_voice_channel_template": "🔊 {name}",
         "temporary_text_access": True,
         "entry_message_enabled": True,
@@ -66,7 +66,13 @@ def get_server_settings(store: Any) -> dict[str, Any]:
         published = store.get("server_settings", SERVER_SETTINGS_KEY, published=True)["payload"]
     except Exception:
         return settings
-    return _deep_merge(settings, published)
+    settings = _deep_merge(settings, published)
+    # Migration de l'ancien modèle unique : les royaumes qui utilisent encore
+    # la valeur historique obtiennent automatiquement un salon nommé d'après le
+    # bâtiment. Les modèles personnalisés restent strictement inchangés.
+    if str(settings["discord"].get("building_text_channel", "")).strip().lower() in {"entree", "entrée"}:
+        settings["discord"]["building_text_channel"] = "{name}"
+    return settings
 
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:

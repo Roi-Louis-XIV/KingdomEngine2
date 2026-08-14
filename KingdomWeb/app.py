@@ -11,7 +11,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from KingdomData import ConflictError, ContentStore, NotFoundError, ValidationError, SERVER_SETTINGS_KEY
+from KingdomData import ConflictError, ContentStore, NotFoundError, ValidationError, SERVER_SETTINGS_KEY, get_server_settings
 from import_v1 import import_v1
 from kingdomCore.provisioner import managed_bot_permissions, required_bot_permissions
 from KingdomWeb.supervision import AdministrationService, ServiceSupervisor
@@ -99,7 +99,8 @@ def changes(after: int = 0): return store.changes(after)
 
 @app.get("/api/server/settings", dependencies=[Depends(authorize)])
 def server_settings():
-    return store.get("server_settings", SERVER_SETTINGS_KEY)
+    entity = store.get("server_settings", SERVER_SETTINGS_KEY)
+    return {**entity, "payload": get_server_settings(store)}
 
 
 @app.post("/api/server/settings", dependencies=[Depends(authorize)])

@@ -156,6 +156,24 @@ def test_server_settings_are_saved_and_published_from_one_endpoint(tmp_path, mon
     assert store.get("server_settings", "kingdom_server", published=True)["payload"]["roles"]["player"] == "⚔️ Habitants assermentés"
 
 
+def test_legacy_entry_channel_is_presented_as_building_name(tmp_path, monkeypatch):
+    store = ContentStore(tmp_path / "legacy-settings.db")
+    store.initialize()
+    payload = default_server_settings()
+    payload["discord"]["building_text_channel"] = "entree"
+    initial = store.save("server_settings", "kingdom_server", payload)
+    store.publish("server_settings", "kingdom_server", initial["version"])
+    monkeypatch.setattr(web, "store", store)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+
+    with TestClient(web.app) as client:
+        response = client.get("/api/server/settings", headers={"Authorization": "Bearer change-me"})
+
+    assert response.status_code == 200
+    assert response.json()["payload"]["discord"]["building_text_channel"] == "{name}"
+
+
 def test_building_embeds_its_visual_interface_with_select_menu(tmp_path):
     store = ContentStore(tmp_path / "unified.db")
     store.initialize()
