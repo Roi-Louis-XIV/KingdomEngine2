@@ -437,11 +437,20 @@ async def send_building_entry(
     text_name = channel_slug(settings["discord"]["building_text_channel"].format(name=payload["name"], key=entity["entity_key"]))
     channel = discord.utils.get(category.text_channels, name=text_name)
     if channel is None:
-        channel = await member.guild.create_text_channel(
-            text_name, category=category, topic=payload.get("description"),
-            reason="Réparation automatique de l'entrée KingdomEngine",
-        )
-        logger.warning("Salon #%s créé automatiquement dans %s pour %s.", text_name, category.name, entity["entity_key"])
+        legacy_channel = next((item for item in category.text_channels if channel_slug(item.name) == "entree"), None)
+        if legacy_channel is not None:
+            legacy_name = legacy_channel.name
+            channel = await legacy_channel.edit(
+                name=text_name, topic=payload.get("description"),
+                reason="Migration du salon d'entrée KingdomEngine",
+            )
+            logger.warning("Salon #%s renommé en #%s dans %s.", legacy_name, text_name, category.name)
+        else:
+            channel = await member.guild.create_text_channel(
+                text_name, category=category, topic=payload.get("description"),
+                reason="Réparation automatique de l'entrée KingdomEngine",
+            )
+            logger.warning("Salon #%s créé automatiquement dans %s pour %s.", text_name, category.name, entity["entity_key"])
     await channel.set_permissions(
         member,
         overwrite=discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
