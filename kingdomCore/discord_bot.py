@@ -269,12 +269,12 @@ class PrivateInterfaceLauncher(discord.ui.View):
     """Petit lanceur de salon : tout le parcours suivant est éphémère et privé."""
 
     def __init__(self, engine: GameEngine, definition: dict[str, Any], owner_id: int):
-        super().__init__(timeout=600)
+        super().__init__(timeout=None)
         self.engine, self.definition, self.owner_id = engine, definition, owner_id
         # L'identifiant déterministe permet au nouveau processus de reprendre les
         # boutons déjà envoyés après un redémarrage du Core.
         building_key = str(definition.get("target_building_key") or "building")
-        custom_id = f"kel:{owner_id}:{building_key}"[:100]
+        custom_id = f"kel:{building_key}"[:100]
         button = discord.ui.Button(
             label="Ouvrir mon interface privée", emoji="🚪",
             style=discord.ButtonStyle.primary, custom_id=custom_id,
@@ -282,14 +282,8 @@ class PrivateInterfaceLauncher(discord.ui.View):
         button.callback = self.open
         self.add_item(button)
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id == self.owner_id:
-            return True
-        await interaction.response.send_message("Cette entrée est réservée au joueur qui vient d'arriver.", ephemeral=True)
-        return False
-
     async def open(self, interaction: discord.Interaction) -> None:
-        view = InterfaceView(self.engine, self.definition, owner_id=self.owner_id)
+        view = InterfaceView(self.engine, self.definition, owner_id=interaction.user.id)
         await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
 
 
@@ -443,18 +437,36 @@ async def send_building_entry(
     text_name = channel_slug(settings["discord"]["building_text_channel"].format(name=payload["name"], key=entity["entity_key"]))
     channel = discord.utils.get(category.text_channels, name=text_name)
     if channel is None:
-        logger.warning("Entrée non envoyée pour %s : #%s absent de %s.", entity["entity_key"], text_name, category.name)
-        return
+        channel = await member.guild.create_text_channel(
+            text_name, category=category, topic=payload.get("description"),
+            reason="Réparation automatique de l'entrée KingdomEngine",
+        )
+        logger.warning("Salon #%s créé automatiquement dans %s pour %s.", text_name, category.name, entity["entity_key"])
+    await channel.set_permissions(
+        member,
+        overwrite=discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
+        reason="Présence dans le bâtiment KingdomEngine",
+    )
     definition = interface_for_building(store, payload) or interface_from_building(
         entity["entity_key"], payload, payload.get("actions", [])
     )
     launcher = PrivateInterfaceLauncher(engine, definition, member.id)
+    content = f"🚪 Une entrée privée vers **{payload['name']}** est prête."
+    # Répare le portail déjà publié : un portail est commun au bâtiment, puis
+    # chaque clic ouvre une interface éphémère appartenant au joueur.
+    try:
+        async for old_message in channel.history(limit=30):
+            if old_message.author.id == member.guild.me.id and old_message.content.startswith("🚪 Une entrée privée vers"):
+                await old_message.edit(content=content, view=launcher)
+                logger.info("Entrée de %s réparée dans #%s.", entity["entity_key"], channel.name)
+                return
+    except discord.HTTPException:
+        logger.warning("Nettoyage des anciennes entrées impossible dans #%s.", channel.name)
     await channel.send(
-        content=f"🚪 Une entrée privée vers **{payload['name']}** est prête.",
+        content=content,
         view=launcher,
         silent=True,
         allowed_mentions=discord.AllowedMentions.none(),
-        delete_after=600,
     )
     logger.info("Entrée de %s envoyée à %s dans #%s.", entity["entity_key"], member.id, channel.name)
 

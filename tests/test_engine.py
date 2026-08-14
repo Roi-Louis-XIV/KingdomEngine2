@@ -14,7 +14,7 @@ def test_private_launcher_id_survives_core_restart():
         return first.children[0].custom_id, second.children[0].custom_id, other.children[0].custom_id
 
     first_id, second_id, other_id = asyncio.run(build_ids())
-    assert first_id == second_id == "kel:42:wildlands"
+    assert first_id == second_id == "kel:wildlands"
     assert other_id != first_id
 
 
