@@ -59,6 +59,8 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
         assert f'key: "{preset}"' in presets
     assert 'data-duplicate=' in script
     assert 'openEditor(entity,true)' in script
+    assert 'catalogOptions(catalogType, value)' in script
+    assert 'Choisir une ressource…' in script
 
 
 def test_voice_bot_invite_link_uses_its_application_id(tmp_path, monkeypatch):

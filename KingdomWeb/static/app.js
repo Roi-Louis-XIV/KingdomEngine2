@@ -1,6 +1,7 @@
 const state = {
   type: "building", items: [], editing: null, duplicate: false,
   selectedPreset: null, keyTouched: false,
+  catalogs: {item: [], event: []},
   token: localStorage.kingdomToken || prompt("Jeton administrateur", "change-me") || ""
 };
 localStorage.kingdomToken = state.token;
@@ -56,6 +57,31 @@ async function load() {
   if (!response.ok) { alert("Accès refusé ou API indisponible."); return; }
   state.items = await response.json();
   renderCards();
+}
+
+async function loadCatalogs() {
+  const [itemsResponse, eventsResponse] = await Promise.all([
+    fetch("/api/content?entity_type=item", {headers}),
+    fetch("/api/content?entity_type=event", {headers}),
+  ]);
+  if (itemsResponse.ok) state.catalogs.item = await itemsResponse.json();
+  if (eventsResponse.ok) state.catalogs.event = await eventsResponse.json();
+}
+
+function catalogOptions(type, currentValue="") {
+  const systemResources = type === "item"
+    ? [["money", "💰 Monnaie"], ["energy", "⚡ Énergie"]]
+    : [];
+  const entities = state.catalogs[type].map(entity => [
+    entity.entity_key,
+    `${entity.payload.emoji || (type === "item" ? "📦" : "⚡")} ${entity.payload.name || entity.entity_key}`,
+  ]);
+  const options = [...systemResources, ...entities];
+  // Préserve une ancienne référence même si son objet a depuis été supprimé.
+  if (currentValue && !options.some(([key]) => key === currentValue)) {
+    options.push([currentValue, `⚠ ${currentValue} (introuvable)`]);
+  }
+  return [["", type === "item" ? "Choisir une ressource…" : "Choisir un événement…"], ...options];
 }
 
 function renderCards() {
@@ -196,8 +222,23 @@ function addEffect(container, effect={}) {
   const element = document.createElement("div");
   element.className = "builder effect-builder";
   element.dataset.originalEffect = JSON.stringify(effect);
-  element.innerHTML = `<button type="button" class="remove" aria-label="Supprimer ce résultat">×</button><div class="friendly-effect">${select("Résultat","effect_type",effect.type||"message",[["message","Afficher un message"],["reward","Donner une ressource"],["cost","Retirer une ressource"],["emit","Déclencher un événement"],["random_reward","Butin aléatoire (avancé)"]])}${input("Objet, ressource ou événement","effect_resource",effect.resource||effect.event||"")}${input("Quantité","effect_amount",effect.amount||0,"number")}${input("Message au joueur","effect_text",effect.text||"")}</div>`;
+  const resource = effect.resource || effect.event || "";
+  element.innerHTML = `<button type="button" class="remove" aria-label="Supprimer ce résultat">×</button><div class="friendly-effect">${select("Résultat","effect_type",effect.type||"message",[["message","Afficher un message"],["reward","Donner une ressource"],["cost","Retirer une ressource"],["emit","Déclencher un événement"],["random_reward","Butin aléatoire (avancé)"]])}<span class="effect-resource-field"></span>${input("Quantité","effect_amount",effect.amount||0,"number")}${input("Message au joueur","effect_text",effect.text||"")}</div>`;
   container.append(element);
+  const renderResourceSelector = (value="") => {
+    const effectType = fieldValue("effect_type", element);
+    if (!["reward", "cost", "emit"].includes(effectType)) {
+      element.querySelector(".effect-resource-field").innerHTML = "";
+      return;
+    }
+    const catalogType = effectType === "emit" ? "event" : "item";
+    element.querySelector(".effect-resource-field").innerHTML = select(
+      catalogType === "item" ? "Ressource ou objet" : "Événement",
+      "effect_resource", value, catalogOptions(catalogType, value),
+    );
+  };
+  renderResourceSelector(resource);
+  element.querySelector('[data-field="effect_type"]').addEventListener("change", () => renderResourceSelector());
   element.querySelector(".remove").onclick = () => element.remove();
 }
 
@@ -268,4 +309,4 @@ $("#save").onclick = async () => {
 
 $("#new").onclick=startCreate; $("#search").oninput=renderCards;
 $$('#nav button').forEach(button=>button.onclick=()=>{const active=$("#nav .active");if(active)active.classList.remove("active");button.classList.add("active");state.type=button.dataset.type;$("#title").textContent=labels[state.type];$("#crumb").textContent=labels[state.type].toUpperCase();load();});
-load();
+loadCatalogs().finally(load);
