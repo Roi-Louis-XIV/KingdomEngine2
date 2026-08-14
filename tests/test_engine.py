@@ -41,6 +41,23 @@ def test_failed_action_rolls_back(tmp_path):
     assert engine.player("42")["inventory"]=={}
 
 
+def test_missing_required_item_uses_its_readable_name(tmp_path):
+    store = ContentStore(tmp_path / "readable.db"); store.initialize()
+    item = store.save("item", "simple_axe", {"name": "Hache simple", "emoji": "🪓"})
+    store.publish("item", "simple_axe", item["version"])
+    building = store.save("building", "forest_test", {"name": "Forêt", "actions": [{
+        "key": "join_woodcutter", "name": "Devenir Bûcheron",
+        "requirements": {"items": {"simple_axe": 1}}, "effects": [],
+    }]})
+    store.publish("building", "forest_test", building["version"])
+    try:
+        asyncio.run(GameEngine(store).execute("42", "forest_test", "join_woodcutter", "missing-axe"))
+    except ValidationError as error:
+        assert str(error) == "Objet requis : 🪓 Hache simple."
+    else:
+        raise AssertionError("L'action devait refuser le joueur sans hache.")
+
+
 def test_generated_building_action_uses_published_module_parameters(tmp_path):
     store = ContentStore(tmp_path / "generated.db")
     store.initialize()

@@ -69,6 +69,8 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
 
     assert 'id="preset-step"' in html
     assert 'id="context-help"' in html
+    assert 'Comment construire une mécanique ?' in script
+    assert 'building_mechanics' in script
     assert 'id="wizard-back"' in html
     assert "building-presets.js" in html
     for preset in ("harvest", "production", "commerce", "social", "administration", "custom"):

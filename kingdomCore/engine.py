@@ -241,8 +241,14 @@ class GameEngine:
             ).fetchall()
         return [{"action": str(row[0]), "ready_at": float(row[1])} for row in rows]
 
-    @staticmethod
-    def _change_resource(db, discord_id: str, resource: str, amount: int) -> None:
+    def _item_name(self, key: str) -> str:
+        try:
+            payload = self.store.get("item", key, published=True)["payload"]
+            return f"{payload.get('emoji', '📦')} {payload.get('name') or key}"
+        except (NotFoundError, KeyError):
+            return f"{key.replace('_', ' ').capitalize()} ({key})"
+
+    def _change_resource(self, db, discord_id: str, resource: str, amount: int) -> None:
         if resource in {"money", "energy"}:
             current = int(db.execute(f"SELECT {resource} FROM players WHERE discord_id=?", (discord_id,)).fetchone()[0])
             if current + amount < 0: raise ValidationError(f"Ressource insuffisante : {resource}.")
@@ -250,7 +256,7 @@ class GameEngine:
         else:
             current_row = db.execute("SELECT quantity FROM inventory WHERE discord_id=? AND item_key=?", (discord_id, resource)).fetchone()
             current = int(current_row[0]) if current_row else 0
-            if current + amount < 0: raise ValidationError(f"Objet insuffisant : {resource}.")
+            if current + amount < 0: raise ValidationError(f"Objet insuffisant : {self._item_name(resource)}.")
             db.execute("INSERT INTO inventory(discord_id,item_key,quantity) VALUES(?,?,?) ON CONFLICT(discord_id,item_key) DO UPDATE SET quantity=excluded.quantity", (discord_id, resource, current + amount))
 
     @staticmethod
@@ -261,8 +267,7 @@ class GameEngine:
             return int(value.get("min", 0)), int(value.get("max", value.get("min", 0)))
         return int(value), int(value)
 
-    @staticmethod
-    def _check_requirements(db, discord_id: str, requirements: dict[str, Any]) -> None:
+    def _check_requirements(self, db, discord_id: str, requirements: dict[str, Any]) -> None:
         if requirements.get("no_active_profession"):
             row = db.execute("SELECT profession_key FROM player_professions WHERE discord_id=? AND active=1 LIMIT 1", (discord_id,)).fetchone()
             if row:
@@ -278,7 +283,9 @@ class GameEngine:
         for item, amount in requirements.get("items", {}).items():
             row = db.execute("SELECT quantity FROM inventory WHERE discord_id=? AND item_key=?", (discord_id, item)).fetchone()
             if not row or int(row[0]) < int(amount):
-                raise ValidationError(f"Objet requis : {item}.")
+                name = self._item_name(str(item))
+                quantity = int(amount)
+                raise ValidationError(f"Objet requis : {name}" + (f" × {quantity}" if quantity > 1 else "") + ".")
         if requirements.get("tool"):
             row = db.execute("SELECT level FROM player_tools WHERE discord_id=? AND tool_key=?", (discord_id, requirements["tool"])).fetchone()
             if not row or int(row[0]) != int(requirements.get("tool_level", 1)):
@@ -497,8 +504,7 @@ class GameEngine:
         if durability < 0: raise ValidationError(f"L'outil {effect['tool']} doit être réparé.")
         db.execute("UPDATE player_tools SET durability=?,max_durability=?,level=?,loot_bonus=? WHERE discord_id=? AND tool_key=?", (durability, maximum, level, bonus, discord_id, effect["tool"]))
 
-    @classmethod
-    def _repair_tool(cls, db, discord_id: str, tool: str, configured_maximum: int, price_per_point: int) -> None:
+    def _repair_tool(self, db, discord_id: str, tool: str, configured_maximum: int, price_per_point: int) -> None:
         row = db.execute("SELECT durability,max_durability FROM player_tools WHERE discord_id=? AND tool_key=?", (discord_id, tool)).fetchone()
         if not row:
             raise ValidationError(f"Aucun outil a reparer : {tool}.")
@@ -506,7 +512,7 @@ class GameEngine:
         missing = maximum - current
         if missing <= 0:
             raise ValidationError(f"L'outil {tool} est deja en parfait etat.")
-        cls._change_resource(db, discord_id, "money", -(missing * price_per_point))
+        self._change_resource(db, discord_id, "money", -(missing * price_per_point))
         db.execute("UPDATE player_tools SET durability=?,max_durability=? WHERE discord_id=? AND tool_key=?", (maximum, maximum, discord_id, tool))
 
     @staticmethod
