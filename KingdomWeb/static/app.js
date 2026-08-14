@@ -120,6 +120,7 @@ function renderCards() {
         ${state.type==="bot"?`<button type="button" data-invite="${item.entity_key}">Inviter</button> · `:""}
         <button type="button" data-edit="${item.entity_key}">Modifier</button>
         ${item.status==="draft"?` · <button type="button" data-publish="${item.entity_key}" data-version="${item.version}">Publier</button>`:""}
+        ${["building","item","event"].includes(state.type)?` · <button type="button" class="danger-link" data-delete="${item.entity_key}">Supprimer</button>`:""}
       </span></div>
     </article>`).join("") || `<p class="empty">Aucune définition. Crée la première.</p>`;
 }
@@ -759,6 +760,15 @@ $("#cards").addEventListener("click", async event => {
   if (duplicate) { event.stopPropagation(); const entity=state.items.find(item=>item.entity_key===duplicate.dataset.duplicate); if(entity)openEditor(entity,true); return; }
   const publish = event.target.closest("[data-publish]");
   if (publish) { event.stopPropagation(); await publishItem(publish.dataset.publish,Number(publish.dataset.version)); return; }
+  const remove = event.target.closest("[data-delete]");
+  if (remove) {
+    event.stopPropagation();
+    const entity=state.items.find(item=>item.entity_key===remove.dataset.delete);
+    if(!entity||!confirm(`Supprimer « ${entity.payload.name} » ?\n\nCette définition disparaîtra du Studio, mais son historique restera conservé.`))return;
+    const response=await fetch(`/api/content/${state.type}/${remove.dataset.delete}`,{method:"DELETE",headers});
+    if(!response.ok){alert((await response.json()).detail);return;}
+    await loadCatalogs(); await load(); return;
+  }
   const target = event.target.closest("[data-edit],[data-open]");
   if (target) { const key=target.dataset.edit||target.dataset.open; const entity=state.items.find(item=>item.entity_key===key); if(entity)openEditor(entity); }
 });

@@ -18,6 +18,8 @@ def test_all_v1_buildings_items_and_voice_profiles_are_discovered():
     forest_outcome = buildings["forest"]["modules"]["activities"][0]["outcomes"][0]
     assert "effects" in forest_outcome
     assert {effect["type"] for effect in forest_outcome["effects"]} >= {"reward", "profession", "emit"}
+    talk = next(action for action in buildings["forest"]["actions"] if action["key"] == "talk_npc")
+    assert len(talk["effects"][0]["choices"]) == 5
     assert buildings["forge"]["modules"]["repairs"]["pickaxe_price_per_point"] == 2
     assert len(buildings["tavern"]["modules"]["products"]) == 22
     assert len(buildings["tavern"]["modules"]["rumors"]["catalogue"]) == 6
@@ -30,12 +32,16 @@ def test_all_v1_buildings_items_and_voice_profiles_are_discovered():
     assert any(component.get("interaction", {}).get("type") == "action" for page in interfaces["ui_tavern"]["pages"] for component in page["components"])
 
     forest_interface = buildings["forest"]["interface"]
-    assert forest_interface["blueprint"] == "activity_professions_v1"
+    assert forest_interface["blueprint"] == "activity_professions_v2"
     assert [page["key"] for page in forest_interface["pages"]] == [
         "home", "camp", "inventory", "job_woodcutter", "job_hunter"
     ]
     camp_components = forest_interface["pages"][1]["components"]
     assert any(component.get("props", {}).get("label") == "Consulter mon inventaire" for component in camp_components)
+    assert any(component.get("props", {}).get("label") == "Discuter avec Gaspard" for component in camp_components)
+    assert any(component.get("interaction", {}).get("type") == "refresh" for component in camp_components)
+    assert any(component.get("interaction", {}).get("type") == "close" for component in camp_components)
+    assert any(component.get("type") == "select" and "Livrer" in component.get("props", {}).get("placeholder", "") for component in camp_components)
     woodcutter_components = forest_interface["pages"][3]["components"]
     destinations = next(component for component in woodcutter_components if component["type"] == "select")
     assert [option["key"] for option in destinations["options"]] == [

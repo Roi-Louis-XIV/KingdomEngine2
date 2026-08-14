@@ -121,6 +121,18 @@ class ContentStore:
             self._outbox(db, "content.published", entity_type, key, {"version": version})
         return self.get(entity_type, key, version)
 
+    def delete(self, entity_type: str, key: str, author: str = "web") -> dict[str, Any]:
+        """Masque une définition sans détruire son historique versionné."""
+        if entity_type not in {"building", "item", "event"}:
+            raise ValidationError("Seuls les bâtiments, objets et événements peuvent être supprimés.")
+        current = self.get(entity_type, key)
+        with self._lock, self.connection() as db:
+            version = int(current["version"]) + 1
+            db.execute("UPDATE content SET status='archived' WHERE entity_type=? AND entity_key=? AND status='published'", (entity_type, key))
+            db.execute("INSERT INTO content VALUES(?,?,?,?,?,?,?,NULL,NULL)", (entity_type, key, version, "deleted", _dump(current["payload"]), author, _now()))
+            self._outbox(db, "content.deleted", entity_type, key, {"version": version})
+        return self.get(entity_type, key, version)
+
     def get(self, entity_type: str, key: str, version: int | None = None, published: bool = False) -> dict[str, Any]:
         query = "SELECT * FROM content WHERE entity_type=? AND entity_key=?"
         args: list[Any] = [entity_type, validate_key(key)]
@@ -131,7 +143,8 @@ class ContentStore:
         else:
             query += " ORDER BY version DESC LIMIT 1"
         with self.connection() as db:
-            row = db.execute(query, args).fetchone()
+            latest = db.execute("SELECT status FROM content WHERE entity_type=? AND entity_key=? ORDER BY version DESC LIMIT 1", (entity_type, key)).fetchone()
+            row = None if version is None and latest and latest[0] == "deleted" else db.execute(query, args).fetchone()
         if not row:
             raise NotFoundError(f"{entity_type}/{key} introuvable.")
         return _row(row)
@@ -143,7 +156,9 @@ class ContentStore:
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
         query = "SELECT c.* FROM content c JOIN (SELECT entity_type,entity_key,MAX(version) v FROM content" + where + " GROUP BY entity_type,entity_key) x ON x.entity_type=c.entity_type AND x.entity_key=c.entity_key AND x.v=c.version ORDER BY c.entity_type,c.entity_key"
         with self.connection() as db:
-            return [_row(row) for row in db.execute(query, args)]
+            rows = [_row(row) for row in db.execute(query, args)]
+            deleted = {(row[0], row[1]) for row in db.execute("SELECT entity_type,entity_key FROM content c WHERE status='deleted' AND version=(SELECT MAX(version) FROM content WHERE entity_type=c.entity_type AND entity_key=c.entity_key)")}
+            return [row for row in rows if (row["entity_type"], row["entity_key"]) not in deleted]
 
     def seed(self, definitions: list[dict[str, Any]]) -> None:
         # Les catalogues référencés sont installés avant les bâtiments afin que

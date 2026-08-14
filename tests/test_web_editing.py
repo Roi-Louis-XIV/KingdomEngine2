@@ -4,6 +4,20 @@ import KingdomWeb.app as web
 from KingdomData import ContentStore, default_server_settings
 
 
+def test_content_deletion_keeps_history_but_hides_definition(tmp_path):
+    from KingdomData import NotFoundError
+    import pytest
+    store = ContentStore(tmp_path / "delete.db"); store.initialize()
+    draft = store.save("item", "old_item", {"name": "Ancien objet"})
+    store.publish("item", "old_item", draft["version"])
+    deleted = store.delete("item", "old_item")
+    assert deleted["status"] == "deleted"
+    assert store.list("item") == []
+    assert store.list("item", published=True) == []
+    assert store.get("item", "old_item", version=1)["payload"]["name"] == "Ancien objet"
+    with pytest.raises(NotFoundError): store.get("item", "old_item")
+
+
 def test_building_and_item_can_be_edited_and_published(tmp_path, monkeypatch):
     store = ContentStore(tmp_path / "web.db")
     store.initialize()
@@ -60,6 +74,7 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
     for preset in ("harvest", "production", "commerce", "social", "administration", "custom"):
         assert f'key: "{preset}"' in presets
     assert 'data-duplicate=' in script
+    assert 'data-delete=' in script
     assert 'openEditor(entity,true)' in script
     assert 'catalogOptions(catalogType, value)' in script
     assert 'Choisir une ressource…' in script

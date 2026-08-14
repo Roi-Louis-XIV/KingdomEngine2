@@ -223,6 +223,17 @@ class InterfaceView(discord.ui.View):
             async def action_callback(discord_interaction: discord.Interaction, target: dict[str, Any] = interaction):
                 await self._execute_action(discord_interaction, target)
             button.callback = action_callback
+        elif interaction.get("type") == "refresh":
+            async def refresh_callback(discord_interaction: discord.Interaction):
+                self.notice = ""
+                self._render_interactions()
+                await discord_interaction.response.edit_message(embed=self.embed(), view=self)
+            button.callback = refresh_callback
+        elif interaction.get("type") == "close":
+            async def close_callback(discord_interaction: discord.Interaction):
+                await discord_interaction.response.defer()
+                await discord_interaction.delete_original_response()
+            button.callback = close_callback
         else:
             button.disabled = True
         self.add_item(button)

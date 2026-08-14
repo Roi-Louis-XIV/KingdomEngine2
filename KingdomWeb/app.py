@@ -86,6 +86,13 @@ def save_content(entity_type: str, key: str, body: dict[str, Any]):
     except ConflictError as exc: raise HTTPException(409, str(exc)) from exc
 
 
+@app.delete("/api/content/{entity_type}/{key}", dependencies=[Depends(authorize)])
+def delete_content(entity_type: str, key: str):
+    try: return store.delete(entity_type, key, "studio")
+    except NotFoundError as exc: raise HTTPException(404, str(exc)) from exc
+    except ValidationError as exc: raise HTTPException(422, str(exc)) from exc
+
+
 @app.post("/api/content/{entity_type}/{key}/{version}/publish", dependencies=[Depends(authorize)])
 def publish_content(entity_type: str, key: str, version: int, body: dict[str, Any] | None = None):
     try: return store.publish(entity_type, key, version, (body or {}).get("author", "studio"))

@@ -309,8 +309,8 @@ def _validate_interface(payload: dict[str, Any]) -> None:
 def _validate_interaction(interaction: dict[str, Any] | None) -> None:
     if not interaction:
         return
-    if interaction.get("type") not in {"navigate", "action"}:
-        raise ValidationError("Une interaction doit être de type navigate ou action.")
+    if interaction.get("type") not in {"navigate", "action", "refresh", "close"}:
+        raise ValidationError("Une interaction doit être de type navigate, action, refresh ou close.")
     if interaction.get("type") == "action" and not (interaction.get("building") and interaction.get("action")):
         raise ValidationError("Une action doit cibler un bâtiment et une action publiée.")
 

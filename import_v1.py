@@ -108,7 +108,19 @@ def _link_existing_v1_buildings(store: ContentStore, definitions: list[dict[str,
     for definition in (item for item in definitions if item["type"] == "building"):
         current = store.get("building", definition["key"])
         payload = current["payload"]
-        if current["status"] != "published" or payload.get("source") != "KingdomEngine V1" or payload.get("interface"):
+        if current["status"] != "published" or payload.get("source") != "KingdomEngine V1":
+            continue
+        canonical = definition["payload"]
+        current_blueprint = payload.get("interface", {}).get("blueprint")
+        target_blueprint = canonical.get("interface", {}).get("blueprint")
+        if current_blueprint and current_blueprint != target_blueprint and target_blueprint:
+            upgraded = {**payload, "interface_texts": canonical.get("interface_texts", payload.get("interface_texts", {}))}
+            upgraded["actions"] = actions_from_modules(definition["key"], upgraded.get("modules", {}))
+            upgraded["interface"] = interface_from_activity_modules(definition["key"], upgraded, upgraded["actions"])
+            draft = store.save("building", definition["key"], upgraded, "migration-v1-interface-v2", current["version"])
+            store.publish("building", definition["key"], draft["version"], "migration-v1-interface-v2")
+            continue
+        if payload.get("interface"):
             continue
         upgraded = {
             **payload,
@@ -276,6 +288,16 @@ def _forest_payload(data: dict[str, Any]) -> dict[str, Any]:
         "deliveries": deliveries,
         "products": [], "recipes": [], "repairs": {}, "upgrades": [],
     })
+    payload["interface_texts"] = {
+        "home_title": "🌲 LA FORÊT DU ROYAUME",
+        "welcome": "Le vent traverse les cimes, le gibier remue dans les fougères.\n\n━━━━━━━━━━  **REFUGE FORESTIER**  ━━━━━━━━━━",
+        "enter_label": "Entrer dans la Forêt",
+        "refuge_title": "🌲 LA FORÊT DU ROYAUME",
+        "refuge_subtitle": "Choisis ta voie, pars en expédition ou livre les ressources récoltées.",
+        "talk_label": "Discuter avec Gaspard",
+        "zones_subtitle": "Le résultat est tiré et conservé dès ton départ.",
+        "deliveries_label": "Livrer les ressources de la Forêt…",
+    }
     return payload
 
 
@@ -366,6 +388,13 @@ def _project_payload(project: dict[str, Any]) -> dict[str, Any]:
 
 def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dict[str, Any]]:
     actions: list[dict[str, Any]] = []
+    npc_phrases = modules.get("npc", {}).get("phrases", [])
+    if npc_phrases:
+        actions.append({"key": "talk_npc", "name": "Discuter", "emoji": "💬", "enabled": True,
+                        "effects": [{"type": "random_message", "choices": [
+                            {"key": f"phrase_{index}", "weight": 1, "text": phrase}
+                            for index, phrase in enumerate(npc_phrases, 1)
+                        ]}]})
     xp_per_level = int(modules.get("rules", {}).get("experience_per_level", 100))
     tool_maxima = {
         str(activity["tool"]): int(activity.get("tool_max_durability", 80))

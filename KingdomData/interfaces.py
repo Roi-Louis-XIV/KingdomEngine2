@@ -35,8 +35,8 @@ def interface_from_activity_modules(
                     "id": f"hero_{building_key}_home"[:64],
                     "type": "hero",
                     "props": {
-                        "title": name,
-                        "subtitle": building.get("description", ""),
+                        "title": building.get("interface_texts", {}).get("home_title", name),
+                        "subtitle": building.get("interface_texts", {}).get("welcome", building.get("description", "")),
                         "emoji": emoji,
                     },
                 },
@@ -44,7 +44,7 @@ def interface_from_activity_modules(
                     "id": f"enter_{building_key}"[:64],
                     "type": "button",
                     "slot": 0,
-                    "props": {"label": "Entrer dans le camp", "emoji": "🚪", "style": "primary"},
+                    "props": {"label": building.get("interface_texts", {}).get("enter_label", "Entrer dans le camp"), "emoji": emoji, "style": "primary"},
                     "interaction": {"type": "navigate", "page": "camp"},
                 },
             ],
@@ -57,8 +57,8 @@ def interface_from_activity_modules(
                     "id": f"hero_{building_key}_camp"[:64],
                     "type": "hero",
                     "props": {
-                        "title": npc.get("name") or name,
-                        "subtitle": npc.get("profession") or "Bienvenue dans le camp.",
+                        "title": building.get("interface_texts", {}).get("refuge_title", npc.get("name") or name),
+                        "subtitle": building.get("interface_texts", {}).get("refuge_subtitle", npc.get("profession") or "Bienvenue dans le camp."),
                         "emoji": emoji,
                     },
                 },
@@ -77,11 +77,21 @@ def interface_from_activity_modules(
                     "interaction": {"type": "navigate", "page": "inventory"},
                 },
                 {
+                    "id": f"talk_{building_key}"[:64], "type": "button", "slot": 8,
+                    "props": {"label": building.get("interface_texts", {}).get("talk_label", "Discuter"), "emoji": "💬", "style": "secondary"},
+                    "interaction": {"type": "action", "building": building_key, "action": "talk_npc"},
+                },
+                {
+                    "id": f"refresh_{building_key}"[:64], "type": "button", "slot": 9,
+                    "props": {"label": "Actualiser", "emoji": "🔄", "style": "secondary"},
+                    "interaction": {"type": "refresh"},
+                },
+                {
                     "id": f"back_{building_key}_home"[:64],
                     "type": "button",
                     "slot": 4,
-                    "props": {"label": "Sortir du camp", "emoji": "↩️", "style": "secondary"},
-                    "interaction": {"type": "navigate", "page": "home"},
+                    "props": {"label": "Quitter", "emoji": "🚪", "style": "danger"},
+                    "interaction": {"type": "close"},
                 },
             ],
         },
@@ -147,7 +157,7 @@ def interface_from_activity_modules(
                 "type": "hero",
                 "props": {
                     "title": profession_name,
-                    "subtitle": "Choisis ta destination. Les détails de chaque lieu sont indiqués ci-dessous.",
+                    "subtitle": building.get("interface_texts", {}).get("zones_subtitle", "Choisis ta destination. Les détails de chaque lieu sont indiqués ci-dessous."),
                     "emoji": profession_emoji,
                 },
             },
@@ -213,12 +223,24 @@ def interface_from_activity_modules(
                 "id": f"leave_{building_key}_{profession_key}"[:64],
                 "type": "button",
                 "slot": 24,
-                "props": {"label": f"Quitter le métier {profession_name}", "emoji": "🚪", "style": "danger"},
+                "props": {"label": "Démissionner", "emoji": "📜", "style": "danger"},
                 "visible_when": {"profession": profession_key, "no_pending_building": building_key},
                 "interaction": {"type": "action", "building": building_key, "action": f"leave_{profession_key}", "on_success_page": "camp"},
             },
         ])
         pages.append({"key": page_key, "name": profession_name, "components": components})
+
+    deliveries = list(modules.get("deliveries", []))
+    if deliveries:
+        camp.insert(-1, {
+            "id": f"deliveries_{building_key}"[:64], "type": "select", "slot": 15,
+            "props": {"placeholder": building.get("interface_texts", {}).get("deliveries_label", "Livrer des ressources…")},
+            "options": [{
+                "key": str(delivery["item_key"]), "label": f"Livrer {delivery['item_key']}", "emoji": "📦",
+                "description": f"1 unité · {int(delivery.get('unit_price', 0))} écus",
+                "interaction": {"type": "action", "building": building_key, "action": f"deliver_{delivery['item_key']}"},
+            } for delivery in deliveries],
+        })
 
     return {
         "name": f"Interface - {name}",
@@ -233,7 +255,7 @@ def interface_from_activity_modules(
             str(profession["key"]): str(profession.get("name") or profession["key"])
             for profession in professions
         },
-        "blueprint": "activity_professions_v1",
+        "blueprint": "activity_professions_v2",
     }
 
 
@@ -315,7 +337,7 @@ def migrate_activity_profession_interfaces(store: Any) -> int:
         modules = payload.get("modules", {})
         if payload.get("source") != "KingdomEngine V1":
             continue
-        if payload.get("interface", {}).get("blueprint") == "activity_professions_v1":
+        if payload.get("interface", {}).get("blueprint") == "activity_professions_v2":
             continue
         if len(modules.get("professions", [])) < 2 or not modules.get("activities"):
             continue
