@@ -2,10 +2,46 @@
 
 import argparse
 import os
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+class SingleInstance:
+    """Verrou système : le fichier peut rester présent, seul le verrou compte."""
+
+    def __init__(self, name: str):
+        lock_dir = Path(__file__).resolve().parent / "var"
+        lock_dir.mkdir(parents=True, exist_ok=True)
+        self.handle = (lock_dir / f"{name}.lock").open("a+b")
+
+    def acquire(self) -> bool:
+        self.handle.seek(0)
+        if self.handle.read(1) == b"":
+            self.handle.write(b"0")
+            self.handle.flush()
+        self.handle.seek(0)
+        try:
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(self.handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (OSError, BlockingIOError):
+            self.handle.close()
+            return False
+        return True
+
+
+def require_single_instance(module: str) -> SingleInstance:
+    lock = SingleInstance(module)
+    if not lock.acquire():
+        raise SystemExit(f"[KingdomEngine] {module} est déjà lancé. Utilisez KingdomWeb pour le redémarrer.")
+    return lock
 
 parser = argparse.ArgumentParser()
 parser.add_argument("module", choices=["web", "core", "voice", "provision", "invite-url"])
@@ -15,9 +51,11 @@ if args.module == "web":
     import uvicorn
     uvicorn.run("KingdomWeb.app:app", host=os.getenv("KINGDOM_WEB_HOST", "127.0.0.1"), port=int(os.getenv("KINGDOM_WEB_PORT", "8000")), reload=False)
 elif args.module == "core":
+    instance_lock = require_single_instance("core")
     from kingdomCore.discord_bot import create_bot
     create_bot().run(os.environ["KINGDOM_CORE_TOKEN"])
 elif args.module == "voice":
+    instance_lock = require_single_instance("voice")
     import asyncio
     from KingdomData import ContentStore
     from KingdomVoice import VoiceBotManager

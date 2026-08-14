@@ -61,11 +61,13 @@ class ServiceSupervisor:
             return
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         LOGS_DIR.mkdir(parents=True, exist_ok=True)
+        child_environment = os.environ.copy()
+        child_environment.update({"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"})
         with (LOGS_DIR / f"{definition['key']}.out.log").open("a", encoding="utf-8") as output, (LOGS_DIR / f"{definition['key']}.err.log").open("a", encoding="utf-8") as errors:
             process = subprocess.Popen(
                 [sys.executable, str(ROOT / "run.py"), definition["module"]],
                 cwd=ROOT, stdin=subprocess.DEVNULL, stdout=output, stderr=errors,
-                creationflags=flags,
+                creationflags=flags, env=child_environment,
             )
         registry = [item for item in self._registry() if item.get("service") != definition["key"]]
         registry.append({"service": definition["key"], "Id": process.pid, "ProcessName": "python", "StartTime": datetime.now(timezone.utc).isoformat()})

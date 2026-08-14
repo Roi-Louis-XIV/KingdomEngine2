@@ -447,7 +447,9 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
     intents = discord.Intents.default()
     intents.members = True
     intents.voice_states = True
-    bot = commands.Bot(command_prefix="!", intents=intents)
+    # Le moteur est piloté par composants Discord et non par commandes préfixées.
+    # when_mentioned évite donc de demander l'intent privilégié message_content.
+    bot = commands.Bot(command_prefix=commands.when_mentioned, intents=intents)
     oath_view = OathView(store)
     bot.add_view(oath_view)
     registered_oath_messages: set[int] = set()
