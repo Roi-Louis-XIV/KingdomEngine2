@@ -387,19 +387,24 @@ async def update_building_access(store: ContentStore, engine: GameEngine, member
         return
     settings = get_server_settings(store)
     if previous:
-        await set_text_access(member, previous, settings, False)
+        previous_category = before.channel.category if isinstance(before.channel, discord.VoiceChannel) else None
+        await set_text_access(member, previous, settings, False, previous_category)
     if not current:
         return
     payload = current["payload"]
     required_roles = set(payload.get("access", {}).get("required_roles", []))
     if required_roles and not required_roles.intersection(role.name for role in member.roles):
         return
-    await set_text_access(member, current, settings, True)
+    current_category = after.channel.category if isinstance(after.channel, discord.VoiceChannel) else None
+    await set_text_access(member, current, settings, True, current_category)
     if settings["discord"].get("entry_message_enabled", True):
-        await send_building_entry(store, engine, member, current, settings)
+        await send_building_entry(store, engine, member, current, settings, current_category)
 
 
-async def set_text_access(member: discord.Member, entity: dict[str, Any], settings: dict[str, Any], allowed: bool) -> None:
+async def set_text_access(
+    member: discord.Member, entity: dict[str, Any], settings: dict[str, Any], allowed: bool,
+    voice_category: discord.CategoryChannel | None = None,
+) -> None:
     temporary = entity["payload"].get("access", {}).get(
         "temporary_text", settings["discord"].get("temporary_text_access", True)
     )
@@ -408,8 +413,9 @@ async def set_text_access(member: discord.Member, entity: dict[str, Any], settin
     category_name = settings["discord"]["building_category_template"].format(
         name=entity["payload"]["name"], key=entity["entity_key"], emoji=entity["payload"].get("emoji", "🏰")
     ).strip()[:100]
-    category = next((item for item in member.guild.categories if item.name.strip() == category_name), None)
+    category = next((item for item in member.guild.categories if item.name.strip() == category_name), None) or voice_category
     if category is None:
+        logger.warning("Accès bâtiment impossible pour %s : catégorie %s introuvable.", entity["entity_key"], category_name)
         return
     text_name = channel_slug(settings["discord"]["building_text_channel"].format(
         name=entity["payload"]["name"], key=entity["entity_key"]
@@ -418,19 +424,26 @@ async def set_text_access(member: discord.Member, entity: dict[str, Any], settin
     if channel is not None:
         overwrite = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True) if allowed else None
         await channel.set_permissions(member, overwrite=overwrite, reason="Présence dans le bâtiment KingdomEngine")
+    else:
+        logger.warning("Accès bâtiment impossible pour %s : #%s absent de %s.", entity["entity_key"], text_name, category.name)
 
 
-async def send_building_entry(store: ContentStore, engine: GameEngine, member: discord.Member, entity: dict[str, Any], settings: dict[str, Any]) -> None:
+async def send_building_entry(
+    store: ContentStore, engine: GameEngine, member: discord.Member, entity: dict[str, Any],
+    settings: dict[str, Any], voice_category: discord.CategoryChannel | None = None,
+) -> None:
     payload = entity["payload"]
     category_name = settings["discord"]["building_category_template"].format(
         name=payload["name"], key=entity["entity_key"], emoji=payload.get("emoji", "🏰")
     ).strip()[:100]
-    category = next((item for item in member.guild.categories if item.name.strip() == category_name), None)
+    category = next((item for item in member.guild.categories if item.name.strip() == category_name), None) or voice_category
     if category is None:
+        logger.warning("Entrée non envoyée pour %s : catégorie %s introuvable.", entity["entity_key"], category_name)
         return
     text_name = channel_slug(settings["discord"]["building_text_channel"].format(name=payload["name"], key=entity["entity_key"]))
     channel = discord.utils.get(category.text_channels, name=text_name)
     if channel is None:
+        logger.warning("Entrée non envoyée pour %s : #%s absent de %s.", entity["entity_key"], text_name, category.name)
         return
     definition = interface_for_building(store, payload) or interface_from_building(
         entity["entity_key"], payload, payload.get("actions", [])
@@ -443,6 +456,7 @@ async def send_building_entry(store: ContentStore, engine: GameEngine, member: d
         allowed_mentions=discord.AllowedMentions.none(),
         delete_after=600,
     )
+    logger.info("Entrée de %s envoyée à %s dans #%s.", entity["entity_key"], member.id, channel.name)
 
 
 def create_bot(store: ContentStore | None = None) -> commands.Bot:
@@ -509,12 +523,14 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
         for guild in guilds:
             occupants: dict[str, dict[int, discord.Member]] = {}
             entities: dict[str, dict[str, Any]] = {}
+            voice_categories: dict[str, discord.CategoryChannel | None] = {}
             for voice_channel in guild.voice_channels:
                 entity = building_for_voice(store, voice_channel)
                 if entity is None:
                     continue
                 key = entity["entity_key"]
                 entities[key] = entity
+                voice_categories[key] = voice_channel.category
                 occupants.setdefault(key, {}).update({member.id: member for member in voice_channel.members if not member.bot})
             settings = get_server_settings(store)
             for key, entity in entities.items():
@@ -525,9 +541,9 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
                     if required_roles and not required_roles.intersection(role.name for role in member.roles):
                         continue
                     try:
-                        await set_text_access(member, entity, settings, True)
+                        await set_text_access(member, entity, settings, True, voice_categories.get(key))
                         if settings["discord"].get("entry_message_enabled", True):
-                            await send_building_entry(store, engine, member, entity, settings)
+                            await send_building_entry(store, engine, member, entity, settings, voice_categories.get(key))
                     except discord.DiscordException:
                         logger.exception("Réconciliation impossible pour %s dans %s.", member.id, key)
                 logger.info("Accès réconcilié pour %s : %s joueur(s) présent(s).", key, len(present))
