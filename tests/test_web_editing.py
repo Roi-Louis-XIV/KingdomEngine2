@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 import KingdomWeb.app as web
-from KingdomData import ContentStore
+from KingdomData import ContentStore, default_server_settings
 
 
 def test_building_and_item_can_be_edited_and_published(tmp_path, monkeypatch):
@@ -12,6 +12,8 @@ def test_building_and_item_can_be_edited_and_published(tmp_path, monkeypatch):
     item = store.save("item", "test_potion", {"name": "Potion", "price": 2})
     store.publish("item", "test_potion", item["version"])
     monkeypatch.setattr(web, "store", store)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
 
     with TestClient(web.app) as client:
         headers = {"Authorization": "Bearer change-me"}
@@ -61,6 +63,56 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
     assert 'openEditor(entity,true)' in script
     assert 'catalogOptions(catalogType, value)' in script
     assert 'Choisir une ressource…' in script
+    assert 'data-field="modules_json"' in script
+    assert 'Actions générées depuis les modules' in script
+    assert 'clone(state.buildingBase || {})' in script
+    assert 'data-type="interface"' not in html
+    assert 'data-type="dashboard"' in html
+    assert 'data-type="supervision"' in html
+    assert 'data-type="settings"' in html
+    assert 'data-nav-group="world"' in html
+    assert 'data-nav-group="modules"' in html
+    assert 'data-nav-group="administration"' in html
+    assert 'data-nav-submenu="world" hidden' in html
+    assert 'data-building-tab="visual"' in script
+    assert 'id="interaction-grid"' in script
+    assert 'draggable="true"' in script
+    assert 'interaction_type' in script
+    assert 'loadDashboard' in script
+    assert 'loadSupervision' in script
+    assert 'loadSettings' in script
+    assert 'data-supervision-tab="services"' in script
+    assert 'data-settings-tab="onboarding"' in script
+
+
+def test_visual_interface_and_administration_api(tmp_path, monkeypatch):
+    store = ContentStore(tmp_path / "visual.db")
+    store.initialize()
+    building = store.save("building", "test_tavern", {"name": "Taverne", "actions": [{"key": "say_hello", "name": "Saluer", "effects": [{"type": "message", "text": "Bonjour"}]}]})
+    store.publish("building", "test_tavern", building["version"])
+    interface_payload = {
+        "name": "Interface Taverne", "target_building_key": "test_tavern", "start_page": "home",
+        "pages": [
+            {"key": "home", "name": "Accueil", "components": [
+                {"id": "hero_home", "type": "hero", "props": {"title": "Taverne"}},
+                {"id": "open_actions", "type": "button", "props": {"label": "Entrer"}, "interaction": {"type": "navigate", "page": "actions"}},
+            ]},
+            {"key": "actions", "name": "Actions", "components": [
+                {"id": "say_hello", "type": "button", "props": {"label": "Saluer"}, "interaction": {"type": "action", "building": "test_tavern", "action": "say_hello"}},
+            ]},
+        ],
+    }
+    monkeypatch.setattr(web, "store", store)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+    with TestClient(web.app) as client:
+        headers = {"Authorization": "Bearer change-me"}
+        saved = client.post("/api/content/interface/ui_test_tavern", headers=headers, json={"payload": interface_payload})
+        overview = client.get("/api/admin/overview", headers=headers)
+    assert saved.status_code == 200
+    assert overview.status_code == 200
+    assert overview.json()["metrics"]["buildings"] == 1
+    assert overview.json()["buildings"][0]["actions"] == 1
 
 
 def test_voice_bot_invite_link_uses_its_application_id(tmp_path, monkeypatch):
@@ -78,3 +130,41 @@ def test_voice_bot_invite_link_uses_its_application_id(tmp_path, monkeypatch):
     assert response.status_code == 200
     assert "client_id=123456789012345678" in response.json()["url"]
     assert "permissions=" in response.json()["url"]
+    assert "applications.commands" not in response.json()["url"]
+
+
+def test_server_settings_are_saved_and_published_from_one_endpoint(tmp_path, monkeypatch):
+    store = ContentStore(tmp_path / "settings.db")
+    store.initialize()
+    initial = store.save("server_settings", "kingdom_server", default_server_settings())
+    store.publish("server_settings", "kingdom_server", initial["version"])
+    monkeypatch.setattr(web, "store", store)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+    payload = default_server_settings()
+    payload["roles"]["player"] = "⚔️ Habitants assermentés"
+    with TestClient(web.app) as client:
+        headers = {"Authorization": "Bearer change-me"}
+        response = client.post("/api/server/settings", headers=headers, json={"payload": payload, "expected_version": 1})
+    assert response.status_code == 200
+    assert response.json()["status"] == "published"
+    assert store.get("server_settings", "kingdom_server", published=True)["payload"]["roles"]["player"] == "⚔️ Habitants assermentés"
+
+
+def test_building_embeds_its_visual_interface_with_select_menu(tmp_path):
+    store = ContentStore(tmp_path / "unified.db")
+    store.initialize()
+    payload = {
+        "name": "Taverne unifiée", "actions": [],
+        "interface": {
+            "name": "Interface de la Taverne", "target_building_key": "unified_tavern", "start_page": "home",
+            "pages": [{"key": "home", "name": "Accueil", "components": [{
+                "id": "main_menu", "type": "select", "slot": 0,
+                "props": {"placeholder": "Choisir un service"},
+                "options": [{"key": "open_home", "label": "Accueil", "interaction": {"type": "navigate", "page": "home"}}],
+            }]}],
+        },
+    }
+    draft = store.save("building", "unified_tavern", payload)
+    published = store.publish("building", "unified_tavern", draft["version"])
+    assert published["payload"]["interface"]["pages"][0]["components"][0]["slot"] == 0

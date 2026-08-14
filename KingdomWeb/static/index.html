@@ -1,19 +1,27 @@
 <!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Kingdom Studio</title><link rel="stylesheet" href="/static/style.css?v=20260814.1"><link rel="stylesheet" href="/static/forms.css?v=20260814.1"><link rel="stylesheet" href="/static/interactions.css?v=20260814.1"><link rel="stylesheet" href="/static/wizard.css?v=20260814.1"></head>
+<title>Kingdom Studio</title><link rel="stylesheet" href="/static/style.css?v=20260814.6"><link rel="stylesheet" href="/static/forms.css?v=20260814.6"><link rel="stylesheet" href="/static/interactions.css?v=20260814.6"><link rel="stylesheet" href="/static/wizard.css?v=20260814.6"><link rel="stylesheet" href="/static/modules.css?v=20260814.6"><link rel="stylesheet" href="/static/studio-builder.css?v=20260814.6"><link rel="stylesheet" href="/static/administration.css?v=20260814.6"><link rel="stylesheet" href="/static/ux.css?v=20260814.6"></head>
 <body><aside><div class="brand"><span>♜</span><div><b>Kingdom</b><small>STUDIO · V2</small></div></div>
-<nav id="nav"><button data-type="building" class="active">🏰 Bâtiments</button><button data-type="item">🎒 Objets</button><button data-type="event">⚡ Événements</button><button data-type="bot">🤖 Bots Discord</button><button data-type="audio">🔊 Voix & audio</button></nav>
+<nav id="nav" aria-label="Navigation principale">
+  <button class="nav-primary active" data-type="dashboard">◈ <span>Tableau de bord</span></button>
+  <button class="nav-primary" data-nav-group="world" aria-expanded="false">🏰 <span>Monde</span><i>⌄</i></button>
+  <div class="nav-submenu" data-nav-submenu="world" hidden><button data-type="building">Bâtiments</button><button data-type="item">Objets</button><button data-type="event">Événements</button></div>
+  <button class="nav-primary" data-nav-group="modules" aria-expanded="false">⚙️ <span>Modules</span><i>⌄</i></button>
+  <div class="nav-submenu" data-nav-submenu="modules" hidden><button data-type="bot">Bots Discord</button><button data-type="audio">Voix & audio</button></div>
+  <button class="nav-primary" data-nav-group="administration" aria-expanded="false">🛡️ <span>Administration</span><i>⌄</i></button>
+  <div class="nav-submenu" data-nav-submenu="administration" hidden><button data-type="supervision">Supervision</button><button data-type="settings">Paramètres serveur</button></div>
+</nav>
 <footer><span class="dot"></span> Moteur opérationnel</footer></aside>
-<main><header><div><p>MONDE / <span id="crumb">BÂTIMENTS</span></p><h1 id="title">Bâtiments</h1></div><button class="primary" id="new">＋ Nouvelle définition</button></header>
-<section class="stats"><article><small>DÉFINITIONS</small><strong id="count">0</strong><span>contenus versionnés</span></article><article><small>PUBLIÉES</small><strong id="published">0</strong><span>actives dans Discord</span></article><article><small>BROUILLONS</small><strong id="drafts">0</strong><span>à relire</span></article></section>
-<section class="workspace"><div class="toolbar"><input id="search" placeholder="Rechercher…"><span>Les changements publiés sont chargés par tous les modules.</span></div><div id="cards" class="cards"></div></section></main>
+<main><header><div><p>ROYAUME / <span id="crumb">TABLEAU DE BORD</span></p><h1 id="title">Tableau de bord</h1></div><button class="primary" id="new" hidden>＋ Nouvelle définition</button></header>
+<section class="stats" id="content-stats"><article><small>DÉFINITIONS</small><strong id="count">0</strong><span>contenus versionnés</span></article><article><small>PUBLIÉES</small><strong id="published">0</strong><span>actives dans Discord</span></article><article><small>BROUILLONS</small><strong id="drafts">0</strong><span>à relire</span></article></section>
+<section class="workspace" id="content-workspace"><div class="toolbar"><input id="search" placeholder="Rechercher…"><span>Les changements publiés sont chargés par tous les modules.</span></div><div id="cards" class="cards"></div></section><section id="admin-view" hidden></section></main>
 <div id="editor" class="modal" hidden><div class="modal-panel wizard-panel" role="dialog" aria-modal="true" aria-labelledby="editor-title"><form id="editor-form" novalidate>
 <div class="dialog-head"><div><small id="editor-kicker">ÉDITEUR NO-CODE</small><h2 id="editor-title">Nouvelle définition</h2></div><button type="button" id="close-editor" class="icon" aria-label="Fermer">×</button></div>
 <div class="editor-layout"><div class="editor-main">
 <section id="preset-step" hidden></section>
 <div id="definition-step">
-<section class="form-section common-fields"><div class="section-copy"><span class="step-dot">1</span><div><h3>L’essentiel</h3><p>Ce que les joueurs verront dans Discord.</p></div></div>
-<label>Nom du lieu<input id="name" required placeholder="Ex. Ferme du Royaume" data-help="name"></label>
+<section class="form-section common-fields"><div class="section-copy"><span class="step-dot">1</span><div><h3 id="common-title">L’essentiel</h3><p id="common-description">Ce que les joueurs verront dans Discord.</p></div></div>
+<label><span id="name-label">Nom du lieu</span><input id="name" required placeholder="Ex. Ferme du Royaume" data-help="name"></label>
 <div class="cols"><label>Symbole<input id="emoji" placeholder="🏰" data-help="emoji"></label><label>Description<input id="description" placeholder="Explique en une phrase ce que les joueurs peuvent y faire" data-help="description"></label></div>
 </section>
 <section id="type-fields" class="type-fields"></section>
@@ -22,4 +30,4 @@
 </div></div>
 <aside id="context-help" class="context-help"><span class="help-icon">💡</span><h3 id="help-title">Besoin d’aide ?</h3><p id="help-text">Choisis une option : son utilité sera expliquée ici avec un exemple concret.</p><ul id="help-list"></ul></aside></div>
 <div class="actions"><button type="button" id="wizard-back" hidden>← Changer de modèle</button><span class="action-spacer"></span><button type="button" id="cancel-editor">Annuler</button><button type="button" class="primary" id="save">Enregistrer le brouillon</button></div></form></div></div>
-<script src="/static/building-presets.js?v=20260814.1"></script><script src="/static/app.js?v=20260814.1"></script></body></html>
+<script src="/static/building-presets.js?v=20260814.6"></script><script src="/static/app.js?v=20260814.6"></script></body></html>

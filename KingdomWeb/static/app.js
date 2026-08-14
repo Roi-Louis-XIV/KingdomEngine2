@@ -1,7 +1,9 @@
 const state = {
-  type: "building", items: [], editing: null, duplicate: false,
-  selectedPreset: null, keyTouched: false,
-  catalogs: {item: [], event: []},
+  type: "dashboard", items: [], editing: null, duplicate: false,
+  selectedPreset: null, keyTouched: false, buildingBase: null,
+  interfaceDraft: null, selectedPage: null, selectedComponent: null, adminTimer: null,
+  supervisionTab: "overview", settingsTab: "onboarding",
+  catalogs: {item: [], event: [], building: [], interface: []},
   token: localStorage.kingdomToken || prompt("Jeton administrateur", "change-me") || ""
 };
 localStorage.kingdomToken = state.token;
@@ -15,8 +17,8 @@ function technicalKey(value, fallback="element") {
   return (slug.length >= 3 ? slug : `${fallback}_${slug || "nouveau"}`).slice(0, 64);
 }
 const headers = {Authorization: `Bearer ${state.token}`, "Content-Type": "application/json"};
-const labels = {building:"Bâtiments", item:"Objets", event:"Événements", bot:"Bots Discord", audio:"Voix & audio"};
-const icons = {building:"🏰", item:"🎒", event:"⚡", bot:"🤖", audio:"🔊"};
+const labels = {dashboard:"Tableau de bord", building:"Bâtiments", item:"Objets", event:"Événements", bot:"Bots Discord", audio:"Voix & audio", supervision:"Supervision", settings:"Paramètres serveur"};
+const icons = {dashboard:"◈", building:"🏰", item:"🎒", event:"⚡", bot:"🤖", audio:"🔊", supervision:"🛡️", settings:"⚙️"};
 
 const HELP = {
   preset: ["Choisir un modèle", "Le modèle prépare une structure complète. Tout reste modifiable ensuite.", ["Récolte pour obtenir des ressources", "Production pour transformer", "Commerce pour vendre"]],
@@ -29,7 +31,8 @@ const HELP = {
   effect_resource: ["Ressource ou objet", "Utilise l’identifiant d’un objet existant, ou money / energy pour la monnaie et l’énergie.", ["wood", "iron_ore", "money", "energy"]],
   npc_name: ["Personnage associé", "Facultatif. Donne un visage au bâtiment et prépare les futures interactions narratives.", ["Roland le mineur"]],
   color: ["Couleur Discord", "Couleur hexadécimale des encarts Discord, sans le caractère #.", ["22c55e", "8b5cf6"]],
-  technical_key: ["Identifiant technique", "Il relie les données au moteur. Il est généré automatiquement et ne doit contenir que des lettres minuscules, chiffres et underscores.", ["ferme_du_royaume"]]
+  technical_key: ["Identifiant technique", "Il relie les données au moteur. Il est généré automatiquement et ne doit contenir que des lettres minuscules, chiffres et underscores.", ["ferme_du_royaume"]],
+  modules_json: ["Configuration intégrale", "Tous les paramètres du bâtiment sont conservés ici : PNJ, métiers, niveaux, durées, énergie, stocks, recettes, butins, livraisons, réparations, améliorations et jeux.", ["Modifie une valeur puis publie le brouillon", "Le moteur régénère les actions depuis ces modules"]]
 };
 
 const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, character => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[character]));
@@ -53,6 +56,11 @@ function setHelp(key) {
 }
 
 async function load() {
+  clearInterval(state.adminTimer);
+  if (state.type === "dashboard") { await loadDashboard(); return; }
+  if (state.type === "supervision") { await loadSupervision(); return; }
+  if (state.type === "settings") { await loadSettings(); return; }
+  $("#content-stats").hidden = false; $("#content-workspace").hidden = false; $("#admin-view").hidden = true; $("#new").hidden = false;
   const response = await fetch(`/api/content?entity_type=${state.type}`, {headers});
   if (!response.ok) { alert("Accès refusé ou API indisponible."); return; }
   state.items = await response.json();
@@ -60,12 +68,16 @@ async function load() {
 }
 
 async function loadCatalogs() {
-  const [itemsResponse, eventsResponse] = await Promise.all([
+  const [itemsResponse, eventsResponse, buildingsResponse, interfacesResponse] = await Promise.all([
     fetch("/api/content?entity_type=item", {headers}),
     fetch("/api/content?entity_type=event", {headers}),
+    fetch("/api/content?entity_type=building", {headers}),
+    fetch("/api/content?entity_type=interface", {headers}),
   ]);
   if (itemsResponse.ok) state.catalogs.item = await itemsResponse.json();
   if (eventsResponse.ok) state.catalogs.event = await eventsResponse.json();
+  if (buildingsResponse.ok) state.catalogs.building = await buildingsResponse.json();
+  if (interfacesResponse.ok) state.catalogs.interface = await interfacesResponse.json();
 }
 
 function catalogOptions(type, currentValue="") {
@@ -109,12 +121,23 @@ function showModal() {
 }
 
 function resetEditor() {
-  state.editing = null; state.duplicate = false; state.selectedPreset = null; state.keyTouched = false;
+  state.editing = null; state.duplicate = false; state.selectedPreset = null; state.keyTouched = false; state.buildingBase = null;
+  state.interfaceDraft = null; state.selectedPage = null; state.selectedComponent = null;
+  $(".wizard-panel").classList.remove("visual-mode","building-mode"); $("#context-help").hidden = false;
   $("#error").textContent = "";
   $("#wizard-back").hidden = true;
   $("#preset-step").hidden = true;
   $("#definition-step").hidden = false;
   $$(".common-fields").forEach(element => element.hidden = false);
+  configureCommonFields();
+}
+
+function configureCommonFields() {
+  const visual=state.type==="interface";
+  $("#common-title").textContent=visual?"Identité de l’interface":"L’essentiel";
+  $("#common-description").textContent=visual?"Le nom utilisé dans le Studio et le thème général.":"Ce que les joueurs verront dans Discord.";
+  $("#name-label").textContent=visual?"Nom de l’interface":state.type==="building"?"Nom du lieu":"Nom";
+  $("#name").placeholder=visual?"Ex. Interface de la Taverne":state.type==="building"?"Ex. Ferme du Royaume":"Ex. Nouvelle définition";
 }
 
 function startCreate() {
@@ -151,6 +174,7 @@ function applyPreset(key) {
   if (!preset) return;
   state.selectedPreset = key;
   const payload = clone(preset.payload);
+  state.buildingBase = clone(payload);
   $("#name").value = ""; $("#emoji").value = payload.emoji; $("#description").value = payload.description;
   $("#key").value = ""; state.keyTouched = false;
   $("#preset-step").hidden = true; $("#definition-step").hidden = false; $("#wizard-back").hidden = false;
@@ -171,6 +195,7 @@ function openEditor(entity, duplicate=false) {
     payload.name = `Copie de ${payload.name}`;
     payload.actions = (payload.actions||[]).map(action => ({...action, key:""}));
   }
+  state.buildingBase = clone(payload);
   $("#key").value = duplicate ? "" : entity.entity_key;
   $("#key").disabled = !duplicate;
   $("#name").value = payload.name || ""; $("#emoji").value = payload.emoji || ""; $("#description").value = payload.description || "";
@@ -184,6 +209,7 @@ function openEditor(entity, duplicate=false) {
 
 function renderFields(payload) {
   if (state.type === "building") { renderBuildingFields(payload); return; }
+  if (state.type === "interface") { renderInterfaceFields(payload); return; }
   const root = $("#type-fields");
   if (state.type === "item") root.innerHTML = `<section class="form-section"><h3>Propriétés de l’objet</h3><div class="form-grid">${select("Catégorie","category",payload.category||"resources",[["drinks","Boisson / repas"],["equipment","Équipement"],["ingredients","Ingrédient"],["resources","Ressource"]])}${input("Type","type",payload.type||"ressource")}${select("Rareté","rarity",payload.rarity||"commun",[["commun","Commun"],["peu_commun","Peu commun"],["rare","Rare"],["epique","Épique"],["legendaire","Légendaire"]])}${input("Prix","price",payload.price||0,"number",'min="0"')}${input("Taille maximale de pile","stack_limit",payload.stack_limit||999,"number",'min="1"')}</div><div class="checks">${check("Empilable","stackable",payload.stackable!==false)}${check("Consommable","consumable",!!payload.consumable)}${check("Vendable","sellable",payload.sellable!==false)}</div></section>`;
   if (state.type === "event") { root.innerHTML = `<section class="form-section"><h3>Déclenchement</h3><div class="form-grid">${select("Type","trigger_type",payload.trigger?.type||"manual",[["manual","Manuel"],["scheduled","Date programmée"],["recurring","Récurrent"],["action","Action de jeu"],["players","Nombre de joueurs"]])}${input("Expression / valeur","trigger_value",payload.trigger?.value||"")}${input("Début","starts_at",payload.starts_at||"","datetime-local")}${input("Fin","ends_at",payload.ends_at||"","datetime-local")}${input("Priorité","priority",payload.priority||0,"number")}</div><div class="checks">${check("Événement activé","enabled",payload.enabled!==false)}</div><div id="effects"></div><button type="button" class="secondary" id="add-effect">＋ Ajouter un résultat</button></section>`; (payload.effects||[]).forEach(effect => addEffect($("#effects"),effect)); $("#add-effect").onclick=()=>addEffect($("#effects"),{}); }
@@ -191,21 +217,230 @@ function renderFields(payload) {
   if (state.type === "audio") root.innerHTML = `<section class="form-section"><h3>Fichier et déclenchement</h3><div class="form-grid">${input("Chemin du fichier audio","source",payload.source||"")}${input("Événements déclencheurs","triggers",(payload.triggers||[]).join(", "))}${select("Canal audio","channel",payload.channel||"sfx",[["voice","Voix"],["music","Musique"],["ambience","Ambiance"],["sfx","Effet sonore"]])}${input("Volume","volume",payload.volume??.5,"number",'min="0" max="1" step="0.05"')}</div>${check("Lecture en boucle","loop",!!payload.loop)}</section>`;
 }
 
+const COMPONENT_LIBRARY = {
+  hero: {name:"En-tête", icon:"👑", props:{title:"Titre de la page",subtitle:"Une courte introduction",emoji:"🏰"}},
+  text: {name:"Texte", icon:"¶", props:{text:"Votre texte ici."}},
+  card: {name:"Carte", icon:"▣", props:{title:"Titre de la carte",text:"Contenu de la carte"}},
+  stat: {name:"Indicateur", icon:"◫", props:{label:"Indicateur",value:"42"}},
+  divider: {name:"Séparateur", icon:"—", props:{}},
+  image: {name:"Image", icon:"🖼️", props:{url:"",alt:"Illustration"}},
+  player_inventory: {name:"Inventaire du joueur", icon:"🎒", props:{title:"Contenu du sac"}},
+  button: {name:"Bouton", icon:"◉", props:{label:"Continuer",emoji:"",style:"primary"},interaction:{type:"navigate",page:"home"}},
+  select: {name:"Menu déroulant", icon:"⌄", props:{placeholder:"Choisir une option…"},options:[{key:"option_1",label:"Option 1",emoji:"",description:"",interaction:{type:"navigate",page:"home"}}]},
+};
+
+function renderInterfaceFields(payload) {
+  $(".wizard-panel").classList.add("visual-mode"); $("#context-help").hidden = true;
+  initializeInterfaceDraft(payload, payload.target_building_key || "");
+  $("#type-fields").innerHTML = visualStudioMarkup();
+  bindVisualStudio(); renderVisualStudio();
+}
+
+function blankInterface(buildingKey="", name="Bâtiment", emoji="🏰", color="7a1f1f") {
+  return {name:`Interface - ${name}`,target_building_key:buildingKey,start_page:"home",theme:{color,density:"comfortable",radius:12},pages:[{key:"home",name:"Accueil",components:[{id:"hero_accueil",type:"hero",props:{title:name,subtitle:"Choisissez une action.",emoji}}]}]};
+}
+
+function initializeInterfaceDraft(payload={}, buildingKey="") {
+  state.interfaceDraft=clone(Object.keys(payload||{}).length?payload:blankInterface(buildingKey));
+  state.interfaceDraft.pages ||= [{key:"home",name:"Accueil",components:[]}];
+  state.interfaceDraft.start_page ||= state.interfaceDraft.pages[0].key;
+  state.interfaceDraft.target_building_key ||= buildingKey;
+  state.interfaceDraft.pages.forEach(page=>{
+    let nextSlot=0;
+    (page.components||=[]).filter(component=>["button","select"].includes(component.type)).forEach(component=>{
+      if(!Number.isInteger(component.slot)){while(page.components.some(other=>other!==component&&other.slot===nextSlot))nextSlot++;component.slot=component.type==="select"?Math.floor(nextSlot/5)*5:nextSlot;}
+      if(component.type==="select")component.slot=Math.floor(component.slot/5)*5;
+      nextSlot=component.slot+(component.type==="select"?5:1);
+    });
+  });
+  state.selectedPage=state.interfaceDraft.start_page;
+  state.selectedComponent=null;
+}
+
+function visualStudioMarkup() { return `<section class="visual-studio">
+    <aside class="studio-panel"><div class="studio-panel-head"><h3>Composants</h3><small>Glisser</small></div><div class="component-library">${Object.entries(COMPONENT_LIBRARY).map(([key,item])=>`<button type="button" class="component-tile" draggable="true" data-component-type="${key}"><span>${item.icon}</span><b>${item.name}</b></button>`).join("")}</div></aside>
+    <section class="studio-panel canvas-shell"><div class="canvas-toolbar"><strong id="canvas-page-name"></strong><span>Contenu puis grille Discord de 25 emplacements.</span></div><div class="builder-canvas" id="builder-canvas"></div><div class="interaction-zone"><div class="interaction-title"><b>Interactions Discord</b><small>5 lignes × 5 emplacements</small></div><div class="interaction-grid" id="interaction-grid"></div></div></section>
+    <aside class="studio-panel studio-inspector"><div class="studio-panel-head"><h3>Pages</h3><button type="button" class="secondary" id="add-page">＋</button></div><div class="page-tree" id="page-tree"></div><div class="property-panel" id="property-panel"></div></aside>
+  </section>`; }
+
+function currentInterfacePage() { return state.interfaceDraft.pages.find(page=>page.key===state.selectedPage) || state.interfaceDraft.pages[0]; }
+function currentInterfaceComponent() { return currentInterfacePage().components.find(component=>component.id===state.selectedComponent); }
+function newComponent(type) {
+  const template=COMPONENT_LIBRARY[type];
+  return {id:technicalKey(`component_${Date.now()}_${Math.floor(Math.random()*9999)}`),type,props:clone(template.props),...(template.interaction?{interaction:clone(template.interaction)}:{}),...(template.options?{options:clone(template.options)}:{})};
+}
+
+function bindVisualStudio() {
+  $$("[data-component-type]").forEach(tile=>tile.addEventListener("dragstart",event=>event.dataTransfer.setData("text/plain",`new:${tile.dataset.componentType}`)));
+  $("#add-page").onclick=()=>{const index=state.interfaceDraft.pages.length+1;const key=technicalKey(`page_${index}`);state.interfaceDraft.pages.push({key,name:`Page ${index}`,components:[]});state.selectedPage=key;state.selectedComponent=null;renderVisualStudio();};
+  const canvas=$("#builder-canvas");
+  canvas.ondragover=event=>{event.preventDefault();event.dataTransfer.dropEffect="move";};
+  canvas.ondrop=event=>{
+    event.preventDefault(); const token=event.dataTransfer.getData("text/plain"); const page=currentInterfacePage();
+    const target=event.target.closest("[data-component-id]"); let index=target?Math.max(0,page.components.findIndex(item=>item.id===target.dataset.componentId)):page.components.length;
+    if(token.startsWith("new:")){const type=token.slice(4);if(["button","select"].includes(type))return;const component=newComponent(type);page.components.splice(index,0,component);state.selectedComponent=component.id;}
+    if(token.startsWith("move:")){const id=token.slice(5);const old=page.components.findIndex(item=>item.id===id);if(old>=0){const [component]=page.components.splice(old,1);if(old<index)index--;page.components.splice(index,0,component);state.selectedComponent=id;}}
+    renderVisualStudio();
+  };
+}
+
+function slotComponent(page,slot){return page.components.find(component=>component.type==="button"&&component.slot===slot)||page.components.find(component=>component.type==="select"&&Math.floor(component.slot/5)===Math.floor(slot/5));}
+
+function placeInteraction(type,slot) {
+  const page=currentInterfacePage(),row=Math.floor(slot/5);
+  if(type==="select")slot=row*5;
+  if(type==="select"&&page.components.some(component=>["button","select"].includes(component.type)&&Math.floor(component.slot/5)===row)){alert("Cette ligne contient déjà une interaction.");return;}
+  if(type==="button"&&slotComponent(page,slot)){alert("Cet emplacement est déjà occupé.");return;}
+  const component=newComponent(type);component.slot=slot;page.components.push(component);state.selectedComponent=component.id;renderVisualStudio();
+}
+
+function renderInteractionGrid(page){
+  let html="";
+  for(let row=0;row<5;row++){
+    const menu=page.components.find(component=>component.type==="select"&&Math.floor(component.slot/5)===row);
+    if(menu){html+=`<button type="button" draggable="true" class="interaction-slot select-slot ${menu.id===state.selectedComponent?"selected":""}" data-component-id="${menu.id}" data-slot="${row*5}"><small>Ligne ${row+1}</small><b>⌄ ${escapeHtml(menu.props?.placeholder||"Menu déroulant")}</b></button>`;continue;}
+    for(let column=0;column<5;column++){
+      const slot=row*5+column,button=page.components.find(component=>component.type==="button"&&component.slot===slot);
+      html+=button?`<button type="button" draggable="true" class="interaction-slot filled ${button.id===state.selectedComponent?"selected":""}" data-component-id="${button.id}" data-slot="${slot}"><small>${slot+1}</small><b>${escapeHtml(button.props?.emoji||"")} ${escapeHtml(button.props?.label||"Bouton")}</b></button>`:`<button type="button" class="interaction-slot" data-slot="${slot}"><small>${slot+1}</small><span>＋</span></button>`;
+    }
+  }
+  return html;
+}
+
+function renderVisualStudio() {
+  const page=currentInterfacePage(); if(!page)return;
+  $("#canvas-page-name").textContent=page.name;
+  $("#page-tree").innerHTML=state.interfaceDraft.pages.map(item=>`<div class="page-row"><button type="button" class="page-button ${item.key===page.key?"active":""}" data-page="${item.key}">${item.key===state.interfaceDraft.start_page?"★ ":""}${escapeHtml(item.name)}</button><div class="mini-actions"><button type="button" title="Dupliquer" data-copy-page="${item.key}">⧉</button></div></div>`).join("");
+  $$("[data-page]").forEach(button=>button.onclick=()=>{state.selectedPage=button.dataset.page;state.selectedComponent=null;renderVisualStudio();});
+  $$("[data-copy-page]").forEach(button=>button.onclick=()=>{const source=state.interfaceDraft.pages.find(item=>item.key===button.dataset.copyPage);const copy=clone(source);copy.key=technicalKey(`page_copy_${Date.now()}`);copy.name=`${source.name} (copie)`;copy.components.forEach((component,index)=>component.id=technicalKey(`${component.type}_${Date.now()}_${index}`));state.interfaceDraft.pages.push(copy);state.selectedPage=copy.key;state.selectedComponent=null;renderVisualStudio();});
+  const contentComponents=page.components.filter(component=>!["button","select"].includes(component.type));
+  $("#builder-canvas").innerHTML=`<div class="canvas-page">${contentComponents.length?contentComponents.map(renderCanvasComponent).join(""):`<div class="canvas-empty"><div><strong>Le contenu de cette page est vide</strong><p>Glissez un composant visuel depuis la bibliothèque.</p></div></div>`}</div>`;
+  $("#interaction-grid").innerHTML=renderInteractionGrid(page);
+  $$("[data-component-id]").forEach(element=>{element.onclick=()=>{state.selectedComponent=element.dataset.componentId;renderVisualStudio();};element.ondragstart=event=>event.dataTransfer.setData("text/plain",`move:${element.dataset.componentId}`);});
+  $$("#interaction-grid [data-slot]").forEach(cell=>{cell.ondragover=event=>event.preventDefault();cell.ondrop=event=>{event.preventDefault();const token=event.dataTransfer.getData("text/plain"),slot=Number(cell.dataset.slot);if(token.startsWith("new:")){const type=token.slice(4);if(["button","select"].includes(type))placeInteraction(type,slot);}else if(token.startsWith("move:")){const component=page.components.find(item=>item.id===token.slice(5));if(component&&["button","select"].includes(component.type)){page.components=page.components.filter(item=>item!==component);const occupied=slotComponent(page,slot);if(occupied){page.components.push(component);alert("Cet emplacement est déjà occupé.");}else{component.slot=component.type==="select"?Math.floor(slot/5)*5:slot;page.components.push(component);}renderVisualStudio();}}};});
+  renderPropertyPanel();
+}
+
+function renderCanvasComponent(component) {
+  const props=component.props||{}; let content="";
+  if(component.type==="hero")content=`<div class="preview-hero"><small>${escapeHtml(props.emoji||"")}</small><h2>${escapeHtml(props.title||"Sans titre")}</h2><p>${escapeHtml(props.subtitle||"")}</p></div>`;
+  if(component.type==="text")content=`<div class="preview-text">${escapeHtml(props.text||"")}</div>`;
+  if(component.type==="card")content=`<div class="preview-card"><b>${escapeHtml(props.title||"Carte")}</b><p>${escapeHtml(props.text||"")}</p></div>`;
+  if(component.type==="stat")content=`<div class="preview-stat"><small>${escapeHtml(props.label||"Indicateur")}</small><strong>${escapeHtml(props.value||"—")}</strong></div>`;
+  if(component.type==="divider")content=`<div class="preview-divider"></div>`;
+  if(component.type==="image")content=`<div class="preview-image">${props.url?`<img src="${escapeHtml(props.url)}" alt="${escapeHtml(props.alt||"")}">`:"Ajoutez une URL d’image"}</div>`;
+  if(component.type==="player_inventory")content=`<div class="preview-card"><b>🎒 ${escapeHtml(props.title||"Inventaire du joueur")}</b><p>Le contenu, la monnaie, l’énergie et les métiers du joueur seront affichés ici.</p></div>`;
+  return `<div class="canvas-component ${component.id===state.selectedComponent?"selected":""}" draggable="true" data-component-id="${component.id}"><span class="drag-handle">⋮⋮</span>${content}</div>`;
+}
+
+function propertyInput(label,key,value,type="text") { return `<label>${label}<input data-prop="${key}" type="${type}" value="${escapeHtml(value??"")}"></label>`; }
+function propertySelect(label,key,value,options) { return `<label>${label}<select data-prop="${key}">${options.map(([option,text])=>`<option value="${option}" ${option===value?"selected":""}>${text}</option>`).join("")}</select></label>`; }
+function renderPropertyPanel() {
+  const page=currentInterfacePage(),component=currentInterfaceComponent(),panel=$("#property-panel");
+  const buildingOptions=[["","Aucun bâtiment"],...state.catalogs.building.map(item=>[item.entity_key,`${item.payload.emoji||"🏰"} ${item.payload.name}`])];
+  const buildingField=state.type==="building"?`<p class="field-note">Cette interface appartient au bâtiment courant.</p>`:propertySelect("Bâtiment principal","interface_building",state.interfaceDraft.target_building_key||"",buildingOptions);
+  const pageFields=`<h4>Interface</h4>${buildingField}${propertyInput("Couleur","theme_color",state.interfaceDraft.theme?.color||"7a1f1f")}${propertySelect("Densité","theme_density",state.interfaceDraft.theme?.density||"comfortable",[["compact","Compacte"],["comfortable","Confortable"]])}<h4>Page</h4>${propertyInput("Nom","page_name",page.name)}${propertyInput("Identifiant","page_key",page.key)}<div class="checks">${check("Page de départ","page_start",state.interfaceDraft.start_page===page.key)}</div>${state.interfaceDraft.pages.length>1?`<button type="button" class="remove-page secondary">Supprimer cette page</button>`:""}`;
+  if(!component){panel.innerHTML=`${pageFields}<p class="field-note">Sélectionnez un composant pour afficher ses propriétés.</p>`;bindPropertyPanel();return;}
+  const props=component.props||{};let fields="";
+  if(component.type==="hero")fields=propertyInput("Titre","title",props.title)+propertyInput("Sous-titre","subtitle",props.subtitle)+propertyInput("Emoji","emoji",props.emoji);
+  if(component.type==="text")fields=`<label>Texte<textarea data-prop="text" rows="5">${escapeHtml(props.text||"")}</textarea></label>`;
+  if(component.type==="card")fields=propertyInput("Titre","title",props.title)+`<label>Contenu<textarea data-prop="text" rows="4">${escapeHtml(props.text||"")}</textarea></label>`;
+  if(component.type==="stat")fields=propertyInput("Libellé","label",props.label)+propertyInput("Valeur","value",props.value);
+  if(component.type==="image")fields=propertyInput("URL","url",props.url)+propertyInput("Texte alternatif","alt",props.alt);
+  if(component.type==="player_inventory")fields=propertyInput("Titre","title",props.title||"Contenu du sac");
+  if(component.type==="button")fields=buttonPropertyFields(component);
+  if(component.type==="select")fields=selectPropertyFields(component);
+  panel.innerHTML=`${pageFields}<hr><h4>${COMPONENT_LIBRARY[component.type].icon} ${COMPONENT_LIBRARY[component.type].name}</h4>${fields}<button type="button" class="delete-component secondary">Supprimer le composant</button>`;bindPropertyPanel();
+}
+
+function buttonPropertyFields(component) {
+  const props=component.props||{},interaction=component.interaction||{type:"navigate",page:state.interfaceDraft.start_page};
+  let fields=propertyInput("Libellé","label",props.label)+propertyInput("Emoji","emoji",props.emoji)+propertySelect("Style","style",props.style||"primary",[["primary","Principal"],["secondary","Secondaire"],["success","Succès"],["danger","Danger"]])+propertySelect("Au clic","interaction_type",interaction.type,[["navigate","Ouvrir une page"],["action","Lancer une action"]]);
+  if(interaction.type==="navigate")fields+=propertySelect("Page cible","target_page",interaction.page,state.interfaceDraft.pages.map(page=>[page.key,page.name]));
+  else {
+    const building=state.type==="building"?($("#key").value||state.interfaceDraft.target_building_key):interaction.building||state.interfaceDraft.target_building_key||state.catalogs.building[0]?.entity_key||"";
+    const actions=availableActions(building);
+    fields+=propertySelect("Bâtiment","target_building",building,buildingTargetOptions(building));
+    fields+=propertySelect("Action","target_action",interaction.action||"",[["","Choisir…"],...actions.map(action=>[action.key,action.name||action.key])]);
+  }
+  return fields;
+}
+
+function buildingTargetOptions(current){const options=state.catalogs.building.map(item=>[item.entity_key,`${item.payload.emoji||"🏰"} ${item.payload.name}`]);if(current&&!options.some(([key])=>key===current))options.unshift([current,"🏰 Bâtiment courant"]);return options;}
+
+function availableActions(building){
+  const currentKey=$("#key")?.value;
+  if(state.type==="building"&&building===currentKey&&$("#actions"))return $$('#actions > .action-builder').map((element,index)=>({key:fieldValue("action_key",element)||technicalKey(fieldValue("action_name",element),`action_${index+1}`),name:fieldValue("action_name",element)||`Action ${index+1}`}));
+  return state.catalogs.building.find(item=>item.entity_key===building)?.payload?.actions||[];
+}
+
+function interactionFields(interaction,prefix="") {
+  let fields=propertySelect("Au choix",`${prefix}interaction_type`,interaction.type||"navigate",[["navigate","Ouvrir une page"],["action","Lancer une action"]]);
+  if((interaction.type||"navigate")==="navigate")return fields+propertySelect("Page cible",`${prefix}target_page`,interaction.page||state.interfaceDraft.start_page,state.interfaceDraft.pages.map(page=>[page.key,page.name]));
+  const building=state.type==="building"?($("#key").value||state.interfaceDraft.target_building_key):interaction.building||state.interfaceDraft.target_building_key||"";
+  const actions=availableActions(building);
+  return fields+propertySelect("Bâtiment",`${prefix}target_building`,building,buildingTargetOptions(building))+propertySelect("Action",`${prefix}target_action`,interaction.action||"",[["","Choisir…"],...actions.map(action=>[action.key,action.name||action.key])]);
+}
+
+function selectPropertyFields(component){
+  const options=component.options||=[];
+  return propertyInput("Texte du menu","placeholder",component.props?.placeholder||"Choisir une option…")+`<div class="select-options"><div class="section-head"><b>Options</b><button type="button" class="secondary add-select-option">＋ Option</button></div>${options.map((option,index)=>`<article class="select-option"><button type="button" class="remove-option" data-remove-option="${index}">×</button>${propertyInput("Libellé",`option_${index}_label`,option.label||"")}${propertyInput("Emoji",`option_${index}_emoji`,option.emoji||"")}${propertyInput("Description",`option_${index}_description`,option.description||"")}${interactionFields(option.interaction||{type:"navigate",page:state.interfaceDraft.start_page},`option_${index}_`)}</article>`).join("")}</div>`;
+}
+
+function bindPropertyPanel() {
+  const page=currentInterfacePage(),component=currentInterfaceComponent(),panel=$("#property-panel");
+  panel.querySelectorAll("[data-prop]").forEach(field=>field.onchange=()=>{
+    const key=field.dataset.prop,value=field.type==="number"?Number(field.value):field.value;
+    const optionMatch=key.match(/^option_(\d+)_(.+)$/);
+    if(component&&optionMatch){const option=component.options[Number(optionMatch[1])],property=optionMatch[2];option.interaction||={type:"navigate",page:state.interfaceDraft.start_page};if(property==="interaction_type")option.interaction=value==="navigate"?{type:"navigate",page:state.interfaceDraft.start_page}:{type:"action",building:state.type==="building"?$("#key").value:state.interfaceDraft.target_building_key||"",action:""};else if(property==="target_page")option.interaction={type:"navigate",page:value};else if(property==="target_building")option.interaction={type:"action",building:value,action:""};else if(property==="target_action")option.interaction.action=value;else option[property]=value;renderVisualStudio();return;}
+    if(key==="interface_building")state.interfaceDraft.target_building_key=value;
+    else if(key==="theme_color"){state.interfaceDraft.theme||={};state.interfaceDraft.theme.color=value;}
+    else if(key==="theme_density"){state.interfaceDraft.theme||={};state.interfaceDraft.theme.density=value;}
+    else if(key==="page_name")page.name=value;
+    else if(key==="page_key"){const old=page.key,newKey=technicalKey(value,"page");page.key=newKey;if(state.interfaceDraft.start_page===old)state.interfaceDraft.start_page=newKey;state.interfaceDraft.pages.forEach(item=>item.components.forEach(child=>{if(child.interaction?.type==="navigate"&&child.interaction.page===old)child.interaction.page=newKey;(child.options||[]).forEach(option=>{if(option.interaction?.type==="navigate"&&option.interaction.page===old)option.interaction.page=newKey;});}));state.selectedPage=newKey;}
+    else if(component&&key==="interaction_type"){component.interaction=value==="navigate"?{type:"navigate",page:state.interfaceDraft.start_page}:{type:"action",building:state.type==="building"?$("#key").value:state.interfaceDraft.target_building_key||"",action:""};}
+    else if(component&&key==="target_page")component.interaction={type:"navigate",page:value};
+    else if(component&&key==="target_building")component.interaction={type:"action",building:value,action:""};
+    else if(component&&key==="target_action")component.interaction.action=value;
+    else if(component)component.props[key]=value;
+    renderVisualStudio();
+  });
+  const start=panel.querySelector('[data-field="page_start"]');if(start)start.onchange=()=>{if(start.checked)state.interfaceDraft.start_page=page.key;renderVisualStudio();};
+  panel.querySelector(".delete-component")?.addEventListener("click",()=>{page.components=page.components.filter(item=>item.id!==state.selectedComponent);state.selectedComponent=null;renderVisualStudio();});
+  panel.querySelector(".add-select-option")?.addEventListener("click",()=>{if(component.options.length>=25)return;const index=component.options.length+1;component.options.push({key:`option_${index}`,label:`Option ${index}`,emoji:"",description:"",interaction:{type:"navigate",page:state.interfaceDraft.start_page}});renderVisualStudio();});
+  panel.querySelectorAll("[data-remove-option]").forEach(button=>button.onclick=()=>{component.options.splice(Number(button.dataset.removeOption),1);renderVisualStudio();});
+  panel.querySelector(".remove-page")?.addEventListener("click",()=>{const fallback=state.interfaceDraft.pages.find(item=>item.key!==page.key);state.interfaceDraft.pages=state.interfaceDraft.pages.filter(item=>item.key!==page.key);state.interfaceDraft.pages.forEach(item=>item.components.forEach(child=>{if(child.interaction?.type==="navigate"&&child.interaction.page===page.key)child.interaction.page=fallback.key;(child.options||[]).forEach(option=>{if(option.interaction?.type==="navigate"&&option.interaction.page===page.key)option.interaction.page=fallback.key;});}));if(state.interfaceDraft.start_page===page.key)state.interfaceDraft.start_page=fallback.key;state.selectedPage=fallback.key;state.selectedComponent=null;renderVisualStudio();});
+}
+
 function renderBuildingFields(payload, preset=null) {
   const root = $("#type-fields");
   const presetInfo = preset || KingdomBuildingPresets.find(item => item.key === payload.building_kind);
-  root.innerHTML = `<section class="form-section"><div class="section-copy"><span class="step-dot">2</span><div><h3>Ce que les joueurs peuvent faire</h3><p>Chaque action devient un bouton dans Discord.</p></div></div>${presetInfo?`<span class="preset-badge">${presetInfo.icon} Modèle ${presetInfo.name}</span>`:""}<div class="section-head"><span></span><button type="button" class="secondary" id="add-action">＋ Ajouter une action</button></div><div id="actions"></div></section><details class="advanced"><summary>⚙️ Apparence et personnage</summary><div class="advanced-content form-grid">${input("Couleur Discord","color",payload.color||"7c5cff")}${input("Personnage associé (facultatif)","npc_name",payload.npc_name||"")}</div></details>`;
+  const modules = payload.modules || {};
+  const moduleCount = ["professions","activities","products","recipes","deliveries","upgrades"].reduce((total,key) => total + (Array.isArray(modules[key]) ? modules[key].length : 0), 0);
+  const buildingKey=$("#key").value||technicalKey($("#name").value||payload.name||"batiment","batiment");
+  const linked=payload.interface_key?state.catalogs.interface.find(item=>item.entity_key===payload.interface_key)?.payload:null;
+  initializeInterfaceDraft(payload.interface||linked||blankInterface(buildingKey,payload.name||"Nouveau bâtiment",payload.emoji||"🏰",payload.color||"7a1f1f"),buildingKey);
+  const access=payload.access||{};
+  $(".wizard-panel").classList.add("visual-mode","building-mode");$("#context-help").hidden=true;
+  root.innerHTML = `<div class="building-editor-tabs"><button type="button" class="active" data-building-tab="mechanics">⚙️ Fonctionnement</button><button type="button" data-building-tab="visual">🧩 Interface & navigation</button></div>
+  <div data-building-panel="mechanics"><section class="form-section"><div class="section-copy"><span class="step-dot">2</span><div><h3>Ce que les joueurs peuvent faire</h3><p>Les actions et l'interface sont enregistrées dans cette même fiche bâtiment.</p></div></div>${presetInfo?`<span class="preset-badge">${presetInfo.icon} Modèle ${presetInfo.name}</span>`:""}<div class="section-head"><span></span><button type="button" class="secondary" id="add-action">＋ Ajouter une action</button></div><div id="actions"></div></section>
+  <details class="advanced"><summary>🏗️ Configuration modulaire complète ${moduleCount ? `(${moduleCount} éléments)` : ""}</summary><div class="advanced-content"><p class="field-note">Cette configuration est la source de vérité du bâtiment. Pour les bâtiments importés, les actions sont régénérées automatiquement à partir de ces valeurs.</p><label>Paramètres du bâtiment (JSON)<textarea data-field="modules_json" data-help="modules_json" rows="12" spellcheck="false">${escapeHtml(JSON.stringify(modules,null,2))}</textarea></label>${select("Origine des actions","action_mode",payload.action_mode||"manual",[["manual","Actions éditées ci-dessus"],["generated","Actions générées depuis les modules"]])}</div></details>
+  <details class="advanced"><summary>🎭 Apparence et accès Discord</summary><div class="advanced-content form-grid">${input("Couleur Discord","color",payload.color||"7a1f1f")}${input("Personnage associé (facultatif)","npc_name",payload.npc_name||"")}${input("Rôles spéciaux autorisés (séparés par des virgules)","required_roles",(access.required_roles||[]).join(", "))}${check("Bâtiment visible dans le Royaume","building_visible",access.visible!==false)}${check("Salon textuel visible uniquement dans le vocal","temporary_text",access.temporary_text!==false)}</div></details></div>
+  <div data-building-panel="visual" hidden>${visualStudioMarkup()}</div>`;
   (payload.actions||[]).forEach(addAction);
   $("#add-action").onclick = () => { addAction({effects:[]}); setHelp("action_name"); };
   $("#add-action").dataset.help = "actions";
+  bindVisualStudio();renderVisualStudio();
+  $$('[data-building-tab]').forEach(button=>button.onclick=()=>{$$('[data-building-tab]').forEach(item=>item.classList.toggle("active",item===button));$$('[data-building-panel]').forEach(panel=>panel.hidden=panel.dataset.buildingPanel!==button.dataset.buildingTab);if(button.dataset.buildingTab==="visual")renderVisualStudio();});
 }
 
 function addAction(action={}) {
   const container = $("#actions");
-  const element = document.createElement("article");
+  const element = document.createElement("details");
   element.className = "builder action-builder";
+  element.open = !action.key;
   const number = container.children.length + 1;
-  element.innerHTML = `<button type="button" class="remove" aria-label="Supprimer cette action">×</button><span class="action-number">Action ${number}</span><div class="form-grid">${input("Nom du bouton","action_name",action.name||"")}${input("Symbole","action_emoji",action.emoji||"")}</div><div class="checks">${check("Disponible pour les joueurs","action_enabled",action.enabled!==false)}</div><div class="section-head"><b>Que se passe-t-il ensuite ?</b><button type="button" class="secondary add-inner">＋ Ajouter un résultat</button></div><div class="action-effects"></div><details class="advanced"><summary>Identifiant technique de l’action</summary><div class="advanced-content">${input("Identifiant","action_key",action.key||"")}</div></details>`;
+  element.innerHTML = `<summary><span class="action-number">Action ${number}</span><strong data-action-summary>${escapeHtml(action.emoji||"⚙️")} ${escapeHtml(action.name||"Nouvelle action")}</strong><small data-action-key-summary>${escapeHtml(action.key||"à configurer")}</small></summary><div class="action-configuration"><button type="button" class="remove" aria-label="Supprimer cette action">×</button><div class="form-grid">${input("Nom du bouton","action_name",action.name||"")}${input("Symbole","action_emoji",action.emoji||"")}</div><div class="checks">${check("Disponible pour les joueurs","action_enabled",action.enabled!==false)}</div><div class="section-head"><b>Résultats</b><button type="button" class="secondary add-inner">＋ Ajouter</button></div><div class="action-effects"></div><details class="advanced"><summary>Identifiant technique</summary><div class="advanced-content">${input("Identifiant","action_key",action.key||"")}</div></details></div>`;
   container.append(element);
   element.dataset.originalAction = JSON.stringify(action);
   (action.effects||[]).forEach(effect => addEffect(element.querySelector(".action-effects"),effect));
@@ -214,8 +449,11 @@ function addAction(action={}) {
   element.querySelector(".remove").onclick = () => element.remove();
   const nameField = element.querySelector('[data-field="action_name"]');
   const keyField = element.querySelector('[data-field="action_key"]');
-  nameField.addEventListener("input", () => { if (!keyField.dataset.touched) keyField.value = technicalKey(nameField.value,"action"); });
-  keyField.addEventListener("input", () => keyField.dataset.touched = "true");
+  const emojiField=element.querySelector('[data-field="action_emoji"]'),summary=element.querySelector('[data-action-summary]'),keySummary=element.querySelector('[data-action-key-summary]');
+  const refreshSummary=()=>{summary.textContent=`${emojiField.value||"⚙️"} ${nameField.value||"Nouvelle action"}`;keySummary.textContent=keyField.value||"à configurer";};
+  nameField.addEventListener("input", () => { if (!keyField.dataset.touched) keyField.value = technicalKey(nameField.value,"action"); refreshSummary(); });
+  emojiField.addEventListener("input",refreshSummary);
+  keyField.addEventListener("input", () => {keyField.dataset.touched = "true";refreshSummary();});
 }
 
 function addEffect(container, effect={}) {
@@ -223,7 +461,7 @@ function addEffect(container, effect={}) {
   element.className = "builder effect-builder";
   element.dataset.originalEffect = JSON.stringify(effect);
   const resource = effect.resource || effect.event || "";
-  element.innerHTML = `<button type="button" class="remove" aria-label="Supprimer ce résultat">×</button><div class="friendly-effect">${select("Résultat","effect_type",effect.type||"message",[["message","Afficher un message"],["reward","Donner une ressource"],["cost","Retirer une ressource"],["emit","Déclencher un événement"],["random_reward","Butin aléatoire (avancé)"]])}<span class="effect-resource-field"></span>${input("Quantité","effect_amount",effect.amount||0,"number")}${input("Message au joueur","effect_text",effect.text||"")}</div>`;
+  element.innerHTML = `<button type="button" class="remove" aria-label="Supprimer ce résultat">×</button><div class="friendly-effect">${select("Résultat","effect_type",effect.type||"message",[["message","Afficher un message"],["reward","Donner une ressource"],["cost","Retirer une ressource"],["emit","Déclencher un événement"],["random_reward","Butin aléatoire"],["random_bundle","Butin groupé (module)"],["random_message","Message aléatoire (module)"],["stock_cost","Retirer du stock"],["stock_reward","Ajouter au stock"],["profession","Expérience de métier"],["durability","Usure d’un outil"],["repair","Réparer un outil"],["upgrade","Améliorer un outil"],["schedule","Planifier la récompense"],["claim_scheduled","Récupérer une récompense"]])}<span class="effect-resource-field"></span>${input("Quantité","effect_amount",effect.amount||0,"number")}${input("Message au joueur","effect_text",effect.text||"")}</div>`;
   container.append(element);
   const renderResourceSelector = (value="") => {
     const effectType = fieldValue("effect_type", element);
@@ -245,7 +483,7 @@ function addEffect(container, effect={}) {
 function readEffects(container) {
   return [...container.querySelectorAll(":scope > .effect-builder")].map(element => {
     const type = fieldValue("effect_type",element);
-    if (type === "random_reward") return JSON.parse(element.dataset.originalEffect || '{"type":"random_reward","choices":[]}');
+    if (["random_reward","random_bundle","random_message","stock_cost","stock_reward","profession","durability","repair","upgrade","schedule","claim_scheduled"].includes(type)) return {...JSON.parse(element.dataset.originalEffect || '{}'),type};
     if (type === "message") return {type,text:fieldValue("effect_text",element)};
     if (type === "emit") return {type,event:fieldValue("effect_resource",element),payload:{}};
     return {type,resource:fieldValue("effect_resource",element),amount:fieldValue("effect_amount",element)};
@@ -253,8 +491,25 @@ function readEffects(container) {
 }
 
 function buildPayload() {
-  const payload = {name:$("#name").value.trim(),emoji:$("#emoji").value.trim(),description:$("#description").value.trim()};
-  if (state.type === "building") Object.assign(payload,{building_kind:state.selectedPreset||state.editing?.payload?.building_kind||"custom",color:fieldValue("color")||"7c5cff",npc_name:fieldValue("npc_name")||"",actions:$$('#actions > .action-builder').map((element,index)=>({key:fieldValue("action_key",element)||technicalKey(fieldValue("action_name",element),`action_${index+1}`),name:fieldValue("action_name",element),emoji:fieldValue("action_emoji",element),enabled:fieldValue("action_enabled",element),effects:readEffects(element.querySelector(".action-effects"))}))});
+  const payload = state.type === "building" ? clone(state.buildingBase || {}) : state.type === "interface" ? clone(state.interfaceDraft || {}) : {};
+  Object.assign(payload,{name:$("#name").value.trim(),emoji:$("#emoji").value.trim(),description:$("#description").value.trim()});
+  if (state.type === "building") {
+    let modules = {};
+    try { modules = JSON.parse(fieldValue("modules_json") || "{}"); }
+    catch (_) { throw Error("La configuration modulaire contient un JSON invalide."); }
+    const buildingKey=$("#key").value.trim();
+    const previousTarget=state.interfaceDraft?.target_building_key;
+    const interfaceDefinition=clone(state.interfaceDraft||blankInterface(buildingKey,payload.name,payload.emoji,payload.color));
+    if(!state.editing||state.duplicate)interfaceDefinition.name=`Interface - ${payload.name}`;
+    else interfaceDefinition.name ||= `Interface - ${payload.name}`;
+    interfaceDefinition.target_building_key=buildingKey;
+    interfaceDefinition.theme||={};interfaceDefinition.theme.color=fieldValue("color")||interfaceDefinition.theme.color||"7a1f1f";
+    interfaceDefinition.pages.forEach(page=>page.components.forEach(component=>{
+      if(component.interaction?.type==="action"&&(!component.interaction.building||component.interaction.building===previousTarget))component.interaction.building=buildingKey;
+      (component.options||[]).forEach((option,index)=>{option.key=technicalKey(option.key||option.label||`option_${index+1}`,`option_${index+1}`);if(option.interaction?.type==="action"&&(!option.interaction.building||option.interaction.building===previousTarget))option.interaction.building=buildingKey;});
+    }));
+    Object.assign(payload,{building_kind:state.selectedPreset||state.editing?.payload?.building_kind||"custom",color:fieldValue("color")||"7c5cff",npc_name:fieldValue("npc_name")||"",action_mode:fieldValue("action_mode")||"manual",modules,interface:interfaceDefinition,access:{visible:fieldValue("building_visible")!==false,required_roles:(fieldValue("required_roles")||"").split(",").map(value=>value.trim()).filter(Boolean),temporary_text:fieldValue("temporary_text")!==false},actions:$$('#actions > .action-builder').map((element,index)=>({...JSON.parse(element.dataset.originalAction||"{}"),key:fieldValue("action_key",element)||technicalKey(fieldValue("action_name",element),`action_${index+1}`),name:fieldValue("action_name",element),emoji:fieldValue("action_emoji",element),enabled:fieldValue("action_enabled",element),effects:readEffects(element.querySelector(".action-effects"))}))});
+  }
   if (state.type === "item") Object.assign(payload,{category:fieldValue("category"),type:fieldValue("type"),rarity:fieldValue("rarity"),price:fieldValue("price"),stack_limit:fieldValue("stack_limit"),stackable:fieldValue("stackable"),consumable:fieldValue("consumable"),sellable:fieldValue("sellable")});
   if (state.type === "event") Object.assign(payload,{trigger:{type:fieldValue("trigger_type"),value:fieldValue("trigger_value")},starts_at:fieldValue("starts_at")||null,ends_at:fieldValue("ends_at")||null,priority:fieldValue("priority"),enabled:fieldValue("enabled"),effects:readEffects($("#effects"))});
   if (state.type === "bot") Object.assign(payload,{bot_type:fieldValue("bot_type"),application_id_env:fieldValue("application_id_env"),token_env:fieldValue("token_env"),guild_id:fieldValue("guild_id"),presence:fieldValue("presence"),enabled:fieldValue("enabled"),auto_join:fieldValue("auto_join"),voice_channel_id:fieldValue("voice_channel_id")||"0",voice_channel_env:fieldValue("voice_channel_env"),building_key:fieldValue("building_key"),leave_delay:fieldValue("leave_delay"),welcome_folder:fieldValue("welcome_folder"),music_folder:fieldValue("music_folder"),ambience_folder:fieldValue("ambience_folder"),phrase_folder:fieldValue("phrase_folder"),volume:{voice:fieldValue("volume_voice"),music:fieldValue("volume_music"),ambience:fieldValue("volume_ambience"),sfx:fieldValue("volume_sfx")}});
@@ -265,10 +520,105 @@ function buildPayload() {
 async function publishItem(key, version) {
   const response = await fetch(`/api/content/${state.type}/${key}/${version}/publish`,{method:"POST",headers,body:"{}"});
   if (!response.ok) alert((await response.json()).detail);
-  await load();
+  await loadCatalogs(); await load();
 }
 
 function closeEditor() { resetEditor(); $("#editor").hidden=true; document.body.classList.remove("modal-open"); }
+
+function metricCard(label,value,detail="") { return `<article class="admin-metric"><span>${label}</span><strong>${escapeHtml(value)}</strong>${detail?`<small>${escapeHtml(detail)}</small>`:""}</article>`; }
+function inventoryChips(inventory) { const entries=Object.entries(inventory||{});return entries.length?`<div class="inventory-chips">${entries.map(([item,quantity])=>`<span class="inventory-chip">${escapeHtml(item)} × ${quantity}</span>`).join("")}</div>`:"<span class=\"empty-admin\">Vide</span>"; }
+function adminTable(headersList,rows) { return `<div class="admin-table-wrap"><table class="admin-table"><thead><tr>${headersList.map(item=>`<th>${item}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`; }
+function formatDate(value) { if(!value)return "—";try{return new Intl.DateTimeFormat("fr-FR",{dateStyle:"short",timeStyle:"medium"}).format(new Date(value));}catch(_){return value;} }
+
+function renderAdministration(data) {
+  const metrics=data.metrics;
+  const services=data.services.map(service=>`<article class="service-card"><div class="service-title"><strong>${service.emoji} ${escapeHtml(service.name)}</strong><span class="status-pill ${service.running?"running":""}">${service.running?"EN LIGNE":"ARRÊTÉ"}</span></div><div class="service-meta">${service.pid?`PID ${service.pid}`:"Aucun processus"}${service.started_at?` · ${formatDate(service.started_at)}`:""}</div>${service.controllable?`<div class="service-actions"><button data-service="${service.key}" data-operation="start" ${service.running?"disabled":""}>Démarrer</button><button data-service="${service.key}" data-operation="restart" ${!service.running?"disabled":""}>Redémarrer</button><button data-service="${service.key}" data-operation="stop" ${!service.running?"disabled":""}>Arrêter</button></div>`:"<small>Service hôte — contrôle local uniquement</small>"}</article>`).join("");
+  const buildings=adminTable(["Bâtiment","Publication","Interface","Actions","Tâches","Stock"],data.buildings.map(building=>`<tr><td><b>${building.emoji} ${escapeHtml(building.name)}</b><br><small>${building.key} · v${building.version}</small></td><td><span class="status-pill ${building.status}">${building.status.toUpperCase()}</span></td><td>${building.pages} page(s)</td><td>${building.actions}</td><td>${building.pending}</td><td><details><summary>${building.stock_total} unité(s)</summary>${inventoryChips(building.stock)}</details></td></tr>`));
+  const players=adminTable(["Joueur Discord","Économie","Métiers","Inventaire","Dernière activité"],data.players.map(player=>`<tr><td><b>${escapeHtml(player.discord_id)}</b></td><td>💰 ${player.money}<br>⚡ ${player.energy}</td><td>${player.professions.length?player.professions.map(job=>`${escapeHtml(job.key)} niv. ${job.level} (${job.experience} XP)`).join("<br>"):"—"}</td><td>${inventoryChips(player.inventory)}</td><td>${formatDate(player.updated_at)}</td></tr>`));
+  const activity=adminTable(["Date","Joueur","Bâtiment","Action"],data.activity.map(item=>`<tr><td>${formatDate(item.created_at)}</td><td>${escapeHtml(item.discord_id)}</td><td>${escapeHtml(item.building_key)}</td><td>${escapeHtml(item.action_key)}</td></tr>`));
+  $("#admin-view").innerHTML=`<div class="admin-grid"><section class="admin-metrics">${metricCard("SERVICES",`${metrics.running_services}/${data.services.length}`,"en ligne")}${metricCard("BÂTIMENTS",metrics.published_buildings,`${metrics.buildings} définitions`)}${metricCard("JOUEURS",metrics.players)}${metricCard("TÂCHES EN COURS",metrics.pending_jobs)}${metricCard("BASE",`${Math.max(1,Math.round(data.database.size_bytes/1024))} Ko`)}</section><section class="admin-section"><div class="admin-section-head"><h2>Statut des services</h2><small>Actualisation automatique toutes les 5 secondes</small></div><div class="service-grid">${services}</div></section><section class="admin-section"><div class="admin-section-head"><h2>État des bâtiments</h2><small>Publication, interfaces, actions et stocks</small></div>${buildings}</section><div class="admin-split"><section class="admin-section"><div class="admin-section-head"><h2>Joueurs et inventaires</h2><small>${data.players.length} joueur(s)</small></div>${players}</section><section class="admin-section"><div class="admin-section-head"><h2>Activité récente</h2><small>30 dernières actions</small></div>${activity}</section></div></div>`;
+}
+
+function showSystemView() {
+  $("#content-stats").hidden=true;$("#content-workspace").hidden=true;$("#admin-view").hidden=false;$("#new").hidden=true;
+}
+
+async function fetchOverview(message="Chargement…") {
+  showSystemView();$("#admin-view").innerHTML=`<div class="empty-admin"><span class="refresh-spin">⟳</span> ${message}</div>`;
+  const response=await fetch("/api/admin/overview",{headers});
+  if(!response.ok){$("#admin-view").innerHTML=`<div class="empty-admin">Données indisponibles : ${escapeHtml((await response.json()).detail||response.status)}</div>`;return null;}
+  return response.json();
+}
+
+async function loadDashboard() {
+  const data=await fetchOverview("Préparation du tableau de bord…");if(!data)return;
+  const metrics=data.metrics;
+  const services=data.services.map(service=>`<article class="service-card"><div class="service-title"><strong>${service.emoji} ${escapeHtml(service.name)}</strong><span class="status-pill ${service.running?"running":""}">${service.running?"EN LIGNE":"ARRÊTÉ"}</span></div><div class="service-meta">${service.pid?`PID ${service.pid}`:"Aucun processus"}</div></article>`).join("");
+  const activity=data.activity.slice(0,10).map(item=>`<li><span>${formatDate(item.created_at)}</span><b>${escapeHtml(item.action_key)}</b><small>${escapeHtml(item.building_key)} · joueur ${escapeHtml(item.discord_id)}</small></li>`).join("")||"<li class='empty-admin'>Aucune action récente.</li>";
+  const events=data.events.map(event=>`<article class="event-card"><span>${event.emoji}</span><div><b>${escapeHtml(event.name)}</b><small>${escapeHtml(event.trigger)} · ${event.status}${event.enabled?"":" · désactivé"}</small></div></article>`).join("")||"<p class='empty-admin'>Aucun événement configuré.</p>";
+  $("#admin-view").innerHTML=`<div class="admin-grid"><section class="admin-metrics">${metricCard("SERVICES",`${metrics.running_services}/${data.services.length}`,"en ligne")}${metricCard("BÂTIMENTS",metrics.published_buildings,`${metrics.buildings} configurés`)}${metricCard("JOUEURS",metrics.players)}${metricCard("ÉVÉNEMENTS",metrics.active_events,"actifs")}${metricCard("TÂCHES",metrics.pending_jobs,"en attente")}</section><div class="quick-actions"><button data-go="building">＋ Créer un bâtiment</button><button data-go="event">⚡ Gérer les événements</button><button data-go="supervision">🛡️ Ouvrir la supervision</button><button data-go="settings">⚙️ Paramétrer le serveur</button></div><div class="admin-split"><section class="admin-section"><div class="admin-section-head"><h2>État du moteur</h2><small>${formatDate(data.generated_at)}</small></div><div class="service-grid">${services}</div></section><section class="admin-section"><div class="admin-section-head"><h2>Événements</h2><small>${data.events.length} configuré(s)</small></div><div class="event-grid">${events}</div></section></div><section class="admin-section"><div class="admin-section-head"><h2>Actions principales récentes</h2><small>Activité du Royaume</small></div><ol class="activity-feed">${activity}</ol></section></div>`;
+  bindNavigationShortcuts();
+}
+
+async function loadSupervision(background=false) {
+  let data;
+  if(background){const response=await fetch("/api/admin/overview",{headers});if(!response.ok)return;data=await response.json();}
+  else data=await fetchOverview("Chargement de la supervision détaillée…");
+  if(!data)return;renderSupervision(data);
+  if(!background){clearInterval(state.adminTimer);state.adminTimer=setInterval(()=>{if(state.type==="supervision")loadSupervision(true);},5000);}
+}
+
+function renderSupervision(data) {
+  renderAdministration(data);
+  const grid=$("#admin-view .admin-grid");
+  const logs=Object.entries(data.logs||{}).map(([key,value])=>`<details class="log-panel"><summary>${escapeHtml(key)} · ${(value.errors||[]).length} erreur(s)</summary>${value.errors?.length?`<h4>Erreurs</h4><pre>${escapeHtml(value.errors.join("\n"))}</pre>`:""}<h4>Sortie</h4><pre>${escapeHtml((value.output||[]).join("\n")||"Aucun journal disponible. Redémarrez le service pour activer la capture.")}</pre></details>`).join("");
+  grid.insertAdjacentHTML("beforeend",`<section class="admin-section"><div class="admin-section-head"><h2>Journaux des services</h2><small>120 dernières lignes</small></div><div class="logs-grid">${logs}</div></section>`);
+  const panels=[...grid.children].slice(1);
+  const panelKeys=["services","buildings","players","logs"];
+  panels.forEach((panel,index)=>{panel.dataset.supervisionPanel=panelKeys[index];panel.hidden=state.supervisionTab!==panelKeys[index];});
+  grid.children[0].insertAdjacentHTML("afterend",`<nav class="section-tabs" aria-label="Sections de supervision"><button data-supervision-tab="overview" class="${state.supervisionTab==="overview"?"active":""}">Vue générale</button><button data-supervision-tab="services" class="${state.supervisionTab==="services"?"active":""}">Services</button><button data-supervision-tab="buildings" class="${state.supervisionTab==="buildings"?"active":""}">Bâtiments</button><button data-supervision-tab="players" class="${state.supervisionTab==="players"?"active":""}">Joueurs & activité</button><button data-supervision-tab="logs" class="${state.supervisionTab==="logs"?"active":""}">Journaux</button></nav>`);
+  $$('[data-supervision-tab]').forEach(button=>button.onclick=()=>{state.supervisionTab=button.dataset.supervisionTab;$$('[data-supervision-tab]').forEach(item=>item.classList.toggle("active",item===button));$$('[data-supervision-panel]').forEach(panel=>panel.hidden=panel.dataset.supervisionPanel!==state.supervisionTab);});
+  $$('[data-service]').forEach(button=>button.onclick=async()=>{button.disabled=true;button.textContent="…";const response=await fetch(`/api/admin/services/${button.dataset.service}/${button.dataset.operation}`,{method:"POST",headers,body:"{}"});if(!response.ok)alert((await response.json()).detail);await loadSupervision(true);});
+}
+
+const settingField=(label,path,value,type="text")=>`<label>${label}<input data-setting="${path}" type="${type}" value="${escapeHtml(value??"")}"></label>`;
+const settingArea=(label,path,value)=>`<label>${label}<textarea data-setting="${path}" rows="8">${escapeHtml(value||"")}</textarea></label>`;
+const settingCheck=(label,path,value)=>`<label class="check"><input data-setting="${path}" type="checkbox" ${value?"checked":""}><span>${label}</span></label>`;
+
+async function loadSettings(){
+  showSystemView();$("#admin-view").innerHTML=`<div class="empty-admin"><span class="refresh-spin">⟳</span> Chargement des paramètres…</div>`;
+  const response=await fetch("/api/server/settings",{headers});if(!response.ok){$("#admin-view").innerHTML=`<div class="empty-admin">Paramètres indisponibles.</div>`;return;}
+  state.settingsEntity=await response.json();renderSettings(state.settingsEntity.payload);
+}
+
+function renderSettings(settings){
+  const onboarding=settings.onboarding,roles=settings.roles,discord=settings.discord,theme=settings.theme;
+  $("#admin-view").innerHTML=`<div class="settings-layout"><section class="admin-section settings-hero"><div><small>CONFIGURATION CENTRALE</small><h2>Le Royaume, depuis un seul endroit</h2><p>Les valeurs publiées sont utilisées par KingdomCore et par le provisionnement Discord.</p></div><button type="button" class="primary" id="save-settings">Enregistrer et publier</button></section><section class="settings-shortcuts"><button data-go="building">🏰 Interfaces des bâtiments</button><button data-go="item">🎒 Objets</button><button data-go="event">⚡ Événements</button><button data-go="bot">🤖 Bots</button><button data-go="audio">🔊 Voix & audio</button></section><nav class="section-tabs" aria-label="Sections des paramètres"><button data-settings-tab="onboarding" class="${state.settingsTab==="onboarding"?"active":""}">Serment</button><button data-settings-tab="roles" class="${state.settingsTab==="roles"?"active":""}">Rôles & couleurs</button><button data-settings-tab="discord" class="${state.settingsTab==="discord"?"active":""}">Organisation Discord</button><button data-settings-tab="access" class="${state.settingsTab==="access"?"active":""}">Entrée des bâtiments</button></nav><div class="settings-grid"><section class="admin-section settings-card" data-settings-panel="onboarding"><h3>🛠️ Serment de la Sainte Pelle</h3>${settingCheck("Activer le serment à l'arrivée","onboarding.enabled",onboarding.enabled)}${settingField("Salon du serment","onboarding.channel_name",onboarding.channel_name)}${settingField("Titre","onboarding.title",onboarding.title)}${settingArea("Règles du serveur","onboarding.rules_text",onboarding.rules_text)}${settingField("Libellé du bouton","onboarding.button_label",onboarding.button_label)}${settingField("Emoji du bouton","onboarding.button_emoji",onboarding.button_emoji)}${settingField("Confirmation","onboarding.confirmation",onboarding.confirmation)}</section><section class="admin-section settings-card" data-settings-panel="roles"><h3>👥 Rôles Discord</h3>${settingField("Maître du Royaume","roles.game_master",roles.game_master)}${settingField("Joueur après serment","roles.player",roles.player)}${settingField("Bots du Royaume","roles.bot",roles.bot)}<p class="field-note">Le rôle joueur n'est accordé qu'après le serment.</p><h3>🎨 Couleurs</h3>${settingField("Couleur principale","theme.primary_color",theme.primary_color)}${settingField("Accent","theme.accent_color",theme.accent_color)}</section><section class="admin-section settings-card" data-settings-panel="discord"><h3>🏰 Organisation Discord</h3>${settingField("Catégorie générale","discord.general_category",discord.general_category)}${settingField("Modèle des catégories bâtiment","discord.building_category_template",discord.building_category_template)}${settingField("Salon d'accueil","discord.welcome_channel",discord.welcome_channel)}${settingField("Salon des commandes","discord.commands_channel",discord.commands_channel)}${settingField("Salon d'administration","discord.administration_channel",discord.administration_channel)}${settingField("Salon texte d'un bâtiment","discord.building_text_channel",discord.building_text_channel)}${settingField("Salon vocal d'un bâtiment","discord.building_voice_channel_template",discord.building_voice_channel_template)}</section><section class="admin-section settings-card" data-settings-panel="access"><h3>🚪 Entrée dans les bâtiments</h3>${settingCheck("Accès textuel seulement pendant la présence vocale","discord.temporary_text_access",discord.temporary_text_access)}${settingCheck("Publier le message d'entrée","discord.entry_message_enabled",discord.entry_message_enabled)}${settingArea("Message d'entrée","discord.entry_message",discord.entry_message)}<p class="field-note">Variables disponibles : {player}, {building}, {key}. Après une modification de structure, relancez le provisionnement Discord.</p></section></div></div>`;
+  $$('[data-settings-panel]').forEach(panel=>panel.hidden=panel.dataset.settingsPanel!==state.settingsTab);
+  $$('[data-settings-tab]').forEach(button=>button.onclick=()=>{state.settingsTab=button.dataset.settingsTab;$$('[data-settings-tab]').forEach(item=>item.classList.toggle("active",item===button));$$('[data-settings-panel]').forEach(panel=>panel.hidden=panel.dataset.settingsPanel!==state.settingsTab);});
+  bindNavigationShortcuts();$("#save-settings").onclick=saveSettings;
+}
+
+function setNested(target,path,value){const parts=path.split(".");const last=parts.pop();const parent=parts.reduce((current,key)=>current[key]||={},target);parent[last]=value;}
+async function saveSettings(){
+  const button=$("#save-settings"),payload=clone(state.settingsEntity.payload);$$('[data-setting]').forEach(field=>setNested(payload,field.dataset.setting,field.type==="checkbox"?field.checked:field.value));button.disabled=true;button.textContent="Publication…";
+  const response=await fetch("/api/server/settings",{method:"POST",headers,body:JSON.stringify({payload,expected_version:state.settingsEntity.version})});const data=await response.json();button.disabled=false;button.textContent="Enregistrer et publier";if(!response.ok){alert(data.detail);return;}state.settingsEntity=data;renderSettings(data.payload);
+}
+
+function bindNavigationShortcuts(){$$('[data-go]').forEach(button=>button.onclick=()=>navigateTo(button.dataset.go));}
+function navigateTo(type){const button=$(`#nav [data-type="${type}"]`);if(button){const submenu=button.closest('[data-nav-submenu]');if(submenu)openNavigationGroup(submenu.dataset.navSubmenu);button.click();}}
+
+function openNavigationGroup(group){
+  $$('[data-nav-submenu]').forEach(menu=>{const open=menu.dataset.navSubmenu===group;menu.hidden=!open;const trigger=$(`[data-nav-group="${menu.dataset.navSubmenu}"]`);trigger?.setAttribute("aria-expanded",String(open));});
+}
+
+function activateNavigation(button){
+  const parent=button.closest('[data-nav-submenu]');
+  if(parent)openNavigationGroup(parent.dataset.navSubmenu);
+  else{$$('[data-nav-submenu]').forEach(menu=>menu.hidden=true);$$('[data-nav-group]').forEach(item=>item.setAttribute("aria-expanded","false"));}
+  $$('#nav [data-type]').forEach(item=>item.classList.toggle("active",item===button));
+  $$('#nav [data-nav-group]').forEach(item=>item.classList.toggle("active",parent?.dataset.navSubmenu===item.dataset.navGroup));
+}
 
 $("#cards").addEventListener("click", async event => {
   const invite = event.target.closest("[data-invite]");
@@ -284,7 +634,10 @@ $("#cards").addEventListener("click", async event => {
 $("#cards").addEventListener("keydown",event=>{if(["Enter"," "].includes(event.key)){const card=event.target.closest("[data-open]");if(card){event.preventDefault();const entity=state.items.find(item=>item.entity_key===card.dataset.open);if(entity)openEditor(entity);}}});
 $("#editor").addEventListener("focusin", event => { const key=event.target.dataset.help; if(key)setHelp(key); });
 $("#editor").addEventListener("mouseover", event => { const target=event.target.closest("[data-help]"); if(target)setHelp(target.dataset.help); });
-$("#name").addEventListener("input", () => { if (!state.editing && !state.keyTouched) $("#key").value = technicalKey($("#name").value,"batiment"); });
+$("#name").addEventListener("input", () => {
+  if (!state.editing && !state.keyTouched) $("#key").value = technicalKey($("#name").value,state.type==="building"?"batiment":state.type);
+  if(state.type==="building"&&state.interfaceDraft){const previous=state.interfaceDraft.target_building_key,current=$("#key").value;state.interfaceDraft.target_building_key=current;state.interfaceDraft.pages.forEach(page=>page.components.forEach(component=>{if(component.interaction?.type==="action"&&component.interaction.building===previous)component.interaction.building=current;(component.options||[]).forEach(option=>{if(option.interaction?.type==="action"&&option.interaction.building===previous)option.interaction.building=current;});}));}
+});
 $("#key").addEventListener("input", () => state.keyTouched = true);
 $("#wizard-back").onclick = () => { if(state.type==="building"){ $("#definition-step").hidden=true; renderPresetPicker(); $("#editor-title").textContent="Quel lieu veux-tu créer ?"; $("#editor-kicker").textContent="ASSISTANT · ÉTAPE 1 SUR 2"; $("#wizard-back").hidden=true; setHelp("preset"); } };
 $("#close-editor").onclick=closeEditor; $("#cancel-editor").onclick=closeEditor;
@@ -302,11 +655,12 @@ $("#save").onclick = async () => {
     button.disabled=true; button.textContent="Enregistrement…";
     const response=await fetch(`/api/content/${state.type}/${$("#key").value}`,{method:"POST",headers,body:JSON.stringify({payload:buildPayload(),expected_version:state.editing?.version})});
     if(!response.ok) throw Error((await response.json()).detail);
-    closeEditor(); await load();
+    closeEditor(); await loadCatalogs(); await load();
   } catch(error) { $("#error").textContent=error.message; }
   finally { button.disabled=false; button.textContent="Enregistrer le brouillon"; }
 };
 
 $("#new").onclick=startCreate; $("#search").oninput=renderCards;
-$$('#nav button').forEach(button=>button.onclick=()=>{const active=$("#nav .active");if(active)active.classList.remove("active");button.classList.add("active");state.type=button.dataset.type;$("#title").textContent=labels[state.type];$("#crumb").textContent=labels[state.type].toUpperCase();load();});
+$$('#nav [data-nav-group]').forEach(button=>button.onclick=()=>{const group=button.dataset.navGroup,menu=$(`[data-nav-submenu="${group}"]`),willOpen=menu.hidden;$$('[data-nav-submenu]').forEach(item=>item.hidden=true);$$('[data-nav-group]').forEach(item=>item.setAttribute("aria-expanded","false"));menu.hidden=!willOpen;button.setAttribute("aria-expanded",String(willOpen));});
+$$('#nav [data-type]').forEach(button=>button.onclick=()=>{activateNavigation(button);state.type=button.dataset.type;$("#title").textContent=labels[state.type];$("#crumb").textContent=labels[state.type].toUpperCase();load();});
 loadCatalogs().finally(load);

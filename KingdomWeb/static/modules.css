@@ -1,0 +1,13 @@
+textarea[data-field="modules_json"] {
+  width: 100%;
+  box-sizing: border-box;
+  color: #eadfcb;
+  background: #0d0c11;
+  border: 1px solid #493b32;
+  border-radius: 8px;
+  padding: 12px;
+  outline: none;
+  resize: vertical;
+  font: 13px/1.5 Consolas, monospace;
+}
+textarea[data-field="modules_json"]:focus { border-color: #b9924c; }

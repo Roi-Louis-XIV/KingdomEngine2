@@ -21,7 +21,7 @@ include = ["kingdomCore*", "KingdomData*", "kingdomEvent*", "KingdomVoice*", "Ki
 exclude = ["tests*"]
 
 [tool.setuptools.package-data]
-KingdomWeb = ["static/*"]
+KingdomWeb = ["static/*", "services.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

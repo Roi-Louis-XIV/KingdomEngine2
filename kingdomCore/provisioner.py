@@ -1,4 +1,4 @@
-"""Provisionnement idempotent des rôles, catégories et salons Discord."""
+"""Provisionnement Discord idempotent et entièrement piloté par KingdomData."""
 
 from __future__ import annotations
 
@@ -10,13 +10,13 @@ from typing import Any
 
 import discord
 
-from KingdomData import ContentStore
+from KingdomData import ContentStore, get_server_settings
 
-CATEGORY_NAME = "🏰 KINGDOM ENGINE"
 ROLE_GAME_MASTER = "👑 Maître du Royaume"
 ROLE_PLAYER = "⚔️ Aventurier"
 ROLE_BOT = "🤖 Bots du Royaume"
 AUDIT_REASON = "Installation automatique de KingdomEngine 2"
+OATH_CUSTOM_ID = "ke2:oath"
 
 
 @dataclass(slots=True)
@@ -35,22 +35,22 @@ def channel_slug(value: str) -> str:
 def game_master_permissions() -> discord.Permissions:
     return discord.Permissions(
         manage_channels=True, manage_roles=True, manage_messages=True,
-        view_channel=True, send_messages=True,
-        read_message_history=True, connect=True, speak=True,
+        view_channel=True, send_messages=True, read_message_history=True,
+        connect=True, speak=True,
     )
 
 
 def player_permissions() -> discord.Permissions:
     return discord.Permissions(
         view_channel=True, send_messages=True, read_message_history=True, add_reactions=True,
-        use_application_commands=True, connect=True, speak=True, stream=True,
+        use_application_commands=False, connect=True, speak=True, stream=True,
     )
 
 
 def managed_bot_permissions() -> discord.Permissions:
     return discord.Permissions(
         view_channel=True, send_messages=True, read_message_history=True, embed_links=True,
-        attach_files=True, manage_messages=True, use_application_commands=True, connect=True,
+        attach_files=True, manage_messages=True, use_application_commands=False, connect=True,
         speak=True, use_voice_activation=True,
     )
 
@@ -63,13 +63,13 @@ def required_bot_permissions() -> discord.Permissions:
 class DiscordProvisioner:
     def __init__(self, guild: discord.Guild, store: ContentStore) -> None:
         self.guild, self.store = guild, store
+        self.settings = get_server_settings(store)
 
     async def provision(self) -> ProvisionReport:
         me = self.guild.me
         if me is None:
             raise RuntimeError("Le membre représentant le bot est introuvable dans ce serveur.")
-        required = required_bot_permissions()
-        missing = [name for name, enabled in required if enabled and not getattr(me.guild_permissions, name)]
+        missing = [name for name, enabled in required_bot_permissions() if enabled and not getattr(me.guild_permissions, name)]
         if missing:
             raise PermissionError(
                 "Permissions Discord manquantes pour le bot : " + ", ".join(missing)
@@ -77,42 +77,122 @@ class DiscordProvisioner:
             )
 
         report = ProvisionReport([], [])
-        master = await self._ensure_role(ROLE_GAME_MASTER, discord.Colour.gold(), game_master_permissions(), report)
-        player = await self._ensure_role(ROLE_PLAYER, discord.Colour.blurple(), player_permissions(), report)
-        bot_role = await self._ensure_role(ROLE_BOT, discord.Colour.green(), managed_bot_permissions(), report)
+        role_names = self.settings["roles"]
+        master = await self._ensure_role(role_names["game_master"], discord.Colour.gold(), game_master_permissions(), report)
+        player = await self._ensure_role(role_names["player"], discord.Colour.dark_red(), player_permissions(), report)
+        bot_role = await self._ensure_role(role_names["bot"], discord.Colour.green(), managed_bot_permissions(), report)
 
-        private = {
-            self.guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            master: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True, speak=True),
-            player: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True, speak=True),
-            bot_role: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True, speak=True),
-            me: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True, speak=True),
-        }
-        category = discord.utils.get(self.guild.categories, name=CATEGORY_NAME)
-        if category is None:
-            category = await self.guild.create_category(CATEGORY_NAME, overwrites=private, reason=AUDIT_REASON)
-            report.created_channels.append(CATEGORY_NAME)
-        else:
-            await category.edit(overwrites=private, reason=AUDIT_REASON)
+        general_overwrites = self._general_overwrites(master, player, bot_role, me)
+        discord_settings = self.settings["discord"]
+        general = await self._ensure_category(discord_settings["general_category"][:100], general_overwrites, report)
 
-        welcome_overwrites = dict(private)
+        welcome_overwrites = dict(general_overwrites)
         welcome_overwrites[self.guild.default_role] = discord.PermissionOverwrite(view_channel=True, send_messages=False, read_message_history=True)
-        await self._ensure_text("bienvenue", category, welcome_overwrites, report, topic="Bienvenue dans le Royaume. Utilisez /royaume pour commencer.")
-        await self._ensure_text("commandes-du-royaume", category, private, report, topic="Commandes et interactions de KingdomEngine.")
-        admin_overwrites = dict(private)
+        await self._ensure_text(discord_settings["welcome_channel"], general, welcome_overwrites, report, "Bienvenue dans le Royaume.")
+        await self._ensure_text(discord_settings["commands_channel"], general, general_overwrites, report, "Commandes et interactions de KingdomEngine.")
+        admin_overwrites = dict(general_overwrites)
         admin_overwrites[player] = discord.PermissionOverwrite(view_channel=False)
-        await self._ensure_text("administration-royaume", category, admin_overwrites, report, topic="Salon privé des Maîtres du Royaume et des bots.")
+        await self._ensure_text(discord_settings["administration_channel"], general, admin_overwrites, report, "Salon privé des Maîtres du Royaume et des bots.")
+        if self.settings["onboarding"].get("enabled", True):
+            await self._provision_oath(general, master, player, bot_role, me, report)
 
         for entity in self.store.list("building", published=True):
-            payload = entity["payload"]
-            slug = channel_slug(payload["name"])
-            await self._ensure_text(slug, category, private, report, topic=payload.get("description"))
-            await self._ensure_voice(f"🔊 {payload['name']}"[:100], category, private, report)
+            await self._provision_building(entity, master, player, bot_role, me, report)
 
-        assigned, skipped = await self._assign_roles(master, player, bot_role)
+        assigned, skipped = await self._assign_privileged_roles(master, bot_role)
         report.assigned_roles += assigned
         report.skipped_members += skipped
         return report
+
+    def _general_overwrites(self, master: discord.Role, player: discord.Role, bot_role: discord.Role, me: discord.Member) -> dict[Any, discord.PermissionOverwrite]:
+        return {
+            self.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            master: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True, speak=True),
+            player: discord.PermissionOverwrite(
+                view_channel=True, send_messages=True, connect=True, speak=True,
+                use_application_commands=False,
+            ),
+            bot_role: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True, speak=True),
+            me: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True, speak=True),
+        }
+
+    async def _provision_oath(self, category: discord.CategoryChannel, master: discord.Role, player: discord.Role, bot_role: discord.Role, me: discord.Member, report: ProvisionReport) -> None:
+        onboarding = self.settings["onboarding"]
+        overwrites = {
+            self.guild.default_role: discord.PermissionOverwrite(view_channel=True, send_messages=False, read_message_history=True),
+            master: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+            player: discord.PermissionOverwrite(view_channel=True, send_messages=False),
+            bot_role: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+            me: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+        }
+        channel = await self._ensure_text(onboarding["channel_name"], category, overwrites, report, onboarding["title"])
+        oath_message: discord.Message | None = None
+        try:
+            async for message in channel.history(limit=50):
+                if any(getattr(child, "custom_id", None) == OATH_CUSTOM_ID for row in message.components for child in row.children):
+                    oath_message = message
+                    break
+        except discord.HTTPException:
+            pass
+        embed = discord.Embed(
+            title=onboarding["title"], description=onboarding["rules_text"],
+            color=int(self.settings["theme"]["primary_color"].lstrip("#"), 16),
+        )
+        view = discord.ui.View(timeout=None)
+        view.add_item(discord.ui.Button(
+            label=str(onboarding["button_label"])[:80], emoji=onboarding.get("button_emoji") or None,
+            style=discord.ButtonStyle.success, custom_id=OATH_CUSTOM_ID,
+        ))
+        if oath_message is None:
+            await channel.send(embed=embed, view=view)
+        else:
+            await oath_message.edit(embed=embed, view=view)
+
+    async def _provision_building(self, entity: dict[str, Any], master: discord.Role, player: discord.Role, bot_role: discord.Role, me: discord.Member, report: ProvisionReport) -> None:
+        payload = entity["payload"]
+        access = payload.get("access", {})
+        if access.get("visible", True) is False:
+            return
+        required_roles = [str(name).strip() for name in access.get("required_roles", []) if str(name).strip()]
+        allowed_roles = [role for name in required_roles if (role := discord.utils.get(self.guild.roles, name=name))]
+        base_access = not required_roles
+        category_overwrites: dict[Any, discord.PermissionOverwrite] = {
+            self.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            master: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True, speak=True),
+            player: discord.PermissionOverwrite(
+                view_channel=base_access, connect=base_access, speak=base_access,
+                use_application_commands=False,
+            ),
+            bot_role: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True, speak=True),
+            me: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True, speak=True),
+        }
+        for role in allowed_roles:
+            category_overwrites[role] = discord.PermissionOverwrite(view_channel=True, connect=True, speak=True)
+        template = self.settings["discord"]["building_category_template"]
+        category_name = template.format(
+            name=payload["name"], key=entity["entity_key"], emoji=payload.get("emoji", "🏰")
+        ).strip()[:100]
+        category = await self._ensure_category(category_name, category_overwrites, report)
+
+        text_overwrites = dict(category_overwrites)
+        temporary_text = access.get("temporary_text", self.settings["discord"].get("temporary_text_access", True))
+        text_overwrites[player] = discord.PermissionOverwrite(
+            view_channel=base_access and not temporary_text,
+            send_messages=base_access and not temporary_text,
+            read_message_history=base_access and not temporary_text,
+            use_application_commands=False,
+        )
+        for role in allowed_roles:
+            text_overwrites[role] = discord.PermissionOverwrite(
+                view_channel=not temporary_text, send_messages=not temporary_text,
+                read_message_history=not temporary_text,
+            )
+        text_name = self.settings["discord"]["building_text_channel"].format(name=payload["name"], key=entity["entity_key"])
+        await self._ensure_text(text_name, category, text_overwrites, report, payload.get("description"))
+        voice_name = self.settings["discord"]["building_voice_channel_template"].format(
+            name=payload["name"], key=entity["entity_key"]
+        ).strip()
+        await self._ensure_voice(voice_name[:100], category, category_overwrites, report)
 
     async def _ensure_role(self, name: str, colour: discord.Colour, permissions: discord.Permissions, report: ProvisionReport) -> discord.Role:
         role = discord.utils.get(self.guild.roles, name=name)
@@ -125,55 +205,72 @@ class DiscordProvisioner:
             await role.edit(colour=colour, permissions=permissions, hoist=True, reason=AUDIT_REASON)
         return role
 
-    async def _ensure_text(self, name: str, category: discord.CategoryChannel, overwrites: dict[Any, discord.PermissionOverwrite], report: ProvisionReport, topic: str | None = None) -> None:
-        channel = discord.utils.get(category.text_channels, name=name)
+    async def _ensure_category(self, name: str, overwrites: dict[Any, discord.PermissionOverwrite], report: ProvisionReport) -> discord.CategoryChannel:
+        category = discord.utils.get(self.guild.categories, name=name)
+        if category is None:
+            category = await self.guild.create_category(name, overwrites=overwrites, reason=AUDIT_REASON)
+            report.created_channels.append(name)
+        else:
+            await category.edit(overwrites=overwrites, reason=AUDIT_REASON)
+        return category
+
+    async def _ensure_text(self, name: str, category: discord.CategoryChannel, overwrites: dict[Any, discord.PermissionOverwrite], report: ProvisionReport, topic: str | None = None) -> discord.TextChannel:
+        slug = channel_slug(name)
+        channel = discord.utils.get(category.text_channels, name=slug)
         if channel is None:
-            await self.guild.create_text_channel(name, category=category, overwrites=overwrites, topic=topic, reason=AUDIT_REASON)
-            report.created_channels.append(f"#{name}")
+            channel = await self.guild.create_text_channel(slug, category=category, overwrites=overwrites, topic=topic, reason=AUDIT_REASON)
+            report.created_channels.append(f"#{slug}")
         else:
             await channel.edit(overwrites=overwrites, topic=topic, sync_permissions=False, reason=AUDIT_REASON)
+        return channel
 
-    async def _ensure_voice(self, name: str, category: discord.CategoryChannel, overwrites: dict[Any, discord.PermissionOverwrite], report: ProvisionReport) -> None:
+    async def _ensure_voice(self, name: str, category: discord.CategoryChannel, overwrites: dict[Any, discord.PermissionOverwrite], report: ProvisionReport) -> discord.VoiceChannel:
         channel = discord.utils.get(category.voice_channels, name=name)
         if channel is None:
-            await self.guild.create_voice_channel(name, category=category, overwrites=overwrites, reason=AUDIT_REASON)
+            channel = await self.guild.create_voice_channel(name, category=category, overwrites=overwrites, reason=AUDIT_REASON)
             report.created_channels.append(name)
         else:
             await channel.edit(overwrites=overwrites, sync_permissions=False, reason=AUDIT_REASON)
+        return channel
 
-    async def _assign_roles(self, master: discord.Role, player: discord.Role, bot_role: discord.Role) -> tuple[int, int]:
+    async def _assign_privileged_roles(self, master: discord.Role, bot_role: discord.Role) -> tuple[int, int]:
+        """Le rôle joueur n'est jamais automatique : il est accordé par le serment."""
         assigned, skipped = 0, 0
         members = self.guild.members
         if self.guild.chunked is False:
-            try: members = [member async for member in self.guild.fetch_members(limit=None)]
-            except discord.HTTPException: members = self.guild.members
+            try:
+                members = [member async for member in self.guild.fetch_members(limit=None)]
+            except discord.HTTPException:
+                members = self.guild.members
         for member in members:
-            target = bot_role if member.bot else player
-            roles = [target]
-            if member.id == self.guild.owner_id: roles.append(master)
+            roles: list[discord.Role] = []
+            if member.bot:
+                roles.append(bot_role)
+            if member.id == self.guild.owner_id:
+                roles.append(master)
             missing = [role for role in roles if role not in member.roles]
-            if missing:
-                try:
-                    await member.add_roles(*missing, reason=AUDIT_REASON)
-                    assigned += len(missing)
-                except discord.Forbidden:
-                    # Discord protège notamment le propriétaire et les membres
-                    # dont le rôle est supérieur à celui du bot.
-                    skipped += 1
-                    print(f"⚠️ Attribution ignorée pour {member} : hiérarchie Discord.")
+            if not missing:
+                continue
+            try:
+                await member.add_roles(*missing, reason=AUDIT_REASON)
+                assigned += len(missing)
+            except discord.Forbidden:
+                skipped += 1
         return assigned, skipped
 
 
 class ProvisionClient(discord.Client):
     def __init__(self, store: ContentStore, guild_id: int) -> None:
-        intents = discord.Intents.default(); intents.members = True
+        intents = discord.Intents.default()
+        intents.members = True
         super().__init__(intents=intents)
         self.store, self.guild_id = store, guild_id
 
     async def on_ready(self) -> None:
         try:
             guild = self.get_guild(self.guild_id)
-            if guild is None: raise RuntimeError(f"Le bot n’est pas membre du serveur {self.guild_id}.")
+            if guild is None:
+                raise RuntimeError(f"Le bot n'est pas membre du serveur {self.guild_id}.")
             report = await DiscordProvisioner(guild, self.store).provision()
             print(f"✅ Provisionnement terminé : {len(report.created_roles)} rôle(s), {len(report.created_channels)} salon(s) créés, {report.assigned_roles} attribution(s), {report.skipped_members} membre(s) protégé(s).")
         except Exception as error:
@@ -185,6 +282,8 @@ class ProvisionClient(discord.Client):
 def run_provisioning(store: ContentStore) -> None:
     guild_id = int(os.getenv("KINGDOM_GUILD_ID", "0") or 0)
     token = os.getenv("KINGDOM_CORE_TOKEN", "")
-    if not guild_id: raise RuntimeError("KINGDOM_GUILD_ID doit contenir l’identifiant du serveur Discord.")
-    if not token: raise RuntimeError("KINGDOM_CORE_TOKEN est absent du fichier .env.")
+    if not guild_id:
+        raise RuntimeError("KINGDOM_GUILD_ID doit contenir l'identifiant du serveur Discord.")
+    if not token:
+        raise RuntimeError("KINGDOM_CORE_TOKEN est absent du fichier .env.")
     ProvisionClient(store, guild_id).run(token)

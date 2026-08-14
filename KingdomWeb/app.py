@@ -11,9 +11,10 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from KingdomData import ConflictError, ContentStore, NotFoundError, ValidationError
+from KingdomData import ConflictError, ContentStore, NotFoundError, ValidationError, SERVER_SETTINGS_KEY
 from import_v1 import import_v1
 from kingdomCore.provisioner import managed_bot_permissions, required_bot_permissions
+from KingdomWeb.supervision import AdministrationService, ServiceSupervisor
 from seed import DEFINITIONS
 import discord
 
@@ -96,6 +97,38 @@ def publish_content(entity_type: str, key: str, version: int, body: dict[str, An
 def changes(after: int = 0): return store.changes(after)
 
 
+@app.get("/api/server/settings", dependencies=[Depends(authorize)])
+def server_settings():
+    return store.get("server_settings", SERVER_SETTINGS_KEY)
+
+
+@app.post("/api/server/settings", dependencies=[Depends(authorize)])
+def save_server_settings(body: dict[str, Any]):
+    try:
+        draft = store.save(
+            "server_settings", SERVER_SETTINGS_KEY, body["payload"],
+            body.get("author", "studio-settings"), body.get("expected_version"),
+        )
+        return store.publish("server_settings", SERVER_SETTINGS_KEY, draft["version"], body.get("author", "studio-settings"))
+    except (ValidationError, KeyError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except ConflictError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.get("/api/admin/overview", dependencies=[Depends(authorize)])
+def administration_overview():
+    return AdministrationService(store).overview()
+
+
+@app.post("/api/admin/services/{service_key}/{operation}", dependencies=[Depends(authorize)])
+def control_service(service_key: str, operation: str):
+    try:
+        return ServiceSupervisor().control(service_key, operation)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
 @app.post("/api/import/v1", dependencies=[Depends(authorize)])
 def import_legacy_content():
     return {"ok": True, "imported": import_v1(store), "message": "Import V1 terminé sans écraser les définitions existantes."}
@@ -139,5 +172,5 @@ def bot_invite(key: str):
         label = application_id_env or "la variable APPLICATION_ID du bot"
         raise HTTPException(422, f"Renseignez {label} dans le fichier .env, puis redémarrez KingdomWeb.")
     permissions = managed_bot_permissions() if config.get("bot_type") == "voice" else required_bot_permissions()
-    url = discord.utils.oauth_url(int(application_id), permissions=permissions, scopes=("bot", "applications.commands"))
+    url = discord.utils.oauth_url(int(application_id), permissions=permissions, scopes=("bot",))
     return {"key": key, "name": config["name"], "url": url}

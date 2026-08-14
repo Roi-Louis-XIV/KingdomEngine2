@@ -38,4 +38,4 @@ else:
     application_id = int(os.getenv("KINGDOM_APPLICATION_ID", "0") or 0)
     if not application_id:
         raise RuntimeError("Renseignez KINGDOM_APPLICATION_ID dans .env (identifiant de l’application Discord).")
-    print(discord.utils.oauth_url(application_id, permissions=required_bot_permissions(), scopes=("bot", "applications.commands")))
+    print(discord.utils.oauth_url(application_id, permissions=required_bot_permissions(), scopes=("bot",)))
