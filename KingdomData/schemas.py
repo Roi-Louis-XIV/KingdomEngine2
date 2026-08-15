@@ -13,13 +13,13 @@ ACTION_TYPES = {
     "repair", "upgrade", "random_message", "deliver_inventory",
     "schedule", "claim_scheduled", "state", "production",
     "profession_join", "profession_leave", "profession_experience",
-    "tool_grant", "tool_modify", "contribution",
+    "tool_grant", "tool_modify", "contribution", "player_stat",
 }
 CONDITION_TYPES = {
     "resource", "item_present", "item_absent", "profession_active", "no_active_profession",
     "profession_level", "tool_present", "tool_level", "tool_durability", "voice_presence",
     "discord_role", "no_pending_activity", "activity_limit_available", "cooldown_available",
-    "building_stock", "state",
+    "building_stock", "state", "player_stat",
 }
 CONDITION_OPERATORS = {"=", "!=", ">", ">=", "<", "<="}
 ACTIVITY_SCOPES = {"player", "player_building", "player_action", "category", "building", "action"}
@@ -49,6 +49,17 @@ def validate_entity(entity_type: str, payload: dict[str, Any]) -> dict[str, Any]
             raise ValidationError("stack_limit doit être positif.")
         if int(payload.get("price", 0)) < 0:
             raise ValidationError("Le prix ne peut pas être négatif.")
+        relations = payload.get("building_relations", [])
+        if not isinstance(relations, list):
+            raise ValidationError("building_relations doit être une liste.")
+        for relation in relations:
+            validate_key(str(relation.get("building_key", "")))
+            if relation.get("relation", "related") not in {"produced_by", "used_by", "sold_by", "accepted_by", "related"}:
+                raise ValidationError("Relation objet-bâtiment inconnue.")
+        consumption = payload.get("consumption", {})
+        if consumption and not isinstance(consumption.get("effects", []), list):
+            raise ValidationError("Les effets de consommation doivent former une liste.")
+        for effect in consumption.get("effects", []): _validate_effect(effect)
     if entity_type == "building":
         actions = payload.get("actions", [])
         if not isinstance(actions, list):
@@ -105,6 +116,8 @@ def _validate_effect(effect: dict[str, Any]) -> None:
         raise ValidationError("Opération d'outil invalide.")
     if kind == "contribution" and not str(effect.get("objective", "")).strip():
         raise ValidationError("Une contribution doit référencer un objectif collectif.")
+    if kind == "player_stat" and not str(effect.get("stat", "")).strip():
+        raise ValidationError("Un effet de statistique doit référencer une statistique.")
     if kind == "schedule":
         scope = effect.get("limit_scope", "player_action")
         if scope not in ACTIVITY_SCOPES:
@@ -184,6 +197,8 @@ def _validate_building_modules(payload: dict[str, Any]) -> None:
         value = modules.get(name, [])
         if not isinstance(value, list):
             raise ValidationError(f"Le module {name} doit \u00eatre une liste.")
+    if not isinstance(modules.get("games", {}), (dict, list)):
+        raise ValidationError("Le module games doit être un objet ou une liste.")
     profession_keys = {validate_key(item.get("key", "")) for item in modules.get("professions", [])}
     if len(profession_keys) != len(modules.get("professions", [])):
         raise ValidationError("Les identifiants de métiers doivent être uniques.")
@@ -286,7 +301,7 @@ def _validate_interface(payload: dict[str, Any]) -> None:
             if component_id in component_ids:
                 raise ValidationError(f"Composant duplique : {component_id}")
             component_ids.add(component_id)
-            if component.get("type") not in {"hero", "text", "card", "stat", "divider", "image", "player_inventory", "building_inventory", "button", "select", "dynamic_inventory_selector"}:
+            if component.get("type") not in {"hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "building_inventory", "button", "select", "dynamic_inventory_selector", "dynamic_product_selector", "dynamic_consumable_selector", "dynamic_game_selector"}:
                 raise ValidationError(f"Composant inconnu : {component.get('type')}")
             if component.get("type") in {"button", "select"}:
                 slot = int(component.get("slot", -1))

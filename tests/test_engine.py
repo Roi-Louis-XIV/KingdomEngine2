@@ -18,6 +18,15 @@ def test_private_launcher_id_survives_core_restart():
     assert other_id != first_id
 
 
+def test_building_launcher_is_a_direct_entrance():
+    launcher = PrivateInterfaceLauncher(None, {
+        "name": "Interface - Forêt du Royaume", "target_building_key": "forest",
+        "start_page": "home", "entry_page": "camp", "entry_label": "Entrer dans la Forêt",
+    }, 42)
+    assert launcher.children[0].label == "Entrer dans la Forêt"
+    assert "interface privée" not in launcher.children[0].label.lower()
+
+
 def test_action_is_atomic_and_idempotent(tmp_path):
     store=ContentStore(tmp_path/"game.db");store.initialize()
     draft=store.save("building","test_mine",{"name":"Mine","actions":[{"key":"mine_ore","name":"Miner","effects":[{"type":"cost","resource":"energy","amount":5},{"type":"reward","resource":"iron_ore","amount":2}]}]})
@@ -39,6 +48,18 @@ def test_failed_action_rolls_back(tmp_path):
     except ValidationError: pass
     else: raise AssertionError("L’achat devait échouer")
     assert engine.player("42")["inventory"]=={}
+
+
+def test_interface_can_apply_a_configured_player_cooldown(tmp_path):
+    store=ContentStore(tmp_path/"interface-cooldown.db");store.initialize()
+    draft=store.save("building","fountain",{"name":"Fontaine","actions":[{"key":"drink","name":"Boire","effects":[{"type":"message","text":"Rafraîchissant."}]}]})
+    store.publish("building","fountain",draft["version"])
+    engine=GameEngine(store)
+    asyncio.run(engine.execute("42","fountain","drink","drink-1",{"interface_timing":{"cooldown_seconds":30}}))
+    assert 1 <= engine.cooldown_remaining("42","fountain","drink") <= 30
+    try: asyncio.run(engine.execute("42","fountain","drink","drink-2",{"interface_timing":{"cooldown_seconds":30}}))
+    except ValidationError as error: assert "disponible" in str(error)
+    else: raise AssertionError("Le cooldown configuré par l'interface devait bloquer l'action.")
 
 
 def test_missing_required_item_uses_its_readable_name(tmp_path):

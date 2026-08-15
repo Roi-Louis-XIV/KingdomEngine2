@@ -56,6 +56,24 @@ class ContentStore:
             profession_columns = {row[1] for row in db.execute("PRAGMA table_info(player_professions)")}
             if "active" not in profession_columns:
                 db.execute("ALTER TABLE player_professions ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
+            player_columns = {row[1] for row in db.execute("PRAGMA table_info(players)")}
+            for name, definition in {
+                "display_name": "TEXT NOT NULL DEFAULT ''",
+                "avatar_url": "TEXT NOT NULL DEFAULT ''",
+                "created_at": "TEXT NOT NULL DEFAULT ''",
+            }.items():
+                if name not in player_columns:
+                    db.execute(f"ALTER TABLE players ADD COLUMN {name} {definition}")
+            # Les états d'outil enrichissent l'inventaire, ils ne constituent
+            # pas une seconde liste de possessions.
+            db.execute(
+                "INSERT OR IGNORE INTO inventory(discord_id,item_key,quantity) "
+                "SELECT discord_id,tool_key,1 FROM player_tools"
+            )
+            db.execute(
+                "UPDATE inventory SET quantity=1 WHERE quantity<1 AND "
+                "EXISTS(SELECT 1 FROM player_tools WHERE player_tools.discord_id=inventory.discord_id AND player_tools.tool_key=inventory.item_key)"
+            )
 
     def save(self, entity_type: str, key: str, payload: dict[str, Any], author: str = "web", expected_version: int | None = None) -> dict[str, Any]:
         key = validate_key(key)
@@ -199,11 +217,17 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS content(entity_type TEXT NOT NULL,entity_key TEXT NOT NULL,version INTEGER NOT NULL,status TEXT NOT NULL,payload_json TEXT NOT NULL,author TEXT NOT NULL,created_at TEXT NOT NULL,published_at TEXT,published_by TEXT,PRIMARY KEY(entity_type,entity_key,version));
 CREATE UNIQUE INDEX IF NOT EXISTS one_published ON content(entity_type,entity_key) WHERE status='published';
 CREATE TABLE IF NOT EXISTS outbox(id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT NOT NULL,aggregate_type TEXT NOT NULL,aggregate_key TEXT NOT NULL,payload_json TEXT NOT NULL,created_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS players(discord_id TEXT PRIMARY KEY,money INTEGER NOT NULL DEFAULT 0,energy INTEGER NOT NULL DEFAULT 100,updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS players(discord_id TEXT PRIMARY KEY,money INTEGER NOT NULL DEFAULT 0,energy INTEGER NOT NULL DEFAULT 100,updated_at TEXT NOT NULL,display_name TEXT NOT NULL DEFAULT '',avatar_url TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS inventory(discord_id TEXT NOT NULL,item_key TEXT NOT NULL,quantity INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(discord_id,item_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
 CREATE TABLE IF NOT EXISTS player_professions(discord_id TEXT NOT NULL,profession_key TEXT NOT NULL,level INTEGER NOT NULL DEFAULT 1,experience INTEGER NOT NULL DEFAULT 0,active INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(discord_id,profession_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
 CREATE TABLE IF NOT EXISTS player_tools(discord_id TEXT NOT NULL,tool_key TEXT NOT NULL,durability INTEGER NOT NULL,max_durability INTEGER NOT NULL,level INTEGER NOT NULL DEFAULT 1,loot_bonus INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(discord_id,tool_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
 CREATE TABLE IF NOT EXISTS player_state(discord_id TEXT NOT NULL,state_key TEXT NOT NULL,value_json TEXT NOT NULL,PRIMARY KEY(discord_id,state_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
+CREATE TABLE IF NOT EXISTS player_stats(discord_id TEXT NOT NULL,stat_key TEXT NOT NULL,value REAL NOT NULL,updated_at REAL NOT NULL,metadata_json TEXT NOT NULL DEFAULT '{}',PRIMARY KEY(discord_id,stat_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
+CREATE TABLE IF NOT EXISTS random_result_memory(scope TEXT NOT NULL,pool_key TEXT NOT NULL,result_key TEXT NOT NULL,updated_at REAL NOT NULL,PRIMARY KEY(scope,pool_key));
+CREATE TABLE IF NOT EXISTS game_sessions(session_key TEXT PRIMARY KEY,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,game_key TEXT NOT NULL,choice_key TEXT NOT NULL,stake_resource TEXT NOT NULL,stake INTEGER NOT NULL,multiplier REAL NOT NULL,status TEXT NOT NULL,confirmation_interaction_id TEXT UNIQUE,result_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL,resolved_at TEXT,FOREIGN KEY(discord_id) REFERENCES players(discord_id));
+CREATE INDEX IF NOT EXISTS game_sessions_owner ON game_sessions(discord_id,status,created_at DESC);
+CREATE TABLE IF NOT EXISTS player_presence(discord_id TEXT PRIMARY KEY,online INTEGER NOT NULL DEFAULT 0,voice_channel_id TEXT NOT NULL DEFAULT '',voice_channel_name TEXT NOT NULL DEFAULT '',building_key TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL,FOREIGN KEY(discord_id) REFERENCES players(discord_id));
+CREATE TABLE IF NOT EXISTS onboarding_grants(discord_id TEXT PRIMARY KEY,amount INTEGER NOT NULL,granted_at TEXT NOT NULL,FOREIGN KEY(discord_id) REFERENCES players(discord_id));
 CREATE TABLE IF NOT EXISTS building_stock(building_key TEXT NOT NULL,item_key TEXT NOT NULL,quantity INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(building_key,item_key));
 CREATE TABLE IF NOT EXISTS action_cooldowns(scope TEXT NOT NULL,building_key TEXT NOT NULL,action_key TEXT NOT NULL,ready_at REAL NOT NULL,PRIMARY KEY(scope,building_key,action_key));
 CREATE TABLE IF NOT EXISTS scheduled_actions(id INTEGER PRIMARY KEY AUTOINCREMENT,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,action_key TEXT NOT NULL,category TEXT NOT NULL DEFAULT '',limit_scope TEXT NOT NULL DEFAULT 'player_action',ready_at REAL NOT NULL,effects_json TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',created_at TEXT NOT NULL,completed_at TEXT,result_json TEXT NOT NULL DEFAULT '{}',claim_hooks_json TEXT NOT NULL DEFAULT '[]');
@@ -211,4 +235,6 @@ CREATE TABLE IF NOT EXISTS collective_contributions(id INTEGER PRIMARY KEY AUTOI
 CREATE TABLE IF NOT EXISTS delivery_log(id INTEGER PRIMARY KEY AUTOINCREMENT,interaction_id TEXT NOT NULL,discord_id TEXT NOT NULL,source_building TEXT NOT NULL,destination_building TEXT NOT NULL,resource_key TEXT NOT NULL,quantity INTEGER NOT NULL,unit_price INTEGER NOT NULL,total_payment INTEGER NOT NULL,payment_resource TEXT NOT NULL,created_at TEXT NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS delivery_interaction_line ON delivery_log(interaction_id,resource_key,destination_building);
 CREATE TABLE IF NOT EXISTS action_log(id INTEGER PRIMARY KEY AUTOINCREMENT,interaction_id TEXT UNIQUE NOT NULL,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,action_key TEXT NOT NULL,result_json TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS admin_audit_log(id INTEGER PRIMARY KEY AUTOINCREMENT,admin_id TEXT NOT NULL,player_id TEXT NOT NULL,action TEXT NOT NULL,target TEXT NOT NULL,old_value_json TEXT NOT NULL,new_value_json TEXT NOT NULL,reason TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS admin_audit_player ON admin_audit_log(player_id,created_at DESC);
 """

@@ -12,8 +12,8 @@ import discord
 
 from KingdomData import ContentStore, get_server_settings
 
-ROLE_GAME_MASTER = "👑 Maître du Royaume"
-ROLE_PLAYER = "⚔️ Aventurier"
+ROLE_GAME_MASTER = "👑 Roi"
+ROLE_PLAYER = "⚔️ Habitant du Royaume"
 ROLE_BOT = "🤖 Bots du Royaume"
 AUDIT_REASON = "Installation automatique de KingdomEngine 2"
 OATH_CUSTOM_ID = "ke2:oath"
@@ -103,6 +103,34 @@ class DiscordProvisioner:
         report.assigned_roles += assigned
         report.skipped_members += skipped
         return report
+
+    async def remove_building_channels(self, building_key: str, payload: dict[str, Any]) -> list[str]:
+        """Supprime uniquement les salons déterministes gérés pour un bâtiment supprimé."""
+        template = self.settings["discord"]["building_category_template"]
+        category_name = template.format(name=payload["name"], key=building_key, emoji=payload.get("emoji", "🏰")).strip()[:100]
+        category = discord.utils.get(self.guild.categories, name=category_name)
+        if category is None:
+            return []
+        text_name = channel_slug(self.settings["discord"]["building_text_channel"].format(name=payload["name"], key=building_key))
+        voice_name = self.settings["discord"]["building_voice_channel_template"].format(name=payload["name"], key=building_key).strip()[:100]
+        removed: list[str] = []
+        managed = [
+            next((channel for channel in category.text_channels if channel.name == text_name), None),
+            next((channel for channel in category.voice_channels if channel.name == voice_name), None),
+        ]
+        removed_ids = set()
+        for channel in managed:
+            if channel is None:
+                continue
+            removed_ids.add(channel.id)
+            removed.append(channel.name)
+            await channel.delete(reason=f"Suppression du bâtiment KingdomEngine : {building_key}")
+        # Une catégorie contenant un salon ajouté manuellement est conservée.
+        remaining = [channel for channel in category.channels if channel.id not in removed_ids]
+        if not remaining:
+            await category.delete(reason=f"Suppression du bâtiment KingdomEngine : {building_key}")
+            removed.append(category.name)
+        return removed
 
     def _general_overwrites(self, master: discord.Role, player: discord.Role, bot_role: discord.Role, me: discord.Member) -> dict[Any, discord.PermissionOverwrite]:
         return {

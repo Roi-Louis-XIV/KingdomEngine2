@@ -9,9 +9,11 @@ from typing import Any
 from KingdomData import (
     ContentStore,
     interface_from_activity_modules,
+    interface_from_hospitality_modules,
     interface_from_building,
     interface_from_workshop_modules,
     migrate_activity_profession_interfaces,
+    migrate_reference_labels,
     migrate_published_building_interfaces,
 )
 
@@ -19,6 +21,8 @@ from KingdomData import (
 def definitions_from_v1(v1_root: str | Path | None = None) -> list[dict[str, Any]]:
     root = Path(v1_root) if v1_root else Path(__file__).resolve().parent.parent / "KingdomEngine"
     definitions = _building_definitions(root)
+    tavern_path = root / "KingdomData" / "buildings" / "tavern.json"
+    product_categories = {str(item["item_key"]): str(item.get("category", "")) for item in _read(tavern_path).get("products", [])} if tavern_path.exists() else {}
     items_root = root / "KingdomData" / "items"
     for catalogue in sorted(items_root.glob("*.json")):
         category = catalogue.stem
@@ -29,6 +33,16 @@ def definitions_from_v1(v1_root: str | Path | None = None) -> list[dict[str, Any
                 "stack_limit": 999 if payload.get("stackable", True) else 1,
                 "source": "KingdomEngine V1",
             }
+            product_category = product_categories.get(key)
+            if payload.get("consumable") and product_category:
+                alcohol = {"bieres": 18, "vins": 24, "spiritueux": 34}.get(product_category, 0)
+                food = product_category == "nourriture"
+                normalized["consumption"] = {"effects": [
+                    {"type": "player_stat", "stat": "energy", "amount": 20 if food else 2 if alcohol else 8, "minimum": 0, "maximum": 100, "change_per_hour": 10},
+                    *([{"type": "player_stat", "stat": "alcohol", "amount": alcohol, "minimum": 0, "maximum": 100, "change_per_hour": -4}] if alcohol else []),
+                    *([{"type": "player_stat", "stat": "alcohol", "amount": -12, "minimum": 0, "maximum": 100, "change_per_hour": -4}] if food else []),
+                    {"type": "message", "text": "Tu consommes {item}."},
+                ]}
             definitions.append({"type": "item", "key": key, "payload": normalized})
     voice_root = root / "KingdomVoice" / "config"
     for config in sorted(voice_root.glob("*.json")):
@@ -56,11 +70,24 @@ def import_v1(store: ContentStore, v1_root: str | Path | None = None) -> int:
     before = {(x["entity_type"], x["entity_key"]) for x in store.list()}
     definitions = definitions_from_v1(v1_root)
     store.seed(definitions)
+    _link_existing_v1_items(store, definitions)
     _link_existing_v1_buildings(store, definitions)
     migrate_weighted_activity_results(store)
     migrate_published_building_interfaces(store)
     migrate_activity_profession_interfaces(store)
+    migrate_reference_labels(store)
     return sum((x["type"], x["key"]) not in before for x in definitions)
+
+
+def _link_existing_v1_items(store: ContentStore, definitions: list[dict[str, Any]]) -> None:
+    """Ajoute les contrats de consommation aux objets V1 déjà publiés."""
+    for definition in (item for item in definitions if item["type"] == "item" and item["payload"].get("consumption")):
+        current = store.get("item", definition["key"])
+        if current["status"] != "published" or current["payload"].get("consumption"):
+            continue
+        upgraded = {**current["payload"], "consumption": definition["payload"]["consumption"]}
+        draft = store.save("item", definition["key"], upgraded, "migration-consommables", current["version"])
+        store.publish("item", definition["key"], draft["version"], "migration-consommables")
 
 
 def migrate_weighted_activity_results(store: ContentStore) -> int:
@@ -116,8 +143,14 @@ def _link_existing_v1_buildings(store: ContentStore, definitions: list[dict[str,
         target_blueprint = canonical.get("interface", {}).get("blueprint")
         if target_blueprint and current_blueprint != target_blueprint:
             upgraded = {**payload, "interface_texts": canonical.get("interface_texts", payload.get("interface_texts", {}))}
+            # Les modules absents des premières importations sont complétés,
+            # sans écraser les valeurs déjà personnalisées dans KingdomWeb.
+            upgraded["modules"] = {**canonical.get("modules", {}), **payload.get("modules", {})}
             upgraded["actions"] = actions_from_modules(definition["key"], upgraded.get("modules", {}))
-            upgraded["interface"] = (interface_from_workshop_modules if str(target_blueprint).startswith("workshop_") else interface_from_activity_modules)(definition["key"], upgraded, upgraded["actions"])
+            renderer = (interface_from_workshop_modules if str(target_blueprint).startswith("workshop_") else
+                        interface_from_hospitality_modules if str(target_blueprint).startswith("hospitality") else
+                        interface_from_activity_modules)
+            upgraded["interface"] = renderer(definition["key"], upgraded, upgraded["actions"])
             draft = store.save("building", definition["key"], upgraded, "migration-v1-interface-v2", current["version"])
             store.publish("building", definition["key"], draft["version"], "migration-v1-interface-v2")
             continue
@@ -151,14 +184,16 @@ def _building_definitions(root: Path) -> list[dict[str, Any]]:
             payload = builder(_read(path))
             market = delivery_markets.get(key, {})
             payload["modules"]["market_purchases"] = [
-                {"item_key": item, "unit_price": price}
+                {"item_key": item, "unit_price": price,
+                 "name": item_catalogue.get(item, {}).get("name", item.replace("_", " ").capitalize()),
+                 "emoji": item_catalogue.get(item, {}).get("emoji", "📦")}
                 for item, price in market.get("prices", {}).items()
             ]
             payload["action_mode"] = "generated"
             payload["actions"] = actions_from_modules(key, payload["modules"])
             payload["interface_key"] = f"ui_{key}"
             blueprint = payload.get("interface_blueprint")
-            payload["interface"] = (interface_from_activity_modules if blueprint == "activity_professions" else interface_from_workshop_modules if blueprint == "workshop_market" else interface_from_building)(key, payload, payload["actions"])
+            payload["interface"] = (interface_from_activity_modules if blueprint == "activity_professions" else interface_from_workshop_modules if blueprint == "workshop_market" else interface_from_hospitality_modules if blueprint == "hospitality" else interface_from_building)(key, payload, payload["actions"])
             definitions.append({"type": "building", "key": key, "payload": payload})
             definitions.append({"type": "interface", "key": f"ui_{key}", "payload": clone_interface(payload["interface"])})
     projects_path = buildings_root / "construction_projects.json"
@@ -362,6 +397,7 @@ def _tavern_payload(data: dict[str, Any], rumor_catalogue: list[dict[str, Any]])
         }
         for recipe in cook.get("recipes", [])
     ]
+    payload["interface_blueprint"] = "hospitality"
     payload["modules"].update({
         "rules": {"experience_per_level": cook.get("experience_per_level", 100), "max_active_missions": cook.get("max_active_missions", 1)},
         "professions": [{"key": "cook", "name": cook.get("name", "Cuisinier")}],
@@ -371,15 +407,25 @@ def _tavern_payload(data: dict[str, Any], rumor_catalogue: list[dict[str, Any]])
         "stock": {"ingredients": cook.get("initial_ingredient_stock", {})},
         "categories": data.get("categories", {}),
         "rumors": {**data.get("rumors", {}), "catalogue": rumor_catalogue},
+        "player_stats": {
+            "energy": {"name": "Énergie", "default": 100, "minimum": 0, "maximum": 100, "change_per_hour": 10},
+            "alcohol": {"name": "Alcoolémie", "default": 0, "minimum": 0, "maximum": 100, "change_per_hour": -4},
+        },
         "games": {"dice": _dice_configuration(data.get("dice_game", {}))},
     })
+    payload["interface_texts"] = {
+        "welcome": "La chaleur du foyer, le parfum des plats et le fracas des chopes t'accueillent.",
+        "shop_label": "Commander au comptoir", "consume_label": "Boire ou manger",
+        "profession_label": "Travailler en cuisine", "stories_label": "Écouter Edgar",
+        "games_label": "Jugement des Six Faces", "stories_description": "Edgar baisse la voix et jette un regard vers les tables voisines…",
+    }
     return payload
 
 
 def _dice_configuration(config: dict[str, Any]) -> dict[str, Any]:
     multipliers = config.get("multipliers", {})
     return {
-        **config, "sides": 6,
+        **config, "key": "dice", "name": "Jugement des Six Faces", "sides": 6, "stake_resource": "money",
         "bets": [
             *[{"key": f"crown_{face}", "name": f"Couronne {face}", "winning_faces": [face], "multiplier": multipliers.get("crown", 6)} for face in range(1, 7)],
             {"key": "judgement_even", "name": "Jugement pair", "winning_faces": [2, 4, 6], "multiplier": multipliers.get("judgement", 2)},
@@ -491,8 +537,9 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
         repair_maximum = modules.get("repairs", {}).get("durability", {}).get(item)
         if repair_maximum:
             product_effects.append({"type": "durability", "tool": item, "amount": 0, "max_durability": int(repair_maximum)})
+        label = str(product.get("name") or item.replace("_", " ").capitalize())
         actions.append({
-            "key": f"buy_{item}", "name": f"Acheter {item}", "emoji": "🛒", "enabled": product.get("active", True),
+            "key": f"buy_{item}", "name": f"Acheter {label}", "emoji": product.get("emoji", "🛒"), "enabled": product.get("active", True),
             "effects": product_effects,
         })
     for recipe in modules.get("recipes", []):
@@ -529,8 +576,9 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
         deliveries = []
     for delivery in deliveries:
         item = delivery["item_key"]
+        label = str(delivery.get("name") or item.replace("_", " ").capitalize())
         actions.append({
-            "key": f"deliver_{item}", "name": f"Livrer {item}", "emoji": "📦", "enabled": True,
+            "key": f"deliver_{item}", "name": f"Livrer {label}", "emoji": delivery.get("emoji", "📦"), "enabled": True,
             "effects": [
                 {"type": "cost", "resource": item, "amount": 1},
                 {"type": "stock_reward", "item": item, "amount": 1, "building": delivery.get("target_building_key", building_key)},
@@ -539,8 +587,9 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
         })
     for purchase in modules.get("market_purchases", []):
         item = purchase["item_key"]
+        label = str(purchase.get("name") or item.replace("_", " ").capitalize())
         actions.append({
-            "key": f"supply_{item}", "name": f"Approvisionner en {item}", "emoji": "🚚", "enabled": True,
+            "key": f"supply_{item}", "name": f"Approvisionner en {label}", "emoji": purchase.get("emoji", "🚚"), "enabled": True,
             "effects": [
                 {"type": "cost", "resource": item, "amount": 1},
                 {"type": "stock_reward", "item": item, "amount": 1, "building": building_key},
@@ -572,7 +621,8 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
             "key": "hear_rumor", "name": "Ecouter une rumeur", "emoji": "🗣️", "enabled": True,
             "cooldown_seconds": int(rumors.get("player_cooldown_seconds", 0)),
             "global_cooldown_seconds": int(rumors.get("global_cooldown_seconds", 0)),
-            "effects": [{"type": "random_message", "choices": rumor_choices}],
+            "effects": [{"type": "random_message", "choices": rumor_choices, "avoid_previous": True,
+                         "memory_scope": "player", "memory_key": f"{building_key}:stories"}],
         })
     repair = modules.get("repairs", {})
     for tool, maximum in repair.get("durability", {}).items():
@@ -586,8 +636,9 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
         family_price = next((value for family, value in legacy_prices.items() if family in str(tool).split("_")), repair.get("equipment_price_per_point", 1))
         price_per_point = int(rule.get("price_per_point", repair.get("price_per_point_by_tool", {}).get(tool, family_price)))
         configured_maximum = int(rule.get("max_durability", maximum))
+        tool_label = str(repair.get("item_names", {}).get(tool) or str(tool).replace("_", " ").capitalize())
         actions.append({
-            "key": f"repair_{tool}", "name": f"Reparer {tool}", "emoji": "🔧", "enabled": True,
+            "key": f"repair_{tool}", "name": f"Réparer {tool_label}", "emoji": "🔧", "enabled": True,
             "requirements": {"items": {tool: 1}},
             "effects": [{"type": "repair", "tool": tool, "max_durability": configured_maximum, "price_per_point": price_per_point}],
         })

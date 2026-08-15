@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import os
 import logging
+import asyncio
+import json
+import time
+from datetime import datetime, timezone
 from typing import Any
 
 import discord
@@ -14,7 +18,7 @@ from kingdomEvent import EventBus
 from import_v1 import import_v1
 from seed import DEFINITIONS
 from .engine import GameEngine
-from .provisioner import OATH_CUSTOM_ID, channel_slug
+from .provisioner import DiscordProvisioner, OATH_CUSTOM_ID, channel_slug
 
 
 logger = logging.getLogger(__name__)
@@ -69,6 +73,8 @@ def interaction_context(interaction: discord.Interaction) -> dict[str, Any]:
         "roles": [role.name for role in member.roles] if member else [],
         "voice_channel_id": member.voice.channel.id if member and member.voice and member.voice.channel else None,
         "guild_id": interaction.guild_id,
+        "display_name": interaction.user.display_name,
+        "avatar_url": str(interaction.user.display_avatar.url),
     }
 
 
@@ -94,6 +100,7 @@ class InterfaceView(discord.ui.View):
         super().__init__(timeout=300)
         self.engine, self.definition = engine, definition
         self.page_key = page_key or definition["start_page"]
+        self.page_started_at = time.time()
         self.owner_id = owner_id
         self.notice = ""
         self._render_interactions()
@@ -121,11 +128,22 @@ class InterfaceView(discord.ui.View):
                     descriptions.append(str(props["subtitle"]))
             elif component["type"] == "text" and props.get("text"):
                 descriptions.append(str(props["text"]))
+            elif component["type"] == "sequence":
+                text = self._sequence_text(component)
+                if text:
+                    descriptions.append(text)
             elif component["type"] in {"card", "stat"} and field_count < 25:
+                locked = not self._access_condition_met(component.get("access_when", {}))
+                title = str(props.get("title", props.get("label", "Information")))
+                text = str(props.get("text", props.get("value", "—")))
+                if locked:
+                    requirement = component.get("access_when", {}).get("profession_level", {})
+                    locked_label = str(props.get("locked_label", "Niveau {level} requis")).format(level=int(requirement.get("minimum", 1)))
+                    title = f"{title} · 🔒 {locked_label}"
                 embed.add_field(
-                    name=str(props.get("title", props.get("label", "Information")))[:256],
-                    value=str(props.get("text", props.get("value", "—")))[:1024],
-                    inline=component["type"] == "stat",
+                    name=title[:256],
+                    value=text[:1024],
+                    inline=component["type"] == "stat" or bool(props.get("inline")),
                 )
                 field_count += 1
             elif component["type"] == "image" and props.get("url"):
@@ -173,6 +191,33 @@ class InterfaceView(discord.ui.View):
         except Exception:
             return key.replace("_", " ").capitalize()
 
+    def _access_condition_met(self, condition: dict[str, Any]) -> bool:
+        """Évalue les conditions d'affichage interactif sans masquer l'aide visuelle."""
+        if not condition or self.owner_id is None:
+            return True
+        player = self.engine.player(str(self.owner_id))
+        level_rule = condition.get("profession_level")
+        if level_rule:
+            profession = str(level_rule.get("profession", ""))
+            level = int(player.get("professions", {}).get(profession, {}).get("level", 0))
+            if level < int(level_rule.get("minimum", 1)):
+                return False
+        return True
+
+    def _sequence_text(self, component: dict[str, Any]) -> str:
+        elapsed = max(0, time.time() - self.page_started_at)
+        visible = [step for step in component.get("props", {}).get("steps", []) if self._access_condition_met(step.get("visible_when", {}))]
+        if not visible:
+            return ""
+        cursor, selected = 0.0, visible[0]
+        for step in visible:
+            cursor += max(0.0, float(step.get("delay_seconds", 0)))
+            if elapsed >= cursor:
+                selected = step
+            else:
+                break
+        return str(selected.get("text", ""))
+
     def _add_inventory(self, embed: discord.Embed, title: str) -> None:
         player = self.engine.player(str(self.owner_id))
         inventory = player.get("inventory", {})
@@ -203,7 +248,8 @@ class InterfaceView(discord.ui.View):
             "primary": discord.ButtonStyle.primary, "secondary": discord.ButtonStyle.secondary,
             "success": discord.ButtonStyle.success, "danger": discord.ButtonStyle.danger,
         }
-        interactive = [item for item in self._visible_components() if item.get("type") in {"button", "select", "dynamic_inventory_selector"}]
+        dynamic_types = {"dynamic_inventory_selector", "dynamic_product_selector", "dynamic_consumable_selector", "dynamic_game_selector"}
+        interactive = [item for item in self._visible_components() if item.get("type") in {"button", "select", *dynamic_types}]
         next_slot = 0
         for component in interactive:
             slot = int(component.get("slot", next_slot))
@@ -211,6 +257,12 @@ class InterfaceView(discord.ui.View):
             row = min(4, slot // 5)
             if component.get("type") == "dynamic_inventory_selector":
                 self._add_dynamic_delivery(component, row)
+            elif component.get("type") == "dynamic_product_selector":
+                self._add_dynamic_product(component, row)
+            elif component.get("type") == "dynamic_consumable_selector":
+                self._add_dynamic_consumable(component, row)
+            elif component.get("type") == "dynamic_game_selector":
+                self._add_dynamic_game(component, row)
             elif component.get("type") == "select":
                 self._add_select(component, row)
             else:
@@ -218,16 +270,31 @@ class InterfaceView(discord.ui.View):
 
     def _add_button(self, component: dict[str, Any], row: int, styles: dict[str, discord.ButtonStyle]) -> None:
         props, interaction = component.get("props", {}), component.get("interaction", {})
+        label = str(props.get("label", "Continuer"))[:80]
+        style = styles.get(props.get("style"), discord.ButtonStyle.secondary)
+        disabled = False
+        if interaction.get("type") == "action" and str(interaction.get("action", "")).startswith("claim_") and self.owner_id is not None:
+            activity_key = str(interaction["action"])[len("claim_"):]
+            pending = next((item for item in self.engine.pending_actions(str(self.owner_id), str(interaction.get("building", self._building_key()))) if item["action"] == activity_key), None)
+            if pending:
+                remaining = max(0, int(float(pending["ready_at"]) - time.time()))
+                if remaining > 0:
+                    label, style, disabled = f"Expédition en cours · {remaining} s", discord.ButtonStyle.secondary, True
+        elif interaction.get("type") == "action" and self.owner_id is not None and (int(interaction.get("cooldown_seconds", 0)) > 0 or int(interaction.get("global_cooldown_seconds", 0)) > 0):
+            remaining = self.engine.cooldown_remaining(str(self.owner_id), str(interaction.get("building", self._building_key())), str(interaction.get("action", "")))
+            if remaining > 0:
+                label, style, disabled = f"Disponible dans {remaining} s", discord.ButtonStyle.secondary, True
         button = discord.ui.Button(
-            label=str(props.get("label", "Continuer"))[:80], emoji=props.get("emoji") or None,
-            style=styles.get(props.get("style"), discord.ButtonStyle.secondary),
+            label=label, emoji=props.get("emoji") or None, style=style, disabled=disabled,
             custom_id=f"kei:{component['id']}"[:100], row=row,
         )
         if interaction.get("type") == "navigate":
             async def navigate_callback(discord_interaction: discord.Interaction, target: str = interaction.get("page")):
                 self.page_key = target
+                self.page_started_at = time.time()
                 self._render_interactions()
                 await discord_interaction.response.edit_message(embed=self.embed(), view=self)
+                asyncio.create_task(self._refresh_text_sequence(discord_interaction, target))
             button.callback = navigate_callback
         elif interaction.get("type") == "action":
             async def action_callback(discord_interaction: discord.Interaction, target: dict[str, Any] = interaction):
@@ -266,16 +333,15 @@ class InterfaceView(discord.ui.View):
             button.disabled = True
         self.add_item(button)
 
-    @staticmethod
-    def _delivery_notice(result: dict[str, Any]) -> str:
-        lines = " · ".join(f"{line['quantity']} × {line['resource']}" for line in result.get("delivery", []))
-        payments = " · ".join(f"{amount} {currency}" for currency, amount in result.get("payments", {}).items())
+    def _delivery_notice(self, result: dict[str, Any]) -> str:
+        lines = " · ".join(f"{line['quantity']} × {line.get('resource_name') or self.engine._item_name(line['resource'])}" for line in result.get("delivery", []))
+        payments = " · ".join(f"{amount} {'écus' if currency == 'money' else self.engine._item_name(currency)}" for currency, amount in result.get("payments", {}).items())
         return f"Livraison effectuée : {lines}." + (f" Paiement : **{payments}**." if payments else "")
 
     def _add_dynamic_delivery(self, component: dict[str, Any], row: int) -> None:
         options_data = self.engine.delivery_options(str(self.owner_id), self._building_key()) if self.owner_id is not None else []
         if not options_data: return
-        select = discord.ui.Select(placeholder=str(component.get("props", {}).get("placeholder", "Choisir une ressource à livrer…"))[:150], options=[discord.SelectOption(label=str(item["name"])[:100], value=item["resource"][:100], description=f"x{item['quantity']} · {item.get('unit_price', 0)} /u → {item.get('target_building_key', item.get('building', 'destination'))}"[:100]) for item in options_data[:25]], row=row)
+        select = discord.ui.Select(placeholder=str(component.get("props", {}).get("placeholder", "Choisir une ressource à livrer…"))[:150], options=[discord.SelectOption(label=str(item["name"])[:100], value=item["resource"][:100], description=f"x{item['quantity']} · {item.get('unit_price', 0)} /u → {item.get('destination_name', 'destination')}"[:100]) for item in options_data[:25]], row=row)
         async def choose(interaction: discord.Interaction):
             resource = select.values[0]; selected = next(item for item in options_data if item["resource"] == resource)
             parent = self
@@ -283,7 +349,7 @@ class InterfaceView(discord.ui.View):
                 quantity = discord.ui.TextInput(label="Quantité", placeholder=f"1 à {selected['quantity']}", required=True, max_length=10)
                 async def on_submit(modal_self, modal_interaction: discord.Interaction):
                     try:
-                        amount = int(str(modal_self.quantity)); price = amount * int(selected.get("unit_price", 0)); destination = selected.get("target_building_key", selected.get("building", "destination"))
+                        amount = int(str(modal_self.quantity)); price = amount * int(selected.get("unit_price", 0)); destination = selected.get("destination_name", "destination")
                         confirmation = discord.ui.View(timeout=300); confirm = discord.ui.Button(label="Confirmer la livraison", emoji="✅", style=discord.ButtonStyle.success); cancel = discord.ui.Button(label="Annuler", emoji="✖️", style=discord.ButtonStyle.secondary)
                         async def confirm_delivery(confirm_interaction: discord.Interaction):
                             try: result = await parent.engine.execute_delivery(str(confirm_interaction.user.id), parent._building_key(), str(confirm_interaction.id), {resource: amount}); parent.notice = parent._delivery_notice(result)
@@ -296,11 +362,73 @@ class InterfaceView(discord.ui.View):
             await interaction.response.send_modal(QuantityModal())
         select.callback = choose; self.add_item(select)
 
+    def _add_dynamic_product(self, component: dict[str, Any], row: int) -> None:
+        products = [item for item in self.engine.commerce_options(self._building_key()) if int(item.get("quantity", 0)) > 0]
+        if not products: return
+        select = discord.ui.Select(placeholder=str(component.get("props", {}).get("placeholder", "Choisir un produit…"))[:150], options=[discord.SelectOption(label=str(item["name"])[:100], value=item["item_key"][:100], description=f"{item.get('price', 0)} écus · stock {item.get('quantity', 0)}"[:100], emoji=item.get("emoji") or None) for item in products[:25]], row=row)
+        async def choose(interaction: discord.Interaction):
+            product = next(item for item in products if item["item_key"] == select.values[0]); parent = self
+            class PurchaseModal(discord.ui.Modal, title="Commander"):
+                quantity = discord.ui.TextInput(label="Quantité", default="1", required=True, max_length=3)
+                async def on_submit(modal_self, modal_interaction: discord.Interaction):
+                    try:
+                        amount = int(str(modal_self.quantity)); result = await parent.engine.execute_purchase(str(modal_interaction.user.id), parent._building_key(), str(modal_interaction.id), product["item_key"], amount)
+                        parent.notice = f"Commande servie : {amount} × {product['name']} · **{result['purchase']['total']} écus**."
+                    except Exception as exc: parent.notice = str(exc)
+                    parent._render_interactions(); await modal_interaction.response.edit_message(embed=parent.embed(), view=parent)
+            await interaction.response.send_modal(PurchaseModal())
+        select.callback = choose; self.add_item(select)
+
+    def _add_dynamic_consumable(self, component: dict[str, Any], row: int) -> None:
+        if self.owner_id is None: return
+        with self.engine.store.connection() as db:
+            rows = db.execute("SELECT item_key,quantity FROM inventory WHERE discord_id=? AND quantity>0", (str(self.owner_id),)).fetchall()
+        items = []
+        for item_key, quantity in rows:
+            try:
+                payload = self.engine.store.get("item", str(item_key), published=True)["payload"]
+                if payload.get("consumable") and payload.get("consumption", {}).get("effects"): items.append((str(item_key), int(quantity), payload))
+            except Exception: continue
+        if not items: return
+        select = discord.ui.Select(placeholder=str(component.get("props", {}).get("placeholder", "Choisir quoi consommer…"))[:150], options=[discord.SelectOption(label=str(payload.get("name", key))[:100], value=key[:100], description=f"Dans le sac : {quantity}"[:100], emoji=payload.get("emoji") or None) for key, quantity, payload in items[:25]], row=row)
+        async def choose(interaction: discord.Interaction):
+            key = select.values[0]
+            try:
+                result = await self.engine.execute_consumption(str(interaction.user.id), self._building_key(), str(interaction.id), key)
+                self.notice = "\n".join(result.get("messages", [])) or f"{result['consumption']['name']} consommé."
+            except Exception as exc: self.notice = str(exc)
+            self._render_interactions(); await interaction.response.edit_message(embed=self.embed(), view=self)
+        select.callback = choose; self.add_item(select)
+
+    def _add_dynamic_game(self, component: dict[str, Any], row: int) -> None:
+        modules = self.engine.building(self._building_key())["payload"].get("modules", {})
+        games = modules.get("games", {}); game_list = list(games.values()) if isinstance(games, dict) else list(games)
+        options = [(game, choice) for game in game_list for choice in game.get("choices", game.get("bets", []))]
+        if not options: return
+        select = discord.ui.Select(placeholder=str(component.get("props", {}).get("placeholder", "Choisir un pari…"))[:150], options=[discord.SelectOption(label=str(choice.get("name", choice["key"]))[:100], value=f"{game.get('key')}:{choice['key']}"[:100], description=f"Mise {choice.get('stake', game.get('stake', 0))} · ×{choice.get('multiplier', 1)}"[:100]) for game, choice in options[:25]], row=row)
+        async def choose(interaction: discord.Interaction):
+            game_key, choice_key = select.values[0].split(":", 1); prepared = self.engine.prepare_game(str(interaction.user.id), self._building_key(), game_key, choice_key)
+            confirmation = discord.ui.View(timeout=300); confirm = discord.ui.Button(label="Lancer", emoji="🎲", style=discord.ButtonStyle.success); cancel = discord.ui.Button(label="Annuler", style=discord.ButtonStyle.secondary)
+            async def confirm_game(confirm_interaction: discord.Interaction):
+                try:
+                    result = await self.engine.confirm_game(str(confirm_interaction.user.id), prepared["session_key"], str(confirm_interaction.id)); self.notice = f"Le résultat est **{result['outcome']}**. " + (f"Victoire : **{result['payout']} écus** !" if result["won"] else f"Mise perdue : **{result['stake']} écus**.")
+                except Exception as exc: self.notice = str(exc)
+                self._render_interactions(); await confirm_interaction.response.edit_message(content=None, embed=self.embed(), view=self)
+            async def cancel_game(cancel_interaction: discord.Interaction): self.engine.cancel_game(str(cancel_interaction.user.id), prepared["session_key"]); await cancel_interaction.response.edit_message(content="Partie annulée.", view=None)
+            confirm.callback = confirm_game; cancel.callback = cancel_game; confirmation.add_item(confirm); confirmation.add_item(cancel)
+            await interaction.response.send_message(f"**{prepared['choice'].get('name', choice_key)}**\nMise : **{prepared['stake']} écus**\nLe tirage aura lieu après confirmation.", view=confirmation, ephemeral=True)
+        select.callback = choose; self.add_item(select)
+
     def _add_select(self, component: dict[str, Any], row: int) -> None:
         props = component.get("props", {})
         option_map: dict[str, dict[str, Any]] = {}
         options: list[discord.SelectOption] = []
-        for index, option in enumerate(component.get("options", [])[:25]):
+        available_options = [option for option in component.get("options", []) if self._access_condition_met(option.get("access_when", {}))][:25]
+        if not available_options:
+            unavailable = discord.ui.Button(label="Aucune destination accessible", emoji="🔒", style=discord.ButtonStyle.secondary, disabled=True, row=row)
+            self.add_item(unavailable)
+            return
+        for index, option in enumerate(available_options):
             value = str(option.get("key") or f"option_{index}")[:100]
             option_map[value] = option.get("interaction", {})
             options.append(discord.SelectOption(
@@ -331,20 +459,55 @@ class InterfaceView(discord.ui.View):
     async def _execute_action(self, interaction: discord.Interaction, target: dict[str, Any]) -> None:
         await interaction.response.defer()
         try:
+            context = interaction_context(interaction)
+            context["interface_timing"] = {
+                "cooldown_seconds": int(target.get("cooldown_seconds", 0)),
+                "global_cooldown_seconds": int(target.get("global_cooldown_seconds", 0)),
+            }
             result = await self.engine.execute(
-                str(interaction.user.id), str(target["building"]), str(target["action"]), str(interaction.id), interaction_context(interaction)
+                str(interaction.user.id), str(target["building"]), str(target["action"]), str(interaction.id), context
             )
             self.notice = "\n".join(result["messages"]) or "Action effectuée."
             if target.get("on_success_page"):
                 self.page_key = str(target["on_success_page"])
+                self.page_started_at = time.time()
         except Exception as exc:
             self.notice = str(exc)
         self._render_interactions()
         await interaction.edit_original_response(embed=self.embed(), view=self)
+        action_key = str(target.get("action", ""))
+        if not action_key.startswith("claim_") and any(item["action"] == action_key for item in self.engine.pending_actions(str(interaction.user.id), str(target.get("building", self._building_key())))):
+            asyncio.create_task(self._refresh_activity_countdown(interaction, action_key, self.page_key))
+        elif int(target.get("cooldown_seconds", 0)) > 0 or int(target.get("global_cooldown_seconds", 0)) > 0:
+            asyncio.create_task(self._refresh_activity_countdown(interaction, action_key, self.page_key))
+
+    async def _refresh_text_sequence(self, interaction: discord.Interaction, page_key: str) -> None:
+        steps = [step for component in self.page.get("components", []) if component.get("type") == "sequence" for step in component.get("props", {}).get("steps", [])]
+        duration = sum(max(0.0, float(step.get("delay_seconds", 0))) for step in steps)
+        while self.page_key == page_key and time.time() - self.page_started_at <= duration + 1:
+            try:
+                await interaction.edit_original_response(embed=self.embed(), view=self)
+            except (discord.NotFound, discord.HTTPException):
+                return
+            await asyncio.sleep(1)
+
+    async def _refresh_activity_countdown(self, interaction: discord.Interaction, action_key: str, page_key: str) -> None:
+        """Actualise seulement le message privé de l'expédition active."""
+        while self.page_key == page_key:
+            pending = next((item for item in self.engine.pending_actions(str(interaction.user.id), self._building_key()) if item["action"] == action_key), None)
+            remaining = max(0, int(float(pending["ready_at"]) - time.time())) if pending else self.engine.cooldown_remaining(str(interaction.user.id), self._building_key(), action_key)
+            self._render_interactions()
+            try:
+                await interaction.edit_original_response(embed=self.embed(), view=self)
+            except (discord.NotFound, discord.HTTPException):
+                return
+            if remaining <= 0:
+                return
+            await asyncio.sleep(min(1, remaining))
 
 
 class PrivateInterfaceLauncher(discord.ui.View):
-    """Petit lanceur de salon : tout le parcours suivant est éphémère et privé."""
+    """Porte d'entrée directe d'un bâtiment, puis parcours joueur éphémère."""
 
     def __init__(self, engine: GameEngine, definition: dict[str, Any], owner_id: int):
         super().__init__(timeout=None)
@@ -353,15 +516,17 @@ class PrivateInterfaceLauncher(discord.ui.View):
         # boutons déjà envoyés après un redémarrage du Core.
         building_key = str(definition.get("target_building_key") or "building")
         custom_id = f"kel:{building_key}"[:100]
+        fallback_name = str(definition.get("name", building_key)).removeprefix("Interface - ")
         button = discord.ui.Button(
-            label="Ouvrir mon interface privée", emoji="🚪",
+            label=str(definition.get("entry_label") or f"Entrer dans {fallback_name}")[:80], emoji="🚪",
             style=discord.ButtonStyle.primary, custom_id=custom_id,
         )
         button.callback = self.open
         self.add_item(button)
 
     async def open(self, interaction: discord.Interaction) -> None:
-        view = InterfaceView(self.engine, self.definition, owner_id=interaction.user.id)
+        entry_page = str(self.definition.get("entry_page") or self.definition.get("start_page", "home"))
+        view = InterfaceView(self.engine, self.definition, page_key=entry_page, owner_id=interaction.user.id)
         await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
 
 
@@ -405,7 +570,11 @@ class OathView(discord.ui.View):
                 return
             if role not in interaction.user.roles:
                 await interaction.user.add_roles(role, reason="Serment de la Sainte Pelle")
-            await interaction.followup.send(settings["onboarding"]["confirmation"], ephemeral=True)
+            granted = grant_oath_reward(self.store, interaction.user)
+            confirmation = settings["onboarding"]["confirmation"]
+            if granted:
+                confirmation += "\n\n🪙 **100 écus** ont été ajoutés à ta bourse pour commencer l’aventure."
+            await interaction.followup.send(confirmation, ephemeral=True)
         except discord.Forbidden:
             logger.exception("Discord a refusé l'attribution du rôle après le serment.")
             await interaction.followup.send(
@@ -450,6 +619,48 @@ def building_for_voice(store: ContentStore, channel: discord.VoiceChannel | None
         ):
             return entity
     return None
+
+
+def persist_player_presence(store: ContentStore, member: discord.Member, channel: discord.VoiceChannel | None) -> None:
+    """Conserve un snapshot léger pour KingdomWeb, sans appeler Discord depuis le web."""
+    building = building_for_voice(store, channel)
+    now = datetime.now(timezone.utc).isoformat()
+    with store.connection() as db:
+        db.execute(
+            "INSERT OR IGNORE INTO players(discord_id,updated_at,created_at,display_name,avatar_url) VALUES(?,?,?,?,?)",
+            (str(member.id), now, now, member.display_name, str(member.display_avatar.url)),
+        )
+        db.execute(
+            "UPDATE players SET display_name=?,avatar_url=?,updated_at=? WHERE discord_id=?",
+            (member.display_name, str(member.display_avatar.url), now, str(member.id)),
+        )
+        db.execute(
+            "INSERT INTO player_presence(discord_id,online,voice_channel_id,voice_channel_name,building_key,updated_at) VALUES(?,?,?,?,?,?) "
+            "ON CONFLICT(discord_id) DO UPDATE SET online=excluded.online,voice_channel_id=excluded.voice_channel_id,voice_channel_name=excluded.voice_channel_name,building_key=excluded.building_key,updated_at=excluded.updated_at",
+            (str(member.id), int(channel is not None), str(channel.id) if channel else "", channel.name if channel else "", building["entity_key"] if building else "", now),
+        )
+
+
+def grant_oath_reward(store: ContentStore, member: discord.Member) -> bool:
+    """Crée le joueur et verse une seule fois les 100 écus de départ."""
+    now = datetime.now(timezone.utc).isoformat()
+    with store.connection() as db:
+        db.execute("BEGIN IMMEDIATE")
+        db.execute(
+            "INSERT OR IGNORE INTO players(discord_id,updated_at,created_at,display_name,avatar_url) VALUES(?,?,?,?,?)",
+            (str(member.id), now, now, member.display_name, str(member.display_avatar.url)),
+        )
+        db.execute(
+            "UPDATE players SET display_name=?,avatar_url=?,updated_at=? WHERE discord_id=?",
+            (member.display_name, str(member.display_avatar.url), now, str(member.id)),
+        )
+        granted = db.execute(
+            "INSERT OR IGNORE INTO onboarding_grants(discord_id,amount,granted_at) VALUES(?,100,?)",
+            (str(member.id), now),
+        ).rowcount
+        if granted:
+            db.execute("UPDATE players SET money=money+100 WHERE discord_id=?", (str(member.id),))
+    return bool(granted)
 
 
 async def update_building_access(store: ContentStore, engine: GameEngine, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState) -> None:
@@ -538,12 +749,12 @@ async def send_building_entry(
         entity["entity_key"], payload, payload.get("actions", [])
     )
     launcher = PrivateInterfaceLauncher(engine, definition, member.id)
-    content = f"🚪 Une entrée privée vers **{payload['name']}** est prête."
+    content = f"🏰 **{payload['name']}** — utilise le bouton pour entrer dans le bâtiment."
     # Répare le portail déjà publié : un portail est commun au bâtiment, puis
     # chaque clic ouvre une interface éphémère appartenant au joueur.
     try:
         async for old_message in channel.history(limit=30):
-            if old_message.author.id == member.guild.me.id and old_message.content.startswith("🚪 Une entrée privée vers"):
+            if old_message.author.id == member.guild.me.id and (old_message.content.startswith("🚪 Une entrée privée vers") or old_message.content.startswith("🏰 **")):
                 await old_message.edit(content=content, view=launcher)
                 logger.info("Entrée de %s réparée dans #%s.", entity["entity_key"], channel.name)
                 return
@@ -574,6 +785,8 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
     bot.add_view(oath_view)
     registered_oath_messages: set[int] = set()
     access_reconciled = False
+    deleted_buildings_processed: set[tuple[str, int]] = set()
+    deletion_watcher: asyncio.Task | None = None
     logger.info(
         "Vue persistante du serment enregistrée : %s.",
         [getattr(item, "custom_id", None) for item in oath_view.children],
@@ -637,6 +850,7 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
                 payload = entity["payload"]
                 required_roles = set(payload.get("access", {}).get("required_roles", []))
                 for member in present.values():
+                    persist_player_presence(store, member, member.voice.channel if member.voice and isinstance(member.voice.channel, discord.VoiceChannel) else None)
                     if required_roles and not required_roles.intersection(role.name for role in member.roles):
                         continue
                     try:
@@ -646,6 +860,29 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
                     except discord.DiscordException:
                         logger.exception("Réconciliation impossible pour %s dans %s.", member.id, key)
                 logger.info("Accès réconcilié pour %s : %s joueur(s) présent(s).", key, len(present))
+
+    async def watch_deleted_buildings() -> None:
+        """Répercute dans Discord les suppressions publiées depuis KingdomWeb."""
+        while not bot.is_closed():
+            try:
+                with store.connection() as db:
+                    rows = db.execute(
+                        "SELECT entity_key,version,payload_json FROM content c WHERE entity_type='building' AND status='deleted' "
+                        "AND version=(SELECT MAX(version) FROM content WHERE entity_type='building' AND entity_key=c.entity_key)"
+                    ).fetchall()
+                for row in rows:
+                    marker = (str(row[0]), int(row[1]))
+                    if marker in deleted_buildings_processed:
+                        continue
+                    payload = json.loads(row[2])
+                    for guild in bot.guilds:
+                        removed = await DiscordProvisioner(guild, store).remove_building_channels(marker[0], payload)
+                        if removed:
+                            logger.warning("Bâtiment %s supprimé de Discord : %s.", marker[0], ", ".join(removed))
+                    deleted_buildings_processed.add(marker)
+            except (discord.DiscordException, OSError, ValueError):
+                logger.exception("Impossible de réconcilier les bâtiments supprimés avec Discord.")
+            await asyncio.sleep(5)
 
     @bot.event
     async def on_member_join(member: discord.Member):
@@ -660,6 +897,7 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
     @bot.event
     async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
         if not member.bot:
+            persist_player_presence(store, member, after.channel if isinstance(after.channel, discord.VoiceChannel) else None)
             try:
                 await update_building_access(store, engine, member, before, after)
             except discord.DiscordException:
@@ -677,7 +915,7 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
 
     @bot.event
     async def on_ready():
-        nonlocal access_reconciled
+        nonlocal access_reconciled, deletion_watcher
         await bind_oath_messages()
         # La navigation du joueur passe exclusivement par les boutons et menus
         # des bâtiments. Une synchronisation vide retire les anciennes commandes
@@ -686,7 +924,22 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
         await bot.tree.sync()
         if not access_reconciled:
             access_reconciled = True
+            # Un redémarrage ne doit pas laisser un ancien joueur affiché en
+            # vocal. On repart de l'état Discord réellement observé.
+            with store.connection() as db:
+                db.execute("UPDATE player_presence SET online=0,voice_channel_id='',voice_channel_name='',building_key='',updated_at=?", (datetime.now(timezone.utc).isoformat(),))
+                for guild in bot.guilds:
+                    for member in guild.members:
+                        if not member.bot:
+                            db.execute("UPDATE players SET display_name=?,avatar_url=? WHERE discord_id=?", (member.display_name, str(member.display_avatar.url), str(member.id)))
+            for guild in bot.guilds:
+                for channel in guild.voice_channels:
+                    for member in channel.members:
+                        if not member.bot:
+                            persist_player_presence(store, member, channel)
             await reconcile_building_access()
+        if deletion_watcher is None or deletion_watcher.done():
+            deletion_watcher = asyncio.create_task(watch_deleted_buildings(), name="kingdom-deleted-buildings")
         logger.warning("KingdomCore prêt : %s ; %s vue(s) persistante(s).", bot.user, len(bot.persistent_views))
 
     return bot

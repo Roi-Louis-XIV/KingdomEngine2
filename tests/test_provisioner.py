@@ -1,9 +1,10 @@
 import discord
+import asyncio
 from types import SimpleNamespace
 
 from KingdomData import ContentStore
 from kingdomCore.discord_bot import building_for_voice
-from kingdomCore.provisioner import channel_slug, required_bot_permissions
+from kingdomCore.provisioner import DiscordProvisioner, channel_slug, required_bot_permissions
 
 
 def test_channel_slug_is_discord_safe():
@@ -38,3 +39,38 @@ def test_legacy_voice_channel_is_linked_by_name_even_outside_building_category(t
     )
 
     assert building_for_voice(store, legacy_channel)["entity_key"] == "forest_camp"
+
+
+def test_deleted_building_removes_only_its_managed_discord_channels(tmp_path):
+    deleted = []
+    class Channel:
+        def __init__(self, channel_id, name): self.id, self.name = channel_id, name
+        async def delete(self, reason=None): deleted.append((self.name, reason))
+    class Category(Channel):
+        def __init__(self):
+            super().__init__(3, "🏰 La Forge")
+            self.text_channels = [Channel(1, "la-forge")]
+            self.voice_channels = [Channel(2, "🔊 La Forge")]
+            self.channels = [*self.text_channels, *self.voice_channels]
+    category = Category()
+    guild = SimpleNamespace(categories=[category])
+    store = ContentStore(tmp_path / "cleanup.db"); store.initialize()
+    removed = asyncio.run(DiscordProvisioner(guild, store).remove_building_channels("forge", {"name": "La Forge", "emoji": "🏰"}))
+    assert removed == ["la-forge", "🔊 La Forge", "🏰 La Forge"]
+    assert len(deleted) == 3
+
+
+def test_deleted_building_keeps_category_with_manual_channel(tmp_path):
+    deleted = []
+    class Channel:
+        def __init__(self, channel_id, name): self.id, self.name = channel_id, name
+        async def delete(self, reason=None): deleted.append(self.name)
+    class Category(Channel):
+        def __init__(self):
+            super().__init__(4, "🏰 La Forge")
+            self.text_channels = [Channel(1, "la-forge"), Channel(9, "discussion-artisans")]
+            self.voice_channels = [Channel(2, "🔊 La Forge")]
+            self.channels = [*self.text_channels, *self.voice_channels]
+    category = Category(); store = ContentStore(tmp_path / "safe-cleanup.db"); store.initialize()
+    asyncio.run(DiscordProvisioner(SimpleNamespace(categories=[category]), store).remove_building_channels("forge", {"name": "La Forge", "emoji": "🏰"}))
+    assert deleted == ["la-forge", "🔊 La Forge"]

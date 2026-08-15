@@ -78,7 +78,7 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
     assert 'data-duplicate=' in script
     assert 'data-delete=' in script
     assert 'openEditor(entity,true)' in script
-    assert 'catalogOptions(catalogType, value)' in script
+    assert 'function catalogOptions(type, currentValue="")' in script
     assert 'Choisir une ressource…' in script
     assert 'id="profession-modules"' in script
     assert 'id="activity-modules"' in script
@@ -101,6 +101,28 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
     assert '["player_action","Pour cette action"]' in script
     assert '["stock_reward","Ajouter au stock d’un bâtiment"]' in script
     assert 'data-field="modules_json"' in script
+    assert 'id="product-modules"' in script
+    assert 'id="recipe-modules"' in script
+    assert 'id="rumor-modules"' in script
+    assert 'id="game-modules"' in script
+    assert 'Issues gagnantes' in script
+    assert 'function bindItemSelectors' in script
+    assert 'Contenu de l’embed' in script
+    assert 'Boutons et menus' in script
+    assert 'PREDEFINED_INTERACTIONS' in script
+    assert 'data-component-preset' in script
+    assert 'interaction:{type:"refresh"}' in script
+    assert 'interaction:{type:"close"}' in script
+    assert 'building_inventory: {name:"Inventaire du bâtiment"' in script
+    assert 'Schéma de liaison des pages' in script
+    assert 'data-graph-page' in script
+    assert 'page-graph-edge' in script
+    assert 'Attribuer / rejoindre le métier' in script
+    assert 'effect_profession_operation' in script
+    assert 'Un message n’a pas de quantité' in script
+    assert 'Récompenses remises à la récupération' in script
+    assert 'Points d’expérience gagnés' in script
+    assert 'add-scheduled-effect' in script
     assert 'Actions générées depuis les modules' in script
     assert 'clone(state.buildingBase || {})' in script
     assert 'data-type="interface"' not in html

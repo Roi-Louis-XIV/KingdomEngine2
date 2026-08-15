@@ -12,6 +12,7 @@ from typing import Any
 
 from KingdomData import ContentStore
 from import_v1 import actions_from_modules
+from KingdomWeb.item_catalog import ItemCatalogService
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -133,13 +134,16 @@ class AdministrationService:
         self.store, self.supervisor = store, supervisor or ServiceSupervisor()
 
     def overview(self) -> dict[str, Any]:
+        item_catalog = ItemCatalogService(self.store).catalog()
+        item_by_id = {item["id"]: item for item in item_catalog["items"]}
         with self.store.connection() as db:
-            player_rows = db.execute("SELECT discord_id,money,energy,updated_at FROM players ORDER BY updated_at DESC").fetchall()
+            player_rows = db.execute("SELECT discord_id,display_name,avatar_url,money,energy,updated_at FROM players ORDER BY updated_at DESC").fetchall()
             inventories = db.execute("SELECT discord_id,item_key,quantity FROM inventory WHERE quantity>0 ORDER BY item_key").fetchall()
             professions = db.execute("SELECT discord_id,profession_key,level,experience FROM player_professions WHERE active=1 ORDER BY profession_key").fetchall()
             stocks = db.execute("SELECT building_key,item_key,quantity FROM building_stock WHERE quantity>0 ORDER BY building_key,item_key").fetchall()
             pending = db.execute("SELECT building_key,COUNT(*) count FROM scheduled_actions WHERE status='pending' GROUP BY building_key").fetchall()
             activity = db.execute("SELECT discord_id,building_key,action_key,created_at FROM action_log ORDER BY id DESC LIMIT 30").fetchall()
+            contribution_rows = db.execute("SELECT objective_key,resource_key,SUM(amount) amount FROM collective_contributions GROUP BY objective_key,resource_key").fetchall()
         inventory_by_player: dict[str, dict[str, int]] = {}
         for row in inventories:
             inventory_by_player.setdefault(str(row[0]), {})[str(row[1])] = int(row[2])
@@ -151,20 +155,56 @@ class AdministrationService:
             stock_by_building.setdefault(str(row[0]), {})[str(row[1])] = int(row[2])
         pending_by_building = {str(row[0]): int(row[1]) for row in pending}
         buildings = []
+        building_names: dict[str, str] = {}
+        action_names: dict[tuple[str, str], str] = {}
+        projects: list[dict[str, Any]] = []
+        contributions = {(str(row[0]), str(row[1])): int(row[2]) for row in contribution_rows}
         for entity in self.store.list("building"):
             payload = entity["payload"]
             actions = actions_from_modules(entity["entity_key"], payload.get("modules", {})) if payload.get("action_mode") == "generated" else payload.get("actions", [])
+            building_names[entity["entity_key"]] = str(payload.get("name", entity["entity_key"]))
+            for action in actions:
+                action_names[(entity["entity_key"], str(action.get("key", "")))] = str(action.get("name") or action.get("key", "Action"))
             building_stock = stock_by_building.get(entity["entity_key"], {})
+            stock_entries = [{"id": key, "quantity": quantity, **{field: item_by_id.get(key, {}).get(field, fallback) for field, fallback in (("name", "Objet inconnu"), ("emoji", "⚠️"), ("category", "missing"))}, "missing": key not in item_by_id} for key, quantity in building_stock.items()]
             buildings.append({
                 "key": entity["entity_key"], "name": payload["name"], "emoji": payload.get("emoji", "🏰"),
                 "status": entity["status"], "version": entity["version"], "actions": len(actions),
                 "pages": self._interface_pages(payload), "pending": pending_by_building.get(entity["entity_key"], 0),
-                "stock_total": sum(building_stock.values()), "stock": building_stock,
+                "stock_total": sum(building_stock.values()), "stock": stock_entries,
             })
+            construction = payload.get("modules", {}).get("construction", {})
+            stages = []
+            for stage in construction.get("stages", []):
+                requirements = []
+                for requirement in stage.get("requirements", []):
+                    required = int(requirement.get("quantity", 0))
+                    current = contributions.get((str(stage.get("key")), str(requirement.get("key"))), 0)
+                    requirements.append({"key": requirement.get("key"), "name": requirement.get("name", str(requirement.get("key", "")).replace("_", " ").title()), "emoji": requirement.get("emoji", "📦"), "current": current, "required": required})
+                stages.append({"key": stage.get("key"), "name": stage.get("name", stage.get("key", "Étape")), "requirements": requirements, "complete": bool(requirements) and all(item["current"] >= item["required"] for item in requirements)})
+            if stages:
+                total = sum(item["required"] for stage in stages for item in stage["requirements"])
+                done = sum(min(item["current"], item["required"]) for stage in stages for item in stage["requirements"])
+                projects.append({"key": entity["entity_key"], "name": payload.get("name", entity["entity_key"]), "emoji": payload.get("emoji", "🏗️"), "description": payload.get("description", ""), "progress": round(done * 100 / total) if total else 0, "stages": stages})
         players = [{
-            "discord_id": str(row[0]), "money": int(row[1]), "energy": int(row[2]), "updated_at": row[3],
+            "discord_id": str(row[0]), "display_name": row[1] or str(row[0]), "avatar_url": row[2] or "", "money": int(row[3]), "energy": int(row[4]), "updated_at": row[5],
             "inventory": inventory_by_player.get(str(row[0]), {}), "professions": profession_by_player.get(str(row[0]), []),
         } for row in player_rows]
+        richest = sorted(players, key=lambda player: player["money"], reverse=True)[:5]
+        experienced = sorted(players, key=lambda player: sum(job["experience"] for job in player["professions"]), reverse=True)[:5]
+        readable_activity = []
+        player_names = {player["discord_id"]: player["display_name"] for player in players}
+        for row in activity:
+            item = dict(row)
+            item["player_name"] = player_names.get(str(item["discord_id"]), str(item["discord_id"]))
+            item["building_name"] = building_names.get(str(item["building_key"]), str(item["building_key"]).replace("_", " ").title())
+            action_key = str(item["action_key"])
+            fallback = action_key.replace("_", " ").capitalize()
+            if action_key == "delivery": fallback = "Livraison de ressources"
+            elif action_key.startswith("deliver_"): fallback = f"Livraison de {action_key.removeprefix('deliver_').replace('_', ' ')}"
+            elif action_key.startswith("claim_"): fallback = f"Récupération : {action_key.removeprefix('claim_').replace('_', ' ')}"
+            item["action_name"] = action_names.get((str(item["building_key"]), action_key), fallback)
+            readable_activity.append(item)
         events = [{
             "key": entity["entity_key"], "name": entity["payload"]["name"],
             "emoji": entity["payload"].get("emoji", "⚡"), "status": entity["status"],
@@ -175,8 +215,10 @@ class AdministrationService:
         services = self.supervisor.statuses()
         return {
             "generated_at": datetime.now(timezone.utc).isoformat(),
-            "services": services, "buildings": buildings, "players": players, "events": events,
-            "activity": [dict(row) for row in activity],
+            "services": services, "buildings": buildings, "players": players, "events": events, "item_catalog": item_catalog,
+            "activity": readable_activity,
+            "rankings": {"wealth": richest, "experience": experienced},
+            "projects": projects,
             "changes": self.store.changes(max(0, self._last_change_id() - 30), 30),
             "logs": self.supervisor.logs(),
             "metrics": {

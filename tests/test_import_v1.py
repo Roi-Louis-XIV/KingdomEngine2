@@ -28,14 +28,19 @@ def test_all_v1_buildings_items_and_voice_profiles_are_discovered():
     assert all(building["action_mode"] == "generated" for building in buildings.values())
     assert all(building["interface"]["target_building_key"] == key for key, building in buildings.items())
     assert interfaces["ui_tavern"]["start_page"] == "home"
+    assert interfaces["ui_tavern"]["blueprint"] == "hospitality_v1"
+    tavern_components = {component["type"] for page in interfaces["ui_tavern"]["pages"] for component in page["components"]}
+    assert {"dynamic_product_selector", "dynamic_consumable_selector", "dynamic_game_selector"} <= tavern_components
+    beer = next(item["payload"] for item in definitions if item["type"] == "item" and item["key"] == "beer_86")
+    assert {effect["type"] for effect in beer["consumption"]["effects"]} >= {"player_stat", "message"}
     assert any(component.get("interaction", {}).get("type") == "navigate" for component in interfaces["ui_tavern"]["pages"][0]["components"])
     assert any(component.get("interaction", {}).get("type") == "action" for page in interfaces["ui_tavern"]["pages"] for component in page["components"])
 
     forest_interface = buildings["forest"]["interface"]
-    assert forest_interface["blueprint"] == "activity_professions_v2"
-    assert [page["key"] for page in forest_interface["pages"]] == [
-        "home", "camp", "inventory", "job_woodcutter", "job_hunter"
-    ]
+    assert forest_interface["blueprint"] == "activity_professions_v7"
+    page_keys = [page["key"] for page in forest_interface["pages"]]
+    assert page_keys[:4] == ["home", "camp", "inventory", "job_woodcutter"]
+    assert {"expedition_royal_edge", "expedition_ancient_undergrowth", "expedition_deep_oakwood", "job_hunter"} <= set(page_keys)
     camp_components = forest_interface["pages"][1]["components"]
     assert any(component.get("props", {}).get("label") == "Consulter mon inventaire" for component in camp_components)
     assert any(component.get("props", {}).get("label") == "Discuter avec Gaspard" for component in camp_components)
@@ -49,6 +54,11 @@ def test_all_v1_buildings_items_and_voice_profiles_are_discovered():
         "royal_edge", "ancient_undergrowth", "deep_oakwood"
     ]
     assert all(option["interaction"]["type"] == "action" for option in destinations["options"])
+    assert destinations["options"][0]["interaction"]["on_success_page"] == "expedition_royal_edge"
+    expedition = next(page for page in forest_interface["pages"] if page["key"] == "expedition_royal_edge")
+    claim = next(component for component in expedition["components"] if component["type"] == "button")
+    assert claim["interaction"]["action"] == "claim_royal_edge"
+    assert claim["interaction"]["on_success_page"] == "job_woodcutter"
 
     forge_interface = buildings["forge"]["interface"]
     assert forge_interface["blueprint"] == "workshop_market_v1"
@@ -110,8 +120,9 @@ def test_existing_forge_receives_workshop_interface_automatically(tmp_path):
     store = ContentStore(tmp_path / "forge-interface.db"); store.initialize()
     canonical = next(item["payload"] for item in definitions_from_v1() if item["type"] == "building" and item["key"] == "forge")
     old = {**canonical, "interface": {"name": "Ancienne interface", "target_building_key": "forge", "start_page": "home", "pages": [{"key": "home", "name": "Accueil", "components": [{"id": "old_hero", "type": "hero", "props": {"title": "Forge"}}]}]}}
+    old.pop("interface_blueprint", None)  # format réellement présent dans les premières installations
     draft = store.save("building", "forge", old); store.publish("building", "forge", draft["version"])
     import_v1(store)
     migrated = store.get("building", "forge", published=True)["payload"]
-    assert migrated["interface"]["blueprint"] == "workshop_market_v1"
+    assert migrated["interface"]["blueprint"] == "workshop_market_v2"
     assert migrated["interface_texts"]["talk_label"] == "Discuter avec Wagner"

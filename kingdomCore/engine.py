@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import random
 import time
+from uuid import uuid4
 from datetime import datetime, timezone
 from typing import Any
 
@@ -52,7 +53,130 @@ class GameEngine:
         rules = building.get("modules", {}).get("deliveries", [])
         with self.store.connection() as db:
             inventory = {str(row[0]): int(row[1]) for row in db.execute("SELECT item_key,quantity FROM inventory WHERE discord_id=? AND quantity>0", (discord_id,))}
-        return [{**rule, "resource": str(rule.get("item_key", rule.get("resource"))), "quantity": inventory[str(rule.get("item_key", rule.get("resource")))], "name": self._item_name(str(rule.get("item_key", rule.get("resource"))))} for rule in rules if inventory.get(str(rule.get("item_key", rule.get("resource"))), 0) >= int(rule.get("minimum_quantity", 1))]
+        return [{**rule, "resource": str(rule.get("item_key", rule.get("resource"))), "quantity": inventory[str(rule.get("item_key", rule.get("resource")))], "name": self._item_name(str(rule.get("item_key", rule.get("resource")))), "destination_name": self._building_name(str(rule.get("target_building_key", rule.get("building", building_key))))} for rule in rules if inventory.get(str(rule.get("item_key", rule.get("resource"))), 0) >= int(rule.get("minimum_quantity", 1))]
+
+    def commerce_options(self, building_key: str) -> list[dict[str, Any]]:
+        """Catalogue générique enrichi du stock courant, sans règle liée au lieu."""
+        products = self.building(building_key)["payload"].get("modules", {}).get("products", [])
+        with self.store.connection() as db:
+            stock = {str(row[0]): int(row[1]) for row in db.execute(
+                "SELECT item_key,quantity FROM building_stock WHERE building_key=?", (building_key,)
+            )}
+        return [{**product, "item_key": str(product["item_key"]),
+                 "name": product.get("name") or self._item_name(str(product["item_key"])),
+                 "quantity": stock.get(str(product["item_key"]), int(product.get("initial_stock", 0)))}
+                for product in products if product.get("active", True)]
+
+    async def execute_purchase(self, discord_id: str, building_key: str, interaction_id: str,
+                               item_key: str, quantity: int) -> dict[str, Any]:
+        """Transfert commercial quantifié, atomique et idempotent."""
+        quantity = int(quantity)
+        if quantity < 1: raise ValidationError("La quantité doit être supérieure à zéro.")
+        product = next((item for item in self.commerce_options(building_key) if item["item_key"] == item_key), None)
+        if not product: raise ValidationError("Ce produit n'est pas disponible.")
+        maximum = int(product.get("maximum_per_purchase", quantity))
+        if quantity > maximum: raise ValidationError(f"Maximum par commande : {maximum}.")
+        with self.store.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            previous = db.execute("SELECT result_json FROM action_log WHERE interaction_id=?", (interaction_id,)).fetchone()
+            if previous: return json.loads(previous[0])
+            self._ensure_player(db, discord_id)
+            self._change_stock(db, building_key, item_key, -quantity, int(product.get("initial_stock", 0)))
+            total = quantity * int(product.get("price", 0))
+            self._change_resource(db, discord_id, str(product.get("currency", "money")), -total)
+            self._change_resource(db, discord_id, item_key, quantity)
+            result = {"purchase": {"item": item_key, "name": product["name"], "quantity": quantity,
+                                    "total": total}, "player": self.player(discord_id, db)}
+            db.execute("INSERT INTO action_log(interaction_id,discord_id,building_key,action_key,result_json,created_at) VALUES(?,?,?,?,?,?)",
+                       (interaction_id, discord_id, building_key, "commerce", json.dumps(result, ensure_ascii=False), _now()))
+        await self._publish_configured_events(product.get("events", {}), "on_success", discord_id, building_key, "commerce", result)
+        await self.bus.publish(Event("building.commerce.purchased", f"building:{building_key}", {"discord_id": discord_id, "building": building_key, **result["purchase"]}))
+        return result
+
+    async def execute_consumption(self, discord_id: str, building_key: str, interaction_id: str,
+                                  item_key: str, quantity: int = 1) -> dict[str, Any]:
+        """Consomme un objet et interprète ses effets déclaratifs."""
+        item = self.store.get("item", item_key, published=True)["payload"]
+        if not item.get("consumable"): raise ValidationError("Cet objet n'est pas consommable.")
+        effects = list(item.get("consumption", {}).get("effects", item.get("effects", [])))
+        if not effects: raise ValidationError("Aucun effet de consommation n'est configuré.")
+        quantity = int(quantity)
+        if quantity < 1: raise ValidationError("La quantité doit être supérieure à zéro.")
+        messages, emitted = [], []
+        with self.store.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            previous = db.execute("SELECT result_json FROM action_log WHERE interaction_id=?", (interaction_id,)).fetchone()
+            if previous: return json.loads(previous[0])
+            self._ensure_player(db, discord_id)
+            self._change_resource(db, discord_id, item_key, -quantity)
+            for effect in effects:
+                kind = str(effect.get("type"))
+                amount = float(effect.get("amount", 0)) * quantity
+                if kind in {"reward", "cost"}:
+                    self._change_resource(db, discord_id, str(effect.get("resource", "money")), int(amount) * (1 if kind == "reward" else -1))
+                elif kind == "player_stat":
+                    self._change_player_stat(db, discord_id, str(effect["stat"]), amount, effect)
+                elif kind == "message": messages.append(str(effect.get("text", "")).format(item=item.get("name", item_key), quantity=quantity))
+                elif kind == "emit": emitted.append(Event(str(effect["event"]), f"building:{building_key}", {"discord_id": discord_id, "building": building_key, "item": item_key, **effect.get("payload", {})}))
+                elif kind == "state": self._change_state(db, discord_id, str(effect["key"]), str(effect.get("operation", "set")), effect.get("value"))
+                else: raise ValidationError(f"Effet de consommation inconnu : {kind}.")
+            result = {"consumption": {"item": item_key, "name": item.get("name", item_key), "quantity": quantity},
+                      "messages": messages, "stats": self.player_stats(discord_id, db), "player": self.player(discord_id, db)}
+            db.execute("INSERT INTO action_log(interaction_id,discord_id,building_key,action_key,result_json,created_at) VALUES(?,?,?,?,?,?)",
+                       (interaction_id, discord_id, building_key, f"consume:{item_key}", json.dumps(result, ensure_ascii=False), _now()))
+        for event in emitted: await self.bus.publish(event)
+        await self._publish_configured_events(item.get("consumption", {}).get("events", {}), "on_success", discord_id, building_key, f"consume:{item_key}", result)
+        await self.bus.publish(Event("building.item.consumed", f"building:{building_key}", {"discord_id": discord_id, "building": building_key, "item": item_key, "quantity": quantity}))
+        return result
+
+    def player_stats(self, discord_id: str, db=None) -> dict[str, float]:
+        if db is None:
+            with self.store.connection() as connection: return self.player_stats(discord_id, connection)
+        rows = db.execute("SELECT stat_key,value,updated_at,metadata_json FROM player_stats WHERE discord_id=?", (discord_id,)).fetchall()
+        now, result = time.time(), {}
+        for row in rows:
+            metadata = json.loads(row[3] or "{}")
+            value = float(row[1]) + ((now - float(row[2])) / 3600.0) * float(metadata.get("change_per_hour", 0))
+            value = min(float(metadata.get("maximum", value)), max(float(metadata.get("minimum", value)), value))
+            result[str(row[0])] = round(value, 3)
+        return result
+
+    def prepare_game(self, discord_id: str, building_key: str, game_key: str, choice_key: str) -> dict[str, Any]:
+        game = self._game_definition(building_key, game_key)
+        choice = next((item for item in game.get("choices", game.get("bets", [])) if item.get("key") == choice_key), None)
+        if not choice: raise ValidationError("Choix de jeu invalide.")
+        session_key = str(uuid4()); stake = int(choice.get("stake", game.get("stake", 0)))
+        with self.store.connection() as db:
+            db.execute("BEGIN IMMEDIATE"); self._ensure_player(db, discord_id)
+            db.execute("UPDATE game_sessions SET status='cancelled' WHERE discord_id=? AND status='pending'", (discord_id,))
+            db.execute("INSERT INTO game_sessions(session_key,discord_id,building_key,game_key,choice_key,stake_resource,stake,multiplier,status,created_at) VALUES(?,?,?,?,?,?,?,?, 'pending',?)",
+                       (session_key, discord_id, building_key, game_key, choice_key, str(game.get("stake_resource", "money")), stake, float(choice.get("multiplier", 1)), _now()))
+        return {"session_key": session_key, "choice": choice, "stake": stake, "stake_resource": game.get("stake_resource", "money")}
+
+    def cancel_game(self, discord_id: str, session_key: str) -> bool:
+        with self.store.connection() as db:
+            return db.execute("UPDATE game_sessions SET status='cancelled' WHERE session_key=? AND discord_id=? AND status='pending'", (session_key, discord_id)).rowcount == 1
+
+    async def confirm_game(self, discord_id: str, session_key: str, interaction_id: str) -> dict[str, Any]:
+        with self.store.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            duplicate = db.execute("SELECT result_json FROM game_sessions WHERE confirmation_interaction_id=?", (interaction_id,)).fetchone()
+            if duplicate: return json.loads(duplicate[0])
+            row = db.execute("SELECT * FROM game_sessions WHERE session_key=? AND discord_id=?", (session_key, discord_id)).fetchone()
+            if not row: raise ValidationError("Cette partie ne t'appartient pas.")
+            if row[8] != "pending": raise ValidationError("Cette partie est déjà terminée.")
+            game = self._game_definition(str(row[2]), str(row[3])); choice = next(item for item in game.get("choices", game.get("bets", [])) if item["key"] == row[4])
+            self._change_resource(db, discord_id, str(row[5]), -int(row[6]))
+            faces = list(game.get("outcomes", range(1, int(game.get("sides", 6)) + 1)))
+            rolled = self.rng.choice(faces); won = rolled in choice.get("winning_outcomes", choice.get("winning_faces", []))
+            payout = int(int(row[6]) * float(row[7])) if won else 0
+            if payout: self._change_resource(db, discord_id, str(row[5]), payout)
+            result = {"game": str(row[3]), "choice": str(row[4]), "outcome": rolled, "won": won,
+                      "stake": int(row[6]), "payout": payout, "player": self.player(discord_id, db)}
+            db.execute("UPDATE game_sessions SET status='resolved',confirmation_interaction_id=?,result_json=?,resolved_at=? WHERE session_key=?",
+                       (interaction_id, json.dumps(result, ensure_ascii=False), _now(), session_key))
+        await self.bus.publish(Event("building.game.resolved", f"building:{row[2]}", {"discord_id": discord_id, "building": str(row[2]), **result}))
+        return result
 
     async def execute_delivery(self, discord_id: str, building_key: str, interaction_id: str, quantities: dict[str, int]) -> dict[str, Any]:
         rules = self.building(building_key)["payload"].get("modules", {}).get("deliveries", [])
@@ -104,7 +228,7 @@ class GameEngine:
                 else: self._change_resource(db, discord_id, resource, quantity)
                 payment = quantity * unit_price; total_by_currency[currency] = total_by_currency.get(currency, 0) + payment
                 db.execute("INSERT INTO delivery_log VALUES(NULL,?,?,?,?,?,?,?,?,?,?)", (interaction_id, discord_id, building_key, destination, resource, quantity, unit_price, payment, currency, _now()))
-                lines.append({"resource": resource, "quantity": quantity, "destination": destination, "unit_price": unit_price, "payment": payment})
+                lines.append({"resource": resource, "resource_name": self._item_name(resource), "quantity": quantity, "destination": destination, "destination_name": self._building_name(destination), "unit_price": unit_price, "payment": payment})
             for currency, payment in total_by_currency.items():
                 if payment: self._change_resource(db, discord_id, currency, payment)
             result = {"delivery": lines, "payments": total_by_currency, "player": self.player(discord_id, db)}
@@ -120,13 +244,30 @@ class GameEngine:
         action = next((a for a in actions if a.get("key") == action_key), None)
         if not action or not action.get("enabled", True):
             raise NotFoundError("Cette action n’est pas disponible.")
+        timing = context.get("interface_timing", {})
+        if isinstance(timing, dict):
+            action = {**action}
+            for field in ("cooldown_seconds", "global_cooldown_seconds"):
+                if field in timing:
+                    action[field] = min(86400, max(0, int(timing[field])))
         emitted: list[Event] = []
         messages: list[str] = []
         selected_results: list[str] = []
         with self.store.connection() as db:
             previous = db.execute("SELECT result_json FROM action_log WHERE interaction_id=?", (interaction_id,)).fetchone()
             if previous: return json.loads(previous[0])
-            db.execute("INSERT OR IGNORE INTO players(discord_id,updated_at) VALUES(?,?)", (discord_id, _now()))
+            now = _now()
+            db.execute(
+                "INSERT OR IGNORE INTO players(discord_id,updated_at,created_at) VALUES(?,?,?)",
+                (discord_id, now, now),
+            )
+            # Les métadonnées Discord alimentent la supervision sans devenir
+            # une dépendance du moteur : un autre client peut les omettre.
+            if context.get("display_name") or context.get("avatar_url"):
+                db.execute(
+                    "UPDATE players SET display_name=?,avatar_url=?,updated_at=? WHERE discord_id=?",
+                    (str(context.get("display_name", "")), str(context.get("avatar_url", "")), now, discord_id),
+                )
             self._check_cooldowns(db, discord_id, building_key, action)
             self._check_requirements(db, discord_id, action.get("requirements", {}))
             self._check_condition(db, discord_id, building_key, action_key, action.get("conditions"), context)
@@ -173,9 +314,18 @@ class GameEngine:
                     effects[0:0] = list(chosen.get("effects", []))
                 elif kind == "random_message":
                     choices = effect.get("choices", [])
-                    chosen = self.rng.choices(choices, weights=[x.get("weight", 1) for x in choices], k=1)[0]
+                    pool_key = str(effect.get("memory_key", f"{building_key}:{action_key}"))
+                    scope = "global" if effect.get("memory_scope") == "global" else f"player:{discord_id}"
+                    available = choices
+                    if effect.get("avoid_previous") and len(choices) > 1:
+                        previous = db.execute("SELECT result_key FROM random_result_memory WHERE scope=? AND pool_key=?", (scope, pool_key)).fetchone()
+                        available = [item for item in choices if not previous or str(item.get("key")) != str(previous[0])] or choices
+                    chosen = self.rng.choices(available, weights=[x.get("weight", 1) for x in available], k=1)[0]
                     messages.append(str(chosen.get("text", "")))
                     selected_results.append(str(chosen.get("key", "message")))
+                    db.execute("INSERT INTO random_result_memory(scope,pool_key,result_key,updated_at) VALUES(?,?,?,?) ON CONFLICT(scope,pool_key) DO UPDATE SET result_key=excluded.result_key,updated_at=excluded.updated_at", (scope, pool_key, selected_results[-1], time.time()))
+                    if chosen.get("event"):
+                        emitted.append(Event(str(chosen["event"]), f"building:{building_key}", {"discord_id": discord_id, "building": building_key, "action": action_key, **chosen.get("payload", {})}))
                 elif kind in {"stock_cost", "stock_reward"}:
                     minimum, maximum = self._range(effect.get("amount", 0))
                     amount = self.rng.randint(minimum, maximum) * (1 if kind == "stock_reward" else -1)
@@ -228,6 +378,8 @@ class GameEngine:
                     )
                 elif kind == "state":
                     self._change_state(db, discord_id, str(effect["key"]), str(effect.get("operation", "set")), effect.get("value"))
+                elif kind == "player_stat":
+                    self._change_player_stat(db, discord_id, str(effect["stat"]), float(effect.get("amount", 0)), effect)
                 elif kind == "contribution":
                     amount = int(effect.get("amount", 1))
                     resource = str(effect.get("resource", "progress"))
@@ -318,12 +470,27 @@ class GameEngine:
             ).fetchall()
         return [{"action": str(row[0]), "ready_at": float(row[1])} for row in rows]
 
+    def cooldown_remaining(self, discord_id: str, building_key: str, action_key: str) -> int:
+        with self.store.connection() as db:
+            rows = db.execute(
+                "SELECT ready_at FROM action_cooldowns WHERE building_key=? AND action_key=? AND scope IN (?, 'global')",
+                (building_key, action_key, f"player:{discord_id}"),
+            ).fetchall()
+        return max([0, *[int(float(row[0]) - time.time()) + 1 for row in rows]])
+
     def _item_name(self, key: str) -> str:
         try:
             payload = self.store.get("item", key, published=True)["payload"]
             return f"{payload.get('emoji', '📦')} {payload.get('name') or key}"
         except (NotFoundError, KeyError):
             return f"{key.replace('_', ' ').capitalize()} ({key})"
+
+    def _building_name(self, key: str) -> str:
+        try:
+            payload = self.store.get("building", key, published=True)["payload"]
+            return f"{payload.get('emoji', '🏰')} {payload.get('name') or key}"
+        except (NotFoundError, KeyError):
+            return key.replace("_", " ").capitalize()
 
     def _change_resource(self, db, discord_id: str, resource: str, amount: int) -> None:
         if resource in {"money", "energy"}:
@@ -418,6 +585,7 @@ class GameEngine:
             row = db.execute("SELECT quantity FROM building_stock WHERE building_key=? AND item_key=?", (str(condition.get("building", building_key)), condition["item"])).fetchone(); actual = int(row[0]) if row else 0
         elif kind == "state":
             row = db.execute("SELECT value_json FROM player_state WHERE discord_id=? AND state_key=?", (discord_id, condition["key"])).fetchone(); actual = json.loads(row[0]) if row else condition.get("default", 0)
+        elif kind == "player_stat": actual = self.player_stats(discord_id, db).get(str(condition["stat"]), float(condition.get("default", 0)))
         else:
             raise ValidationError(f"Condition inconnue : {kind}.")
         return self._compare(actual, expected, operator)
@@ -539,6 +707,41 @@ class GameEngine:
         )
 
     @staticmethod
+    def _ensure_player(db, discord_id: str) -> None:
+        now = _now()
+        db.execute("INSERT OR IGNORE INTO players(discord_id,updated_at,created_at) VALUES(?,?,?)", (discord_id, now, now))
+
+    @staticmethod
+    def _change_player_stat(db, discord_id: str, key: str, amount: float, definition: dict[str, Any]) -> None:
+        row = db.execute("SELECT value,updated_at,metadata_json FROM player_stats WHERE discord_id=? AND stat_key=?", (discord_id, key)).fetchone()
+        metadata = {field: definition[field] for field in ("minimum", "maximum", "change_per_hour") if field in definition}
+        now = time.time()
+        if row:
+            previous_metadata = json.loads(row[2] or "{}"); previous_metadata.update(metadata); metadata = previous_metadata
+            current = float(row[0]) + ((now - float(row[1])) / 3600.0) * float(metadata.get("change_per_hour", 0))
+        else:
+            core = db.execute(f"SELECT {key} FROM players WHERE discord_id=?", (discord_id,)).fetchone() if key in {"energy", "money"} else None
+            current = float(core[0]) if core else float(definition.get("default", 0))
+        value = current + amount if definition.get("operation", "increment") == "increment" else amount
+        value = min(float(metadata.get("maximum", value)), max(float(metadata.get("minimum", value)), value))
+        db.execute("INSERT INTO player_stats(discord_id,stat_key,value,updated_at,metadata_json) VALUES(?,?,?,?,?) ON CONFLICT(discord_id,stat_key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at,metadata_json=excluded.metadata_json",
+                   (discord_id, key, value, now, json.dumps(metadata, ensure_ascii=False)))
+        if key in {"energy", "money"}:
+            db.execute(f"UPDATE players SET {key}=?,updated_at=? WHERE discord_id=?", (int(value), _now(), discord_id))
+
+    def _game_definition(self, building_key: str, game_key: str) -> dict[str, Any]:
+        games = self.building(building_key)["payload"].get("modules", {}).get("games", {})
+        candidates = games.values() if isinstance(games, dict) else games
+        game = next((item for item in candidates if str(item.get("key", game_key)) == game_key), None)
+        if not game: raise ValidationError("Jeu introuvable.")
+        return game
+
+    async def _publish_configured_events(self, hooks: dict[str, Any], hook: str, discord_id: str,
+                                         building_key: str, action_key: str, extra: dict[str, Any]) -> None:
+        for event in self._hook_events(hooks, hook, discord_id, building_key, action_key, extra):
+            await self.bus.publish(event)
+
+    @staticmethod
     def _use_tool(db, discord_id: str, tool: str, amount: int, max_durability: int) -> None:
         row = db.execute(
             "SELECT durability,max_durability FROM player_tools WHERE discord_id=? AND tool_key=?",
@@ -561,6 +764,11 @@ class GameEngine:
             "INSERT INTO player_tools(discord_id,tool_key,durability,max_durability,level,loot_bonus) VALUES(?,?,?,?,?,?) "
             "ON CONFLICT(discord_id,tool_key) DO NOTHING",
             (discord_id, str(effect["tool"]), durability, maximum, max(1, int(effect.get("level", 1))), int(effect.get("loot_bonus", 0))),
+        )
+        db.execute(
+            "INSERT INTO inventory(discord_id,item_key,quantity) VALUES(?,?,1) "
+            "ON CONFLICT(discord_id,item_key) DO UPDATE SET quantity=MAX(quantity,1)",
+            (discord_id, str(effect["tool"])),
         )
 
     @staticmethod

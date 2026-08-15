@@ -15,6 +15,8 @@ from KingdomData import ConflictError, ContentStore, NotFoundError, ValidationEr
 from import_v1 import import_v1
 from kingdomCore.provisioner import managed_bot_permissions, required_bot_permissions
 from KingdomWeb.supervision import AdministrationService, ServiceSupervisor
+from KingdomWeb.player_admin import PlayerAdministrationService
+from KingdomWeb.item_catalog import ItemCatalogService
 from seed import DEFINITIONS
 import discord
 
@@ -59,6 +61,16 @@ async def disable_studio_cache(request, call_next):
 def authorize(authorization: str | None = Header(None)) -> None:
     expected = os.getenv("KINGDOM_ADMIN_TOKEN", "change-me")
     if authorization != f"Bearer {expected}": raise HTTPException(401, "Jeton administrateur invalide.")
+
+
+# Deux dépendances distinctes préparent une future permission de consultation
+# sans écriture, tout en conservant le jeton administrateur actuel.
+def authorize_player_view(authorization: str | None = Header(None)) -> None:
+    authorize(authorization)
+
+
+def authorize_player_edit(authorization: str | None = Header(None)) -> None:
+    authorize(authorization)
 
 
 @app.get("/")
@@ -127,6 +139,66 @@ def save_server_settings(body: dict[str, Any]):
 @app.get("/api/admin/overview", dependencies=[Depends(authorize)])
 def administration_overview():
     return AdministrationService(store).overview()
+
+
+@app.get("/api/admin/items", dependencies=[Depends(authorize_player_view)])
+def admin_item_catalog(search: str = "", category: str = "", building: str = "", sort: str = "name_asc"):
+    return ItemCatalogService(store).catalog(search, category, building, sort)
+
+
+def _player_error(exc: Exception) -> HTTPException:
+    return HTTPException(404 if isinstance(exc, NotFoundError) else 422, str(exc))
+
+
+@app.get("/api/admin/players", dependencies=[Depends(authorize_player_view)])
+def list_admin_players(search: str = "", profession: str = "", status: str = "", sort: str = "recent", page: int = 1, page_size: int = 25):
+    return PlayerAdministrationService(store).list_players(search, profession, status, sort, page, page_size)
+
+
+@app.get("/api/admin/players/{player_id}", dependencies=[Depends(authorize_player_view)])
+def get_admin_player(player_id: str):
+    try: return PlayerAdministrationService(store).player(player_id)
+    except (NotFoundError, ValidationError) as exc: raise _player_error(exc) from exc
+
+
+def _admin_id(value: str | None) -> str:
+    return (value or "kingdomweb-admin").strip()[:100]
+
+
+@app.post("/api/admin/players/{player_id}/resources", dependencies=[Depends(authorize_player_edit)])
+def mutate_player_resource(player_id: str, body: dict[str, Any], x_kingdom_admin: str | None = Header(None)):
+    try: return PlayerAdministrationService(store).resource(player_id, body, _admin_id(x_kingdom_admin))
+    except (NotFoundError, ValidationError, ValueError, TypeError) as exc: raise _player_error(exc) from exc
+
+
+@app.post("/api/admin/players/{player_id}/inventory", dependencies=[Depends(authorize_player_edit)])
+def mutate_player_inventory(player_id: str, body: dict[str, Any], x_kingdom_admin: str | None = Header(None)):
+    try: return PlayerAdministrationService(store).inventory(player_id, body, _admin_id(x_kingdom_admin))
+    except (NotFoundError, ValidationError, ValueError, TypeError) as exc: raise _player_error(exc) from exc
+
+
+@app.post("/api/admin/players/{player_id}/professions", dependencies=[Depends(authorize_player_edit)])
+def mutate_player_profession(player_id: str, body: dict[str, Any], x_kingdom_admin: str | None = Header(None)):
+    try: return PlayerAdministrationService(store).profession(player_id, body, _admin_id(x_kingdom_admin))
+    except (NotFoundError, ValidationError, ValueError, TypeError) as exc: raise _player_error(exc) from exc
+
+
+@app.post("/api/admin/players/{player_id}/tools", dependencies=[Depends(authorize_player_edit)])
+def mutate_player_tool(player_id: str, body: dict[str, Any], x_kingdom_admin: str | None = Header(None)):
+    try: return PlayerAdministrationService(store).tool(player_id, body, _admin_id(x_kingdom_admin))
+    except (NotFoundError, ValidationError, ValueError, TypeError) as exc: raise _player_error(exc) from exc
+
+
+@app.post("/api/admin/players/{player_id}/activities/{activity_id}", dependencies=[Depends(authorize_player_edit)])
+def mutate_player_activity(player_id: str, activity_id: int, body: dict[str, Any], x_kingdom_admin: str | None = Header(None)):
+    try: return PlayerAdministrationService(store).activity(player_id, activity_id, body, _admin_id(x_kingdom_admin))
+    except (NotFoundError, ValidationError, ValueError, TypeError) as exc: raise _player_error(exc) from exc
+
+
+@app.post("/api/admin/players/{player_id}/cooldowns/reset", dependencies=[Depends(authorize_player_edit)])
+def reset_player_cooldown(player_id: str, body: dict[str, Any], x_kingdom_admin: str | None = Header(None)):
+    try: return PlayerAdministrationService(store).reset_cooldown(player_id, body, _admin_id(x_kingdom_admin))
+    except (NotFoundError, ValidationError, ValueError, TypeError) as exc: raise _player_error(exc) from exc
 
 
 @app.post("/api/admin/services/{service_key}/{operation}", dependencies=[Depends(authorize)])
