@@ -48,6 +48,12 @@ Pour tout lancer ensemble sur la machine de test :
 
 Le superviseur lance une identité Discord indépendante par profil activé. Un bot rejoint son salon quand un joueur y entre, joue son accueil et son ambiance, puis se déconnecte après le délai configuré. `FFMPEG_PATH` permet d’indiquer le chemin de FFmpeg s’il n’est pas dans le `PATH`.
 
+### Banque sonore no-code
+
+Le menu **Voix & audio** importe les fichiers MP3, WAV, OGG, FLAC, M4A, AAC et OPUS directement dans `KingdomData/assets/audio`. Chaque son possède un type (voix, musique, ambiance ou SFX), des mots-clés, un volume et, si nécessaire, un bot parlant. Le menu **Bots Discord** attribue un bot vocal à un bâtiment ; après provisionnement, l’identifiant réel du salon vocal est conservé dans KingdomData et utilisé automatiquement.
+
+Dans la fiche d’un bâtiment, l’onglet **Gestion sonore** compose des groupes de musique, ambiance, SFX et voix. Un groupe général démarre quand des joueurs entrent dans le vocal. Une action ou un résultat aléatoire peut jouer un son ponctuel ou changer de groupe, et une règle événementielle peut basculer l’ambiance. Ces demandes transitent par la file SQLite `audio_queue`, afin que KingdomCore et KingdomVoice restent fiables lorsqu’ils tournent dans des processus séparés.
+
 Au premier lancement du Studio, les 48 objets, les cinq profils vocaux, les cinq lieux historiques et leurs cinq interfaces présents dans `KingdomEngine` V1 sont importés et publiés automatiquement : Mine, Forêt, Forge, Taverne et chantier du Pont royal. Les marchés de livraison et le catalogue de rumeurs sont également repris. L’import est idempotent : une définition V2 existante n’est jamais écrasée.
 
 La commande `/royaume` propose automatiquement tous les bâtiments publiés et construit leurs boutons depuis les données.
@@ -117,6 +123,7 @@ Une action contient une liste d’effets génériques :
 - `profession` / `durability` : métiers, expérience et usure ;
 - `repair` / `upgrade` : réparation et amélioration paramétrées ;
 - `emit` : événement consommable par Voice ou un futur module.
+- `play_audio` / `set_audio_group` : lecture ponctuelle et changement d’ambiance dans le bâtiment courant ;
 - `profession_join` / `profession_leave` / `profession_experience` : cycle de vie explicite d'un métier ;
 - `tool_grant` / `tool_modify` : état initial, niveau, bonus et durabilité d'un outil ;
 - `production` : ressource dirigée explicitement vers le joueur ou un stock de bâtiment ;
@@ -155,4 +162,4 @@ Le Studio conserve chaque modification en brouillon. La publication archive la v
 
 ## Limites assumées de cette fondation
 
-Le transport vocal Discord complet et la planification cron des événements sont des adaptateurs à brancher sur les contrats présents. Le modèle, le Studio, l’exécution transactionnelle, le bot dynamique et les réactions audio événementielles sont déjà opérationnels. Pour plusieurs processus ou plusieurs machines, remplacer le bus mémoire par Redis et SQLite par PostgreSQL sans modifier les définitions de jeu.
+Un client vocal Discord ne lit qu’un flux PCM à la fois : un SFX ou une voix interrompt brièvement le fond sonore, puis l’ambiance reprend automatiquement. La planification cron des événements reste un adaptateur à compléter. Pour plusieurs machines, remplacer la file SQLite et le bus mémoire par Redis/NATS sans modifier les définitions de jeu.

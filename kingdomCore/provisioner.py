@@ -110,6 +110,8 @@ class DiscordProvisioner:
         category_name = template.format(name=payload["name"], key=building_key, emoji=payload.get("emoji", "🏰")).strip()[:100]
         category = discord.utils.get(self.guild.categories, name=category_name)
         if category is None:
+            with self.store.connection() as db:
+                db.execute("DELETE FROM building_discord_channels WHERE building_key=?", (building_key,))
             return []
         text_name = channel_slug(self.settings["discord"]["building_text_channel"].format(name=payload["name"], key=building_key))
         voice_name = self.settings["discord"]["building_voice_channel_template"].format(name=payload["name"], key=building_key).strip()[:100]
@@ -130,6 +132,8 @@ class DiscordProvisioner:
         if not remaining:
             await category.delete(reason=f"Suppression du bâtiment KingdomEngine : {building_key}")
             removed.append(category.name)
+        with self.store.connection() as db:
+            db.execute("DELETE FROM building_discord_channels WHERE building_key=?", (building_key,))
         return removed
 
     def _general_overwrites(self, master: discord.Role, player: discord.Role, bot_role: discord.Role, me: discord.Member) -> dict[Any, discord.PermissionOverwrite]:
@@ -216,11 +220,17 @@ class DiscordProvisioner:
                 read_message_history=not temporary_text,
             )
         text_name = self.settings["discord"]["building_text_channel"].format(name=payload["name"], key=entity["entity_key"])
-        await self._ensure_text(text_name, category, text_overwrites, report, payload.get("description"))
+        text_channel = await self._ensure_text(text_name, category, text_overwrites, report, payload.get("description"))
         voice_name = self.settings["discord"]["building_voice_channel_template"].format(
             name=payload["name"], key=entity["entity_key"]
         ).strip()
-        await self._ensure_voice(voice_name[:100], category, category_overwrites, report)
+        voice_channel = await self._ensure_voice(voice_name[:100], category, category_overwrites, report)
+        with self.store.connection() as db:
+            db.execute(
+                "INSERT INTO building_discord_channels(building_key,category_id,text_channel_id,voice_channel_id,updated_at) VALUES(?,?,?,?,datetime('now')) "
+                "ON CONFLICT(building_key) DO UPDATE SET category_id=excluded.category_id,text_channel_id=excluded.text_channel_id,voice_channel_id=excluded.voice_channel_id,updated_at=excluded.updated_at",
+                (entity["entity_key"], str(category.id), str(text_channel.id), str(voice_channel.id)),
+            )
 
     async def _ensure_role(self, name: str, colour: discord.Colour, permissions: discord.Permissions, report: ProvisionReport) -> discord.Role:
         role = discord.utils.get(self.guild.roles, name=name)

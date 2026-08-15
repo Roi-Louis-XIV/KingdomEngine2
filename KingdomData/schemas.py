@@ -14,6 +14,7 @@ ACTION_TYPES = {
     "schedule", "claim_scheduled", "state", "production",
     "profession_join", "profession_leave", "profession_experience",
     "tool_grant", "tool_modify", "contribution", "player_stat",
+    "play_audio", "set_audio_group",
 }
 CONDITION_TYPES = {
     "resource", "item_present", "item_absent", "profession_active", "no_active_profession",
@@ -83,14 +84,21 @@ def validate_entity(entity_type: str, payload: dict[str, Any]) -> dict[str, Any]
             raise ValidationError("Le type de bot doit être text ou voice.")
         if not str(payload.get("token_env", "")).strip():
             raise ValidationError("La variable d’environnement du token est obligatoire.")
-        if payload.get("bot_type") == "voice" and not (payload.get("voice_channel_id") or payload.get("voice_channel_env")):
-            raise ValidationError("Un bot vocal doit cibler un salon vocal ou une variable de salon.")
+        if payload.get("bot_type") == "voice" and not (payload.get("building_key") or payload.get("voice_channel_id") or payload.get("voice_channel_env")):
+            raise ValidationError("Un bot vocal doit être associé à un bâtiment ou cibler un salon vocal.")
         for volume in payload.get("volume", {}).values():
             if not 0 <= float(volume) <= 1:
                 raise ValidationError("Les volumes doivent être compris entre 0 et 1.")
     if entity_type == "event":
         if payload.get("trigger", {}).get("type", "manual") not in {"manual", "scheduled", "recurring", "action", "players"}:
             raise ValidationError("Déclencheur d’événement invalide.")
+    if entity_type == "audio":
+        if payload.get("audio_type", payload.get("channel", "sfx")) not in {"voice", "music", "ambience", "sfx"}:
+            raise ValidationError("Le type audio doit être voice, music, ambience ou sfx.")
+        if not str(payload.get("storage_path", payload.get("source", ""))).strip():
+            raise ValidationError("Le fichier audio est obligatoire.")
+        if not 0 <= float(payload.get("volume", 0.5)) <= 1:
+            raise ValidationError("Le volume doit être compris entre 0 et 1.")
     if entity_type == "interface":
         _validate_interface(payload)
     if entity_type == "server_settings":
@@ -103,6 +111,10 @@ def _validate_effect(effect: dict[str, Any]) -> None:
     if not isinstance(effect, dict) or effect.get("type") not in ACTION_TYPES:
         raise ValidationError(f"Effet inconnu : {getattr(effect, 'get', lambda _key: None)('type')}")
     kind = effect.get("type")
+    if kind == "play_audio" and not str(effect.get("audio_key", "")).strip():
+        raise ValidationError("L’effet audio doit référencer un son.")
+    if kind == "set_audio_group" and not str(effect.get("group_key", "")).strip():
+        raise ValidationError("Le changement d’ambiance doit référencer un groupe sonore.")
     if kind == "production":
         if effect.get("destination", "player_inventory") not in PRODUCTION_DESTINATIONS:
             raise ValidationError("Destination de production invalide.")
@@ -199,6 +211,24 @@ def _validate_building_modules(payload: dict[str, Any]) -> None:
             raise ValidationError(f"Le module {name} doit \u00eatre une liste.")
     if not isinstance(modules.get("games", {}), (dict, list)):
         raise ValidationError("Le module games doit être un objet ou une liste.")
+    sound = modules.get("audio", {})
+    if not isinstance(sound, dict):
+        raise ValidationError("Le module audio doit être un objet.")
+    groups = sound.get("groups", [])
+    if not isinstance(groups, list):
+        raise ValidationError("Les groupes sonores doivent former une liste.")
+    group_keys: set[str] = set()
+    for group in groups:
+        group_key = validate_key(group.get("key", ""))
+        if group_key in group_keys:
+            raise ValidationError(f"Groupe sonore dupliqué : {group_key}")
+        group_keys.add(group_key)
+        tracks = group.get("tracks", {})
+        if not isinstance(tracks, dict) or any(not isinstance(tracks.get(channel, []), list) for channel in ("music", "ambience", "sfx", "voice")):
+            raise ValidationError("Les pistes d’un groupe sonore doivent être classées par type.")
+    default_group = str(sound.get("default_group_key", ""))
+    if default_group and default_group not in group_keys:
+        raise ValidationError("Le groupe sonore général n’existe pas.")
     profession_keys = {validate_key(item.get("key", "")) for item in modules.get("professions", [])}
     if len(profession_keys) != len(modules.get("professions", [])):
         raise ValidationError("Les identifiants de métiers doivent être uniques.")

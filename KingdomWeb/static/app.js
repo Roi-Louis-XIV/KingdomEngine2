@@ -7,7 +7,8 @@ const state = {
   supervisionTab: "overview", settingsTab: "onboarding", playerTab: "overview", playerId: null, playerPage: 1,
   itemFilters: {search:"",category:"",building:"",sort:"name_asc"},
   playerFilters: {search:"",profession:"",status:"",sort:"recent"}, expandedPlayers: [],
-  catalogs: {item: [], itemEnriched: [], event: [], building: [], interface: []},
+  audioFilters: {search:"",type:"",bot:"",sort:"name_asc"},
+  catalogs: {item: [], itemEnriched: [], event: [], building: [], interface: [], audio: [], bot: []},
   token: initialAdminToken
 };
 localStorage.kingdomToken = state.token;
@@ -75,6 +76,7 @@ async function load() {
   if (state.type === "settings") { await loadSettings(); return; }
   $("#content-stats").hidden = false; $("#content-workspace").hidden = false; $("#admin-view").hidden = true; $("#new").hidden = false;
   if (state.type === "item") { await loadItemCatalog(); return; }
+  if (state.type === "audio") { await loadAudioBank(); return; }
   restoreContentToolbar();
   const response = await fetch(`/api/content?entity_type=${state.type}`, {headers});
   if (!response.ok) { alert("Accès refusé ou API indisponible."); return; }
@@ -83,18 +85,22 @@ async function load() {
 }
 
 async function loadCatalogs() {
-  const [itemsResponse, eventsResponse, buildingsResponse, interfacesResponse, enrichedItemsResponse] = await Promise.all([
+  const [itemsResponse, eventsResponse, buildingsResponse, interfacesResponse, enrichedItemsResponse, audioResponse, botsResponse] = await Promise.all([
     fetch("/api/content?entity_type=item", {headers}),
     fetch("/api/content?entity_type=event", {headers}),
     fetch("/api/content?entity_type=building", {headers}),
     fetch("/api/content?entity_type=interface", {headers}),
     fetch("/api/admin/items", {headers}),
+    fetch("/api/content?entity_type=audio", {headers}),
+    fetch("/api/content?entity_type=bot", {headers}),
   ]);
   if (itemsResponse.ok) state.catalogs.item = await itemsResponse.json();
   if (eventsResponse.ok) state.catalogs.event = await eventsResponse.json();
   if (buildingsResponse.ok) state.catalogs.building = await buildingsResponse.json();
   if (interfacesResponse.ok) state.catalogs.interface = await interfacesResponse.json();
   if (enrichedItemsResponse.ok) state.catalogs.itemEnriched = (await enrichedItemsResponse.json()).items;
+  if (audioResponse.ok) state.catalogs.audio = await audioResponse.json();
+  if (botsResponse.ok) state.catalogs.bot = await botsResponse.json();
 }
 
 function catalogOptions(type, currentValue="") {
@@ -225,9 +231,62 @@ function openEditor(entity, duplicate=false) {
   showModal();
 }
 
+async function loadAudioBank() {
+  restoreContentToolbar();
+  state.items=state.catalogs.audio;
+  const filters=state.audioFilters;
+  const items=state.items.filter(entity=>{
+    const payload=entity.payload,query=filters.search.toLowerCase();
+    return (!query||`${entity.entity_key} ${payload.name} ${(payload.tags||[]).join(" ")}`.toLowerCase().includes(query))&&(!filters.type||(payload.audio_type||payload.channel)===filters.type)&&(!filters.bot||payload.speaker_bot_key===filters.bot);
+  }).sort((a,b)=>filters.sort==="recent"?String(b.created_at).localeCompare(String(a.created_at)):filters.sort==="type"?String(a.payload.audio_type||a.payload.channel).localeCompare(String(b.payload.audio_type||b.payload.channel)):String(a.payload.name).localeCompare(String(b.payload.name),"fr"));
+  $("#count").textContent=state.items.length;$("#published").textContent=state.items.filter(x=>x.status==="published").length;$("#drafts").textContent=state.items.filter(x=>x.status==="draft").length;
+  $("#content-workspace .toolbar").innerHTML=`<input id="audio-search" value="${escapeHtml(filters.search)}" placeholder="Rechercher un son ou un mot-clé…"><select id="audio-type-filter"><option value="">Tous les types</option><option value="voice">Voix</option><option value="music">Musiques</option><option value="ambience">Ambiances</option><option value="sfx">SFX</option></select><select id="audio-bot-filter"><option value="">Tous les bots</option>${voiceBotOptions("").slice(1).map(([key,label])=>`<option value="${escapeHtml(key)}">${escapeHtml(label)}</option>`).join("")}</select><select id="audio-sort"><option value="name_asc">Nom A–Z</option><option value="type">Type audio</option><option value="recent">Plus récents</option></select>`;
+  $("#audio-type-filter").value=filters.type;$("#audio-bot-filter").value=filters.bot;$("#audio-sort").value=filters.sort;
+  $("#cards").innerHTML=`<section class="audio-upload-card"><div><small>BANQUE SONORE KINGDOMDATA</small><h3>Importer un nouveau son</h3><p>Le fichier sera copié, référencé et publié automatiquement.</p></div><form id="audio-upload-form"><input name="file" type="file" accept="audio/*,.mp3,.wav,.ogg,.flac,.m4a,.aac,.opus" required><input name="name" placeholder="Nom du son" required><select name="audio_type"><option value="sfx">Effet sonore</option><option value="ambience">Ambiance</option><option value="music">Musique</option><option value="voice">Voix / phrase</option></select><select name="speaker_bot_key">${voiceBotOptions("").map(([key,label])=>`<option value="${escapeHtml(key)}">${escapeHtml(label)}</option>`).join("")}</select><input name="tags" placeholder="Mots-clés : forêt, bois, hache"><button class="primary">Télécharger dans KingdomData</button><span id="audio-upload-status"></span></form></section>${items.map(entity=>{const p=entity.payload,type=p.audio_type||p.channel||"sfx",bot=state.catalogs.bot.find(x=>x.entity_key===p.speaker_bot_key);return `<article class="card audio-card" data-open="${escapeHtml(entity.entity_key)}"><div class="card-head"><span class="emoji">${{voice:"🗣️",music:"🎵",ambience:"🌲",sfx:"💥"}[type]||"🔊"}</span><span class="badge ${entity.status}">${type.toUpperCase()}</span></div><h3>${escapeHtml(p.name)}</h3><p>${escapeHtml(p.description||p.file_name||"Fichier audio")}</p><div class="item-tags">${(p.tags||[]).map(tag=>`<span>${escapeHtml(tag)}</span>`).join("")}${bot?`<span>🤖 ${escapeHtml(bot.payload.name)}</span>`:""}</div><div class="meta"><span>${Math.round(Number(p.size_bytes||0)/1024)} Ko · v${entity.version}</span><span><button data-audio-preview="${escapeHtml(entity.entity_key)}">▶ Écouter</button> · <button data-edit="${escapeHtml(entity.entity_key)}">Modifier</button> · <button class="danger-link" data-delete="${escapeHtml(entity.entity_key)}">Supprimer</button></span></div></article>`}).join("")||'<p class="empty">Aucun son ne correspond à ces filtres.</p>'}`;
+  let timer;$("#audio-search").oninput=e=>{clearTimeout(timer);timer=setTimeout(()=>{filters.search=e.target.value;loadAudioBank()},250)};$("#audio-type-filter").onchange=e=>{filters.type=e.target.value;loadAudioBank()};$("#audio-bot-filter").onchange=e=>{filters.bot=e.target.value;loadAudioBank()};$("#audio-sort").onchange=e=>{filters.sort=e.target.value;loadAudioBank()};
+  $("#audio-upload-form").onsubmit=uploadAudio;
+  $("#new").hidden=true;
+}
+
+async function uploadAudio(event) {
+  event.preventDefault();const form=event.currentTarget,status=$("#audio-upload-status"),button=form.querySelector("button");
+  button.disabled=true;status.textContent="Téléchargement…";
+  try{const response=await fetch("/api/audio/upload",{method:"POST",headers:{Authorization:`Bearer ${state.token}`},body:new FormData(form)});const data=await response.json();if(!response.ok)throw Error(data.detail||"Import impossible.");status.textContent="Son publié.";await loadCatalogs();await loadAudioBank();}
+  catch(error){status.textContent=error.message;}finally{button.disabled=false;}
+}
+
+async function previewAudio(key) {
+  const response=await fetch(`/api/audio/${encodeURIComponent(key)}/file`,{headers});if(!response.ok){alert((await response.json()).detail);return;}
+  const url=URL.createObjectURL(await response.blob()),player=new Audio(url);player.onended=()=>URL.revokeObjectURL(url);await player.play();
+}
+
+function voiceBotOptions(current="") {
+  const entries=state.catalogs.bot.filter(entity=>entity.payload.bot_type==="voice").map(entity=>[entity.entity_key,`🤖 ${entity.payload.name}`]);
+  if(current&&!entries.some(([key])=>key===current))entries.push([current,`⚠ ${current} (introuvable)`]);
+  return [["","Choisir un bot vocal…"],...entries];
+}
+
+function audioOptions(current="", type="") {
+  const entries=state.catalogs.audio.filter(entity=>!type||(entity.payload.audio_type||entity.payload.channel)==type).map(entity=>[entity.entity_key,`🔊 ${entity.payload.name}`]);
+  if(current&&!entries.some(([key])=>key===current))entries.push([current,`⚠ ${current} (introuvable)`]);
+  return [["","Choisir un son…"],...entries];
+}
+
+function renderBotFields(payload) {
+  const root=$("#type-fields");
+  root.innerHTML=`<section class="form-section"><h3>Identité et connexion Discord</h3><div class="form-grid">${select("Type de bot","bot_type",payload.bot_type||"text",[["text","Bot textuel"],["voice","Bot vocal"]])}${input("Variable de l’Application ID","application_id_env",payload.application_id_env||"")}${input("Variable du token","token_env",payload.token_env||"KINGDOM_CORE_TOKEN")}${input("Identifiant du serveur","guild_id",payload.guild_id||"")}${input("Présence Discord","presence",payload.presence||"")}</div><div class="checks">${check("Bot activé","enabled",!!payload.enabled)}${check("Connexion vocale automatique","auto_join",payload.auto_join!==false)}</div><section class="audio-assignment"><h3>Attribution au bâtiment</h3><p class="field-note">Le salon vocal est récupéré automatiquement depuis le bâtiment provisionné. Le bot choisi devient une identité sonore disponible pour ce lieu.</p>${select("Bâtiment pris en charge","building_key",payload.building_key||"",catalogOptions("building",payload.building_key||""))}</section><details class="advanced"><summary>Réglages vocaux avancés</summary><div class="advanced-content form-grid">${input("Identifiant du salon (secours)","voice_channel_id",payload.voice_channel_id||0)}${input("Variable du salon (secours)","voice_channel_env",payload.voice_channel_env||"")}${input("Déconnexion après (secondes)","leave_delay",payload.leave_delay||10,"number")}${input("Volume voix","volume_voice",payload.volume?.voice??.8,"number",'min="0" max="1" step="0.05"')}${input("Volume musique","volume_music",payload.volume?.music??.05,"number",'min="0" max="1" step="0.05"')}${input("Volume ambiance","volume_ambience",payload.volume?.ambience??.35,"number",'min="0" max="1" step="0.05"')}${input("Volume effets","volume_sfx",payload.volume?.sfx??.2,"number",'min="0" max="1" step="0.05"')}</div></details></section>`;
+}
+
+function renderAudioFields(payload) {
+  const root=$("#type-fields");
+  root.innerHTML=`<section class="form-section"><h3>Classement du son</h3><p class="field-note">Le fichier est conservé dans KingdomData. Modifie ici uniquement sa fiche et son comportement.</p><div class="form-grid">${select("Type d’audio","audio_type",payload.audio_type||payload.channel||"sfx",[["voice","Voix / phrase"],["music","Musique"],["ambience","Ambiance"],["sfx","Effet sonore"]])}${select("Bot qui parle (facultatif)","speaker_bot_key",payload.speaker_bot_key||"",voiceBotOptions(payload.speaker_bot_key||""))}${input("Mots-clés (séparés par des virgules)","audio_tags",(payload.tags||[]).join(", "))}${input("Volume","volume",payload.volume??.5,"number",'min="0" max="1" step="0.05"')}</div><div class="checks">${check("Lecture en boucle","loop",!!payload.loop)}</div><details class="advanced"><summary>Informations du fichier</summary><div class="advanced-content"><p><b>${escapeHtml(payload.file_name||"Ancien fichier")}</b> · ${Math.round(Number(payload.size_bytes||0)/1024)} Ko</p><code>${escapeHtml(payload.storage_path||payload.source||"")}</code></div></details></section>`;
+}
+
 function renderFields(payload) {
   if (state.type === "building") { renderBuildingFields(payload); return; }
   if (state.type === "interface") { renderInterfaceFields(payload); return; }
+  if (state.type === "bot") { renderBotFields(payload); return; }
+  if (state.type === "audio") { renderAudioFields(payload); return; }
   const root = $("#type-fields");
   if (state.type === "item") { const relations=payload.building_relations||[];root.innerHTML = `<section class="form-section"><h3>Propriétés de l’objet</h3><p class="field-note">Le nom est destiné aux joueurs. L’identifiant technique reste stable après la création afin de protéger les recettes et inventaires existants.</p><div class="form-grid">${select("Catégorie","category",payload.category||"resources",[["drinks","Boisson / repas"],["equipment","Équipement"],["ingredients","Ingrédient"],["resources","Ressource"],["tools","Outil"],["other","Autre"]])}${input("Type","type",payload.type||"ressource")}${select("Rareté","rarity",payload.rarity||"commun",[["commun","Commun"],["peu_commun","Peu commun"],["rare","Rare"],["epique","Épique"],["legendaire","Légendaire"]])}${input("Prix","price",payload.price||0,"number",'min="0"')}${input("Taille maximale de pile","stack_limit",payload.stack_limit||999,"number",'min="1"')}</div><div class="checks">${check("Empilable","stackable",payload.stackable!==false)}${check("Consommable","consumable",!!payload.consumable)}${check("Vendable","sellable",payload.sellable!==false)}</div><details><summary>Bâtiments associés explicitement</summary><p class="field-note">Les usages dans les recettes, productions et livraisons sont détectés automatiquement. Ajoute seulement les associations complémentaires.</p><div class="item-relations">${state.catalogs.building.map(building=>{const existing=relations.find(x=>x.building_key===building.entity_key);return `<div class="item-relation"><label class="check"><input type="checkbox" data-item-building="${escapeHtml(building.entity_key)}" ${existing?"checked":""}><span>${escapeHtml(`${building.payload.emoji||"🏰"} ${building.payload.name}`)}</span></label><select data-item-relation="${escapeHtml(building.entity_key)}"><option value="related">Associé à</option><option value="produced_by">Produit par</option><option value="used_by">Utilisé par</option><option value="sold_by">Vendu par</option><option value="accepted_by">Accepté par</option></select></div>`}).join("")}</div></details></section>`;relations.forEach(x=>{const field=root.querySelector(`[data-item-relation="${CSS.escape(x.building_key)}"]`);if(field)field.value=x.relation||"related"}); }
   if (state.type === "event") { root.innerHTML = `<section class="form-section"><h3>Déclenchement</h3><div class="form-grid">${select("Type","trigger_type",payload.trigger?.type||"manual",[["manual","Manuel"],["scheduled","Date programmée"],["recurring","Récurrent"],["action","Action de jeu"],["players","Nombre de joueurs"]])}${input("Expression / valeur","trigger_value",payload.trigger?.value||"")}${input("Début","starts_at",payload.starts_at||"","datetime-local")}${input("Fin","ends_at",payload.ends_at||"","datetime-local")}${input("Priorité","priority",payload.priority||0,"number")}</div><div class="checks">${check("Événement activé","enabled",payload.enabled!==false)}</div><div id="effects"></div><button type="button" class="secondary" id="add-effect">＋ Ajouter un résultat</button></section>`; (payload.effects||[]).forEach(effect => addEffect($("#effects"),effect)); $("#add-effect").onclick=()=>addEffect($("#effects"),{}); }
@@ -484,6 +543,23 @@ function bindPropertyPanel() {
   panel.querySelector(".remove-page")?.addEventListener("click",()=>{const fallback=state.interfaceDraft.pages.find(item=>item.key!==page.key);state.interfaceDraft.pages=state.interfaceDraft.pages.filter(item=>item.key!==page.key);state.interfaceDraft.pages.forEach(item=>item.components.forEach(child=>{if(child.interaction?.type==="navigate"&&child.interaction.page===page.key)child.interaction.page=fallback.key;(child.options||[]).forEach(option=>{if(option.interaction?.type==="navigate"&&option.interaction.page===page.key)option.interaction.page=fallback.key;});}));if(state.interfaceDraft.start_page===page.key)state.interfaceDraft.start_page=fallback.key;state.selectedPage=fallback.key;state.selectedComponent=null;renderVisualStudio();});
 }
 
+function soundTrackChecklist(type, selected=[]) {
+  const entries=state.catalogs.audio.filter(entity=>(entity.payload.audio_type||entity.payload.channel||"sfx")===type);
+  return `<div class="sound-track-list" data-sound-type="${type}">${entries.map(entity=>`<label class="check"><input type="checkbox" value="${escapeHtml(entity.entity_key)}" ${selected.includes(entity.entity_key)?"checked":""}><span>${escapeHtml(entity.payload.name)}</span></label>`).join("")||'<small class="field-note">Aucun son de ce type dans la banque.</small>'}</div>`;
+}
+
+function addSoundGroup(group={}) {
+  const element=document.createElement("details");element.className="module-card sound-group";element.open=!group.key;element.dataset.original=JSON.stringify(group);const tracks=group.tracks||{};
+  element.innerHTML=`<summary><strong>🎼 ${escapeHtml(group.name||group.key||"Nouveau groupe")}</strong><small>${Object.values(tracks).flat().length||0} piste(s)</small></summary><div class="module-content"><button type="button" class="remove">×</button><div class="form-grid">${input("Nom du groupe","sound_group_name",group.name||"")}${input("Identifiant","sound_group_key",group.key||"")}${input("Volume général","sound_group_volume",group.volume??1,"number",'min="0" max="1" step="0.05"')}</div><div class="sound-lanes"><section><h4>🎵 Musique</h4>${soundTrackChecklist("music",tracks.music||[])}</section><section><h4>🌲 Ambiance</h4>${soundTrackChecklist("ambience",tracks.ambience||[])}</section><section><h4>💥 SFX</h4>${soundTrackChecklist("sfx",tracks.sfx||[])}</section><section><h4>🗣️ Voix</h4>${soundTrackChecklist("voice",tracks.voice||[])}</section></div></div>`;
+  $("#sound-groups").append(element);element.querySelector(".remove").onclick=()=>{element.remove();refreshSoundGroupSelectors();};element.querySelector('[data-field="sound_group_name"]').oninput=e=>{if(!element.querySelector('[data-field="sound_group_key"]').dataset.touched)element.querySelector('[data-field="sound_group_key"]').value=technicalKey(e.target.value,"ambiance");element.querySelector("summary strong").textContent=`🎼 ${e.target.value||"Nouveau groupe"}`;refreshSoundGroupSelectors();};element.querySelector('[data-field="sound_group_key"]').oninput=e=>{e.target.dataset.touched="true";refreshSoundGroupSelectors();};
+}
+
+function readSoundGroups(){return $$("#sound-groups > .sound-group").map((element,index)=>{const tracks={};element.querySelectorAll("[data-sound-type]").forEach(lane=>tracks[lane.dataset.soundType]=[...lane.querySelectorAll('input:checked')].map(input=>input.value));return {key:fieldValue("sound_group_key",element)||`ambiance_${index+1}`,name:fieldValue("sound_group_name",element)||`Ambiance ${index+1}`,volume:fieldValue("sound_group_volume",element)??1,tracks};});}
+function currentSoundGroupOptions(value=""){const groups=readSoundGroups();return [["","Choisir un groupe…"],...groups.map(group=>[group.key,group.name]),...(value&&!groups.some(group=>group.key===value)?[[value,`⚠ ${value}`]]:[])];}
+function refreshSoundGroupSelectors(){$$('[data-sound-group-selector]').forEach(field=>{const value=field.value;field.innerHTML=currentSoundGroupOptions(value).map(([key,label])=>`<option value="${escapeHtml(key)}" ${key===value?"selected":""}>${escapeHtml(label)}</option>`).join("");});}
+function addSoundRoute(route={}){const row=document.createElement("div");row.className="builder sound-route";row.innerHTML=`<button type="button" class="remove">×</button><div class="form-grid">${select("Événement","sound_route_event",route.event||"",catalogOptions("event",route.event||""))}${select("Groupe à activer","sound_route_group",route.group_key||"",currentSoundGroupOptions(route.group_key||"")).replace('data-field="sound_route_group"','data-field="sound_route_group" data-sound-group-selector')}</div>`;$("#sound-routes").append(row);row.querySelector(".remove").onclick=()=>row.remove();}
+function readSoundRoutes(){return $$("#sound-routes > .sound-route").map(row=>({event:fieldValue("sound_route_event",row),group_key:fieldValue("sound_route_group",row)})).filter(route=>route.event&&route.group_key);}
+
 function renderBuildingFields(payload, preset=null) {
   const root = $("#type-fields");
   const presetInfo = preset || KingdomBuildingPresets.find(item => item.key === payload.building_kind);
@@ -499,6 +575,10 @@ function renderBuildingFields(payload, preset=null) {
   <details class="advanced"><summary>🏗️ Configuration modulaire complète ${moduleCount ? `(${moduleCount} éléments)` : ""}</summary><div class="advanced-content"><p class="field-note">Cette configuration est la source de vérité du bâtiment. Pour les bâtiments importés, les actions sont régénérées automatiquement à partir de ces valeurs.</p><label>Paramètres du bâtiment (JSON)<textarea data-field="modules_json" data-help="modules_json" rows="12" spellcheck="false">${escapeHtml(JSON.stringify(modules,null,2))}</textarea></label>${select("Origine des actions","action_mode",payload.action_mode||"manual",[["manual","Actions éditées ci-dessus"],["generated","Actions générées depuis les modules"]])}</div></details>
   <details class="advanced"><summary>🎭 Apparence et accès Discord</summary><div class="advanced-content form-grid">${input("Couleur Discord","color",payload.color||"7a1f1f")}${input("Personnage associé (facultatif)","npc_name",payload.npc_name||"")}${input("Rôles spéciaux autorisés (séparés par des virgules)","required_roles",(access.required_roles||[]).join(", "))}${check("Bâtiment visible dans le Royaume","building_visible",access.visible!==false)}${check("Salon textuel visible uniquement dans le vocal","temporary_text",access.temporary_text!==false)}</div></details></div>
   <div data-building-panel="visual" hidden>${visualStudioMarkup()}</div>`;
+  root.querySelector('.building-editor-tabs').insertAdjacentHTML("beforeend",'<button type="button" data-building-tab="sound">🔊 Gestion sonore</button>');
+  const sound=modules.audio||{},assignedBots=state.catalogs.bot.filter(entity=>entity.payload.bot_type==="voice"&&entity.payload.building_key===buildingKey);
+  root.insertAdjacentHTML("beforeend",`<div data-building-panel="sound" hidden><section class="form-section"><div class="section-copy"><span class="step-dot">🔊</span><div><h3>Ambiance du bâtiment</h3><p>Le bot attribué rejoint le vocal de ce bâtiment et exécute les sons configurés dans les actions.</p></div></div><div class="audio-bot-summary"><b>Bot attribué</b><span>${assignedBots.length?assignedBots.map(bot=>`🤖 ${escapeHtml(bot.payload.name)}`).join(", "):"⚠ Aucun bot vocal attribué — ouvrez Bots Discord pour en choisir un."}</span></div><div class="form-grid">${select("Ambiance générale","audio_default_group",sound.default_group_key||"",[["","Aucune ambiance automatique"]]).replace('data-field="audio_default_group"','data-field="audio_default_group" data-sound-group-selector')}</div><div class="section-head"><div><b>Groupes sonores</b><small class="field-note">Cliquez sur un groupe pour modifier ses musiques, ambiances, SFX et voix.</small></div><button type="button" class="secondary" id="add-sound-group">＋ Ajouter un groupe</button></div><div id="sound-groups"></div></section><section class="form-section"><div class="section-head"><div><b>Changements selon les événements</b><small class="field-note">Quand KingdomEvent émet l’événement choisi, le bot bascule vers ce groupe.</small></div><button type="button" class="secondary" id="add-sound-route">＋ Ajouter une règle</button></div><div id="sound-routes"></div></section></div>`);
+  (sound.groups||[]).forEach(addSoundGroup);(sound.event_routes||[]).forEach(addSoundRoute);refreshSoundGroupSelectors();$("#add-sound-group").onclick=()=>{addSoundGroup({tracks:{music:[],ambience:[],sfx:[],voice:[]}});refreshSoundGroupSelectors();};$("#add-sound-route").onclick=()=>addSoundRoute({});
   root.querySelector('[data-building-panel="mechanics"] > details').insertAdjacentHTML("beforebegin",`<section class="form-section"><div class="section-copy"><span class="step-dot">🚚</span><div><h3>Livraisons et transferts</h3><p>Discord propose uniquement les ressources acceptées réellement présentes dans l’inventaire.</p></div></div><div class="section-head"><b>Ressources livrables</b><button type="button" class="secondary" id="add-delivery">＋ Ajouter une ressource livrable</button></div><div id="delivery-modules"></div><div class="checks">${check("Autoriser Tout livrer","delivery_all",modules.delivery_mode==="all_available")}</div></section>`);
   root.querySelector('[data-building-panel="mechanics"] > details').insertAdjacentHTML("beforebegin",`<section class="form-section"><div class="section-copy"><span class="step-dot">🛒</span><div><h3>Commerce, recettes, récits et jeux</h3><p>Ces réglages alimentent directement les menus Discord. Aucun JSON n'est nécessaire pour les opérations courantes.</p></div></div><div class="section-head"><b>Produits</b><button type="button" class="secondary" id="add-product">＋ Ajouter un produit</button></div><div id="product-modules"></div><div class="section-head"><b>Recettes temporisées</b><button type="button" class="secondary" id="add-recipe">＋ Ajouter une recette</button></div><div id="recipe-modules"></div><div class="section-head"><b>Rumeurs et récits pondérés</b><button type="button" class="secondary" id="add-rumor">＋ Ajouter un récit</button></div><div id="rumor-modules"></div><div class="form-grid">${input("Cooldown joueur (secondes)","rumor_player_cooldown",modules.rumors?.player_cooldown_seconds||0,"number","min=0")}${input("Cooldown global (secondes)","rumor_global_cooldown",modules.rumors?.global_cooldown_seconds||0,"number","min=0")}</div><div class="section-head"><b>Jeux configurables</b><button type="button" class="secondary" id="add-game">＋ Ajouter un jeu</button></div><div id="game-modules"></div></section>`);
   (payload.actions||[]).forEach(addAction);
@@ -610,13 +690,16 @@ function legacyOutcomeEffects(outcome){return Object.entries(outcome.rewards||{}
 
 function addOutcomeEffect(container,effect={}) {
   const element=document.createElement("div");element.className="builder outcome-effect";element.dataset.original=JSON.stringify(effect);container.append(element);
+  const outcomeTypes=[["reward","Donner au joueur"],["stock_reward","Ajouter au stock d’un bâtiment"],["cost","Retirer au joueur"],["play_audio","Jouer un son"],["set_audio_group","Changer l’ambiance"],["message","Afficher un message"],["profession","Donner de l’expérience"],["emit","Envoyer un événement"],["state","Modifier un état"]];
   const render=()=>{const type=element.querySelector('[data-field="outcome_effect_type"]')?.value||effect.type||"reward";let fields="";
     if(["reward","cost","stock_reward"].includes(type)){const amount=effect.amount??1,min=Array.isArray(amount)?amount[0]:amount,max=Array.isArray(amount)?amount[1]:amount;fields=`${itemSelector("Ressource","outcome_effect_resource",effect.resource||effect.item||"","resource")}${input("Minimum","outcome_effect_min",min,"number")}${input("Maximum","outcome_effect_max",max,"number")}${type==="stock_reward"?select("Stock du bâtiment","outcome_effect_building",effect.building||"",catalogOptions("building",effect.building||"")):""}`;}
+    else if(type==="play_audio")fields=select("Son joué","outcome_effect_audio_key",effect.audio_key||"",audioOptions(effect.audio_key||""));
+    else if(type==="set_audio_group")fields=select("Nouvelle ambiance","outcome_effect_group_key",effect.group_key||"",currentSoundGroupOptions(effect.group_key||""));
     else if(type==="message")fields=input("Message","outcome_effect_text",effect.text||"");
     else if(type==="profession")fields=`${select("Métier","outcome_effect_profession",effect.profession||"",professionOptions(effect.profession||""))}${input("Expérience","outcome_effect_experience",effect.experience||0,"number")}${input("XP par niveau","outcome_effect_xp_level",effect.experience_per_level||100,"number")}`;
     else if(type==="emit")fields=`${select("Événement","outcome_effect_event",effect.event||"",catalogOptions("event",effect.event||""))}`;
     else fields=`${input("État à modifier","outcome_effect_state",effect.key||"")}${select("Opération","outcome_effect_operation",effect.operation||"set",[["set","Définir"],["increment","Ajouter"]])}${input("Valeur","outcome_effect_value",effect.value??1,"number")}`;
-    element.innerHTML=`<button type="button" class="remove">×</button><div class="outcome-effect-grid">${select("Type","outcome_effect_type",type,[["reward","Donner au joueur"],["stock_reward","Ajouter au stock d’un bâtiment"],["cost","Retirer au joueur"],["message","Afficher un message"],["profession","Donner de l’expérience"],["emit","Envoyer un événement"],["state","Modifier un état"]])}${fields}</div>`;element.querySelector('[data-field="outcome_effect_type"]').onchange=event=>{effect={type:event.target.value};render();};element.querySelector(".remove").onclick=()=>element.remove();};render();
+    element.innerHTML=`<button type="button" class="remove">×</button><div class="outcome-effect-grid">${select("Type","outcome_effect_type",type,outcomeTypes)}${fields}</div>`;element.querySelector('[data-field="outcome_effect_type"]').onchange=event=>{effect={type:event.target.value};render();};element.querySelector(".remove").onclick=()=>element.remove();};render();
 }
 
 function addAction(action={}) {
@@ -647,6 +730,7 @@ function addAction(action={}) {
 function addEffect(container, effect={}) {
   const element=document.createElement("div");element.className="builder effect-builder";element.dataset.originalEffect=JSON.stringify(effect);container.append(element);
   const types=[["message","Afficher un message"],["reward","Donner une ressource"],["cost","Retirer une ressource"],["profession","Gérer un métier / XP"],["schedule","Lancer une activité temporisée"],["claim_scheduled","Récupérer une activité terminée"],["emit","Déclencher un événement"],["stock_cost","Retirer du stock du bâtiment"],["stock_reward","Ajouter au stock du bâtiment"],["durability","User un outil"],["repair","Réparer un outil"],["random_reward","Butin aléatoire avancé"],["random_bundle","Résultat groupé avancé"],["random_message","Message aléatoire avancé"],["upgrade","Amélioration avancée"]];
+  types.splice(3,0,["play_audio","Jouer un son"],["set_audio_group","Changer l’ambiance"]);
   const render=()=>{const type=effect.type||"message";let fields="",afterRender=()=>{};
     if(type==="message")fields=`<label class="effect-wide">Message affiché au joueur<textarea data-field="effect_text" rows="3" placeholder="Décris clairement ce qui vient de se passer.">${escapeHtml(effect.text||"")}</textarea></label><p class="effect-help">Un message n’a pas de quantité : seul ce texte sera affiché.</p>`;
     else if(["reward","cost"].includes(type))fields=`${itemSelector(type==="reward"?"Ressource donnée":"Ressource retirée","effect_resource",effect.resource||"","any")}${input("Quantité","effect_amount",effect.amount??1,"number","min=0")}`;
@@ -660,6 +744,8 @@ function addEffect(container, effect={}) {
     else fields=`<p class="effect-help">Ce résultat avancé conserve sa configuration actuelle. Pour une nouvelle activité, préfère les zones et résultats pondérés de la section Métiers.</p>`;
     element.innerHTML=`<button type="button" class="remove" aria-label="Supprimer ce résultat">×</button><div class="effect-editor-head">${select("Résultat","effect_type",type,types)}</div><div class="effect-specific-fields">${fields}</div>`;
     element.querySelector('[data-field="effect_type"]').onchange=event=>{effect={type:event.target.value};element.dataset.originalEffect=JSON.stringify(effect);render();};element.querySelector(".remove").onclick=()=>element.remove();bindItemSelectors(element);afterRender();
+    if(type==="play_audio")element.querySelector(".effect-specific-fields").innerHTML=`${select("Son joué dans le bâtiment","effect_audio_key",effect.audio_key||"",audioOptions(effect.audio_key||""))}<p class="effect-help">Le bot vocal attribué au bâtiment joue ce son, puis reprend l’ambiance générale.</p>`;
+    if(type==="set_audio_group")element.querySelector(".effect-specific-fields").innerHTML=`${select("Nouvelle ambiance","effect_group_key",effect.group_key||"",currentSoundGroupOptions(effect.group_key||""))}<p class="effect-help">Le changement reste actif jusqu’au prochain groupe.</p>`;
   };render();
 }
 
@@ -670,6 +756,8 @@ function readEffects(container) {
       const operation=fieldValue("effect_profession_operation",element)||"experience",profession=fieldValue("effect_profession",element);
       return operation==="experience"?{type,operation,profession,experience:fieldValue("effect_profession_experience",element)||0,experience_per_level:100}:{type,operation,profession,exclusive:true,block_when_pending:true};
     }
+    if(type==="play_audio")return {type,audio_key:fieldValue("effect_audio_key",element)};
+    if(type==="set_audio_group")return {type,group_key:fieldValue("effect_group_key",element)};
     if(type==="schedule")return {...JSON.parse(element.dataset.originalEffect||"{}"),type,action:fieldValue("effect_action",element),duration_seconds:fieldValue("effect_duration",element),limit_scope:fieldValue("effect_limit_scope",element),max_active:fieldValue("effect_max_active",element),category:fieldValue("effect_category",element)||"",effects:readEffects(element.querySelector(".scheduled-effects"))};
     if(type==="claim_scheduled")return {type,action:fieldValue("effect_action",element)};
     if(["stock_cost","stock_reward"].includes(type))return {type,item:fieldValue("effect_stock_item",element),amount:fieldValue("effect_amount",element),building:fieldValue("effect_stock_building",element)};
@@ -738,6 +826,8 @@ function readProfessionModules() {
 function readOutcomeEffects(container) {
   return [...container.querySelectorAll(":scope > .outcome-effect")].map(element=>{
     const type=fieldValue("outcome_effect_type",element);
+    if(type==="play_audio")return {type,audio_key:fieldValue("outcome_effect_audio_key",element)};
+    if(type==="set_audio_group")return {type,group_key:fieldValue("outcome_effect_group_key",element)};
     if(["reward","cost","stock_reward"].includes(type)){
       const minimum=fieldValue("outcome_effect_min",element),maximum=fieldValue("outcome_effect_max",element);
       const amount=minimum===maximum?minimum:[minimum,maximum];
@@ -769,7 +859,7 @@ function readActivityModules() {
 }
 
 function buildPayload() {
-  const payload = state.type === "building" ? clone(state.buildingBase || {}) : state.type === "interface" ? clone(state.interfaceDraft || {}) : {};
+  const payload = state.type === "building" ? clone(state.buildingBase || {}) : state.type === "interface" ? clone(state.interfaceDraft || {}) : ["audio","bot"].includes(state.type) ? clone(state.editing?.payload||{}) : {};
   Object.assign(payload,{name:$("#name").value.trim(),emoji:$("#emoji").value.trim(),description:$("#description").value.trim()});
   if (state.type === "building") {
     let modules = {};
@@ -783,6 +873,7 @@ function buildPayload() {
     modules.rumors={...(modules.rumors||{}),catalogue:readRumorModules(),player_cooldown_seconds:fieldValue("rumor_player_cooldown"),global_cooldown_seconds:fieldValue("rumor_global_cooldown")};
     modules.games=readGameModules();
     modules.delivery_mode=fieldValue("delivery_all")?"all_available":"selected_quantity";
+    modules.audio={...(modules.audio||{}),default_group_key:fieldValue("audio_default_group")||"",groups:readSoundGroups(),event_routes:readSoundRoutes()};
     const buildingKey=$("#key").value.trim();
     const previousTarget=state.interfaceDraft?.target_building_key;
     const interfaceDefinition=clone(state.interfaceDraft||blankInterface(buildingKey,payload.name,payload.emoji,payload.color));
@@ -799,7 +890,7 @@ function buildPayload() {
   if (state.type === "item") Object.assign(payload,{category:fieldValue("category"),type:fieldValue("type"),rarity:fieldValue("rarity"),price:fieldValue("price"),stack_limit:fieldValue("stack_limit"),stackable:fieldValue("stackable"),consumable:fieldValue("consumable"),sellable:fieldValue("sellable"),building_relations:$$('[data-item-building]:checked').map(field=>({building_key:field.dataset.itemBuilding,relation:$(`[data-item-relation="${CSS.escape(field.dataset.itemBuilding)}"]`).value}))});
   if (state.type === "event") Object.assign(payload,{trigger:{type:fieldValue("trigger_type"),value:fieldValue("trigger_value")},starts_at:fieldValue("starts_at")||null,ends_at:fieldValue("ends_at")||null,priority:fieldValue("priority"),enabled:fieldValue("enabled"),effects:readEffects($("#effects"))});
   if (state.type === "bot") Object.assign(payload,{bot_type:fieldValue("bot_type"),application_id_env:fieldValue("application_id_env"),token_env:fieldValue("token_env"),guild_id:fieldValue("guild_id"),presence:fieldValue("presence"),enabled:fieldValue("enabled"),auto_join:fieldValue("auto_join"),voice_channel_id:fieldValue("voice_channel_id")||"0",voice_channel_env:fieldValue("voice_channel_env"),building_key:fieldValue("building_key"),leave_delay:fieldValue("leave_delay"),welcome_folder:fieldValue("welcome_folder"),music_folder:fieldValue("music_folder"),ambience_folder:fieldValue("ambience_folder"),phrase_folder:fieldValue("phrase_folder"),volume:{voice:fieldValue("volume_voice"),music:fieldValue("volume_music"),ambience:fieldValue("volume_ambience"),sfx:fieldValue("volume_sfx")}});
-  if (state.type === "audio") Object.assign(payload,{source:fieldValue("source"),triggers:(fieldValue("triggers")||"").split(",").map(value=>value.trim()).filter(Boolean),channel:fieldValue("channel"),volume:fieldValue("volume"),loop:fieldValue("loop")});
+  if (state.type === "audio") Object.assign(payload,{audio_type:fieldValue("audio_type"),channel:fieldValue("audio_type"),speaker_bot_key:fieldValue("speaker_bot_key")||"",tags:(fieldValue("audio_tags")||"").split(",").map(value=>value.trim()).filter(Boolean),volume:fieldValue("volume"),loop:fieldValue("loop")});
   return payload;
 }
 
@@ -963,6 +1054,8 @@ function activateNavigation(button){
 }
 
 $("#cards").addEventListener("click", async event => {
+  const preview=event.target.closest("[data-audio-preview]");
+  if(preview){event.stopPropagation();await previewAudio(preview.dataset.audioPreview);return;}
   const invite = event.target.closest("[data-invite]");
   if (invite) { event.stopPropagation(); const response=await fetch(`/api/bots/${invite.dataset.invite}/invite`,{headers}); const data=await response.json(); if(!response.ok){alert(data.detail);return;} window.open(data.url,"_blank","noopener"); return; }
   const duplicate = event.target.closest("[data-duplicate]");
@@ -1006,6 +1099,11 @@ $("#save").onclick = async () => {
     button.disabled=true; button.textContent="Enregistrement…";
     const response=await fetch(`/api/content/${state.type}/${$("#key").value}`,{method:"POST",headers,body:JSON.stringify({payload:buildPayload(),expected_version:state.editing?.version})});
     if(!response.ok) throw Error((await response.json()).detail);
+    const saved=await response.json();
+    if(state.type==="audio"){
+      const published=await fetch(`/api/content/audio/${saved.entity_key}/${saved.version}/publish`,{method:"POST",headers,body:"{}"});
+      if(!published.ok)throw Error((await published.json()).detail);
+    }
     closeEditor(); await loadCatalogs(); await load();
   } catch(error) { $("#error").textContent=error.message; }
   finally { button.disabled=false; button.textContent="Enregistrer le brouillon"; }

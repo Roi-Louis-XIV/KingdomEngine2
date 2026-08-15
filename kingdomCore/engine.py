@@ -428,7 +428,20 @@ class GameEngine:
                     claim_hooks = json.loads(job["claim_hooks_json"] or "[]")
                     effects[0:0] = [{"type": "emit", "event": hook["event"], "payload": {**hook.get("payload", {}), "selected_results": selected}} for hook in claim_hooks]
                 elif kind == "emit": emitted.append(Event(str(effect["event"]), f"building:{building_key}", {"discord_id": discord_id, **effect.get("payload", {})}))
+                elif kind == "play_audio":
+                    self.store.queue_audio(db, "play", building_key, audio_key=str(effect["audio_key"]), bot_key=str(effect.get("bot_key", "")), context={"discord_id": discord_id, "action": action_key})
+                elif kind == "set_audio_group":
+                    self.store.queue_audio(db, "set_group", building_key, group_key=str(effect["group_key"]), bot_key=str(effect.get("bot_key", "")), context={"discord_id": discord_id, "action": action_key})
             emitted.extend(self._hook_events(action.get("hooks", {}), "on_success", discord_id, building_key, action_key, {"selected_results": selected_results}))
+            sound_module = building.get("modules", {}).get("audio", {})
+            for event in emitted:
+                for route in sound_module.get("event_routes", []):
+                    if route.get("event") == event.type and route.get("group_key"):
+                        self.store.queue_audio(db, "set_group", building_key, group_key=str(route["group_key"]), context={"discord_id": discord_id, "action": action_key, "event": event.type})
+                for audio_entity in self.store.list("audio", published=True):
+                    audio_payload = audio_entity["payload"]
+                    if event.type in audio_payload.get("triggers", []):
+                        self.store.queue_audio(db, "play", building_key, audio_key=audio_entity["entity_key"], bot_key=str(audio_payload.get("speaker_bot_key", "")), context={"discord_id": discord_id, "action": action_key, "event": event.type})
             snapshot = self.player(discord_id, db)
             result = {
                 "ok": True, "messages": messages, "player": snapshot, "action": action_key,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import random
 import re
 import unicodedata
 from pathlib import Path
@@ -17,12 +18,13 @@ from KingdomData import ContentStore
 class ManagedVoiceBot(discord.Client):
     """Une identité Discord autonome, attachée à un salon et à une ambiance."""
 
-    def __init__(self, key: str, config: dict[str, Any], assets_root: Path) -> None:
+    def __init__(self, key: str, config: dict[str, Any], assets_root: Path, store: ContentStore) -> None:
         intents = discord.Intents.default()
         intents.voice_states = True
         super().__init__(intents=intents)
-        self.key, self.config, self.assets_root = key, config, assets_root
+        self.key, self.config, self.assets_root, self.store = key, config, assets_root, store
         self._audio_lock = asyncio.Lock()
+        self.current_group_key = str(config.get("default_group_key", ""))
 
     @property
     def channel_id(self) -> int:
@@ -66,7 +68,10 @@ class ManagedVoiceBot(discord.Client):
         humans = [member for member in channel.members if not member.bot]
         if humans and voice is None:
             voice = await channel.connect(self_deaf=True)
-            self._start_welcome_then_ambience(voice)
+            if self.current_group_key:
+                self._start_group_background(voice, self.current_group_key)
+            else:
+                self._start_welcome_then_ambience(voice)
         elif not humans and voice is not None:
             await asyncio.sleep(max(0, int(self.config.get("leave_delay", 10))))
             if not [member for member in channel.members if not member.bot]:
@@ -83,6 +88,76 @@ class ManagedVoiceBot(discord.Client):
         options = "-stream_loop -1" if loop else None
         audio = discord.FFmpegPCMAudio(str(track), executable=os.getenv("FFMPEG_PATH", "ffmpeg"), before_options=options)
         return discord.PCMVolumeTransformer(audio, volume=volume)
+
+    def _entity_track(self, audio_key: str) -> tuple[Path, dict[str, Any]]:
+        entity = self.store.get("audio", audio_key, published=True)
+        payload = entity["payload"]
+        relative = str(payload.get("storage_path", payload.get("source", ""))).replace("\\", "/")
+        path = (self.assets_root / relative).resolve()
+        if self.assets_root.resolve() not in path.parents or not path.is_file():
+            raise FileNotFoundError(f"Fichier audio introuvable pour {audio_key}.")
+        return path, payload
+
+    def _building_audio(self) -> dict[str, Any]:
+        building_key = str(self.config.get("building_key", ""))
+        if not building_key:
+            return {}
+        return self.store.get("building", building_key, published=True)["payload"].get("modules", {}).get("audio", {})
+
+    def _group(self, group_key: str) -> dict[str, Any] | None:
+        return next((group for group in self._building_audio().get("groups", []) if group.get("key") == group_key), None)
+
+    async def play_audio(self, audio_key: str) -> None:
+        async with self._audio_lock:
+            voice = await self.ensure_connected()
+            if voice is None or not voice.is_connected():
+                raise RuntimeError("Le bot audio n’est pas connecté au bâtiment.")
+            track, payload = self._entity_track(audio_key)
+            channel = str(payload.get("audio_type", payload.get("channel", "sfx")))
+            if voice.is_playing():
+                voice.stop()
+            loop = asyncio.get_running_loop()
+            source = self._source(track, channel, bool(payload.get("loop", False)))
+            source.volume = float(payload.get("volume", source.volume))
+            voice.play(source, after=lambda error: loop.call_soon_threadsafe(self._resume_background, voice, error))
+
+    async def set_group(self, group_key: str) -> None:
+        group = self._group(group_key)
+        if not group:
+            raise RuntimeError(f"Groupe sonore inconnu : {group_key}.")
+        self.current_group_key = group_key
+        voice = await self.ensure_connected()
+        if voice is None or not voice.is_connected():
+            return
+        tracks = group.get("tracks", {})
+        transition = list(tracks.get("voice", [])) or list(tracks.get("sfx", []))
+        if transition:
+            await self.play_audio(random.choice(transition))
+            return
+        if voice and voice.is_connected():
+            if voice.is_playing():
+                voice.stop()
+            self._start_group_background(voice, group_key)
+
+    def _resume_background(self, voice: discord.VoiceClient, error: Exception | None = None) -> None:
+        if error:
+            print(f"[KingdomVoice] lecture interrompue pour {self.key} : {error}")
+        if self.current_group_key and voice.is_connected() and not voice.is_playing():
+            self._start_group_background(voice, self.current_group_key)
+
+    def _start_group_background(self, voice: discord.VoiceClient, group_key: str) -> None:
+        group = self._group(group_key)
+        if not group:
+            return
+        tracks = group.get("tracks", {})
+        candidates = list(tracks.get("ambience", [])) or list(tracks.get("music", []))
+        if not candidates or not voice.is_connected() or voice.is_playing():
+            return
+        track, payload = self._entity_track(random.choice(candidates))
+        channel = str(payload.get("audio_type", payload.get("channel", "ambience")))
+        source = self._source(track, channel, True)
+        source.volume = float(payload.get("volume", source.volume)) * float(group.get("volume", 1))
+        voice.play(source)
 
     def _start_welcome_then_ambience(self, voice: discord.VoiceClient) -> None:
         welcomes = self._tracks(self.config.get("welcome_folder"))
@@ -103,22 +178,28 @@ class VoiceBotManager:
 
     def __init__(self, store: ContentStore | None = None, assets_root: str | Path | None = None) -> None:
         self.store = store or ContentStore()
-        local_assets = Path(__file__).resolve().parent / "assets"
-        legacy_assets = Path(__file__).resolve().parents[2] / "KingdomEngine" / "KingdomVoice" / "assets"
-        self.assets_root = Path(assets_root) if assets_root else (local_assets if local_assets.exists() else legacy_assets)
+        self.assets_root = Path(assets_root) if assets_root else Path(__file__).resolve().parents[1] / "KingdomData"
         self.clients: dict[str, ManagedVoiceBot] = {}
 
     def configured(self) -> list[dict[str, Any]]:
         return [entity for entity in self.store.list("bot", published=True) if entity["payload"].get("bot_type") == "voice"]
 
     async def run(self) -> None:
+        recovered = self.store.recover_audio()
+        if recovered:
+            print(f"[KingdomVoice] {recovered} commande(s) audio récupérée(s) après interruption.")
         tasks = []
         for entity in self.configured():
             config, key = dict(entity["payload"]), entity["entity_key"]
             building_key = config.get("building_key")
             if building_key:
                 try:
-                    config["voice_channel_name"] = self.store.get("building", str(building_key), published=True)["payload"]["name"]
+                    building = self.store.get("building", str(building_key), published=True)["payload"]
+                    config["voice_channel_name"] = building["name"]
+                    config["default_group_key"] = building.get("modules", {}).get("audio", {}).get("default_group_key", "")
+                    provisioned = self.store.building_channels(str(building_key))
+                    if provisioned.get("voice_channel_id"):
+                        config["voice_channel_id"] = provisioned["voice_channel_id"]
                 except Exception:
                     pass
             if not config.get("enabled", False):
@@ -128,14 +209,54 @@ class VoiceBotManager:
             if not token:
                 print(f"[KingdomVoice] {key} ignoré : variable {config.get('token_env')} absente.")
                 continue
-            client = ManagedVoiceBot(key, config, self.assets_root)
+            client = ManagedVoiceBot(key, config, self.assets_root, self.store)
             self.clients[key] = client
             tasks.append(asyncio.create_task(client.start(token), name=key))
         if not tasks:
             print("[KingdomVoice] Aucun bot vocal activé avec un token configuré.")
             return
+        dispatcher = asyncio.create_task(self._dispatch_audio(), name="audio-dispatcher")
         try: await asyncio.gather(*tasks)
-        finally: await asyncio.gather(*(client.close() for client in self.clients.values()), return_exceptions=True)
+        finally:
+            dispatcher.cancel()
+            await asyncio.gather(dispatcher, return_exceptions=True)
+            await asyncio.gather(*(client.close() for client in self.clients.values()), return_exceptions=True)
+
+    def _client_for(self, command: dict[str, Any], audio: dict[str, Any] | None = None) -> ManagedVoiceBot | None:
+        building_key = str(command.get("building_key", ""))
+        explicit = str(command.get("bot_key") or "")
+        speaker = str((audio or {}).get("speaker_bot_key") or "")
+        if explicit and explicit in self.clients:
+            return self.clients[explicit]
+        if speaker in self.clients and str(self.clients[speaker].config.get("building_key", "")) == building_key:
+            return self.clients[speaker]
+        assigned = next((client for client in self.clients.values() if str(client.config.get("building_key", "")) == building_key), None)
+        return assigned
+
+    async def _dispatch_audio(self) -> None:
+        await asyncio.sleep(2)
+        while not self.is_closed():
+            for command in self.store.pending_audio():
+                error = ""
+                try:
+                    audio = self.store.get("audio", command["audio_key"], published=True)["payload"] if command["audio_key"] else None
+                    client = self._client_for(command, audio)
+                    if client is None:
+                        raise RuntimeError("Aucun bot vocal n’est attribué à ce bâtiment.")
+                    if command["command"] == "play":
+                        await client.play_audio(command["audio_key"])
+                    elif command["command"] == "set_group":
+                        await client.set_group(command["group_key"])
+                    else:
+                        raise RuntimeError(f"Commande audio inconnue : {command['command']}")
+                except Exception as exc:
+                    error = str(exc)
+                    print(f"[KingdomVoice] commande #{command['id']} refusée : {error}")
+                self.store.finish_audio(int(command["id"]), error)
+            await asyncio.sleep(0.75)
+
+    def is_closed(self) -> bool:
+        return bool(self.clients) and all(client.is_closed() for client in self.clients.values())
 
 
 def _normalized_name(value: str) -> str:

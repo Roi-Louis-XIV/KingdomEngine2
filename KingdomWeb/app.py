@@ -7,11 +7,12 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from KingdomData import ConflictError, ContentStore, NotFoundError, ValidationError, SERVER_SETTINGS_KEY, get_server_settings
+from KingdomData.audio_storage import audio_key, safe_audio_path, store_audio_file
 from import_v1 import import_v1
 from kingdomCore.provisioner import managed_bot_permissions, required_bot_permissions
 from KingdomWeb.supervision import AdministrationService, ServiceSupervisor
@@ -107,13 +108,69 @@ def delete_content(entity_type: str, key: str):
 
 @app.post("/api/content/{entity_type}/{key}/{version}/publish", dependencies=[Depends(authorize)])
 def publish_content(entity_type: str, key: str, version: int, body: dict[str, Any] | None = None):
-    try: return store.publish(entity_type, key, version, (body or {}).get("author", "studio"))
+    try:
+        result = store.publish(entity_type, key, version, (body or {}).get("author", "studio"))
+        if entity_type == "building":
+            group_key = str(result["payload"].get("modules", {}).get("audio", {}).get("default_group_key", ""))
+            if group_key:
+                with store.connection() as db:
+                    store.queue_audio(db, "set_group", key, group_key=group_key, context={"source": "KingdomWeb", "reason": "publication"})
+        return result
     except NotFoundError as exc: raise HTTPException(404, str(exc)) from exc
     except ConflictError as exc: raise HTTPException(409, str(exc)) from exc
 
 
 @app.get("/api/changes", dependencies=[Depends(authorize)])
 def changes(after: int = 0): return store.changes(after)
+
+
+@app.post("/api/audio/upload", dependencies=[Depends(authorize)])
+async def upload_audio(
+    file: UploadFile = File(...),
+    name: str = Form(...),
+    audio_type: str = Form("sfx"),
+    speaker_bot_key: str = Form(""),
+    description: str = Form(""),
+    tags: str = Form(""),
+    volume: float = Form(0.5),
+    loop: bool = Form(False),
+):
+    """Importe le binaire dans KingdomData et publie sa fiche dans la banque sonore."""
+    base = audio_key(name or file.filename or "audio")
+    key, suffix = base, 2
+    while True:
+        try:
+            store.get("audio", key)
+        except NotFoundError:
+            break
+        key, suffix = f"{base[:58]}_{suffix}", suffix + 1
+    try:
+        metadata = store_audio_file(file.file, key, file.filename or f"{key}.mp3")
+        payload = {
+            "name": name.strip(), "description": description.strip(), "emoji": "🔊",
+            "audio_type": audio_type, "channel": audio_type, "speaker_bot_key": speaker_bot_key.strip(),
+            "tags": [tag.strip() for tag in tags.split(",") if tag.strip()],
+            "volume": volume, "loop": loop, "triggers": [], **metadata,
+        }
+        draft = store.save("audio", key, payload, "studio-audio")
+        return store.publish("audio", key, draft["version"], "studio-audio")
+    except (ValidationError, ValueError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    finally:
+        await file.close()
+
+
+@app.get("/api/audio/{key}/file", dependencies=[Depends(authorize)])
+def audio_file(key: str):
+    try:
+        entity = store.get("audio", key)
+        source = str(entity["payload"].get("storage_path", entity["payload"].get("source", "")))
+        path = safe_audio_path(source)
+    except (NotFoundError, ValidationError) as exc:
+        raise HTTPException(404, str(exc)) from exc
+    if not path.is_file():
+        raise HTTPException(404, "Le fichier audio est absent de KingdomData.")
+    return FileResponse(path, filename=str(entity["payload"].get("file_name") or path.name))
 
 
 @app.get("/api/server/settings", dependencies=[Depends(authorize)])
@@ -231,7 +288,7 @@ def bot_statuses():
             "enabled": bool(config.get("enabled")),
             "token_env": token_env,
             "token_configured": bool(token_env and os.getenv(token_env)),
-            "channel_configured": bool(config.get("voice_channel_id") or (config.get("voice_channel_env") and os.getenv(str(config["voice_channel_env"])))),
+            "channel_configured": bool(config.get("building_key") or config.get("voice_channel_id") or (config.get("voice_channel_env") and os.getenv(str(config["voice_channel_env"])))),
         })
     return statuses
 
