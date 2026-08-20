@@ -33,11 +33,12 @@ def safe_audio_path(storage_path: str) -> Path:
     return target
 
 
-def store_audio_file(stream: BinaryIO, entity_key: str, original_name: str) -> dict[str, object]:
+def store_audio_file(stream: BinaryIO, entity_key: str, original_name: str, namespace: str = "") -> dict[str, object]:
     extension = Path(original_name or "").suffix.lower()
     if extension not in AUDIO_EXTENSIONS:
         raise ValidationError("Format non pris en charge. Utilisez MP3, WAV, OGG, FLAC, M4A, AAC ou OPUS.")
-    directory = AUDIO_ROOT / entity_key
+    safe_namespace = re.sub(r"[^a-z0-9_-]+", "-", namespace.lower()).strip("-")
+    directory = AUDIO_ROOT / "servers" / safe_namespace / entity_key if safe_namespace else AUDIO_ROOT / entity_key
     directory.mkdir(parents=True, exist_ok=True)
     target = directory / f"source{extension}"
     temporary = directory / f"upload{extension}.tmp"

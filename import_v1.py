@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
 from KingdomData import (
+    ConflictError,
     ContentStore,
     interface_from_activity_modules,
     interface_from_hospitality_modules,
@@ -93,10 +95,28 @@ def import_v1(store: ContentStore, v1_root: str | Path | None = None) -> int:
     _link_existing_v1_items(store, definitions)
     _link_existing_v1_buildings(store, definitions)
     migrate_weighted_activity_results(store)
-    migrate_published_building_interfaces(store)
-    migrate_activity_profession_interfaces(store)
-    migrate_reference_labels(store)
+    for migration in (
+        migrate_published_building_interfaces,
+        migrate_activity_profession_interfaces,
+        migrate_reference_labels,
+    ):
+        _run_concurrent_migration(store, migration)
     return sum((x["type"], x["key"]) not in before for x in definitions)
+
+
+def _run_concurrent_migration(store: ContentStore, migration, attempts: int = 4) -> None:
+    """Laisse Web, Core et Voice migrer la base partagee sans se faire tomber.
+
+    Une collision signifie qu'un autre service vient de publier une version
+    plus recente. On relit alors la base en relancant la migration idempotente.
+    """
+    for attempt in range(attempts):
+        try:
+            migration(store)
+            return
+        except ConflictError:
+            time.sleep(0.05 * (attempt + 1))
+    print(f"[KingdomData] Migration concurrente differee : {migration.__name__}.")
 
 
 def _link_existing_v1_items(store: ContentStore, definitions: list[dict[str, Any]]) -> None:
@@ -106,8 +126,13 @@ def _link_existing_v1_items(store: ContentStore, definitions: list[dict[str, Any
         if current["status"] != "published" or current["payload"].get("consumption"):
             continue
         upgraded = {**current["payload"], "consumption": definition["payload"]["consumption"]}
-        draft = store.save("item", definition["key"], upgraded, "migration-consommables", current["version"])
-        store.publish("item", definition["key"], draft["version"], "migration-consommables")
+        try:
+            draft = store.save("item", definition["key"], upgraded, "migration-consommables", current["version"])
+            store.publish("item", definition["key"], draft["version"], "migration-consommables")
+        except ConflictError:
+            # Un autre service (Web/Core/Voice) a terminé la migration entre
+            # la lecture et l'écriture. Sa version plus récente fait foi.
+            continue
 
 
 def migrate_weighted_activity_results(store: ContentStore) -> int:
@@ -145,9 +170,12 @@ def migrate_weighted_activity_results(store: ContentStore) -> int:
             upgraded_activities.append({**activity, "outcomes": outcomes})
         upgraded = {**payload, "modules": {**modules, "activities": upgraded_activities}}
         upgraded["actions"] = actions_from_modules(published["entity_key"], upgraded["modules"])
-        draft = store.save("building", published["entity_key"], upgraded, "migration-random-result", published["version"])
-        store.publish("building", published["entity_key"], draft["version"], "migration-random-result")
-        migrated += 1
+        try:
+            draft = store.save("building", published["entity_key"], upgraded, "migration-random-result", published["version"])
+            store.publish("building", published["entity_key"], draft["version"], "migration-random-result")
+            migrated += 1
+        except ConflictError:
+            continue
     return migrated
 
 
@@ -171,8 +199,11 @@ def _link_existing_v1_buildings(store: ContentStore, definitions: list[dict[str,
                         interface_from_hospitality_modules if str(target_blueprint).startswith("hospitality") else
                         interface_from_activity_modules)
             upgraded["interface"] = renderer(definition["key"], upgraded, upgraded["actions"])
-            draft = store.save("building", definition["key"], upgraded, "migration-v1-interface-v2", current["version"])
-            store.publish("building", definition["key"], draft["version"], "migration-v1-interface-v2")
+            try:
+                draft = store.save("building", definition["key"], upgraded, "migration-v1-interface-v2", current["version"])
+                store.publish("building", definition["key"], draft["version"], "migration-v1-interface-v2")
+            except ConflictError:
+                pass
             continue
         if payload.get("interface"):
             continue
@@ -181,8 +212,11 @@ def _link_existing_v1_buildings(store: ContentStore, definitions: list[dict[str,
             "interface_key": definition["payload"]["interface_key"],
             "interface": clone_interface(definition["payload"]["interface"]),
         }
-        draft = store.save("building", definition["key"], upgraded, "migration-v1-interface", current["version"])
-        store.publish("building", definition["key"], draft["version"], "migration-v1-interface")
+        try:
+            draft = store.save("building", definition["key"], upgraded, "migration-v1-interface", current["version"])
+            store.publish("building", definition["key"], draft["version"], "migration-v1-interface")
+        except ConflictError:
+            continue
 
 
 def _building_definitions(root: Path) -> list[dict[str, Any]]:

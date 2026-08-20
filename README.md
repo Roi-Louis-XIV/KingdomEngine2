@@ -24,7 +24,13 @@ Copy-Item .env.example .env
 .venv\Scripts\python run.py web
 ```
 
-Ouvrir `http://127.0.0.1:8000`. Le jeton de développement est `change-me`; il faut définir `KINGDOM_ADMIN_TOKEN` en production.
+Ouvrir `http://127.0.0.1:8000`, puis se connecter avec `KINGDOM_ADMIN_USERNAME` et `KINGDOM_ADMIN_PASSWORD` (par défaut `admin` / `change-me` en développement). Le compte administrateur initial est créé au premier démarrage. Il faut impérativement changer ces valeurs en production. `KINGDOM_ADMIN_TOKEN` reste disponible pour les scripts et les anciens clients API, mais l'interface n'enregistre plus ce secret dans le navigateur.
+
+### Comptes et serveurs Discord
+
+La page **Mon profil & serveurs** affiche les serveurs accessibles au compte, l'état d'installation du bot et le rôle détenu sur chacun. Le sélecteur de l'en-tête change de royaume sans mélanger les données : chaque serveur supplémentaire possède sa propre base SQLite sous `var/servers/`, tandis que le registre des comptes et des accès reste centralisé dans KingdomData.
+
+L'administrateur peut créer les profils, ajouter un serveur Discord et attribuer un niveau d'accès : lecture, éditeur, gestionnaire ou propriétaire. Les liens d'installation Discord sont générés pour le serveur sélectionné. KingdomCore confirme ensuite automatiquement dans le profil les serveurs sur lesquels le bot est réellement présent.
 
 Pour Discord, renseigner `KINGDOM_CORE_TOKEN`, puis :
 

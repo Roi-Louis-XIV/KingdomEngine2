@@ -67,7 +67,11 @@ class ManagedVoiceBot(discord.Client):
         voice = channel.guild.voice_client
         humans = [member for member in channel.members if not member.bot]
         if humans and voice is None:
-            voice = await channel.connect(self_deaf=True)
+            # Un bot d'ambiance n'a pas besoin d'être assourdi. Discord affiche
+            # self_deaf=True comme une sourdine, ce qui prête à confusion lors
+            # des tests et masque parfois un mute serveur réel.
+            print(f"[KingdomVoice] {self.key} rejoint #{channel.name} ({channel.id}) pour {len(humans)} joueur(s).")
+            voice = await channel.connect(self_deaf=False)
             if self.current_group_key:
                 self._start_group_background(voice, self.current_group_key)
             else:
@@ -76,6 +80,8 @@ class ManagedVoiceBot(discord.Client):
             await asyncio.sleep(max(0, int(self.config.get("leave_delay", 10))))
             if not [member for member in channel.members if not member.bot]:
                 await voice.disconnect(force=False)
+        elif not humans:
+            print(f"[KingdomVoice] {self.key} attend un joueur dans #{channel.name} ({channel.id}).")
         return voice
 
     def _tracks(self, folder: str | None) -> list[Path]:
@@ -158,6 +164,7 @@ class ManagedVoiceBot(discord.Client):
         source = self._source(track, channel, True)
         source.volume = float(payload.get("volume", source.volume)) * float(group.get("volume", 1))
         voice.play(source)
+        print(f"[KingdomVoice] {self.key} joue {track.name} en boucle (groupe {group_key}).")
 
     def _start_welcome_then_ambience(self, voice: discord.VoiceClient) -> None:
         welcomes = self._tracks(self.config.get("welcome_folder"))
@@ -196,7 +203,12 @@ class VoiceBotManager:
                 try:
                     building = self.store.get("building", str(building_key), published=True)["payload"]
                     config["voice_channel_name"] = building["name"]
-                    config["default_group_key"] = building.get("modules", {}).get("audio", {}).get("default_group_key", "")
+                    audio_module = building.get("modules", {}).get("audio", {})
+                    groups = audio_module.get("groups", [])
+                    # Une fiche créée avant le sélecteur d'ambiance peut avoir
+                    # un groupe valide mais aucune clé par défaut. Le premier
+                    # groupe devient alors le choix naturel et déterministe.
+                    config["default_group_key"] = audio_module.get("default_group_key") or (str(groups[0].get("key", "")) if groups else "")
                     provisioned = self.store.building_channels(str(building_key))
                     if provisioned.get("voice_channel_id"):
                         config["voice_channel_id"] = provisioned["voice_channel_id"]

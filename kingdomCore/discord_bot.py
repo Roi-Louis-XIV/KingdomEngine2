@@ -916,6 +916,43 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
     @bot.event
     async def on_ready():
         nonlocal access_reconciled, deletion_watcher
+        # KingdomWeb affiche ainsi les serveurs sur lesquels l'application
+        # principale est réellement présente, sans se fier à un clic OAuth.
+        with store.connection() as db:
+            tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            if "managed_servers" in tables:
+                guild_ids = [str(guild.id) for guild in bot.guilds]
+                # Migration d'une installation historique : on identifie le
+                # serveur principal grâce aux salons déjà provisionnés.
+                channel_ids = [int(row[0]) for row in db.execute("SELECT voice_channel_id FROM building_discord_channels WHERE voice_channel_id<>''") if str(row[0]).isdigit()]
+                primary_guild = next((guild for guild in bot.guilds if any(guild.get_channel(channel_id) for channel_id in channel_ids)), None)
+                if primary_guild and not db.execute("SELECT 1 FROM managed_servers WHERE guild_id=?", (str(primary_guild.id),)).fetchone():
+                    db.execute(
+                        "UPDATE managed_servers SET guild_id=? WHERE id=(SELECT id FROM managed_servers WHERE guild_id='' ORDER BY id LIMIT 1)",
+                        (str(primary_guild.id),),
+                    )
+                # Tout serveur où le bot est installé devient visible depuis
+                # le profil administrateur, même avant sa configuration.
+                for guild in bot.guilds:
+                    if db.execute("SELECT 1 FROM managed_servers WHERE guild_id=?", (str(guild.id),)).fetchone():
+                        db.execute(
+                            "UPDATE managed_servers SET name=CASE WHEN name='Royaume principal' THEN ? ELSE name END WHERE guild_id=?",
+                            (guild.name, str(guild.id)),
+                        )
+                        continue
+                    slug_base = channel_slug(guild.name) or f"serveur-{guild.id}"
+                    slug, suffixe = slug_base[:48], 2
+                    while db.execute("SELECT 1 FROM managed_servers WHERE slug=?", (slug,)).fetchone():
+                        slug, suffixe = f"{slug_base[:42]}-{suffixe}", suffixe + 1
+                    database_path = str(store.path.parent / "servers" / f"{slug}.db")
+                    db.execute(
+                        "INSERT INTO managed_servers(slug,name,guild_id,database_path,bot_installed,active,created_at) VALUES(?,?,?,?,1,1,?)",
+                        (slug, guild.name, str(guild.id), database_path, datetime.now(timezone.utc).isoformat()),
+                    )
+                db.execute("UPDATE managed_servers SET bot_installed=0 WHERE guild_id<>''")
+                if guild_ids:
+                    placeholders = ",".join("?" for _ in guild_ids)
+                    db.execute(f"UPDATE managed_servers SET bot_installed=1 WHERE guild_id IN ({placeholders})", guild_ids)
         await bind_oath_messages()
         # La navigation du joueur passe exclusivement par les boutons et menus
         # des bâtiments. Une synchronisation vide retire les anciennes commandes

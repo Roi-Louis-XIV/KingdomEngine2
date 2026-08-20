@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import Cookie, Depends, FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -18,10 +19,42 @@ from kingdomCore.provisioner import managed_bot_permissions, required_bot_permis
 from KingdomWeb.supervision import AdministrationService, ServiceSupervisor
 from KingdomWeb.player_admin import PlayerAdministrationService
 from KingdomWeb.item_catalog import ItemCatalogService
+from KingdomWeb.accounts import ErreurAuthentification, ErreurAutorisation, RegistreComptes
 from seed import DEFINITIONS
 import discord
 
-store = ContentStore()
+class MagasinsServeurs:
+    """Selectionne une base KingdomData independante pour chaque serveur."""
+
+    def __init__(self, principal: ContentStore) -> None:
+        self.principal = principal
+        self._selection: ContextVar[ContentStore] = ContextVar("kingdom_store", default=principal)
+        self._magasins: dict[str, ContentStore] = {str(principal.path.resolve()): principal}
+
+    def commencer_requete(self):
+        return self._selection.set(self.principal)
+
+    def finir_requete(self, jeton) -> None:
+        self._selection.reset(jeton)
+
+    def selectionner(self, serveur: dict[str, Any]) -> ContentStore:
+        chemin = str(Path(serveur["database_path"]).resolve())
+        magasin = self._magasins.get(chemin)
+        if magasin is None:
+            magasin = ContentStore(chemin)
+            magasin.initialize()
+            magasin.seed(DEFINITIONS)
+            self._magasins[chemin] = magasin
+        self._selection.set(magasin)
+        return magasin
+
+    def __getattr__(self, nom: str):
+        return getattr(self._selection.get(), nom)
+
+
+magasin_principal = ContentStore()
+store = MagasinsServeurs(magasin_principal)
+comptes = RegistreComptes(magasin_principal.path)
 
 
 def _application_id_env(config: dict[str, Any]) -> str:
@@ -38,6 +71,7 @@ def _application_id_env(config: dict[str, Any]) -> str:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    comptes.initialiser()
     store.initialize()
     store.seed(DEFINITIONS)
     import_v1(store)
@@ -52,26 +86,70 @@ app.mount("/static", StaticFiles(directory=STATIC), name="static")
 @app.middleware("http")
 async def disable_studio_cache(request, call_next):
     """Le Studio évolue vite : ne jamais conserver une ancienne interface JS."""
-    response = await call_next(request)
+    jeton_selection = store.commencer_requete() if isinstance(store, MagasinsServeurs) else None
+    try:
+        response = await call_next(request)
+    finally:
+        if jeton_selection is not None:
+            store.finir_requete(jeton_selection)
     if request.url.path == "/" or request.url.path.startswith("/static/"):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
     return response
 
 
-def authorize(authorization: str | None = Header(None)) -> None:
+def _permission_requise(request: Request) -> str:
+    chemin = request.url.path
+    if request.method == "GET":
+        return "joueurs:voir" if "/players" in chemin else "contenu:voir"
+    if "/players" in chemin:
+        return "joueurs:modifier"
+    if "/server/settings" in chemin:
+        return "serveur:parametrer"
+    if "/services/" in chemin or "/import/" in chemin:
+        return "serveur:superviser"
+    if "/bots/" in chemin and chemin.endswith("/invite"):
+        return "bots:installer"
+    return "contenu:modifier"
+
+
+def _autoriser(request: Request, authorization: str | None, royaume_session: str | None, x_kingdom_server: str | None, permission: str | None = None) -> dict[str, Any]:
     expected = os.getenv("KINGDOM_ADMIN_TOKEN", "change-me")
-    if authorization != f"Bearer {expected}": raise HTTPException(401, "Jeton administrateur invalide.")
+    if authorization == f"Bearer {expected}":
+        compte = {"id": 0, "username": "legacy-admin", "display_name": "Administrateur", "is_admin": True}
+        serveurs = comptes.lister_serveurs(0, True)
+    else:
+        compte = comptes.compte_session(royaume_session or "")
+        if not compte:
+            raise HTTPException(401, "Connectez-vous à KingdomWeb.")
+        serveurs = comptes.lister_serveurs(int(compte["id"]), bool(compte["is_admin"]))
+    try:
+        serveur = next((item for item in serveurs if item["slug"] == x_kingdom_server), None) if x_kingdom_server else (serveurs[0] if serveurs else None)
+        if not serveur:
+            raise ErreurAutorisation("Aucun serveur accessible.")
+        droit = permission or _permission_requise(request)
+        if not comptes.autorise(compte, serveur, droit):
+            raise ErreurAutorisation(f"Permission manquante : {droit}.")
+    except ErreurAutorisation as exc:
+        raise HTTPException(403, str(exc)) from exc
+    if isinstance(store, MagasinsServeurs):
+        store.selectionner(serveur)
+    request.state.compte, request.state.serveur = compte, serveur
+    return compte
+
+
+async def authorize(request: Request, authorization: str | None = Header(None), royaume_session: str | None = Cookie(None), x_kingdom_server: str | None = Header(None)) -> dict[str, Any]:
+    return _autoriser(request, authorization, royaume_session, x_kingdom_server)
 
 
 # Deux dépendances distinctes préparent une future permission de consultation
 # sans écriture, tout en conservant le jeton administrateur actuel.
-def authorize_player_view(authorization: str | None = Header(None)) -> None:
-    authorize(authorization)
+async def authorize_player_view(request: Request, authorization: str | None = Header(None), royaume_session: str | None = Cookie(None), x_kingdom_server: str | None = Header(None)) -> dict[str, Any]:
+    return _autoriser(request, authorization, royaume_session, x_kingdom_server, "joueurs:voir")
 
 
-def authorize_player_edit(authorization: str | None = Header(None)) -> None:
-    authorize(authorization)
+async def authorize_player_edit(request: Request, authorization: str | None = Header(None), royaume_session: str | None = Cookie(None), x_kingdom_server: str | None = Header(None)) -> dict[str, Any]:
+    return _autoriser(request, authorization, royaume_session, x_kingdom_server, "joueurs:modifier")
 
 
 @app.get("/")
@@ -80,6 +158,121 @@ def index(): return FileResponse(STATIC / "index.html")
 
 @app.get("/api/health")
 def health(): return {"ok": True, "module": "KingdomWeb", "version": "2.0.0"}
+
+
+@app.post("/api/auth/login")
+def connexion_compte(body: dict[str, Any], response: Response):
+    try:
+        compte = comptes.authentifier(str(body.get("username", "")), str(body.get("password", "")))
+    except (ErreurAuthentification, ValueError) as exc:
+        raise HTTPException(401, str(exc)) from exc
+    jeton = comptes.ouvrir_session(int(compte["id"]))
+    response.set_cookie(
+        "royaume_session", jeton, httponly=True, samesite="strict", max_age=7 * 24 * 3600,
+        secure=os.getenv("KINGDOM_SECURE_COOKIES", "0") == "1",
+    )
+    return {"ok": True, "account": compte}
+
+
+@app.post("/api/auth/logout")
+def deconnexion_compte(response: Response, royaume_session: str | None = Cookie(None)):
+    comptes.fermer_session(royaume_session or "")
+    response.delete_cookie("royaume_session")
+    return {"ok": True}
+
+
+def _bots_disponibles() -> list[dict[str, Any]]:
+    resultats = []
+    for entity in magasin_principal.list("bot", published=True):
+        configuration = entity["payload"]
+        application_env = _application_id_env(configuration)
+        resultats.append({
+            "key": entity["entity_key"], "name": configuration.get("name", entity["entity_key"]),
+            "type": configuration.get("bot_type", "text"), "enabled": bool(configuration.get("enabled")),
+            "available": bool(application_env and os.getenv(application_env)),
+        })
+    return resultats
+
+
+@app.get("/api/profile", dependencies=[Depends(authorize)])
+def profil(request: Request):
+    compte = request.state.compte
+    serveurs = comptes.lister_serveurs(int(compte["id"]), bool(compte["is_admin"])) if int(compte["id"]) else comptes.lister_serveurs(0, True)
+    bots = _bots_disponibles()
+    return {
+        "account": compte,
+        "current_server": request.state.serveur["slug"],
+        "servers": [{**serveur, "bots": [{**bot, "installed": bool(serveur["bot_installed"])} for bot in bots]} for serveur in serveurs],
+    }
+
+
+@app.post("/api/profile/password", dependencies=[Depends(authorize)])
+def modifier_mot_de_passe(request: Request, body: dict[str, Any], response: Response):
+    compte = request.state.compte
+    if int(compte["id"]) == 0:
+        raise HTTPException(422, "Le compte de compatibilité par jeton n'a pas de mot de passe.")
+    try:
+        comptes.changer_mot_de_passe(int(compte["id"]), str(body.get("current_password", "")), str(body.get("new_password", "")))
+    except (ErreurAuthentification, ValueError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    response.delete_cookie("royaume_session")
+    return {"ok": True, "message": "Mot de passe modifié. Reconnectez-vous."}
+
+
+async def _administrateur_global(request: Request, compte: dict[str, Any] = Depends(authorize)) -> dict[str, Any]:
+    if not compte.get("is_admin"):
+        raise HTTPException(403, "Compte administrateur requis.")
+    return compte
+
+
+@app.get("/api/accounts", dependencies=[Depends(_administrateur_global)])
+def lister_comptes():
+    return {"accounts": comptes.lister_comptes()}
+
+
+@app.post("/api/accounts", dependencies=[Depends(_administrateur_global)])
+def creer_compte(body: dict[str, Any]):
+    try:
+        compte = comptes.creer_compte(
+            str(body.get("username", "")), str(body.get("display_name", "")), str(body.get("password", "")),
+            administrateur=bool(body.get("is_admin", False)), email=str(body.get("email", "")),
+        )
+        for acces in body.get("access", []):
+            comptes.attribuer_acces(int(compte["id"]), str(acces.get("server_slug", "")), str(acces.get("role", "lecture")), acces.get("permissions", []))
+        return compte
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/api/accounts/{account_id}/access", dependencies=[Depends(_administrateur_global)])
+def attribuer_acces_compte(account_id: int, body: dict[str, Any]):
+    try:
+        comptes.compte(account_id)
+        comptes.attribuer_acces(account_id, str(body.get("server_slug", "")), str(body.get("role", "lecture")), body.get("permissions", []))
+        return {"ok": True}
+    except (ErreurAuthentification, ValueError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.delete("/api/accounts/{account_id}/access/{server_slug}", dependencies=[Depends(_administrateur_global)])
+def retirer_acces_compte(account_id: int, server_slug: str):
+    try:
+        comptes.retirer_acces(account_id, server_slug)
+        return {"ok": True}
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/api/servers", dependencies=[Depends(_administrateur_global)])
+def creer_serveur(request: Request, body: dict[str, Any]):
+    try:
+        serveur = comptes.creer_serveur(str(body.get("name", "")), str(body.get("guild_id", "")), int(request.state.compte["id"]))
+        magasin = ContentStore(serveur["database_path"])
+        magasin.initialize()
+        magasin.seed(DEFINITIONS)
+        return serveur
+    except (ValueError, ConflictError) as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.get("/api/content", dependencies=[Depends(authorize)])
@@ -126,6 +319,7 @@ def changes(after: int = 0): return store.changes(after)
 
 @app.post("/api/audio/upload", dependencies=[Depends(authorize)])
 async def upload_audio(
+    request: Request,
     file: UploadFile = File(...),
     name: str = Form(...),
     audio_type: str = Form("sfx"),
@@ -145,7 +339,8 @@ async def upload_audio(
             break
         key, suffix = f"{base[:58]}_{suffix}", suffix + 1
     try:
-        metadata = store_audio_file(file.file, key, file.filename or f"{key}.mp3")
+        serveur_slug = str(getattr(request.state, "serveur", {}).get("slug", ""))
+        metadata = store_audio_file(file.file, key, file.filename or f"{key}.mp3", serveur_slug)
         payload = {
             "name": name.strip(), "description": description.strip(), "emoji": "🔊",
             "audio_type": audio_type, "channel": audio_type, "speaker_bot_key": speaker_bot_key.strip(),
@@ -294,7 +489,7 @@ def bot_statuses():
 
 
 @app.get("/api/bots/{key}/invite", dependencies=[Depends(authorize)])
-def bot_invite(key: str):
+def bot_invite(key: str, request: Request):
     try:
         entity = store.get("bot", key)
     except NotFoundError as exc:
@@ -309,5 +504,7 @@ def bot_invite(key: str):
         label = application_id_env or "la variable APPLICATION_ID du bot"
         raise HTTPException(422, f"Renseignez {label} dans le fichier .env, puis redémarrez KingdomWeb.")
     permissions = managed_bot_permissions() if config.get("bot_type") == "voice" else required_bot_permissions()
-    url = discord.utils.oauth_url(int(application_id), permissions=permissions, scopes=("bot",))
+    guild_id = str(getattr(request.state, "serveur", {}).get("guild_id", ""))
+    options_guilde = {"guild": discord.Object(id=int(guild_id)), "disable_guild_select": True} if guild_id.isdigit() else {}
+    url = discord.utils.oauth_url(int(application_id), permissions=permissions, scopes=("bot",), **options_guilde)
     return {"key": key, "name": config["name"], "url": url}

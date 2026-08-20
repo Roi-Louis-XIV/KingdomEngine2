@@ -1,6 +1,7 @@
 """Lance un module de KingdomEngine 2 depuis la racine du projet."""
 
 import argparse
+import atexit
 import os
 import sys
 from pathlib import Path
@@ -16,13 +17,26 @@ class SingleInstance:
     def __init__(self, name: str):
         lock_dir = Path(__file__).resolve().parent / "var"
         lock_dir.mkdir(parents=True, exist_ok=True)
-        self.handle = (lock_dir / f"{name}.lock").open("a+b")
+        self.path = lock_dir / f"{name}.lock"
+        self.pid_path = lock_dir / f"{name}.pid"
+        self.acquired = False
+        # msvcrt ne peut verrouiller qu'un octet qui existe déjà. Sa création
+        # doit donc avoir lieu avant l'ouverture du handle partagé.
+        try:
+            with self.path.open("xb") as lock_file:
+                lock_file.write(b"0")
+        except FileExistsError:
+            if self.path.stat().st_size == 0:
+                try:
+                    with self.path.open("ab") as lock_file:
+                        lock_file.write(b"0")
+                except PermissionError:
+                    # Un autre processus a pu verrouiller le fichier entre le
+                    # stat et l'ouverture : acquire() le traitera comme occupé.
+                    pass
+        self.handle = self.path.open("r+b")
 
     def acquire(self) -> bool:
-        self.handle.seek(0)
-        if self.handle.read(1) == b"":
-            self.handle.write(b"0")
-            self.handle.flush()
         self.handle.seek(0)
         try:
             if os.name == "nt":
@@ -34,7 +48,33 @@ class SingleInstance:
         except (OSError, BlockingIOError):
             self.handle.close()
             return False
+        self.acquired = True
+        self.pid_path.write_text(str(os.getpid()), encoding="ascii")
+        atexit.register(self.release)
         return True
+
+    def release(self) -> None:
+        """Libère le verrou et retire uniquement le PID de cette instance."""
+        if not self.acquired:
+            return
+        self.acquired = False
+        try:
+            if self.pid_path.exists() and self.pid_path.read_text(encoding="ascii").strip() == str(os.getpid()):
+                self.pid_path.unlink()
+        except OSError:
+            pass
+        try:
+            self.handle.seek(0)
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(self.handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN)
+        except OSError:
+            pass
+        finally:
+            self.handle.close()
 
 
 def require_single_instance(module: str) -> SingleInstance:

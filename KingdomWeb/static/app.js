@@ -1,5 +1,3 @@
-let initialAdminToken=localStorage.kingdomToken||"";
-if(!initialAdminToken){try{initialAdminToken=prompt("Jeton administrateur", "change-me")||"";}catch(_){initialAdminToken="change-me";}}
 const state = {
   type: "dashboard", items: [], editing: null, duplicate: false,
   selectedPreset: null, keyTouched: false, buildingBase: null,
@@ -9,9 +7,8 @@ const state = {
   playerFilters: {search:"",profession:"",status:"",sort:"recent"}, expandedPlayers: [],
   audioFilters: {search:"",type:"",bot:"",sort:"name_asc"},
   catalogs: {item: [], itemEnriched: [], event: [], building: [], interface: [], audio: [], bot: []},
-  token: initialAdminToken
+  token: "", profile: null, server: localStorage.getItem("kingdomServer")||""
 };
-localStorage.kingdomToken = state.token;
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -21,9 +18,12 @@ function technicalKey(value, fallback="element") {
   const slug = kingdomSlug(value);
   return (slug.length >= 3 ? slug : `${fallback}_${slug || "nouveau"}`).slice(0, 64);
 }
-const headers = {Authorization: `Bearer ${state.token}`, "Content-Type": "application/json"};
-const labels = {dashboard:"Le Royaume en un regard", players:"Joueurs & inventaires", building:"Bâtiments", item:"Objets du Royaume", event:"Événements", bot:"Bots Discord", audio:"Voix & audio", supervision:"Supervision en direct", settings:"Paramètres serveur"};
-const icons = {dashboard:"◈", players:"👥", building:"🏰", item:"🎒", event:"⚡", bot:"🤖", audio:"🔊", supervision:"🛡️", settings:"⚙️"};
+const headers = {"Content-Type": "application/json"};
+function syncServerHeaders(){if(state.server)headers["X-Kingdom-Server"]=state.server;else delete headers["X-Kingdom-Server"]}
+function multipartHeaders(){const result={};if(state.server)result["X-Kingdom-Server"]=state.server;if(state.token)result.Authorization=`Bearer ${state.token}`;return result}
+syncServerHeaders();
+const labels = {dashboard:"Le Royaume en un regard", players:"Joueurs & inventaires", building:"Bâtiments", item:"Objets du Royaume", event:"Événements", bot:"Bots Discord", audio:"Voix & audio", supervision:"Supervision en direct", settings:"Paramètres serveur",profile:"Mon profil & serveurs"};
+const icons = {dashboard:"◈", players:"👥", building:"🏰", item:"🎒", event:"⚡", bot:"🤖", audio:"🔊", supervision:"🛡️", settings:"⚙️",profile:"♙"};
 const pageDescriptions = {
   dashboard:"Créez, configurez et supervisez votre monde Discord.",
   players:"Consultez l’état des joueurs, leurs inventaires et leurs activités en direct.",
@@ -33,7 +33,8 @@ const pageDescriptions = {
   bot:"Pilotez les identités Discord et les PNJ vocaux associés aux bâtiments.",
   audio:"Centralisez les voix, musiques, ambiances et effets sonores.",
   supervision:"Surveillez les services, l’activité du moteur et ses journaux.",
-  settings:"Définissez les rôles, salons et règles générales du serveur Discord."
+  settings:"Définissez les rôles, salons et règles générales du serveur Discord.",
+  profile:"Gérez votre compte, vos serveurs Discord et les droits de votre équipe."
 };
 
 function setSaveState(kind="saved", text="Synchronisé") {
@@ -108,6 +109,7 @@ async function load() {
   if (state.type === "players") { await loadPlayers(); return; }
   if (state.type === "supervision") { await loadSupervision(); return; }
   if (state.type === "settings") { await loadSettings(); return; }
+  if (state.type === "profile") { await loadProfile(); return; }
   $("#content-stats").hidden = false; $("#content-workspace").hidden = false; $("#admin-view").hidden = true; $("#new").hidden = false;
   if (state.type === "item") { await loadItemCatalog(); return; }
   if (state.type === "audio") { await loadAudioBank(); return; }
@@ -136,6 +138,67 @@ async function loadCatalogs() {
   if (audioResponse.ok) state.catalogs.audio = await audioResponse.json();
   if (botsResponse.ok) state.catalogs.bot = await botsResponse.json();
 }
+
+async function initializeAccount(){
+  let response=await fetch("/api/profile",{headers,cache:"no-store"});
+  if(response.status===403&&state.server){state.server="";localStorage.removeItem("kingdomServer");syncServerHeaders();response=await fetch("/api/profile",{headers,cache:"no-store"})}
+  if(!response.ok){$("#login-screen").hidden=false;return false}
+  state.profile=await response.json();
+  const accessible=state.profile.servers.some(server=>server.slug===state.server);
+  state.server=accessible?state.server:state.profile.current_server;
+  localStorage.setItem("kingdomServer",state.server);syncServerHeaders();renderAccountShell();
+  $("#login-screen").hidden=true;
+  await loadCatalogs();await load();return true;
+}
+
+function renderAccountShell(){
+  if(!state.profile)return;
+  const account=state.profile.account,selector=$("#server-selector");
+  selector.innerHTML=state.profile.servers.map(server=>`<option value="${escapeHtml(server.slug)}" ${server.slug===state.server?"selected":""}>${escapeHtml(server.name)}</option>`).join("");
+  $("#account-name").textContent=account.display_name||account.username;
+  $("#account-avatar").textContent=(account.display_name||account.username||"A").trim().charAt(0).toUpperCase();
+}
+
+async function selectServer(slug,navigate=true){
+  if(!state.profile?.servers.some(server=>server.slug===slug))return;
+  state.server=slug;localStorage.setItem("kingdomServer",slug);syncServerHeaders();renderAccountShell();
+  state.catalogs={item:[],itemEnriched:[],event:[],building:[],interface:[],audio:[],bot:[]};
+  setSaveState("saving","Changement de serveur…");await loadCatalogs();
+  if(navigate)navigateTo("dashboard");else await load();
+  setSaveState("saved","Serveur synchronisé");
+}
+
+function serverProfileCard(server){
+  const current=server.slug===state.server;
+  return `<article class="server-profile-card ${current?"current":""}"><div class="server-profile-head"><div><h3>${escapeHtml(server.name)}</h3><p>${server.guild_id?`Discord · ${escapeHtml(server.guild_id)}`:"Identifiant Discord à renseigner"}</p></div><span class="server-role">${escapeHtml(server.role)}</span></div><div class="server-meta"><span>Base indépendante · ${escapeHtml(server.slug)}</span><span>${server.bot_installed?"Bot déclaré comme installé":"Bot à installer sur ce serveur"}</span></div><div class="bot-list">${server.bots.map(bot=>`<div class="bot-row"><span><b>${escapeHtml(bot.name)}</b><small>${escapeHtml(bot.type)}</small></span><i class="bot-state ${bot.installed&&bot.available?"":"offline"}">${bot.installed&&bot.available?"Disponible":bot.available?"À installer":"Application non configurée"}</i></div>`).join("")||"<p>Aucun bot publié.</p>"}</div><div class="profile-actions">${current?'<button disabled>Serveur sélectionné</button>':`<button class="secondary" data-select-server="${escapeHtml(server.slug)}">Gérer ce serveur</button>`}${server.bots.filter(bot=>bot.available).map(bot=>`<button class="primary" data-profile-invite="${escapeHtml(bot.key)}" data-server="${escapeHtml(server.slug)}">Installer ${escapeHtml(bot.name)}</button>`).join("")}</div></article>`;
+}
+
+async function loadProfile(){
+  clearInterval(state.adminTimer);$("#content-stats").hidden=true;$("#content-workspace").hidden=true;$("#admin-view").hidden=false;$("#new").hidden=true;
+  const response=await fetch("/api/profile",{headers,cache:"no-store"});if(!response.ok){$("#login-screen").hidden=false;return}
+  state.profile=await response.json();renderAccountShell();const account=state.profile.account;
+  let accounts=[];if(account.is_admin){const result=await fetch("/api/accounts",{headers});if(result.ok)accounts=(await result.json()).accounts}
+  $("#admin-view").innerHTML=`<div class="profile-page"><section class="profile-hero"><div class="profile-avatar">${escapeHtml((account.display_name||account.username).charAt(0).toUpperCase())}</div><div><small>${account.is_admin?"ADMINISTRATEUR KINGDOM":"COMPTE KINGDOM"}</small><h2>${escapeHtml(account.display_name||account.username)}</h2><p>@${escapeHtml(account.username)}${account.email?` · ${escapeHtml(account.email)}`:""}</p></div><button class="secondary" id="logout-account">Se déconnecter</button></section><section><div class="admin-section-head"><div><h2>Mes serveurs</h2><p>Chaque serveur possède ses propres données, bâtiments et réglages.</p></div></div><div class="profile-grid">${state.profile.servers.map(serverProfileCard).join("")||'<p>Aucun serveur ne vous a encore été attribué.</p>'}</div></section><section class="accounts-panel"><h3>Sécurité du compte</h3><form id="password-form" class="profile-actions"><input name="current_password" type="password" placeholder="Mot de passe actuel" required><input name="new_password" type="password" minlength="8" placeholder="Nouveau mot de passe" required><button class="secondary">Modifier le mot de passe</button></form></section>${account.is_admin?adminAccountsPanel(accounts):""}</div>`;
+  $("#logout-account").onclick=logoutAccount;$$('[data-select-server]').forEach(button=>button.onclick=()=>selectServer(button.dataset.selectServer));$$('[data-profile-invite]').forEach(button=>button.onclick=()=>inviteBotForServer(button.dataset.profileInvite,button.dataset.server));
+  $("#password-form").onsubmit=changePassword;
+  if(account.is_admin)bindAccountAdministration();
+}
+
+function adminAccountsPanel(accounts){
+  const serverOptions=state.profile.servers.map(server=>`<option value="${escapeHtml(server.slug)}">${escapeHtml(server.name)}</option>`).join("");
+  return `<section class="accounts-panel"><h3>Administration des accès</h3><p>Créez les profils puis attribuez leur niveau d’accès à un serveur.</p><div class="admin-forms"><form id="create-account-form"><b>Nouveau profil</b><label>Identifiant<input name="username" required minlength="3"></label><label>Nom affiché<input name="display_name" required></label><label>E-mail<input name="email" type="email"></label><label>Mot de passe temporaire<input name="password" type="password" minlength="8" required></label><label>Serveur<select name="server_slug">${serverOptions}</select></label><label>Accès<select name="role"><option value="lecture">Lecture</option><option value="editeur">Éditeur</option><option value="gestionnaire">Gestionnaire</option><option value="proprietaire">Propriétaire</option></select></label><button class="primary">Créer le profil</button><small data-form-status></small></form><form id="create-server-form"><b>Nouveau serveur géré</b><label>Nom du serveur<input name="name" required minlength="3"></label><label>Identifiant du serveur Discord<input name="guild_id" inputmode="numeric" placeholder="123456789…"></label><button class="primary">Créer l’espace serveur</button><small data-form-status></small></form></div><table class="account-table"><thead><tr><th>Profil</th><th>Type</th><th>Accès actuels</th><th>Attribuer ou modifier</th></tr></thead><tbody>${accounts.map(item=>`<tr><td><b>${escapeHtml(item.display_name)}</b><small>@${escapeHtml(item.username)}</small></td><td>${item.is_admin?"Administrateur global":"Utilisateur"}</td><td><div class="access-list">${(item.access||[]).map(access=>`<span>${escapeHtml(access.name)} · ${escapeHtml(access.role)} ${item.is_admin?"":`<button type="button" title="Retirer cet accès" data-revoke-access="${item.id}|${escapeHtml(access.slug)}">×</button>`}</span>`).join("")||"Aucun accès"}</div></td><td>${item.is_admin?"Tous les serveurs":`<div class="access-editor"><select data-access-server>${serverOptions}</select><select data-access-role><option value="lecture">Lecture</option><option value="editeur">Éditeur</option><option value="gestionnaire">Gestionnaire</option><option value="proprietaire">Propriétaire</option></select><button type="button" data-grant-access="${item.id}">Appliquer</button></div>`}</td></tr>`).join("")}</tbody></table></section>`;
+}
+
+function bindAccountAdministration(){
+  $("#create-account-form").onsubmit=async event=>{event.preventDefault();const form=event.currentTarget,data=Object.fromEntries(new FormData(form));data.access=[{server_slug:data.server_slug,role:data.role}];delete data.server_slug;delete data.role;const response=await fetch("/api/accounts",{method:"POST",headers,body:JSON.stringify(data)});form.querySelector('[data-form-status]').textContent=response.ok?"Profil créé.":(await response.json()).detail;if(response.ok)await loadProfile()};
+  $("#create-server-form").onsubmit=async event=>{event.preventDefault();const form=event.currentTarget,data=Object.fromEntries(new FormData(form));const response=await fetch("/api/servers",{method:"POST",headers,body:JSON.stringify(data)});form.querySelector('[data-form-status]').textContent=response.ok?"Serveur créé.":(await response.json()).detail;if(response.ok){state.profile=null;await initializeAccount();state.type="profile";await loadProfile()}};
+  $$('[data-grant-access]').forEach(button=>button.onclick=async()=>{const editor=button.closest('.access-editor'),body={server_slug:editor.querySelector('[data-access-server]').value,role:editor.querySelector('[data-access-role]').value};const response=await fetch(`/api/accounts/${button.dataset.grantAccess}/access`,{method:"POST",headers,body:JSON.stringify(body)});if(!response.ok){alert((await response.json()).detail);return}await loadProfile()});
+  $$('[data-revoke-access]').forEach(button=>button.onclick=async()=>{const [accountId,serverSlug]=button.dataset.revokeAccess.split('|');if(!confirm("Retirer l’accès de ce profil à ce serveur ?"))return;const response=await fetch(`/api/accounts/${accountId}/access/${encodeURIComponent(serverSlug)}`,{method:"DELETE",headers});if(!response.ok){alert((await response.json()).detail);return}await loadProfile()});
+}
+
+async function inviteBotForServer(botKey,serverSlug){const response=await fetch(`/api/bots/${encodeURIComponent(botKey)}/invite`,{headers:{...headers,"X-Kingdom-Server":serverSlug}}),data=await response.json();if(!response.ok){alert(data.detail);return}window.open(data.url,"_blank","noopener")}
+async function logoutAccount(){await fetch("/api/auth/logout",{method:"POST",headers});state.profile=null;$("#login-screen").hidden=false}
+async function changePassword(event){event.preventDefault();const response=await fetch("/api/profile/password",{method:"POST",headers,body:JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))}),data=await response.json();if(!response.ok){alert(data.detail);return}alert(data.message);await logoutAccount()}
 
 function catalogOptions(type, currentValue="") {
   const systemResources = type === "item"
@@ -285,7 +348,7 @@ async function loadAudioBank() {
 async function uploadAudio(event) {
   event.preventDefault();const form=event.currentTarget,status=$("#audio-upload-status"),button=form.querySelector("button");
   button.disabled=true;status.textContent="Téléchargement…";
-  try{const response=await fetch("/api/audio/upload",{method:"POST",headers:{Authorization:`Bearer ${state.token}`},body:new FormData(form)});const data=await response.json();if(!response.ok)throw Error(data.detail||"Import impossible.");status.textContent="Son publié.";await loadCatalogs();await loadAudioBank();}
+  try{const response=await fetch("/api/audio/upload",{method:"POST",headers:multipartHeaders(),body:new FormData(form)});const data=await response.json();if(!response.ok)throw Error(data.detail||"Import impossible.");status.textContent="Son publié.";await loadCatalogs();await loadAudioBank();}
   catch(error){status.textContent=error.message;}finally{button.disabled=false;}
 }
 
@@ -907,7 +970,8 @@ function buildPayload() {
     modules.rumors={...(modules.rumors||{}),catalogue:readRumorModules(),player_cooldown_seconds:fieldValue("rumor_player_cooldown"),global_cooldown_seconds:fieldValue("rumor_global_cooldown")};
     modules.games=readGameModules();
     modules.delivery_mode=fieldValue("delivery_all")?"all_available":"selected_quantity";
-    modules.audio={...(modules.audio||{}),default_group_key:fieldValue("audio_default_group")||"",groups:readSoundGroups(),event_routes:readSoundRoutes()};
+    const soundGroups=readSoundGroups();
+    modules.audio={...(modules.audio||{}),default_group_key:fieldValue("audio_default_group")||soundGroups[0]?.key||"",groups:soundGroups,event_routes:readSoundRoutes()};
     const buildingKey=$("#key").value.trim();
     const previousTarget=state.interfaceDraft?.target_building_key;
     const interfaceDefinition=clone(state.interfaceDraft||blankInterface(buildingKey,payload.name,payload.emoji,payload.color));
@@ -1148,7 +1212,10 @@ $("#save").onclick = async () => {
 $("#new").onclick=startCreate; $("#search").oninput=renderCards;
 applyTheme(document.documentElement.dataset.theme);
 $("#theme-toggle").onclick=()=>applyTheme(document.documentElement.dataset.theme==="dark"?"light":"dark",true);
+$("#account-button").onclick=()=>navigateTo("profile");
+$("#server-selector").onchange=event=>selectServer(event.target.value);
+$("#login-form").onsubmit=async event=>{event.preventDefault();const error=$("#login-error"),button=event.currentTarget.querySelector('button[type="submit"]');error.textContent="";button.disabled=true;try{const response=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))});let data={};try{data=await response.json()}catch(_){data={detail:"Le serveur n’a pas renvoyé de réponse exploitable."}}if(!response.ok){error.textContent=data.detail||"Connexion impossible.";return}await initializeAccount()}catch(_){error.textContent="KingdomWeb est momentanément inaccessible."}finally{button.disabled=false}};
 $$('#nav [data-nav-group]').forEach(button=>button.onclick=()=>{const group=button.dataset.navGroup,menu=$(`[data-nav-submenu="${group}"]`),willOpen=menu.hidden;$$('[data-nav-submenu]').forEach(item=>item.hidden=true);$$('[data-nav-group]').forEach(item=>item.setAttribute("aria-expanded","false"));menu.hidden=!willOpen;button.setAttribute("aria-expanded",String(willOpen));});
 $$('#nav [data-type]').forEach(button=>button.onclick=()=>{activateNavigation(button);state.type=button.dataset.type;$("#title").textContent=labels[state.type];$("#crumb").textContent=labels[state.type].toUpperCase();$("#page-description").textContent=pageDescriptions[state.type]||"Administrez le Royaume depuis un espace unique.";setSaveState("saved","Synchronisé");load();});
-loadCatalogs().finally(load);
+initializeAccount();
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&state.type==="players")loadPlayers(true)});

@@ -30,7 +30,7 @@ class ServiceSupervisor:
         statuses = []
         for definition in self.definitions():
             entry = next((item for item in registry if item.get("service") == definition["key"]), None)
-            pid = os.getpid() if definition["key"] == "web" else int(entry.get("Id", 0)) if entry else 0
+            pid = os.getpid() if definition["key"] == "web" else self._runtime_pid(definition["key"], entry)
             statuses.append({**definition, "pid": pid or None, "running": self._alive(pid), "started_at": entry.get("StartTime") if entry else None})
         return statuses
 
@@ -77,10 +77,23 @@ class ServiceSupervisor:
     def _stop(self, service_key: str) -> None:
         registry = self._registry()
         entry = next((item for item in registry if item.get("service") == service_key), None)
-        if not entry or not self._alive(int(entry.get("Id", 0))):
+        pid = self._runtime_pid(service_key, entry)
+        if not pid:
             raise ValueError("Ce service est deja arrete.")
-        os.kill(int(entry["Id"]), 15)
+        os.kill(pid, 15)
         self._write_registry([item for item in registry if item.get("service") != service_key])
+
+    def _runtime_pid(self, service_key: str, registry_entry: dict[str, Any] | None = None) -> int:
+        """Retourne le PID réel publié par le service, puis le PID historique en secours."""
+        pid_path = ROOT / "var" / f"{service_key}.pid"
+        try:
+            pid = int(pid_path.read_text(encoding="ascii").strip())
+            if self._alive(pid):
+                return pid
+        except (OSError, ValueError):
+            pass
+        fallback = int(registry_entry.get("Id", 0)) if registry_entry else 0
+        return fallback if self._alive(fallback) else 0
 
     def _registry(self) -> list[dict[str, Any]]:
         if not PID_REGISTRY.exists():

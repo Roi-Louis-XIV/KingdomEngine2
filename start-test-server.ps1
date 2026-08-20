@@ -5,6 +5,7 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Python = Join-Path $Root ".venv\Scripts\python.exe"
 if (-not (Test-Path -LiteralPath $Python)) { throw "Lancez d'abord .\install.ps1" }
+$env:PYTHONUNBUFFERED = "1"
 $Logs = Join-Path $Root "var\logs"
 New-Item -ItemType Directory -Path $Logs -Force | Out-Null
 
