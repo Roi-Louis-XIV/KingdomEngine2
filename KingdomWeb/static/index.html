@@ -1,22 +1,23 @@
 <!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>KingdomWeb · Intendance royale</title><link rel="stylesheet" href="/static/style.css?v=20260814.6"><link rel="stylesheet" href="/static/forms.css?v=20260814.6"><link rel="stylesheet" href="/static/interactions.css?v=20260814.6"><link rel="stylesheet" href="/static/wizard.css?v=20260814.6"><link rel="stylesheet" href="/static/modules.css?v=20260814.8"><link rel="stylesheet" href="/static/studio-builder.css?v=20260814.6"><link rel="stylesheet" href="/static/administration.css?v=20260814.6"><link rel="stylesheet" href="/static/ux.css?v=20260814.6"><link rel="stylesheet" href="/static/players.css?v=20260815.1"><link rel="stylesheet" href="/static/item-catalog.css?v=20260815.1"><link rel="stylesheet" href="/static/kingdom-theme.css?v=20260815.1"><link rel="stylesheet" href="/static/studio-palette.css?v=20260815.4"></head>
-<body><aside><div class="brand"><span>K</span><div><b>KingdomWeb</b><small>INTENDANCE ROYALE</small></div></div>
+<title>KingdomWeb · Éditeur du Royaume</title><script>document.documentElement.dataset.theme=localStorage.getItem("kingdomTheme")||((window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light")</script><link rel="stylesheet" href="/static/style.css?v=20260814.6"><link rel="stylesheet" href="/static/forms.css?v=20260814.6"><link rel="stylesheet" href="/static/interactions.css?v=20260814.6"><link rel="stylesheet" href="/static/wizard.css?v=20260814.6"><link rel="stylesheet" href="/static/modules.css?v=20260814.8"><link rel="stylesheet" href="/static/studio-builder.css?v=20260814.6"><link rel="stylesheet" href="/static/administration.css?v=20260814.6"><link rel="stylesheet" href="/static/ux.css?v=20260814.6"><link rel="stylesheet" href="/static/players.css?v=20260815.1"><link rel="stylesheet" href="/static/item-catalog.css?v=20260815.1"><link rel="stylesheet" href="/static/kingdom-theme.css?v=20260815.1"><link rel="stylesheet" href="/static/studio-palette.css?v=20260815.4"><link rel="stylesheet" href="/static/saas-shell.css?v=20260820.2"></head>
+<body><aside class="app-sidebar"><div class="brand"><span>K</span><div><b>KingdomWeb</b><small>GAME ENGINE</small></div></div>
 <nav id="nav" aria-label="Navigation principale">
-  <button class="nav-primary active" data-type="dashboard">⌂ <span>Vue d’ensemble</span></button>
-  <button class="nav-primary" data-type="players">♟ <span>Joueurs & inventaires</span></button>
-  <button class="nav-primary" data-type="item">◇ <span>Objets & catalogues</span></button>
-  <button class="nav-primary" data-type="supervision">● <span>Supervision en direct</span></button>
-  <div class="nav-divider"><span>CRÉATION NO-CODE</span></div>
-  <button class="nav-primary" data-nav-group="world" aria-expanded="false">🏰 <span>Monde</span><i>⌄</i></button>
-  <div class="nav-submenu" data-nav-submenu="world" hidden><button data-type="building">Bâtiments</button><button data-type="event">Événements</button></div>
-  <button class="nav-primary" data-nav-group="modules" aria-expanded="false">⚙️ <span>Modules</span><i>⌄</i></button>
-  <div class="nav-submenu" data-nav-submenu="modules" hidden><button data-type="bot">Bots Discord</button><button data-type="audio">Voix & audio</button></div>
-  <button class="nav-primary" data-nav-group="administration" aria-expanded="false">🛡️ <span>Administration</span><i>⌄</i></button>
-  <div class="nav-submenu" data-nav-submenu="administration" hidden><button data-type="settings">Paramètres serveur</button></div>
+  <button class="nav-primary active" data-type="dashboard"><span class="nav-icon">⌂</span><span>Tableau de bord</span></button>
+  <div class="nav-divider"><span>MONDE</span></div>
+  <button class="nav-primary" data-nav-group="world" aria-expanded="true"><span class="nav-icon">◈</span><span>Contenu du monde</span><i>⌄</i></button>
+  <div class="nav-submenu" data-nav-submenu="world"><button data-type="building">Bâtiments</button><button data-type="bot">Bots & PNJ</button><button data-type="item">Items</button><button data-type="audio">Sons & ambiances</button><button class="nav-coming" disabled>Zones <small>À venir</small></button></div>
+  <div class="nav-divider"><span>GAMEPLAY</span></div>
+  <button class="nav-primary" data-nav-group="gameplay" aria-expanded="true"><span class="nav-icon">◇</span><span>Systèmes de jeu</span><i>⌄</i></button>
+  <div class="nav-submenu" data-nav-submenu="gameplay"><button data-type="event">Événements</button><button class="nav-coming" disabled>Quêtes <small>À venir</small></button><button class="nav-coming" disabled>Variables du Royaume <small>À venir</small></button></div>
+  <div class="nav-divider"><span>OUTILS</span></div>
+  <button class="nav-primary" data-nav-group="tools" aria-expanded="true"><span class="nav-icon">⌁</span><span>Exploitation</span><i>⌄</i></button>
+  <div class="nav-submenu" data-nav-submenu="tools"><button data-type="players">Joueurs & inventaires</button><button data-type="supervision">Supervision & logs</button><button class="nav-coming" disabled>Test / Simulation <small>À venir</small></button></div>
+  <div class="nav-divider"><span>PARAMÈTRES</span></div>
+  <button class="nav-primary" data-type="settings"><span class="nav-icon">⚙</span><span>Configuration du monde</span></button>
 </nav>
-<footer><span class="dot"></span> Moteur opérationnel</footer></aside>
-<main><header><div><p>ROYAUME / <span id="crumb">VUE D’ENSEMBLE</span></p><h1 id="title">Le Royaume en un regard</h1></div><button class="primary" id="new" hidden>＋ Nouvelle définition</button></header>
+<footer><span class="dot"></span><span>KingdomEngine connecté</span><small>v2.0</small></footer></aside>
+<main class="app-main"><header class="app-header"><div class="header-copy"><p>ROYAUME <span>/</span> <strong id="crumb">TABLEAU DE BORD</strong></p><h1 id="title">Le Royaume en un regard</h1><span id="page-description">Créez, configurez et supervisez votre monde Discord.</span></div><div class="header-actions"><button type="button" class="theme-toggle" id="theme-toggle" aria-label="Activer le mode sombre" title="Activer le mode sombre"><span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Mode nuit</span></button><span class="save-state" id="save-state" data-state="saved"><i></i><span>Synchronisé</span></span><button class="primary" id="new" hidden>＋ Nouvelle définition</button></div></header>
 <section class="stats" id="content-stats"><article><small>DÉFINITIONS</small><strong id="count">0</strong><span>contenus versionnés</span></article><article><small>PUBLIÉES</small><strong id="published">0</strong><span>actives dans Discord</span></article><article><small>BROUILLONS</small><strong id="drafts">0</strong><span>à relire</span></article></section>
 <section class="workspace" id="content-workspace"><div class="toolbar"><input id="search" placeholder="Rechercher…"><span>Les changements publiés sont chargés par tous les modules.</span></div><div id="cards" class="cards"></div></section><section id="admin-view" hidden></section></main>
 <div id="editor" class="modal" hidden><div class="modal-panel wizard-panel" role="dialog" aria-modal="true" aria-labelledby="editor-title"><form id="editor-form" novalidate>

@@ -130,9 +130,14 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
     assert 'data-type="supervision"' in html
     assert 'data-type="settings"' in html
     assert 'data-nav-group="world"' in html
-    assert 'data-nav-group="modules"' in html
-    assert 'data-nav-group="administration"' in html
-    assert 'data-nav-submenu="world" hidden' in html
+    assert 'data-nav-group="gameplay"' in html
+    assert 'data-nav-group="tools"' in html
+    assert 'data-nav-submenu="world"' in html
+    assert 'Quêtes <small>À venir</small>' in html
+    assert 'Test / Simulation <small>À venir</small>' in html
+    assert 'id="theme-toggle"' in html
+    assert 'localStorage.getItem("kingdomTheme")' in html
+    assert 'function applyTheme(theme, persist=false)' in script
     assert 'data-building-tab="visual"' in script
     assert 'id="interaction-grid"' in script
     assert 'draggable="true"' in script

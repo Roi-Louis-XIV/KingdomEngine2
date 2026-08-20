@@ -69,7 +69,27 @@ def definitions_from_v1(v1_root: str | Path | None = None) -> list[dict[str, Any
 def import_v1(store: ContentStore, v1_root: str | Path | None = None) -> int:
     before = {(x["entity_type"], x["entity_key"]) for x in store.list()}
     definitions = definitions_from_v1(v1_root)
-    store.seed(definitions)
+    # Un profil vocal V1 peut viser un lieu transversal fourni par la V2
+    # (la place du village, par exemple). Dans une installation complète ce
+    # lieu existe déjà. Pour un import V1 autonome, conserve son ciblage par
+    # variable de salon plutôt que d'introduire un faux bâtiment dans l'import.
+    available_buildings = {
+        item["entity_key"] for item in store.list("building")
+    } | {
+        item["key"] for item in definitions if item["type"] == "building"
+    }
+    seedable = []
+    for item in definitions:
+        payload = item["payload"]
+        if (
+            item["type"] == "bot"
+            and payload.get("building_key") not in available_buildings
+            and (payload.get("voice_channel_env") or payload.get("voice_channel_id"))
+        ):
+            payload = {**payload, "building_key": ""}
+            item = {**item, "payload": payload}
+        seedable.append(item)
+    store.seed(seedable)
     _link_existing_v1_items(store, definitions)
     _link_existing_v1_buildings(store, definitions)
     migrate_weighted_activity_results(store)

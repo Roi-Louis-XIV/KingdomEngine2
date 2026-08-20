@@ -24,6 +24,40 @@ function technicalKey(value, fallback="element") {
 const headers = {Authorization: `Bearer ${state.token}`, "Content-Type": "application/json"};
 const labels = {dashboard:"Le Royaume en un regard", players:"Joueurs & inventaires", building:"Bâtiments", item:"Objets du Royaume", event:"Événements", bot:"Bots Discord", audio:"Voix & audio", supervision:"Supervision en direct", settings:"Paramètres serveur"};
 const icons = {dashboard:"◈", players:"👥", building:"🏰", item:"🎒", event:"⚡", bot:"🤖", audio:"🔊", supervision:"🛡️", settings:"⚙️"};
+const pageDescriptions = {
+  dashboard:"Créez, configurez et supervisez votre monde Discord.",
+  players:"Consultez l’état des joueurs, leurs inventaires et leurs activités en direct.",
+  building:"Construisez les lieux, mécaniques et interfaces Discord de votre royaume.",
+  item:"Gérez le catalogue utilisé par les inventaires, productions et commerces.",
+  event:"Configurez les déclencheurs et les effets qui font évoluer le monde.",
+  bot:"Pilotez les identités Discord et les PNJ vocaux associés aux bâtiments.",
+  audio:"Centralisez les voix, musiques, ambiances et effets sonores.",
+  supervision:"Surveillez les services, l’activité du moteur et ses journaux.",
+  settings:"Définissez les rôles, salons et règles générales du serveur Discord."
+};
+
+function setSaveState(kind="saved", text="Synchronisé") {
+  const indicator=$("#save-state");
+  if(!indicator)return;
+  indicator.dataset.state=kind;
+  indicator.querySelector("span").textContent=text;
+}
+
+const THEME_KEY="kingdomTheme";
+function applyTheme(theme, persist=false) {
+  const selected=theme==="dark"?"dark":"light";
+  document.documentElement.dataset.theme=selected;
+  if(persist)localStorage.setItem(THEME_KEY,selected);
+  const button=$("#theme-toggle");
+  if(!button)return;
+  const dark=selected==="dark";
+  const action=dark?"Activer le mode clair":"Activer le mode sombre";
+  button.setAttribute("aria-label",action);
+  button.title=action;
+  button.setAttribute("aria-pressed",String(dark));
+  button.querySelector(".theme-icon").textContent=dark?"☀":"☾";
+  button.querySelector(".theme-label").textContent=dark?"Mode jour":"Mode nuit";
+}
 
 const HELP = {
   preset: ["Choisir un modèle", "Le modèle prépare une structure complète. Tout reste modifiable ensuite.", ["Récolte pour obtenir des ressources", "Production pour transformer", "Commerce pour vendre"]],
@@ -895,8 +929,10 @@ function buildPayload() {
 }
 
 async function publishItem(key, version) {
+  setSaveState("saving","Publication…");
   const response = await fetch(`/api/content/${state.type}/${key}/${version}/publish`,{method:"POST",headers,body:"{}"});
-  if (!response.ok) alert((await response.json()).detail);
+  if (!response.ok) { setSaveState("error","Publication échouée"); alert((await response.json()).detail); return; }
+  setSaveState("saved","Publié");
   await loadCatalogs(); await load();
 }
 
@@ -1096,7 +1132,7 @@ $("#save").onclick = async () => {
     if(!name) throw Error("Donne un nom au lieu avant de l’enregistrer.");
     if(!$("#key").value.trim()) $("#key").value=technicalKey(name,state.type==="building"?"batiment":state.type);
     if(!$("#key").value.trim()) throw Error("Le nom doit contenir au moins quelques lettres ou chiffres.");
-    button.disabled=true; button.textContent="Enregistrement…";
+    button.disabled=true; button.textContent="Enregistrement…"; setSaveState("saving","Enregistrement…");
     const response=await fetch(`/api/content/${state.type}/${$("#key").value}`,{method:"POST",headers,body:JSON.stringify({payload:buildPayload(),expected_version:state.editing?.version})});
     if(!response.ok) throw Error((await response.json()).detail);
     const saved=await response.json();
@@ -1104,13 +1140,15 @@ $("#save").onclick = async () => {
       const published=await fetch(`/api/content/audio/${saved.entity_key}/${saved.version}/publish`,{method:"POST",headers,body:"{}"});
       if(!published.ok)throw Error((await published.json()).detail);
     }
-    closeEditor(); await loadCatalogs(); await load();
-  } catch(error) { $("#error").textContent=error.message; }
+    closeEditor(); await loadCatalogs(); await load(); setSaveState("saved",state.type==="audio"?"Publié":"Brouillon enregistré");
+  } catch(error) { $("#error").textContent=error.message; setSaveState("error","Échec de sauvegarde"); }
   finally { button.disabled=false; button.textContent="Enregistrer le brouillon"; }
 };
 
 $("#new").onclick=startCreate; $("#search").oninput=renderCards;
+applyTheme(document.documentElement.dataset.theme);
+$("#theme-toggle").onclick=()=>applyTheme(document.documentElement.dataset.theme==="dark"?"light":"dark",true);
 $$('#nav [data-nav-group]').forEach(button=>button.onclick=()=>{const group=button.dataset.navGroup,menu=$(`[data-nav-submenu="${group}"]`),willOpen=menu.hidden;$$('[data-nav-submenu]').forEach(item=>item.hidden=true);$$('[data-nav-group]').forEach(item=>item.setAttribute("aria-expanded","false"));menu.hidden=!willOpen;button.setAttribute("aria-expanded",String(willOpen));});
-$$('#nav [data-type]').forEach(button=>button.onclick=()=>{activateNavigation(button);state.type=button.dataset.type;$("#title").textContent=labels[state.type];$("#crumb").textContent=labels[state.type].toUpperCase();load();});
+$$('#nav [data-type]').forEach(button=>button.onclick=()=>{activateNavigation(button);state.type=button.dataset.type;$("#title").textContent=labels[state.type];$("#crumb").textContent=labels[state.type].toUpperCase();$("#page-description").textContent=pageDescriptions[state.type]||"Administrez le Royaume depuis un espace unique.";setSaveState("saved","Synchronisé");load();});
 loadCatalogs().finally(load);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&state.type==="players")loadPlayers(true)});
