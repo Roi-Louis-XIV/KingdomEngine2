@@ -18,6 +18,7 @@ from kingdomEvent import EventBus
 from import_v1 import import_v1
 from seed import DEFINITIONS
 from .engine import GameEngine
+from .world import WorldEngine, WorldError
 from .provisioner import DiscordProvisioner, OATH_CUSTOM_ID, channel_slug
 
 
@@ -85,6 +86,80 @@ async def execute_action(engine: GameEngine, interaction: discord.Interaction, b
         await interaction.followup.send("\n".join(result["messages"]) or "Action effectuée.", ephemeral=True)
     except Exception as exc:
         await interaction.followup.send(str(exc), ephemeral=True)
+
+
+class WorldExplorerView(discord.ui.View):
+    """Interface éphémère générique construite depuis l'état réel du monde."""
+
+    def __init__(self, engine: GameEngine, owner_id: int, notice: str = ""):
+        super().__init__(timeout=900)
+        self.engine, self.owner_id, self.notice = engine, owner_id, notice
+        self._render()
+
+    def snapshot(self) -> dict[str, Any]:
+        world = WorldEngine(self.engine.store); player_id = str(self.owner_id)
+        state, travel = world.player_state(player_id), world.get_travel_state(player_id)
+        locations = world.locations(); clock = self.engine.world_clock.state()
+        return {"world": world, "state": state, "travel": travel, "locations": locations, "clock": clock,
+                "location": locations.get(state.get("location_key", ""), {})}
+
+    def embed(self) -> discord.Embed:
+        data = self.snapshot(); travel, clock = data["travel"], data["clock"]
+        weather = clock.get("weather", {}); period = {"morning": "Matin", "day": "Jour", "evening": "Soir", "night": "Nuit"}.get(clock.get("time_of_day"), clock.get("time_of_day", ""))
+        if travel:
+            origin=data["locations"].get(travel["origin_key"],{}).get("name",travel["origin_key"]); destination=data["locations"].get(travel["destination_key"],{}).get("name",travel["destination_key"])
+            embed=discord.Embed(title="🚶 EN VOYAGE",description=f"**{origin}** → **{destination}**\n\nArrivée dans **{travel['remaining_seconds']} seconde(s)**.",color=0xD99B32)
+        else:
+            location=data["location"]; embed=discord.Embed(title=f"{location.get('emoji','📍')} {location.get('name','Position inconnue')}",description=str(location.get("description") or "Choisissez votre prochaine action."),color=0x2F9E64)
+            routes=data["world"].available_routes(str(self.owner_id)); activities=data["world"].local_activities(str(self.owner_id)); buildings=data["world"].local_buildings(str(self.owner_id))
+            embed.add_field(name="🧭 Destinations",value="\n".join(f"• {route['destination_name']} · {route['duration_seconds']} s" for route in routes)[:1024] or "Aucun chemin accessible.",inline=False)
+            embed.add_field(name="⚙️ Activités",value="\n".join(f"• {'🔒' if not self.engine.action_available(item['building_key'],item['key']) else item.get('emoji','⚙️')} {item.get('name',item['key'])}" for item in activities)[:1024] or "Aucune activité ici.",inline=True)
+            embed.add_field(name="🏰 Bâtiments",value="\n".join(f"• {item.get('emoji','🏰')} {item['name']}" for item in buildings)[:1024] or "Aucun bâtiment ici.",inline=True)
+        embed.add_field(name="🌍 Monde",value=f"Jour {clock['day']} · {clock['hour']:02d}:{clock['minute']:02d}\n{weather.get('emoji','☀️')} {weather.get('name','Beau')} · {period}",inline=False)
+        if self.notice: embed.set_footer(text=self.notice[:2048])
+        return embed
+
+    def _render(self) -> None:
+        self.clear_items(); data=self.snapshot(); travel=data["travel"]
+        if travel:
+            refresh=discord.ui.Button(label=f"Actualiser · {travel['remaining_seconds']} s",emoji="🔄",style=discord.ButtonStyle.secondary)
+            async def refresh_callback(interaction: discord.Interaction):
+                self.notice=""; self._render(); await interaction.response.edit_message(embed=self.embed(),view=self)
+            refresh.callback=refresh_callback; self.add_item(refresh); return
+        player_id=str(self.owner_id)
+        for route in data["world"].available_routes(player_id)[:10]:
+            button=discord.ui.Button(label=str(route["destination_name"])[:80],emoji="🧭",style=discord.ButtonStyle.primary)
+            async def travel_callback(interaction: discord.Interaction,destination: str=route["destination"]):
+                try:
+                    result=WorldEngine(self.engine.store).travel(player_id,destination); travel_state=result.get("travel")
+                    self.notice="Voyage commencé." if travel_state else "Vous êtes arrivé."
+                except WorldError as exc: self.notice=str(exc)
+                self._render(); await interaction.response.edit_message(embed=self.embed(),view=self)
+            button.callback=travel_callback; self.add_item(button)
+        for item in data["world"].local_activities(player_id)[:8]:
+            available=self.engine.action_available(item["building_key"],item["key"])
+            button=discord.ui.Button(label=str(item.get("name",item["key"]))[:80],emoji=item.get("emoji","⚙️"),style=discord.ButtonStyle.success,disabled=not available)
+            async def activity_callback(interaction: discord.Interaction,building: str=item["building_key"],action: str=item["key"]):
+                await interaction.response.defer()
+                try:
+                    result=await self.engine.execute_local_activity(player_id,building,action,str(interaction.id),interaction_context(interaction)); self.notice=" ".join(result.get("messages",[])) or "Activité lancée."
+                except Exception as exc: self.notice=str(exc)
+                self._render(); await interaction.edit_original_response(embed=self.embed(),view=self)
+            button.callback=activity_callback; self.add_item(button)
+        for item in data["world"].local_buildings(player_id)[:5]:
+            button=discord.ui.Button(label=str(item["name"])[:80],emoji=item.get("emoji","🏰"),style=discord.ButtonStyle.secondary)
+            async def building_callback(interaction: discord.Interaction,building_key: str=item["key"]):
+                try:
+                    WorldEngine(self.engine.store).enter_building(player_id,building_key)
+                    payload=self.engine.building(building_key)["payload"]; definition=interface_for_building(self.engine.store,payload) or interface_from_building(building_key,payload,payload.get("actions",[])); view=InterfaceView(self.engine,definition,page_key=definition.get("entry_page") or definition["start_page"],owner_id=self.owner_id)
+                    await interaction.response.edit_message(embed=view.embed(),view=view)
+                except Exception as exc:
+                    self.notice=str(exc); self._render(); await interaction.response.edit_message(embed=self.embed(),view=self)
+            button.callback=building_callback; self.add_item(button)
+        refresh=discord.ui.Button(label="Actualiser",emoji="🔄",style=discord.ButtonStyle.secondary)
+        async def refresh_callback(interaction: discord.Interaction): self._render(); await interaction.response.edit_message(embed=self.embed(),view=self)
+        refresh.callback=refresh_callback
+        if len(self.children)<25:self.add_item(refresh)
 
 
 class InterfaceView(discord.ui.View):
@@ -251,10 +326,19 @@ class InterfaceView(discord.ui.View):
         dynamic_types = {"dynamic_inventory_selector", "dynamic_product_selector", "dynamic_consumable_selector", "dynamic_game_selector"}
         interactive = [item for item in self._visible_components() if item.get("type") in {"button", "select", *dynamic_types}]
         next_slot = 0
+        used_width = [0, 0, 0, 0, 0]
         for component in interactive:
             slot = int(component.get("slot", next_slot))
-            next_slot = max(next_slot, slot + (5 if component.get("type") == "select" else 1))
-            row = min(4, slot // 5)
+            full_width = component.get("type") == "select" or component.get("type") in dynamic_types
+            width = 5 if full_width else 1
+            next_slot = max(next_slot, slot + width)
+            preferred = min(4, max(0, slot // 5))
+            candidates = list(range(preferred, 5)) + list(range(0, preferred))
+            row = next((candidate for candidate in candidates if used_width[candidate] == 0), None) if full_width else next((candidate for candidate in candidates if used_width[candidate] < 5), None)
+            if row is None:
+                print(f"[KingdomCore] composant ignoré faute de place sur 5 lignes : {component.get('id', 'sans-id')}")
+                continue
+            used_width[row] = 5 if full_width else used_width[row] + 1
             if component.get("type") == "dynamic_inventory_selector":
                 self._add_dynamic_delivery(component, row)
             elif component.get("type") == "dynamic_product_selector":
@@ -314,6 +398,20 @@ class InterfaceView(discord.ui.View):
                 self._render_interactions()
                 await discord_interaction.response.edit_message(embed=self.embed(), view=self)
             button.callback = refresh_callback
+        elif interaction.get("type") == "world_state":
+            async def world_state_callback(discord_interaction: discord.Interaction):
+                view = WorldExplorerView(self.engine, discord_interaction.user.id)
+                await discord_interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
+            button.callback = world_state_callback
+        elif interaction.get("type") == "world_travel":
+            async def world_travel_callback(discord_interaction: discord.Interaction, target: str = str(interaction.get("destination", ""))):
+                try:
+                    result = WorldEngine(self.engine.store).travel(str(discord_interaction.user.id), target)
+                    view = WorldExplorerView(self.engine, discord_interaction.user.id, "Voyage commencé." if result.get("travel") else "Vous êtes arrivé.")
+                    await discord_interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
+                except WorldError as exc:
+                    await discord_interaction.response.send_message(f"🚫 {exc}", ephemeral=True)
+            button.callback = world_travel_callback
         elif interaction.get("type") == "close":
             async def close_callback(discord_interaction: discord.Interaction):
                 await discord_interaction.response.defer()
@@ -367,17 +465,25 @@ class InterfaceView(discord.ui.View):
         if not products: return
         select = discord.ui.Select(placeholder=str(component.get("props", {}).get("placeholder", "Choisir un produit…"))[:150], options=[discord.SelectOption(label=str(item["name"])[:100], value=item["item_key"][:100], description=f"{item.get('price', 0)} écus · stock {item.get('quantity', 0)}"[:100], emoji=item.get("emoji") or None) for item in products[:25]], row=row)
         async def choose(interaction: discord.Interaction):
-            product = next(item for item in products if item["item_key"] == select.values[0]); parent = self
-            class PurchaseModal(discord.ui.Modal, title="Commander"):
-                quantity = discord.ui.TextInput(label="Quantité", default="1", required=True, max_length=3)
-                async def on_submit(modal_self, modal_interaction: discord.Interaction):
-                    try:
-                        amount = int(str(modal_self.quantity)); result = await parent.engine.execute_purchase(str(modal_interaction.user.id), parent._building_key(), str(modal_interaction.id), product["item_key"], amount)
-                        parent.notice = f"Commande servie : {amount} × {product['name']} · **{result['purchase']['total']} écus**."
-                    except Exception as exc: parent.notice = str(exc)
-                    parent._render_interactions(); await modal_interaction.response.edit_message(embed=parent.embed(), view=parent)
-            await interaction.response.send_modal(PurchaseModal())
+            await self._show_purchase_modal(interaction, select.values[0])
         select.callback = choose; self.add_item(select)
+
+    async def _show_purchase_modal(self, interaction: discord.Interaction, item_key: str) -> None:
+        """Commande un produit choisi par un menu dynamique ou no-code."""
+        product = next((item for item in self.engine.commerce_options(self._building_key()) if item["item_key"] == item_key), None)
+        if not product:
+            await interaction.response.send_message("Cet objet doit d’abord être ajouté aux Produits du bâtiment avec un prix et un stock.", ephemeral=True)
+            return
+        parent = self
+        class PurchaseModal(discord.ui.Modal, title="Commander"):
+            quantity = discord.ui.TextInput(label="Quantité", default="1", required=True, max_length=3)
+            async def on_submit(modal_self, modal_interaction: discord.Interaction):
+                try:
+                    amount = int(str(modal_self.quantity)); result = await parent.engine.execute_purchase(str(modal_interaction.user.id), parent._building_key(), str(modal_interaction.id), item_key, amount)
+                    parent.notice = f"Commande servie : {amount} × {product['name']} · **{result['purchase']['total']} écus**."
+                except Exception as exc: parent.notice = str(exc)
+                parent._render_interactions(); await modal_interaction.response.edit_message(embed=parent.embed(), view=parent)
+        await interaction.response.send_modal(PurchaseModal())
 
     def _add_dynamic_consumable(self, component: dict[str, Any], row: int) -> None:
         if self.owner_id is None: return
@@ -450,6 +556,8 @@ class InterfaceView(discord.ui.View):
                 await discord_interaction.response.edit_message(embed=self.embed(), view=self)
             elif interaction.get("type") == "action":
                 await self._execute_action(discord_interaction, interaction)
+            elif interaction.get("type") == "purchase":
+                await self._show_purchase_modal(discord_interaction, str(interaction.get("item_key", "")))
             else:
                 await discord_interaction.response.send_message("Cette option n'est pas encore configurée.", ephemeral=True)
 
@@ -898,6 +1006,16 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
     async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
         if not member.bot:
             persist_player_presence(store, member, after.channel if isinstance(after.channel, discord.VoiceChannel) else None)
+            world = WorldEngine(store)
+            before_building = building_for_voice(store, before.channel) if isinstance(before.channel, discord.VoiceChannel) else None
+            after_building = building_for_voice(store, after.channel) if isinstance(after.channel, discord.VoiceChannel) else None
+            try:
+                if after_building and after_building["payload"].get("location_key"):
+                    world.enter_building(str(member.id), after_building["entity_key"])
+                elif before_building:
+                    world.leave_building(str(member.id))
+            except WorldError:
+                logger.info("Position logique non modifiée pour %s : bâtiment non localisé.", member.id)
             try:
                 await update_building_access(store, engine, member, before, after)
             except discord.DiscordException:

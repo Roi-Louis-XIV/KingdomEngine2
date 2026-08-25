@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from pathlib import Path
 
 import KingdomWeb.app as web
 from KingdomData import ContentStore, default_server_settings
@@ -78,6 +79,15 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
     assert 'data-duplicate=' in script
     assert 'data-delete=' in script
     assert 'openEditor(entity,true)' in script
+    assert 'response.status===409' in script
+    assert 'expected_version:latest.version' in script
+    assert 'id="audio-preview-player" controls' in script
+    assert 'function closeAudioPreview()' in script
+    assert 'function itemMenuPicker(component)' in script
+    assert 'data-item-menu-search' in script
+    assert 'data-item-menu-category' in script
+    assert 'data-item-menu-sort' in script
+    assert 'interaction:{type:"purchase",item_key:key}' in script
     assert 'function catalogOptions(type, currentValue="")' in script
     assert 'Choisir une ressource…' in script
     assert 'id="profession-modules"' in script
@@ -133,8 +143,9 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
     assert 'data-nav-group="gameplay"' in html
     assert 'data-nav-group="tools"' in html
     assert 'data-nav-submenu="world"' in html
-    assert 'Quêtes <small>À venir</small>' in html
-    assert 'Test / Simulation <small>À venir</small>' in html
+    # La navigation de production ne présente plus de commandes factices.
+    assert 'Quêtes <small>À venir</small>' not in html
+    assert 'Test / Simulation <small>À venir</small>' not in html
     assert 'id="theme-toggle"' in html
     assert 'localStorage.getItem("kingdomTheme")' in html
     assert 'function applyTheme(theme, persist=false)' in script
@@ -147,6 +158,72 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
     assert 'loadSettings' in script
     assert 'data-supervision-tab="services"' in script
     assert 'data-settings-tab="onboarding"' in script
+    assert 'Relations du bâtiment' in script
+    assert 'data-field="relation_primary_profession"' in script
+    assert 'id="create-related-profession"' in script
+    assert 'data-field="relation_bot_key"' in script
+    assert 'data-field="relation_ambience_key"' in script
+    assert 'function persistBuildingBotRelation' in script
+    assert 'menu.hidden=false' in script
+    assert 'openNavigationGroup(parent?.dataset.navSubmenu||"")' in script
+    assert "else{$$('[data-nav-submenu]').forEach(menu=>menu.hidden=true)" not in script
+    assert 'data-building-tab="overview"' in script
+    assert 'data-building-tab="advanced"' in script
+    assert 'data-open-building-tab="visual"' in script
+    assert 'function gameplayProjection()' in script
+    assert 'id="simple-gameplay-root"' in script
+    assert 'id="advanced-gameplay-root"' in script
+    assert 'data-gameplay-toggle="simple"' in script
+    assert 'function openSimpleZoneEditor(index,discardOnCancel=false)' in script
+    assert 'cancelZoneCreation' in script
+    assert 'activityElement.remove();refreshSimpleGameplay()' in script
+    assert 'module_activity_duration' in script
+    assert 'module_activity_energy' in script
+    assert 'Configuration technique générée' in script
+    assert 'id="add-simple-result"' in script
+    assert 'function openSimpleResultEditor' in script
+    assert 'function openSimpleProfessionEditor' in script
+    assert 'function openSimpleRecipeEditor' in script
+    assert 'function openSimpleDeliveryEditor' in script
+    assert 'function openSimpleProductEditor' in script
+    assert 'id="add-simple-recipe"' in script
+    assert 'id="add-simple-delivery"' in script
+    assert 'openSimpleActionEditor(Number(button.dataset.simpleAction))' in script
+    assert 'function simpleAudioMarkup' in script
+    assert 'function openSimpleSfxEditor' in script
+    assert 'global_ambience' in script
+    assert 'function derivedBuildingRelationsMarkup' in script
+    assert 'RELATIONS DÉRIVÉES' in script
+    assert 'function simpleDiscordMarkup' in script
+    assert 'function openSimplePageEditor' in script
+    assert 'function openSimpleComponentEditor' in script
+    assert 'className=\'grouped-deliveries\'' in script
+    assert 'outcome_effect_min' in script
+    assert 'outcome_effect_max' in script
+    assert 'id="dissociate-building-bot"' in script
+    assert 'id="remove-building-ambience"' in script
+    assert 'function markEditorDirty()' in script
+    assert 'beforeunload' in script
+
+
+def test_building_relations_survive_edit_without_losing_legacy_data(tmp_path):
+    store = ContentStore(tmp_path / "relations.db")
+    store.initialize()
+    legacy = {
+        "name": "Boulangerie",
+        "description": "Ancienne définition",
+        "custom_legacy_value": {"keep": True},
+        "modules": {"professions": [{"key": "baker", "name": "Boulanger"}]},
+        "actions": [],
+    }
+    first = store.save("building", "bakery", legacy)
+    edited = dict(first["payload"])
+    edited["relations"] = {"primary_profession_key": "baker", "ambience_audio_key": "bakery_day"}
+    second = store.save("building", "bakery", edited, expected_version=first["version"])
+
+    assert second["payload"]["relations"]["primary_profession_key"] == "baker"
+    assert second["payload"]["modules"] == legacy["modules"]
+    assert second["payload"]["custom_legacy_value"] == {"keep": True}
 
 
 def test_visual_interface_and_administration_api(tmp_path, monkeypatch):
@@ -250,3 +327,24 @@ def test_building_embeds_its_visual_interface_with_select_menu(tmp_path):
     draft = store.save("building", "unified_tavern", payload)
     published = store.publish("building", "unified_tavern", draft["version"])
     assert published["payload"]["interface"]["pages"][0]["components"][0]["slot"] == 0
+
+
+def test_interactive_tutorial_supports_real_actions_and_stable_building_targets():
+    static = Path(web.__file__).with_name("static")
+    script = (static / "tutorial-engine.js").read_text(encoding="utf-8")
+    content = (static / "tutorial-content.js").read_text(encoding="utf-8")
+    app_script = (static / "app.js").read_text(encoding="utf-8")
+    styles = (static / "tutorials.css").read_text(encoding="utf-8")
+
+    assert 'tutorial-mode-blocked' in script
+    assert 'tutorial-mode-target' in script
+    assert 'tutorial-mode-free' in script
+    assert 'function notify(event,value=null)' in script
+    assert 'completion:{event:"building_editor_opened"}' in content
+    assert 'completion:{event:"building_tab_changed",value:"relations"}' in content
+    assert 'data-tutorial="building-open"' in app_script
+    assert 'data-tutorial="building-tab-relations"' in app_script
+    assert 'KingdomTutorials.notify("building_editor_opened"' in app_script
+    assert 'KingdomTutorials.notify("building_tab_changed"' in app_script
+    assert '.tutorial-mode-target .tutorial-target' in styles
+    assert 'pointer-events:auto!important' in styles

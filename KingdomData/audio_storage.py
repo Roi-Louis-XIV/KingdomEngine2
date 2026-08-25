@@ -26,9 +26,12 @@ def audio_key(value: str) -> str:
 
 
 def safe_audio_path(storage_path: str) -> Path:
-    root = AUDIO_ROOT.resolve()
+    # Les imports historiques sont rangés par bâtiment sous ``assets`` alors
+    # que les nouveaux téléversements vivent sous ``assets/audio``. Les deux
+    # emplacements restent confinés à la banque média de KingdomData.
+    root = (DATA_ROOT / "assets").resolve()
     target = (DATA_ROOT / storage_path).resolve()
-    if root not in target.parents:
+    if root != target and root not in target.parents:
         raise ValidationError("Chemin audio invalide.")
     return target
 

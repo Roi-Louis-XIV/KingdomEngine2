@@ -269,6 +269,58 @@ class RegistreComptes:
                 raise ValueError("Serveur introuvable.")
             base.execute("DELETE FROM server_access WHERE account_id=? AND server_id=?", (compte_id, serveur["id"]))
 
+    def progression_tutoriels(self, compte_id: int, serveur_slug: str) -> dict[str, Any]:
+        """Retourne la progression pédagogique sans la mélanger aux données du monde."""
+        if compte_id <= 0:
+            return {"tutorials": {}, "onboarding_seen": True}
+        with self.connexion() as base:
+            lignes = base.execute(
+                "SELECT tutorial_id,completed_steps_json,completed,dismissed,updated_at "
+                "FROM tutorial_progress WHERE account_id=? AND server_slug=?",
+                (compte_id, serveur_slug),
+            ).fetchall()
+        tutoriels = {}
+        for ligne in lignes:
+            item = dict(ligne)
+            tutoriels[item.pop("tutorial_id")] = {
+                "completed_steps": json.loads(item.pop("completed_steps_json") or "[]"),
+                "completed": bool(item["completed"]), "dismissed": bool(item["dismissed"]),
+                "updated_at": item["updated_at"],
+            }
+        return {"tutorials": tutoriels, "onboarding_seen": "welcome" in tutoriels}
+
+    def enregistrer_progression_tutoriel(
+        self, compte_id: int, serveur_slug: str, tutorial_id: str,
+        completed_steps: list[str], *, completed: bool = False, dismissed: bool = False,
+    ) -> dict[str, Any]:
+        if compte_id <= 0:
+            return {"tutorial_id": tutorial_id, "completed_steps": completed_steps,
+                    "completed": completed, "dismissed": dismissed, "updated_at": _maintenant()}
+        tutorial_id = re.sub(r"[^a-z0-9_-]", "", tutorial_id.lower())[:64]
+        if not tutorial_id:
+            raise ValueError("Tutoriel invalide.")
+        etapes = list(dict.fromkeys(str(step)[:80] for step in completed_steps if str(step).strip()))[:100]
+        maintenant = _maintenant()
+        with self.connexion() as base:
+            base.execute(
+                "INSERT INTO tutorial_progress(account_id,server_slug,tutorial_id,completed_steps_json,completed,dismissed,updated_at) "
+                "VALUES(?,?,?,?,?,?,?) ON CONFLICT(account_id,server_slug,tutorial_id) DO UPDATE SET "
+                "completed_steps_json=excluded.completed_steps_json,completed=excluded.completed,"
+                "dismissed=excluded.dismissed,updated_at=excluded.updated_at",
+                (compte_id, serveur_slug, tutorial_id, json.dumps(etapes), int(completed), int(dismissed), maintenant),
+            )
+        return {"tutorial_id": tutorial_id, "completed_steps": etapes, "completed": completed,
+                "dismissed": dismissed, "updated_at": maintenant}
+
+    def reinitialiser_tutoriel(self, compte_id: int, serveur_slug: str, tutorial_id: str) -> None:
+        if compte_id <= 0:
+            return
+        with self.connexion() as base:
+            base.execute(
+                "DELETE FROM tutorial_progress WHERE account_id=? AND server_slug=? AND tutorial_id=?",
+                (compte_id, serveur_slug, tutorial_id),
+            )
+
     @staticmethod
     def _serveur_dict(ligne: sqlite3.Row) -> dict[str, Any]:
         resultat = dict(ligne)
@@ -296,5 +348,12 @@ CREATE TABLE IF NOT EXISTS server_access(
  account_id INTEGER NOT NULL,server_id INTEGER NOT NULL,role TEXT NOT NULL,permissions_json TEXT NOT NULL DEFAULT '[]',created_at TEXT NOT NULL,
  PRIMARY KEY(account_id,server_id),FOREIGN KEY(account_id) REFERENCES web_accounts(id) ON DELETE CASCADE,
  FOREIGN KEY(server_id) REFERENCES managed_servers(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS tutorial_progress(
+ account_id INTEGER NOT NULL,server_slug TEXT NOT NULL,tutorial_id TEXT NOT NULL,
+ completed_steps_json TEXT NOT NULL DEFAULT '[]',completed INTEGER NOT NULL DEFAULT 0,
+ dismissed INTEGER NOT NULL DEFAULT 0,updated_at TEXT NOT NULL,
+ PRIMARY KEY(account_id,server_slug,tutorial_id),
+ FOREIGN KEY(account_id) REFERENCES web_accounts(id) ON DELETE CASCADE
 );
 """

@@ -167,6 +167,24 @@ def test_claim_button_is_grey_during_countdown_then_green(monkeypatch):
     assert ready.label == "Récupérer : Lisière royale"
 
 
+def test_interface_reflows_select_when_explicit_slots_overlap_buttons():
+    import discord
+    from kingdomCore.discord_bot import InterfaceView
+
+    definition = {"name": "Taverne", "target_building_key": "tavern", "start_page": "shop", "pages": [{
+        "key": "shop", "name": "Comptoir", "components": [
+            {"id": "order", "type": "button", "slot": 0, "props": {"label": "Commander"}, "interaction": {"type": "refresh"}},
+            {"id": "products", "type": "select", "slot": 0, "props": {"placeholder": "Choisir"}, "options": [{"key": "beer", "label": "Bière"}]},
+            {"id": "back", "type": "button", "slot": 1, "props": {"label": "Retour"}, "interaction": {"type": "refresh"}},
+        ],
+    }]}
+    view = InterfaceView(object(), definition, owner_id=42)
+    buttons = [item for item in view.children if isinstance(item, discord.ui.Button)]
+    selector = next(item for item in view.children if isinstance(item, discord.ui.Select))
+    assert [button.row for button in buttons] == [0, 0]
+    assert selector.row == 1
+
+
 def test_activity_interface_shows_locked_zones_but_filters_them_from_selector():
     import discord
     from import_v1 import definitions_from_v1

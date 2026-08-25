@@ -66,3 +66,52 @@ def test_web_accounts_and_servers_are_isolated(tmp_path, monkeypatch):
         assert account.status_code == 200
 
     assert os.path.isfile(created.json()["database_path"])
+
+
+def test_tutorial_progress_is_scoped_by_account_and_server(tmp_path, monkeypatch):
+    database = tmp_path / "tutorials.db"
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "guide")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "mot-de-passe-guide")
+    registry = RegistreComptes(database)
+    registry.initialiser()
+    account = registry.authentifier("guide", "mot-de-passe-guide")
+
+    assert registry.progression_tutoriels(account["id"], "royaume-a") == {
+        "tutorials": {}, "onboarding_seen": False,
+    }
+    saved = registry.enregistrer_progression_tutoriel(
+        account["id"], "royaume-a", "building", ["create", "create", "name"], dismissed=True,
+    )
+    assert saved["completed_steps"] == ["create", "name"]
+    progress = registry.progression_tutoriels(account["id"], "royaume-a")
+    assert progress["tutorials"]["building"]["dismissed"] is True
+    assert registry.progression_tutoriels(account["id"], "royaume-b")["tutorials"] == {}
+
+    registry.reinitialiser_tutoriel(account["id"], "royaume-a", "building")
+    assert registry.progression_tutoriels(account["id"], "royaume-a")["tutorials"] == {}
+
+
+def test_tutorial_progress_api_can_resume_and_reset(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "tutorial-api.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "tutorial-admin")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "tutorial-password")
+    monkeypatch.setattr(web, "magasin_principal", primary)
+    monkeypatch.setattr(web, "store", web.MagasinsServeurs(primary))
+    monkeypatch.setattr(web, "comptes", registry)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+
+    with TestClient(web.app) as client:
+        client.post("/api/auth/login", json={"username": "tutorial-admin", "password": "tutorial-password"})
+        profile = client.get("/api/profile").json()
+        request_headers = {"X-Kingdom-Server": profile["current_server"]}
+        saved = client.put("/api/tutorials/progress/world", headers=request_headers, json={
+            "completed_steps": ["map", "route"], "completed": False, "dismissed": True,
+        })
+        assert saved.status_code == 200
+        resumed = client.get("/api/tutorials/progress", headers=request_headers).json()
+        assert resumed["tutorials"]["world"]["completed_steps"] == ["map", "route"]
+        assert resumed["tutorials"]["world"]["dismissed"] is True
+        assert client.delete("/api/tutorials/progress/world", headers=request_headers).status_code == 200
+        assert client.get("/api/tutorials/progress", headers=request_headers).json()["tutorials"] == {}

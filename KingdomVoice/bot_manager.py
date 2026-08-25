@@ -33,10 +33,12 @@ class ManagedVoiceBot(discord.Client):
         return direct or int(os.getenv(env_name, "0") or 0)
 
     def target_channel(self) -> discord.VoiceChannel | None:
-        """Résout l’ID explicite, puis le nom du bâtiment provisionné."""
+        """Résout l’ID explicite, puis le nom si cet ID est devenu obsolète."""
         if self.channel_id:
             channel = self.get_channel(self.channel_id)
-            return channel if isinstance(channel, discord.VoiceChannel) else None
+            if isinstance(channel, discord.VoiceChannel):
+                return channel
+            print(f"[KingdomVoice] {self.key} : salon {self.channel_id} obsolète, recherche par nom.")
         expected = _normalized_name(self.config.get("voice_channel_name") or self.config.get("building_key") or "")
         if not expected:
             return None
@@ -86,8 +88,17 @@ class ManagedVoiceBot(discord.Client):
 
     def _tracks(self, folder: str | None) -> list[Path]:
         if not folder: return []
-        target = self.assets_root / str(folder).removeprefix("assets/")
-        return sorted(path for path in target.glob("*") if path.suffix.lower() in {".mp3", ".wav", ".ogg"}) if target.exists() else []
+        relative = str(folder).replace("\\", "/").strip("/")
+        candidates = [self.assets_root / relative.removeprefix("assets/"), self.assets_root / relative]
+        # Les profils V1 n'étaient pas homogènes : certains stockaient
+        # ``assets/forest`` et d'autres simplement ``village``.
+        candidates.append(self.assets_root / "assets" / relative.removeprefix("assets/"))
+        for target in dict.fromkeys(candidates):
+            if target.exists():
+                tracks = sorted(path for path in target.glob("*") if path.suffix.lower() in {".mp3", ".wav", ".ogg"})
+                if tracks:
+                    return tracks
+        return []
 
     def _source(self, track: Path, channel: str, loop: bool = False) -> discord.AudioSource:
         volume = float(self.config.get("volume", {}).get(channel, 0.5))
@@ -169,6 +180,7 @@ class ManagedVoiceBot(discord.Client):
     def _start_welcome_then_ambience(self, voice: discord.VoiceClient) -> None:
         welcomes = self._tracks(self.config.get("welcome_folder"))
         if not welcomes:
+            print(f"[KingdomVoice] {self.key} : aucun accueil dans {self.config.get('welcome_folder') or '(non configuré)'}, lancement de l’ambiance.")
             self._start_ambience(voice)
             return
         loop = asyncio.get_running_loop()
@@ -178,6 +190,9 @@ class ManagedVoiceBot(discord.Client):
         tracks = self._tracks(self.config.get("ambience_folder"))
         if tracks and voice.is_connected() and not voice.is_playing():
             voice.play(self._source(tracks[0], "ambience", loop=True))
+            print(f"[KingdomVoice] {self.key} joue {tracks[0].name} en boucle.")
+        elif not tracks:
+            print(f"[KingdomVoice] {self.key} : aucune ambiance trouvée dans {self.config.get('ambience_folder') or '(non configuré)' }.")
 
 
 class VoiceBotManager:

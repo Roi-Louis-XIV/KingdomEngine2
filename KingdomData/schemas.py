@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-ENTITY_TYPES = {"building", "item", "event", "bot", "audio", "npc", "recipe", "interface", "server_settings"}
+ENTITY_TYPES = {"building", "item", "event", "bot", "audio", "npc", "recipe", "interface", "server_settings", "profession", "environment", "location"}
 KEY_RE = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
 ACTION_TYPES = {
     "message", "reward", "cost", "emit", "random_reward", "random_bundle", "random_result",
@@ -62,6 +62,14 @@ def validate_entity(entity_type: str, payload: dict[str, Any]) -> dict[str, Any]
             raise ValidationError("Les effets de consommation doivent former une liste.")
         for effect in consumption.get("effects", []): _validate_effect(effect)
     if entity_type == "building":
+        if payload.get("location_key"):
+            validate_key(str(payload["location_key"]))
+        relations = payload.get("relations", {})
+        if not isinstance(relations, dict):
+            raise ValidationError("Les relations du bâtiment doivent former un objet.")
+        for field in ("primary_profession_key", "ambience_audio_key"):
+            if relations.get(field):
+                validate_key(str(relations[field]))
         actions = payload.get("actions", [])
         if not isinstance(actions, list):
             raise ValidationError("actions doit être une liste.")
@@ -92,6 +100,29 @@ def validate_entity(entity_type: str, payload: dict[str, Any]) -> dict[str, Any]
     if entity_type == "event":
         if payload.get("trigger", {}).get("type", "manual") not in {"manual", "scheduled", "recurring", "action", "players"}:
             raise ValidationError("Déclencheur d’événement invalide.")
+        for modifier in payload.get("modifiers", []):
+            if modifier.get("operator", "multiply") not in {"set", "add", "multiply", "min", "max"}:
+                raise ValidationError("Opérateur de modificateur invalide.")
+            if not str(modifier.get("property", "")).strip():
+                raise ValidationError("La propriété du modificateur est obligatoire.")
+    if entity_type == "profession":
+        if payload.get("required_item"): validate_key(str(payload["required_item"]))
+    if entity_type == "environment":
+        if payload.get("mode", "manual") not in {"manual", "weighted", "scheduled"}:
+            raise ValidationError("Mode environnemental invalide.")
+        if not 0 <= int(payload.get("hour", 12)) <= 23:
+            raise ValidationError("L’heure doit être comprise entre 0 et 23.")
+        if not 0 <= int(payload.get("minute", 0)) <= 59:
+            raise ValidationError("Les minutes doivent être comprises entre 0 et 59.")
+    if entity_type == "location":
+        if payload.get("location_type", "place") not in {"kingdom", "region", "city", "village", "forest", "mountain", "wilderness", "road", "place", "gate", "river", "crossroads", "building", "secret", "special"}:
+            raise ValidationError("Type de lieu invalide.")
+        if payload.get("parent_key"): validate_key(str(payload["parent_key"]))
+        for connection in payload.get("connections", []):
+            validate_key(str(connection.get("target", "")))
+            if connection.get("direction", "one_way") not in {"one_way", "bidirectional"}: raise ValidationError("Direction de connexion invalide.")
+            if connection.get("visibility", "visible") not in {"visible", "discovered", "secret"}: raise ValidationError("Visibilité de connexion invalide.")
+            if int(connection.get("duration_seconds", 0)) < 0: raise ValidationError("La durée d’une connexion ne peut pas être négative.")
     if entity_type == "audio":
         if payload.get("audio_type", payload.get("channel", "sfx")) not in {"voice", "music", "ambience", "sfx"}:
             raise ValidationError("Le type audio doit être voice, music, ambience ou sfx.")
@@ -370,10 +401,12 @@ def _validate_interface(payload: dict[str, Any]) -> None:
 def _validate_interaction(interaction: dict[str, Any] | None) -> None:
     if not interaction:
         return
-    if interaction.get("type") not in {"navigate", "action", "refresh", "close", "deliver_all"}:
+    if interaction.get("type") not in {"navigate", "action", "purchase", "refresh", "close", "deliver_all"}:
         raise ValidationError("Type d'interaction inconnu.")
     if interaction.get("type") == "action" and not (interaction.get("building") and interaction.get("action")):
         raise ValidationError("Une action doit cibler un bâtiment et une action publiée.")
+    if interaction.get("type") == "purchase" and not str(interaction.get("item_key", "")).strip():
+        raise ValidationError("Une option d’achat doit référencer un objet.")
 
 
 def _validate_server_settings(payload: dict[str, Any]) -> None:

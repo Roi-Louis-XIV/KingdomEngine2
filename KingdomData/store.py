@@ -64,6 +64,14 @@ class ContentStore:
             }.items():
                 if name not in player_columns:
                     db.execute(f"ALTER TABLE players ADD COLUMN {name} {definition}")
+            # Le trajet est un état transitoire durable, distinct de la position
+            # arrivée. Cette table additive conserve les bases V1 inchangées.
+            db.execute("""CREATE TABLE IF NOT EXISTS player_travel_state(
+                discord_id TEXT PRIMARY KEY,status TEXT NOT NULL DEFAULT 'travelling',
+                origin_key TEXT NOT NULL,destination_key TEXT NOT NULL,route_key TEXT NOT NULL,
+                started_at REAL NOT NULL,arrives_at REAL NOT NULL,duration_seconds INTEGER NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',updated_at TEXT NOT NULL,
+                FOREIGN KEY(discord_id) REFERENCES players(discord_id))""")
             # Les états d'outil enrichissent l'inventaire, ils ne constituent
             # pas une seconde liste de possessions.
             db.execute(
@@ -85,7 +93,15 @@ class ContentStore:
             if expected_version is not None and latest != expected_version:
                 raise ConflictError(f"Version courante {latest}, version attendue {expected_version}.")
             version = latest + 1
-            db.execute("INSERT INTO content VALUES(?,?,?,?,?,?,?,NULL,NULL)", (entity_type, key, version, "draft", _dump(payload), author, now))
+            try:
+                db.execute("INSERT INTO content VALUES(?,?,?,?,?,?,?,NULL,NULL)", (entity_type, key, version, "draft", _dump(payload), author, now))
+            except sqlite3.IntegrityError as exc:
+                # Plusieurs processus (Web, Core et Voice) peuvent lancer la
+                # même migration au même instant. La contrainte SQLite est
+                # alors un conflit de version normal, pas une panne du bot.
+                if "content.entity_type, content.entity_key, content.version" in str(exc):
+                    raise ConflictError(f"La version {version} de {entity_type}/{key} vient d’être créée par un autre service.") from exc
+                raise
             self._outbox(db, "content.draft.saved", entity_type, key, {"version": version})
         return self.get(entity_type, key, version)
 
@@ -100,12 +116,25 @@ class ContentStore:
             bots = {item["entity_key"]: item["payload"] for item in self.list("bot")}
             if bot_key not in bots or bots[bot_key].get("bot_type") != "voice":
                 raise ValidationError(f"Bot vocal associé au son introuvable : {bot_key}")
+        if entity_type == "location":
+            locations = {item["entity_key"] for item in self.list("location")} | {entity_key}
+            buildings = {item["entity_key"] for item in self.list("building")}
+            if payload.get("parent_key") and str(payload["parent_key"]) not in locations:
+                raise ValidationError(f"Lieu parent introuvable : {payload['parent_key']}")
+            if payload.get("building_key") and str(payload["building_key"]) not in buildings:
+                raise ValidationError(f"Bâtiment associé introuvable : {payload['building_key']}")
+            # Une route peut être préparée avant sa destination (import, création
+            # en plusieurs étapes). Le moteur ignore la route tant que le lieu
+            # cible n'existe pas ; l'éditeur normal ne propose que des lieux réels.
         if entity_type != "building":
             return
         items = {item["entity_key"] for item in self.list("item")}
         buildings = {item["entity_key"] for item in self.list("building")} | {entity_key}
         events = {item["entity_key"] for item in self.list("event")}
         audios = {item["entity_key"] for item in self.list("audio")}
+        locations = {item["entity_key"] for item in self.list("location")}
+        if payload.get("location_key") and str(payload["location_key"]) not in locations:
+            raise ValidationError(f"Localisation du bâtiment introuvable : {payload['location_key']}")
         audio_module = payload.get("modules", {}).get("audio", {})
         groups = audio_module.get("groups", [])
         group_keys = {str(group.get("key")) for group in groups}
@@ -176,7 +205,7 @@ class ContentStore:
 
     def delete(self, entity_type: str, key: str, author: str = "web") -> dict[str, Any]:
         """Masque une définition sans détruire son historique versionné."""
-        if entity_type not in {"building", "item", "event", "audio"}:
+        if entity_type not in {"building", "item", "event", "audio", "profession", "environment", "location"}:
             raise ValidationError("Ce type de contenu ne peut pas être supprimé.")
         current = self.get(entity_type, key)
         with self._lock, self.connection() as db:
@@ -287,6 +316,10 @@ CREATE TABLE IF NOT EXISTS inventory(discord_id TEXT NOT NULL,item_key TEXT NOT 
 CREATE TABLE IF NOT EXISTS player_professions(discord_id TEXT NOT NULL,profession_key TEXT NOT NULL,level INTEGER NOT NULL DEFAULT 1,experience INTEGER NOT NULL DEFAULT 0,active INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(discord_id,profession_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
 CREATE TABLE IF NOT EXISTS player_tools(discord_id TEXT NOT NULL,tool_key TEXT NOT NULL,durability INTEGER NOT NULL,max_durability INTEGER NOT NULL,level INTEGER NOT NULL DEFAULT 1,loot_bonus INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(discord_id,tool_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
 CREATE TABLE IF NOT EXISTS player_state(discord_id TEXT NOT NULL,state_key TEXT NOT NULL,value_json TEXT NOT NULL,PRIMARY KEY(discord_id,state_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
+CREATE TABLE IF NOT EXISTS player_world_state(discord_id TEXT PRIMARY KEY,realm_key TEXT NOT NULL DEFAULT '',location_key TEXT NOT NULL DEFAULT '',active_building_key TEXT NOT NULL DEFAULT '',discovered_locations_json TEXT NOT NULL DEFAULT '[]',discovered_routes_json TEXT NOT NULL DEFAULT '[]',updated_at TEXT NOT NULL,FOREIGN KEY(discord_id) REFERENCES players(discord_id));
+CREATE TABLE IF NOT EXISTS player_travel_state(discord_id TEXT PRIMARY KEY,status TEXT NOT NULL DEFAULT 'travelling',origin_key TEXT NOT NULL,destination_key TEXT NOT NULL,route_key TEXT NOT NULL,started_at REAL NOT NULL,arrives_at REAL NOT NULL,duration_seconds INTEGER NOT NULL,metadata_json TEXT NOT NULL DEFAULT '{}',updated_at TEXT NOT NULL,FOREIGN KEY(discord_id) REFERENCES players(discord_id));
+CREATE TABLE IF NOT EXISTS world_travel_log(id INTEGER PRIMARY KEY AUTOINCREMENT,discord_id TEXT NOT NULL,origin_key TEXT NOT NULL,destination_key TEXT NOT NULL,route_key TEXT NOT NULL,duration_seconds INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,FOREIGN KEY(discord_id) REFERENCES players(discord_id));
+CREATE TABLE IF NOT EXISTS world_runtime(runtime_key TEXT PRIMARY KEY,value_json TEXT NOT NULL,updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS player_stats(discord_id TEXT NOT NULL,stat_key TEXT NOT NULL,value REAL NOT NULL,updated_at REAL NOT NULL,metadata_json TEXT NOT NULL DEFAULT '{}',PRIMARY KEY(discord_id,stat_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
 CREATE TABLE IF NOT EXISTS random_result_memory(scope TEXT NOT NULL,pool_key TEXT NOT NULL,result_key TEXT NOT NULL,updated_at REAL NOT NULL,PRIMARY KEY(scope,pool_key));
 CREATE TABLE IF NOT EXISTS game_sessions(session_key TEXT PRIMARY KEY,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,game_key TEXT NOT NULL,choice_key TEXT NOT NULL,stake_resource TEXT NOT NULL,stake INTEGER NOT NULL,multiplier REAL NOT NULL,status TEXT NOT NULL,confirmation_interaction_id TEXT UNIQUE,result_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL,resolved_at TEXT,FOREIGN KEY(discord_id) REFERENCES players(discord_id));

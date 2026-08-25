@@ -12,11 +12,16 @@ from typing import Any
 from KingdomData import ContentStore, NotFoundError, ValidationError
 from import_v1 import actions_from_modules
 from kingdomEvent import Event, EventBus
+from kingdomEvent.modifiers import ModifierEngine
+from kingdomEvent.runtime import WorldClock, event_is_active
+from kingdomCore.world import WorldEngine, WorldError
 
 
 class GameEngine:
     def __init__(self, store: ContentStore, bus: EventBus | None = None, rng: random.Random | None = None) -> None:
         self.store, self.bus, self.rng = store, bus or EventBus(), rng or random.Random()
+        self.world_clock = WorldClock(store)
+        self._world_snapshot: dict[str, Any] | None = None
 
     def buildings(self) -> list[dict[str, Any]]:
         buildings = self.store.list("building", published=True)
@@ -38,6 +43,9 @@ class GameEngine:
         context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         try:
+            # Toute écriture de l'horloge/météo est effectuée avant la
+            # transaction gameplay afin d'éviter deux écrivains SQLite.
+            self._world_snapshot = self.world_clock.state()
             return await self._execute(discord_id, building_key, action_key, interaction_id, context or {})
         except Exception as exc:
             try:
@@ -47,6 +55,18 @@ class GameEngine:
             except Exception:
                 pass
             raise
+
+    async def execute_local_activity(self, discord_id: str, building_key: str, action_key: str,
+                                     interaction_id: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Exécute une activité uniquement si le lieu courant la référence."""
+        world = WorldEngine(self.store)
+        travel = world.get_travel_state(discord_id)
+        if travel:
+            raise ValidationError(f"Vous êtes en voyage. Arrivée dans {travel['remaining_seconds']} seconde(s).")
+        allowed = {(item["building_key"], item["key"]) for item in world.local_activities(discord_id)}
+        if (building_key, action_key) not in allowed:
+            raise ValidationError("Cette activité n’est pas disponible à votre position actuelle.")
+        return await self.execute(discord_id, building_key, action_key, interaction_id, {**(context or {}), "world_local_activity": True})
 
     def delivery_options(self, discord_id: str, building_key: str) -> list[dict[str, Any]]:
         building = self.building(building_key)["payload"]
@@ -70,6 +90,7 @@ class GameEngine:
     async def execute_purchase(self, discord_id: str, building_key: str, interaction_id: str,
                                item_key: str, quantity: int) -> dict[str, Any]:
         """Transfert commercial quantifié, atomique et idempotent."""
+        self._world_snapshot = self.world_clock.state()
         quantity = int(quantity)
         if quantity < 1: raise ValidationError("La quantité doit être supérieure à zéro.")
         product = next((item for item in self.commerce_options(building_key) if item["item_key"] == item_key), None)
@@ -82,7 +103,8 @@ class GameEngine:
             if previous: return json.loads(previous[0])
             self._ensure_player(db, discord_id)
             self._change_stock(db, building_key, item_key, -quantity, int(product.get("initial_stock", 0)))
-            total = quantity * int(product.get("price", 0))
+            unit_price = self._effective_number(product.get("price", 0), "economy.price", {"building_key": building_key, "item_key": item_key})
+            total = quantity * unit_price
             self._change_resource(db, discord_id, str(product.get("currency", "money")), -total)
             self._change_resource(db, discord_id, item_key, quantity)
             result = {"purchase": {"item": item_key, "name": product["name"], "quantity": quantity,
@@ -244,9 +266,14 @@ class GameEngine:
         action = next((a for a in actions if a.get("key") == action_key), None)
         if not action or not action.get("enabled", True):
             raise NotFoundError("Cette action n’est pas disponible.")
+        action = {**action}
+        modifier_context = {"building_key": building_key, "action_key": action_key, **action.get("modifier_context", {})}
+        if self._effective_number(1, "availability", modifier_context) <= 0:
+            raise ValidationError("Cette activité est temporairement indisponible.")
+        action["cooldown_seconds"] = self._effective_number(action.get("cooldown_seconds", 0), "cooldown.duration", {**modifier_context, "cooldown_scope": "player"})
+        action["global_cooldown_seconds"] = self._effective_number(action.get("global_cooldown_seconds", 0), "cooldown.duration", {**modifier_context, "cooldown_scope": "global"})
         timing = context.get("interface_timing", {})
         if isinstance(timing, dict):
-            action = {**action}
             for field in ("cooldown_seconds", "global_cooldown_seconds"):
                 if field in timing:
                     action[field] = min(86400, max(0, int(timing[field])))
@@ -278,11 +305,13 @@ class GameEngine:
                 kind = effect["type"]
                 if kind == "message": messages.append(str(effect.get("text", "")))
                 elif kind in {"reward", "cost"}:
-                    minimum, maximum = self._range(effect.get("amount", 0))
+                    property_name = str(effect.get("modifier_property") or ("energy.cost" if kind == "cost" and effect.get("resource") == "energy" else "production.quantity"))
+                    effect_context = {**modifier_context, **effect.get("_modifier_context", {}), "item_key": effect.get("resource"), "ingredient_key": effect.get("ingredient_key"), "recipe_key": effect.get("recipe_key", effect.get("_modifier_context", {}).get("recipe_key", modifier_context.get("recipe_key")))}
+                    minimum, maximum = self._effective_range(effect.get("amount", 0), property_name, effect_context)
                     amount = self.rng.randint(minimum, maximum) * (1 if kind == "reward" else -1)
                     self._change_resource(db, discord_id, effect.get("resource", "money"), amount)
                 elif kind == "production":
-                    minimum, maximum = self._range(effect.get("amount", 0))
+                    minimum, maximum = self._effective_range(effect.get("amount", 0), "production.quantity", {"building_key": building_key, "action_key": action_key, "item_key": effect.get("resource", effect.get("item"))})
                     amount = self.rng.randint(minimum, maximum)
                     resource = str(effect.get("resource", effect.get("item")))
                     if effect.get("destination", "player_inventory") in {"player", "player_inventory"}:
@@ -327,7 +356,10 @@ class GameEngine:
                     if chosen.get("event"):
                         emitted.append(Event(str(chosen["event"]), f"building:{building_key}", {"discord_id": discord_id, "building": building_key, "action": action_key, **chosen.get("payload", {})}))
                 elif kind in {"stock_cost", "stock_reward"}:
-                    minimum, maximum = self._range(effect.get("amount", 0))
+                    if effect.get("modifier_property"):
+                        minimum, maximum = self._effective_range(effect.get("amount", 0), str(effect["modifier_property"]), {**modifier_context, "item_key": effect.get("item"), "ingredient_key": effect.get("ingredient_key"), "recipe_key": effect.get("recipe_key", modifier_context.get("recipe_key"))})
+                    else:
+                        minimum, maximum = self._range(effect.get("amount", 0))
                     amount = self.rng.randint(minimum, maximum) * (1 if kind == "stock_reward" else -1)
                     stock_building = str(effect.get("building", building_key))
                     self._change_stock(db, stock_building, str(effect["item"]), amount, int(effect.get("initial_stock", 0)))
@@ -403,15 +435,16 @@ class GameEngine:
                     count = int(db.execute(f"SELECT COUNT(*) FROM scheduled_actions WHERE {' AND '.join(clauses)}", parameters).fetchone()[0])
                     if count >= maximum:
                         raise ValidationError("La limite d'activites en cours est atteinte.")
-                    ready_at = time.time() + int(effect.get("duration_seconds", 0))
+                    duration = self._effective_number(effect.get("duration_seconds", 0), "activity.duration", {"building_key": building_key, "action_key": str(effect.get("action", action_key)), "activity_key": str(effect.get("action", action_key))})
+                    ready_at = time.time() + duration
                     resolved_effects, scheduled_selected = self._resolve_random_effects(db, discord_id, list(effect.get("effects", [])))
                     selected_results.extend(scheduled_selected)
                     claim_hooks = effect.get("hooks", {}).get("on_claim", [])
                     db.execute(
                         "INSERT INTO scheduled_actions(discord_id,building_key,action_key,category,limit_scope,ready_at,effects_json,status,created_at,result_json,claim_hooks_json) VALUES(?,?,?,?,?,?,?,'pending',?,?,?)",
-                        (discord_id, building_key, effect["action"], category, scope, ready_at, json.dumps(resolved_effects, ensure_ascii=False), _now(), json.dumps({"selected_results": scheduled_selected}, ensure_ascii=False), json.dumps(claim_hooks, ensure_ascii=False)),
+                        (discord_id, building_key, effect["action"], category, scope, ready_at, json.dumps(resolved_effects, ensure_ascii=False), _now(), json.dumps({"selected_results": scheduled_selected, "modifier_context": modifier_context}, ensure_ascii=False), json.dumps(claim_hooks, ensure_ascii=False)),
                     )
-                    messages.append(f"Activite lancee. Recuperation disponible dans {int(effect.get('duration_seconds', 0))} seconde(s).")
+                    messages.append(f"Activite lancee. Recuperation disponible dans {duration} seconde(s).")
                 elif kind == "claim_scheduled":
                     job = db.execute(
                         "SELECT * FROM scheduled_actions WHERE discord_id=? AND building_key=? AND action_key=? AND status='pending' ORDER BY id LIMIT 1",
@@ -422,8 +455,10 @@ class GameEngine:
                     if float(job["ready_at"]) > time.time():
                         raise ValidationError(f"Cette activite sera terminee dans {int(float(job['ready_at']) - time.time()) + 1} seconde(s).")
                     db.execute("UPDATE scheduled_actions SET status='completed',completed_at=? WHERE id=?", (_now(), job["id"]))
-                    effects[0:0] = json.loads(job["effects_json"])
-                    selected = json.loads(job["result_json"] or "{}").get("selected_results", [])
+                    scheduled_result = json.loads(job["result_json"] or "{}")
+                    scheduled_context = scheduled_result.get("modifier_context", {})
+                    effects[0:0] = [{**resolved, "_modifier_context": scheduled_context} for resolved in json.loads(job["effects_json"])]
+                    selected = scheduled_result.get("selected_results", [])
                     selected_results.extend(map(str, selected))
                     claim_hooks = json.loads(job["claim_hooks_json"] or "[]")
                     effects[0:0] = [{"type": "emit", "event": hook["event"], "payload": {**hook.get("payload", {}), "selected_results": selected}} for hook in claim_hooks]
@@ -483,6 +518,15 @@ class GameEngine:
             ).fetchall()
         return [{"action": str(row[0]), "ready_at": float(row[1])} for row in rows]
 
+    def action_available(self, building_key: str, action_key: str) -> bool:
+        building = self.building(building_key)["payload"]
+        actions = actions_from_modules(building_key, building.get("modules", {})) if building.get("action_mode") == "generated" else building.get("actions", [])
+        action = next((item for item in actions if item.get("key") == action_key and item.get("enabled", True)), None)
+        if not action: return False
+        context = {"building_key": building_key, "action_key": action_key, **action.get("modifier_context", {})}
+        self._world_snapshot = self.world_clock.state()
+        return self._effective_number(1, "availability", context) > 0
+
     def cooldown_remaining(self, discord_id: str, building_key: str, action_key: str) -> int:
         with self.store.connection() as db:
             rows = db.execute(
@@ -523,6 +567,19 @@ class GameEngine:
         if isinstance(value, dict):
             return int(value.get("min", 0)), int(value.get("max", value.get("min", 0)))
         return int(value), int(value)
+
+    def _effective_range(self, value: Any, property_name: str, context: dict[str, Any]) -> tuple[int, int]:
+        minimum, maximum = self._range(value)
+        events = [{"key": row["entity_key"], **row["payload"], "active": event_is_active(row["payload"])} for row in self.store.list("event", published=True)]
+        weather = (self._world_snapshot or self.world_clock.state())["weather"]
+        environment = [{"key": f"weather_{weather.get('key', 'current')}", "modifiers": weather.get("modifiers", [])}]
+        resolver = ModifierEngine()
+        effective_minimum, _ = resolver.effective(minimum, property_name, context, environment, events)
+        effective_maximum, _ = resolver.effective(maximum, property_name, context, environment, events)
+        return max(0, round(effective_minimum)), max(0, round(effective_maximum))
+
+    def _effective_number(self, value: Any, property_name: str, context: dict[str, Any]) -> int:
+        return self._effective_range(value, property_name, context)[0]
 
     def _check_requirements(self, db, discord_id: str, requirements: dict[str, Any]) -> None:
         if requirements.get("no_active_profession"):

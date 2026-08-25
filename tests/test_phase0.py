@@ -31,6 +31,14 @@ def seed_reference(store, entity_type, key):
     store.publish(entity_type, key, draft["version"])
 
 
+def test_interface_purchase_option_requires_an_item_reference():
+    from KingdomData.schemas import _validate_interaction
+
+    _validate_interaction({"type": "purchase", "item_key": "beer_blonde"})
+    with pytest.raises(ValidationError, match="référencer un objet"):
+        _validate_interaction({"type": "purchase", "item_key": ""})
+
+
 def test_phase0_schema_migration_preserves_legacy_activity_table(tmp_path):
     path = tmp_path / "legacy-schema.db"
     with sqlite3.connect(path) as db:

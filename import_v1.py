@@ -18,6 +18,7 @@ from KingdomData import (
     migrate_reference_labels,
     migrate_published_building_interfaces,
 )
+from KingdomData.audio_storage import AUDIO_EXTENSIONS, audio_key
 
 
 def definitions_from_v1(v1_root: str | Path | None = None) -> list[dict[str, Any]]:
@@ -92,6 +93,9 @@ def import_v1(store: ContentStore, v1_root: str | Path | None = None) -> int:
             item = {**item, "payload": payload}
         seedable.append(item)
     store.seed(seedable)
+    # Les fichiers V1 livrés avec KingdomEngine2 deviennent aussi des fiches
+    # no-code visibles et attribuables depuis la banque « Voix & audio ».
+    seed_legacy_audio_catalog(store)
     _link_existing_v1_items(store, definitions)
     _link_existing_v1_buildings(store, definitions)
     migrate_weighted_activity_results(store)
@@ -102,6 +106,50 @@ def import_v1(store: ContentStore, v1_root: str | Path | None = None) -> int:
     ):
         _run_concurrent_migration(store, migration)
     return sum((x["type"], x["key"]) not in before for x in definitions)
+
+
+def _legacy_audio_definitions(assets_root: str | Path | None = None) -> list[dict[str, Any]]:
+    root = Path(assets_root) if assets_root else Path(__file__).resolve().parent / "KingdomData" / "assets"
+    bot_by_building = {
+        "forest": "voice_sylvain", "forge": "voice_wagner", "mine": "voice_roland",
+        "tavern": "voice_edgar", "village": "voice_edouard",
+    }
+    labels = {"forest": "Forêt", "forge": "Forge", "mine": "Mine", "tavern": "Taverne", "village": "Village"}
+    definitions: list[dict[str, Any]] = []
+    for building, bot_key in bot_by_building.items():
+        folder = root / building
+        if not folder.exists():
+            continue
+        for path in sorted(item for item in folder.rglob("*") if item.is_file() and item.suffix.lower() in AUDIO_EXTENSIONS):
+            relative = path.relative_to(root.parent).as_posix()
+            section = path.relative_to(folder).parts[0].lower() if len(path.relative_to(folder).parts) > 1 else "ambience"
+            audio_type = section if section in {"voice", "music", "ambience", "sfx"} else "voice" if section == "welcome" else "ambience"
+            display = path.stem.replace("_", " ").replace("#U00e9", "é").replace("#U00e8", "è").strip().title()
+            key = audio_key(f"v1_{building}_{path.relative_to(folder).with_suffix('').as_posix()}")
+            definitions.append({"type": "audio", "key": key, "payload": {
+                "name": display, "description": f"Son historique de {labels[building]} importé depuis KingdomEngine V1.",
+                "emoji": "🔊", "audio_type": audio_type, "channel": audio_type,
+                "speaker_bot_key": bot_key, "tags": [building, labels[building].lower(), "v1", section],
+                "volume": 0.35 if audio_type == "ambience" else 0.15 if audio_type == "music" else 0.7,
+                "loop": audio_type in {"ambience", "music"}, "triggers": [],
+                "storage_path": relative, "file_name": path.name, "size_bytes": path.stat().st_size,
+                "source": "KingdomEngine V1",
+            }})
+    return definitions
+
+
+def seed_legacy_audio_catalog(store: ContentStore, assets_root: str | Path | None = None) -> int:
+    """Publie la banque V1 et conserve l'attribution uniquement si le bot existe."""
+    bots = {item["entity_key"] for item in store.list("bot") if item["payload"].get("bot_type") == "voice"}
+    definitions = []
+    for item in _legacy_audio_definitions(assets_root):
+        payload = dict(item["payload"])
+        if payload.get("speaker_bot_key") not in bots:
+            payload["speaker_bot_key"] = ""
+        definitions.append({**item, "payload": payload})
+    before = len(store.list("audio", published=True))
+    store.seed(definitions)
+    return len(store.list("audio", published=True)) - before
 
 
 def _run_concurrent_migration(store: ContentStore, migration, attempts: int = 4) -> None:
@@ -552,7 +600,7 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
             requirements["items"] = {activity["tool"]: 1}
         immediate_effects = []
         if activity.get("energy_cost"):
-            immediate_effects.append({"type": "cost", "resource": "energy", "amount": int(activity["energy_cost"])})
+            immediate_effects.append({"type": "cost", "resource": "energy", "amount": int(activity["energy_cost"]), "modifier_property": "energy.cost", "activity_key": activity["key"]})
         if activity.get("durability_cost") and activity.get("tool"):
             immediate_effects.append({"type": "tool_modify", "tool": activity["tool"], "operation": "consume_durability", "amount": int(activity["durability_cost"])})
         if activity.get("outcomes") and all("effects" in outcome for outcome in activity["outcomes"]):
@@ -569,6 +617,9 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
             "key": activity["key"], "name": activity.get("name", activity["key"]), "emoji": activity.get("emoji", "⚙️"),
             "description": activity.get("description", ""), "enabled": activity.get("active", True),
             "duration_seconds": int(activity.get("duration_seconds", 0)), "requirements": requirements,
+            "cooldown_seconds": int(activity.get("cooldown_seconds", 0)),
+            "global_cooldown_seconds": int(activity.get("global_cooldown_seconds", 0)),
+            "modifier_context": {"activity_key": activity["key"], "profession_key": profession, "tags": activity.get("tags", [])},
             "activity_limit": activity.get("activity_limit", {"scope": "building", "max_active": 1, "category": profession}),
             "conditions": {"all": [condition for condition in [
                 {"type": "profession_active", "profession": profession} if profession else None,
@@ -601,13 +652,13 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
         if recipe.get("ingredient_source") == "building_stock":
             initial = recipe.get("initial_ingredient_stock", {})
             immediate_effects = [
-                {"type": "stock_cost", "item": item, "amount": int(amount), "initial_stock": int(initial.get(item, 0))}
+                {"type": "stock_cost", "item": item, "amount": int(amount), "initial_stock": int(initial.get(item, 0)), "modifier_property": "recipe.ingredient_quantity", "recipe_key": recipe["key"], "ingredient_key": item}
                 for item, amount in recipe.get("ingredients", {}).items()
             ]
         else:
-            immediate_effects = [{"type": "cost", "resource": item, "amount": int(amount)} for item, amount in recipe.get("ingredients", {}).items()]
+            immediate_effects = [{"type": "cost", "resource": item, "amount": int(amount), "modifier_property": "recipe.ingredient_quantity", "recipe_key": recipe["key"], "ingredient_key": item} for item, amount in recipe.get("ingredients", {}).items()]
         if recipe.get("energy_cost"):
-            immediate_effects.append({"type": "cost", "resource": "energy", "amount": int(recipe["energy_cost"])})
+            immediate_effects.append({"type": "cost", "resource": "energy", "amount": int(recipe["energy_cost"]), "modifier_property": "energy.cost", "recipe_key": recipe["key"]})
         deferred_effects = []
         output_effect = "stock_reward" if recipe.get("output_destination") == "building_stock" else "reward"
         if output_effect == "stock_reward":
@@ -622,6 +673,7 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
             "key": recipe["key"], "name": recipe.get("name", recipe.get("title", recipe["key"])), "emoji": "🛠️",
             "enabled": recipe.get("active", True), "duration_seconds": int(recipe.get("duration_seconds", 0)),
             "requirements": {"profession": profession, "min_level": int(recipe.get("required_level", 1))} if profession else {},
+            "modifier_context": {"recipe_key": recipe["key"], "profession_key": profession, "tags": recipe.get("tags", [])},
         }
         _append_timed(actions, action, immediate_effects, deferred_effects)
     deliveries = modules.get("deliveries", [])

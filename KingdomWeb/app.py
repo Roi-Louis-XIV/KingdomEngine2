@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import mimetypes
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from pathlib import Path
@@ -14,11 +15,14 @@ from fastapi.staticfiles import StaticFiles
 
 from KingdomData import ConflictError, ContentStore, NotFoundError, ValidationError, SERVER_SETTINGS_KEY, get_server_settings
 from KingdomData.audio_storage import audio_key, safe_audio_path, store_audio_file
-from import_v1 import import_v1
+from import_v1 import import_v1, seed_legacy_audio_catalog
 from kingdomCore.provisioner import managed_bot_permissions, required_bot_permissions
 from KingdomWeb.supervision import AdministrationService, ServiceSupervisor
 from KingdomWeb.player_admin import PlayerAdministrationService
 from KingdomWeb.item_catalog import ItemCatalogService
+from KingdomWeb.discord_channels import DiscordChannelAdministrationService, DiscordChannelError
+from KingdomWeb.world_creator import WorldCreatorService
+from kingdomCore.world import WorldEngine, WorldError
 from KingdomWeb.accounts import ErreurAuthentification, ErreurAutorisation, RegistreComptes
 from seed import DEFINITIONS
 import discord
@@ -44,6 +48,7 @@ class MagasinsServeurs:
             magasin = ContentStore(chemin)
             magasin.initialize()
             magasin.seed(DEFINITIONS)
+            seed_legacy_audio_catalog(magasin)
             self._magasins[chemin] = magasin
         self._selection.set(magasin)
         return magasin
@@ -104,7 +109,7 @@ def _permission_requise(request: Request) -> str:
         return "joueurs:voir" if "/players" in chemin else "contenu:voir"
     if "/players" in chemin:
         return "joueurs:modifier"
-    if "/server/settings" in chemin:
+    if "/server/settings" in chemin or "/discord/channels" in chemin:
         return "serveur:parametrer"
     if "/services/" in chemin or "/import/" in chemin:
         return "serveur:superviser"
@@ -158,6 +163,59 @@ def index(): return FileResponse(STATIC / "index.html")
 
 @app.get("/api/health")
 def health(): return {"ok": True, "module": "KingdomWeb", "version": "2.0.0"}
+
+
+@app.get("/api/world/professions", dependencies=[Depends(authorize)])
+def world_professions(): return WorldCreatorService(store).professions()
+
+
+@app.get("/api/world/items/{item_key}/usage", dependencies=[Depends(authorize)])
+def world_item_usage(item_key: str): return WorldCreatorService(store).item_usage(item_key)
+
+
+@app.post("/api/world/effective", dependencies=[Depends(authorize)])
+def world_effective(body: dict[str, Any]):
+    return WorldCreatorService(store).effective(float(body.get("base", 0)), str(body.get("property", "")), dict(body.get("context", {})))
+
+
+@app.get("/api/world/state", dependencies=[Depends(authorize)])
+def world_state(): return WorldCreatorService(store).world_state()
+
+
+@app.get("/api/world/impacts", dependencies=[Depends(authorize)])
+def world_impacts(): return WorldCreatorService(store).impacts()
+
+
+@app.get("/api/world/locations", dependencies=[Depends(authorize)])
+def world_locations(): return WorldCreatorService(store).locations()
+
+
+@app.get("/api/world/geography", dependencies=[Depends(authorize)])
+def world_geography(): return WorldCreatorService(store).geography()
+
+
+@app.get("/api/world/players/{player_id}", dependencies=[Depends(authorize_player_view)])
+def player_world_state(player_id: str):
+    engine = WorldEngine(store)
+    return {"state": engine.player_state(player_id), "travel": engine.get_travel_state(player_id), "routes": engine.available_routes(player_id), "activities": engine.local_activities(player_id), "buildings": engine.local_buildings(player_id), "known_destinations": engine.known_destinations(player_id)}
+
+
+@app.post("/api/world/players/{player_id}/place", dependencies=[Depends(authorize_player_edit)])
+def place_player(player_id: str, body: dict[str, Any]):
+    try: return WorldEngine(store).place(player_id, str(body.get("location_key", "")), realm_key=str(body.get("realm_key", "")))
+    except WorldError as exc: raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/api/world/players/{player_id}/travel", dependencies=[Depends(authorize_player_edit)])
+def travel_player(player_id: str, body: dict[str, Any]):
+    try: return WorldEngine(store).travel(player_id, str(body.get("destination", "")))
+    except WorldError as exc: raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/api/world/players/{player_id}/discover", dependencies=[Depends(authorize_player_edit)])
+def discover_route(player_id: str, body: dict[str, Any]):
+    try: return WorldEngine(store).discover_route(player_id, str(body.get("route_key", "")))
+    except WorldError as exc: raise HTTPException(422, str(exc)) from exc
 
 
 @app.post("/api/auth/login")
@@ -217,6 +275,29 @@ def modifier_mot_de_passe(request: Request, body: dict[str, Any], response: Resp
         raise HTTPException(422, str(exc)) from exc
     response.delete_cookie("royaume_session")
     return {"ok": True, "message": "Mot de passe modifié. Reconnectez-vous."}
+
+
+@app.get("/api/tutorials/progress", dependencies=[Depends(authorize)])
+def tutorial_progress(request: Request):
+    return comptes.progression_tutoriels(int(request.state.compte["id"]), request.state.serveur["slug"])
+
+
+@app.put("/api/tutorials/progress/{tutorial_id}", dependencies=[Depends(authorize)])
+def save_tutorial_progress(tutorial_id: str, request: Request, body: dict[str, Any]):
+    try:
+        return comptes.enregistrer_progression_tutoriel(
+            int(request.state.compte["id"]), request.state.serveur["slug"], tutorial_id,
+            list(body.get("completed_steps") or []), completed=bool(body.get("completed")),
+            dismissed=bool(body.get("dismissed")),
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.delete("/api/tutorials/progress/{tutorial_id}", dependencies=[Depends(authorize)])
+def reset_tutorial_progress(tutorial_id: str, request: Request):
+    comptes.reinitialiser_tutoriel(int(request.state.compte["id"]), request.state.serveur["slug"], tutorial_id)
+    return {"ok": True}
 
 
 async def _administrateur_global(request: Request, compte: dict[str, Any] = Depends(authorize)) -> dict[str, Any]:
@@ -365,7 +446,10 @@ def audio_file(key: str):
         raise HTTPException(404, str(exc)) from exc
     if not path.is_file():
         raise HTTPException(404, "Le fichier audio est absent de KingdomData.")
-    return FileResponse(path, filename=str(entity["payload"].get("file_name") or path.name))
+    # Sans ``filename``, Starlette sert le média en ligne au lieu de forcer un
+    # téléchargement. Le lecteur HTML peut alors le parcourir et le lire.
+    media_type = mimetypes.guess_type(str(entity["payload"].get("file_name") or path.name))[0] or "application/octet-stream"
+    return FileResponse(path, media_type=media_type, headers={"Accept-Ranges": "bytes", "Cache-Control": "private, max-age=300"})
 
 
 @app.get("/api/server/settings", dependencies=[Depends(authorize)])
@@ -386,6 +470,26 @@ def save_server_settings(body: dict[str, Any]):
         raise HTTPException(422, str(exc)) from exc
     except ConflictError as exc:
         raise HTTPException(409, str(exc)) from exc
+
+
+@app.get("/api/admin/discord/channels/audit", dependencies=[Depends(authorize)])
+def audit_discord_channels(request: Request):
+    """Inventorie les doublons sans jamais modifier Discord."""
+    try:
+        return DiscordChannelAdministrationService(store, guild_id=str(request.state.serveur.get("guild_id", ""))).audit()
+    except DiscordChannelError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+
+@app.post("/api/admin/discord/channels/cleanup", dependencies=[Depends(authorize)])
+def cleanup_discord_channels(body: dict[str, Any], request: Request):
+    """Supprime seulement les doublons revalidés après accord explicite."""
+    try:
+        return DiscordChannelAdministrationService(store, guild_id=str(request.state.serveur.get("guild_id", ""))).cleanup(
+            [str(value) for value in body.get("channel_ids", [])], bool(body.get("confirmed", False))
+        )
+    except DiscordChannelError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.get("/api/admin/overview", dependencies=[Depends(authorize)])

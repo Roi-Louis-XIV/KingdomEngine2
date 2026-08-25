@@ -3,6 +3,7 @@ import io
 
 from KingdomData import ContentStore
 from KingdomData import audio_storage
+from import_v1 import _legacy_audio_definitions
 from kingdomCore import GameEngine
 from kingdomEvent import EventBus
 
@@ -18,6 +19,18 @@ def test_audio_file_is_centralized_and_versioned(tmp_path, monkeypatch):
     metadata = audio_storage.store_audio_file(io.BytesIO(b"fake mp3"), "coupe_bois", "hache.mp3")
     assert metadata["storage_path"].endswith("assets/audio/coupe_bois/source.mp3")
     assert (audio_storage.AUDIO_ROOT / "coupe_bois" / "source.mp3").read_bytes() == b"fake mp3"
+
+
+def test_legacy_audio_files_become_no_code_catalog_entries(tmp_path):
+    track = tmp_path / "forest" / "sfx" / "axe_01.mp3"
+    track.parent.mkdir(parents=True)
+    track.write_bytes(b"legacy")
+    definitions = _legacy_audio_definitions(tmp_path)
+    assert len(definitions) == 1
+    payload = definitions[0]["payload"]
+    assert payload["audio_type"] == "sfx"
+    assert payload["speaker_bot_key"] == "voice_sylvain"
+    assert payload["tags"][:3] == ["forest", "forêt", "v1"]
 
 
 def test_action_queues_sound_for_building(tmp_path):
