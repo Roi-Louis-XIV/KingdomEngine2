@@ -72,6 +72,18 @@ class ContentStore:
                 started_at REAL NOT NULL,arrives_at REAL NOT NULL,duration_seconds INTEGER NOT NULL,
                 metadata_json TEXT NOT NULL DEFAULT '{}',updated_at TEXT NOT NULL,
                 FOREIGN KEY(discord_id) REFERENCES players(discord_id))""")
+            # Une occurrence est l'exécution durable d'une définition Event.
+            # Les échéances, pauses et reprises survivent ainsi aux processus.
+            db.execute("""CREATE TABLE IF NOT EXISTS event_occurrences(
+                occurrence_id TEXT PRIMARY KEY,event_key TEXT NOT NULL,status TEXT NOT NULL,
+                scope_json TEXT NOT NULL DEFAULT '{}',started_at REAL,ends_at REAL,
+                scheduled_at REAL,paused_at REAL,remaining_seconds REAL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL,updated_at TEXT NOT NULL)""")
+            db.execute("""CREATE TABLE IF NOT EXISTS npc_player_memory(
+                npc_key TEXT NOT NULL,discord_id TEXT NOT NULL,memory_key TEXT NOT NULL,
+                value_json TEXT NOT NULL,updated_at TEXT NOT NULL,
+                PRIMARY KEY(npc_key,discord_id,memory_key),
+                FOREIGN KEY(discord_id) REFERENCES players(discord_id))""")
             # Les états d'outil enrichissent l'inventaire, ils ne constituent
             # pas une seconde liste de possessions.
             db.execute(
@@ -126,6 +138,13 @@ class ContentStore:
             # Une route peut être préparée avant sa destination (import, création
             # en plusieurs étapes). Le moteur ignore la route tant que le lieu
             # cible n'existe pas ; l'éditeur normal ne propose que des lieux réels.
+        if entity_type == "npc":
+            locations={item["entity_key"] for item in self.list("location")}; buildings={item["entity_key"] for item in self.list("building")}; audios={item["entity_key"] for item in self.list("audio")}
+            if payload.get("location_key") and str(payload["location_key"]) not in locations: raise ValidationError(f"Lieu du PNJ introuvable : {payload['location_key']}")
+            if payload.get("building_key") and str(payload["building_key"]) not in buildings: raise ValidationError(f"Bâtiment du PNJ introuvable : {payload['building_key']}")
+            for reaction in payload.get("reactions",[]):
+                for variant in reaction.get("variants",[]):
+                    if variant.get("audio_key") and str(variant["audio_key"]) not in audios: raise ValidationError(f"Voix du PNJ introuvable : {variant['audio_key']}")
         if entity_type != "building":
             return
         items = {item["entity_key"] for item in self.list("item")}
@@ -205,7 +224,7 @@ class ContentStore:
 
     def delete(self, entity_type: str, key: str, author: str = "web") -> dict[str, Any]:
         """Masque une définition sans détruire son historique versionné."""
-        if entity_type not in {"building", "item", "event", "audio", "profession", "environment", "location"}:
+        if entity_type not in {"building", "item", "event", "audio", "profession", "environment", "location", "npc"}:
             raise ValidationError("Ce type de contenu ne peut pas être supprimé.")
         current = self.get(entity_type, key)
         with self._lock, self.connection() as db:
@@ -320,6 +339,8 @@ CREATE TABLE IF NOT EXISTS player_world_state(discord_id TEXT PRIMARY KEY,realm_
 CREATE TABLE IF NOT EXISTS player_travel_state(discord_id TEXT PRIMARY KEY,status TEXT NOT NULL DEFAULT 'travelling',origin_key TEXT NOT NULL,destination_key TEXT NOT NULL,route_key TEXT NOT NULL,started_at REAL NOT NULL,arrives_at REAL NOT NULL,duration_seconds INTEGER NOT NULL,metadata_json TEXT NOT NULL DEFAULT '{}',updated_at TEXT NOT NULL,FOREIGN KEY(discord_id) REFERENCES players(discord_id));
 CREATE TABLE IF NOT EXISTS world_travel_log(id INTEGER PRIMARY KEY AUTOINCREMENT,discord_id TEXT NOT NULL,origin_key TEXT NOT NULL,destination_key TEXT NOT NULL,route_key TEXT NOT NULL,duration_seconds INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,FOREIGN KEY(discord_id) REFERENCES players(discord_id));
 CREATE TABLE IF NOT EXISTS world_runtime(runtime_key TEXT PRIMARY KEY,value_json TEXT NOT NULL,updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS event_occurrences(occurrence_id TEXT PRIMARY KEY,event_key TEXT NOT NULL,status TEXT NOT NULL,scope_json TEXT NOT NULL DEFAULT '{}',started_at REAL,ends_at REAL,scheduled_at REAL,paused_at REAL,remaining_seconds REAL,metadata_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS npc_player_memory(npc_key TEXT NOT NULL,discord_id TEXT NOT NULL,memory_key TEXT NOT NULL,value_json TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(npc_key,discord_id,memory_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
 CREATE TABLE IF NOT EXISTS player_stats(discord_id TEXT NOT NULL,stat_key TEXT NOT NULL,value REAL NOT NULL,updated_at REAL NOT NULL,metadata_json TEXT NOT NULL DEFAULT '{}',PRIMARY KEY(discord_id,stat_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
 CREATE TABLE IF NOT EXISTS random_result_memory(scope TEXT NOT NULL,pool_key TEXT NOT NULL,result_key TEXT NOT NULL,updated_at REAL NOT NULL,PRIMARY KEY(scope,pool_key));
 CREATE TABLE IF NOT EXISTS game_sessions(session_key TEXT PRIMARY KEY,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,game_key TEXT NOT NULL,choice_key TEXT NOT NULL,stake_resource TEXT NOT NULL,stake INTEGER NOT NULL,multiplier REAL NOT NULL,status TEXT NOT NULL,confirmation_interaction_id TEXT UNIQUE,result_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL,resolved_at TEXT,FOREIGN KEY(discord_id) REFERENCES players(discord_id));

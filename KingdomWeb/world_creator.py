@@ -6,6 +6,8 @@ from typing import Any
 
 from kingdomEvent.modifiers import ModifierEngine, explain
 from kingdomEvent.runtime import WorldClock, event_is_active
+from kingdomEvent.lifecycle import EventLifecycle
+from KingdomVoice.resolver import resolve_audio_scene
 from kingdomCore.world import WorldEngine
 
 
@@ -51,9 +53,14 @@ class WorldCreatorService:
         return result
 
     def effective(self, base: float, property_name: str, context: dict[str, Any]) -> dict[str, Any]:
-        events = [{"key": row["entity_key"], **row["payload"], "active": event_is_active(row["payload"])} for row in self.store.list("event", published=True)]
-        weather = WorldClock(self.store).state()["weather"]
+        lifecycle=EventLifecycle(self.store); occurrence_events=lifecycle.active_definitions()
+        # Dès qu'une définition utilise le nouveau cycle de vie, son ancien
+        # drapeau ``enabled`` ne doit plus la réactiver pendant une pause.
+        occurrence_keys={item["event_key"] for item in lifecycle.list()}
+        events = occurrence_events + [{"key": row["entity_key"], **row["payload"], "active": event_is_active(row["payload"])} for row in self.store.list("event", published=True) if row["entity_key"] not in occurrence_keys]
+        world=WorldClock(self.store).state(); weather=world["weather"]
         modifiers = [{"key": f"weather_{weather.get('key', 'current')}", "modifiers": weather.get("modifiers", [])}]
+        if world.get("season"): modifiers.append({"key":f"season_{world['season'].get('key','current')}","modifiers":world["season"].get("modifiers",[])})
         effective, trace = ModifierEngine().effective(base, property_name, context, modifiers, events)
         return explain(base, effective, trace)
 
@@ -100,3 +107,12 @@ class WorldCreatorService:
 
     def geography(self) -> dict[str, Any]:
         return WorldEngine(self.store).geography()
+
+    def audio_scene(self, building_key: str) -> dict[str, Any]:
+        entity=self.store.get("building",building_key,published=True); world=WorldClock(self.store).state()
+        building={"key":building_key,**entity["payload"]}
+        scene=resolve_audio_scene(building,period=world["time_of_day"],weather=world["weather"],season=world.get("season"),events=EventLifecycle(self.store).active_definitions())
+        bots=[row["payload"] for row in self.store.list("bot",published=True) if row["payload"].get("building_key")==building_key and row["payload"].get("bot_type")=="voice"]
+        channels=self.store.building_channels(building_key)
+        npcs=[{"key":row["entity_key"],"name":row["payload"].get("name",row["entity_key"])} for row in self.store.list("npc",published=True) if row["payload"].get("building_key")==building_key]
+        return {**scene,"bot":bots[0].get("name") if bots else None,"voice_channel_id":channels.get("voice_channel_id"),"voice_channel_name":building.get("name"),"npcs":npcs}

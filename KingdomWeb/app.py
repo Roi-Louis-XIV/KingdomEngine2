@@ -186,6 +186,94 @@ def world_state(): return WorldCreatorService(store).world_state()
 def world_impacts(): return WorldCreatorService(store).impacts()
 
 
+@app.get("/api/world/audio-scene/{building_key}", dependencies=[Depends(authorize)])
+def world_audio_scene(building_key: str):
+    try: return WorldCreatorService(store).audio_scene(building_key)
+    except NotFoundError as exc: raise HTTPException(404,str(exc)) from exc
+
+
+@app.get("/api/world/calendar", dependencies=[Depends(authorize)])
+def world_calendar(year: int | None = None, month_key: str | None = None):
+    from kingdomEvent.calendar import CalendarEngine
+    clock=__import__("kingdomEvent.runtime",fromlist=["WorldClock"]).WorldClock(store); config=clock._config(); state=clock.state(); calendar=CalendarEngine(config.get("calendar")); current=state["date"]
+    selected_year=year or int(current["year"]); selected_month=month_key or str(current["month_key"])
+    days=[day.dict() for day in calendar.month_days(selected_year,selected_month)]; forecast_by_day={int(item["day"]):item for item in state.get("forecasts",[])}
+    occurrences=__import__("kingdomEvent.lifecycle",fromlist=["EventLifecycle"]).EventLifecycle(store).list()
+    definitions={row["entity_key"]:row["payload"] for row in store.list("event",published=True)}
+    return {"definition":calendar.definition,"current":current,"season":state.get("season"),"year":selected_year,"month_key":selected_month,"days":[{**day,"forecast":forecast_by_day.get(day["absolute_day"]),"events":[{"occurrence_id":occ["occurrence_id"],"key":occ["event_key"],"name":definitions.get(occ["event_key"],{}).get("name",occ["event_key"]),"status":occ["status"],"world_start":occ["metadata"].get("world_start"),"world_end":occ["metadata"].get("world_end")} for occ in occurrences if occ["metadata"].get("world_start_hours",10**18)//24<=day["absolute_day"]-1<=occ["metadata"].get("world_end_hours",-1)//24]} for day in days]}
+
+
+@app.post("/api/events/{event_key}/schedule-world", dependencies=[Depends(authorize)])
+def schedule_event_world(event_key: str, body: dict[str, Any]):
+    from kingdomEvent.lifecycle import EventLifecycle
+    try:return EventLifecycle(store).schedule_world(event_key,dict(body["start"]),dict(body["end"]),scope=body.get("scope"))
+    except (NotFoundError,ValueError,KeyError) as exc:raise HTTPException(422,str(exc)) from exc
+
+
+@app.get("/api/npcs/{npc_key}/context/{player_id}", dependencies=[Depends(authorize_player_view)])
+def npc_context(npc_key:str,player_id:str):
+    from kingdomCore.npc import NpcEngine
+    try:return NpcEngine(store).context(npc_key,player_id)
+    except (NotFoundError,ValueError) as exc:raise HTTPException(404,str(exc)) from exc
+
+
+@app.post("/api/npcs/{npc_key}/react/{player_id}", dependencies=[Depends(authorize_player_edit)])
+def npc_react(npc_key:str,player_id:str,body:dict[str,Any]):
+    from kingdomCore.npc import NpcEngine,NpcError
+    try:return NpcEngine(store).react(npc_key,player_id,str(body.get("trigger","talk")),dict(body.get("context") or {}))
+    except (NotFoundError,NpcError,ValueError) as exc:raise HTTPException(422,str(exc)) from exc
+
+
+@app.post("/api/npcs/{npc_key}/move", dependencies=[Depends(authorize)])
+def npc_move(npc_key:str,body:dict[str,Any]):
+    from kingdomCore.npc import NpcEngine
+    try:return NpcEngine(store).move(npc_key,location_key=str(body.get("location_key","")),building_key=str(body.get("building_key","")))
+    except (NotFoundError,ValueError) as exc:raise HTTPException(422,str(exc)) from exc
+
+
+@app.get("/api/npcs/{npc_key}/dialogue/{player_id}", dependencies=[Depends(authorize_player_view)])
+def npc_dialogue(npc_key:str,player_id:str,node_key:str=""):
+    from kingdomCore.npc import NpcEngine,NpcError
+    try:return NpcEngine(store).dialogue(npc_key,player_id,node_key)
+    except (NotFoundError,NpcError) as exc:raise HTTPException(404,str(exc)) from exc
+
+
+@app.post("/api/npcs/{npc_key}/dialogue/{player_id}/choose", dependencies=[Depends(authorize_player_edit)])
+def npc_dialogue_choice(npc_key:str,player_id:str,body:dict[str,Any]):
+    from kingdomCore.npc import NpcEngine,NpcError
+    try:return NpcEngine(store).choose_dialogue(npc_key,player_id,str(body.get("node_key","")),str(body.get("choice_key","")))
+    except (NotFoundError,NpcError) as exc:raise HTTPException(422,str(exc)) from exc
+
+
+@app.get("/api/events/occurrences", dependencies=[Depends(authorize)])
+def event_occurrences():
+    from kingdomEvent.lifecycle import EventLifecycle
+    return {"occurrences":EventLifecycle(store).list()}
+
+
+@app.post("/api/events/{event_key}/activate", dependencies=[Depends(authorize)])
+def activate_event(event_key: str, body: dict[str, Any]):
+    from kingdomEvent.lifecycle import EventLifecycle
+    try: return EventLifecycle(store).activate(event_key,body.get("duration_seconds"),scope=body.get("scope"))
+    except (NotFoundError,ValueError) as exc: raise HTTPException(422,str(exc)) from exc
+
+
+@app.post("/api/events/{event_key}/schedule", dependencies=[Depends(authorize)])
+def schedule_event(event_key: str, body: dict[str, Any]):
+    from kingdomEvent.lifecycle import EventLifecycle
+    try: return EventLifecycle(store).schedule(event_key,float(body["scheduled_at"]),float(body["duration_seconds"]),scope=body.get("scope"))
+    except (NotFoundError,ValueError,KeyError) as exc: raise HTTPException(422,str(exc)) from exc
+
+
+@app.post("/api/events/occurrences/{occurrence_id}/{command}", dependencies=[Depends(authorize)])
+def command_event_occurrence(occurrence_id: str, command: str, body: dict[str, Any] | None = None):
+    from kingdomEvent.lifecycle import EventLifecycle
+    lifecycle=EventLifecycle(store); commands={"pause":lambda:lifecycle.pause(occurrence_id),"resume":lambda:lifecycle.resume(occurrence_id),"stop":lambda:lifecycle.stop(occurrence_id),"extend":lambda:lifecycle.extend(occurrence_id,float((body or {}).get("seconds",0)))}
+    if command not in commands: raise HTTPException(404,"Commande Event inconnue.")
+    try: return commands[command]()
+    except (LookupError,ValueError) as exc: raise HTTPException(422,str(exc)) from exc
+
+
 @app.get("/api/world/locations", dependencies=[Depends(authorize)])
 def world_locations(): return WorldCreatorService(store).locations()
 

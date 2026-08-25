@@ -108,12 +108,29 @@ def validate_entity(entity_type: str, payload: dict[str, Any]) -> dict[str, Any]
     if entity_type == "profession":
         if payload.get("required_item"): validate_key(str(payload["required_item"]))
     if entity_type == "environment":
-        if payload.get("mode", "manual") not in {"manual", "weighted", "scheduled"}:
+        if payload.get("mode", "manual") not in {"manual", "weighted", "automatic", "scheduled"}:
             raise ValidationError("Mode environnemental invalide.")
         if not 0 <= int(payload.get("hour", 12)) <= 23:
             raise ValidationError("L’heure doit être comprise entre 0 et 23.")
         if not 0 <= int(payload.get("minute", 0)) <= 59:
             raise ValidationError("Les minutes doivent être comprises entre 0 et 59.")
+        calendar=payload.get("calendar", {})
+        if calendar:
+            months=calendar.get("months", []); weekdays=calendar.get("weekdays", [])
+            if not months or not weekdays: raise ValidationError("Le calendrier doit contenir des mois et des jours de semaine.")
+            if any(int(month.get("days",0))<1 for month in months): raise ValidationError("Chaque mois doit contenir au moins un jour.")
+            month_keys=[validate_key(str(month.get("key",""))) for month in months]
+            if len(month_keys)!=len(set(month_keys)): raise ValidationError("Les identifiants de mois doivent être uniques.")
+            for season in calendar.get("seasons",[]):
+                validate_key(str(season.get("key","")))
+                if season.get("start_month_key") not in month_keys: raise ValidationError("Le mois de début d’une saison est introuvable.")
+    if entity_type == "npc":
+        if payload.get("location_key"): validate_key(str(payload["location_key"]))
+        if payload.get("building_key"): validate_key(str(payload["building_key"]))
+        for reaction in payload.get("reactions",[]):
+            if not reaction.get("variants"): raise ValidationError("Une réaction PNJ doit contenir au moins une variante.")
+            for variant in reaction["variants"]:
+                if not str(variant.get("text","")).strip(): raise ValidationError("Chaque variante PNJ doit contenir un texte Discord.")
     if entity_type == "location":
         if payload.get("location_type", "place") not in {"kingdom", "region", "city", "village", "forest", "mountain", "wilderness", "road", "place", "gate", "river", "crossroads", "building", "secret", "special"}:
             raise ValidationError("Type de lieu invalide.")

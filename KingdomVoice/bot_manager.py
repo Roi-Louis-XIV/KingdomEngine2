@@ -13,6 +13,9 @@ from typing import Any
 import discord
 
 from KingdomData import ContentStore
+from KingdomVoice.resolver import resolve_audio_scene
+from kingdomEvent.lifecycle import EventLifecycle
+from kingdomEvent.runtime import WorldClock
 
 
 class ManagedVoiceBot(discord.Client):
@@ -25,6 +28,7 @@ class ManagedVoiceBot(discord.Client):
         self.key, self.config, self.assets_root, self.store = key, config, assets_root, store
         self._audio_lock = asyncio.Lock()
         self.current_group_key = str(config.get("default_group_key", ""))
+        self._last_scene_check = 0.0
 
     @property
     def channel_id(self) -> int:
@@ -121,6 +125,25 @@ class ManagedVoiceBot(discord.Client):
             return {}
         return self.store.get("building", building_key, published=True)["payload"].get("modules", {}).get("audio", {})
 
+    async def sync_effective_scene(self) -> None:
+        """Applique sans restart la couche de plus haute priorité disponible.
+
+        Le mixage simultané reste volontairement distinct : ce runtime joue
+        une couche prioritaire et conserve toute la trace dans le résolveur.
+        """
+        building_key=str(self.config.get("building_key", ""))
+        if not building_key: return
+        try:
+            payload=self.store.get("building",building_key,published=True)["payload"]
+            world=WorldClock(self.store).state()
+            scene=resolve_audio_scene({"key":building_key,**payload},period=world["time_of_day"],weather=world["weather"],season=world.get("season"),events=EventLifecycle(self.store).active_definitions())
+            desired=scene["effective_group_key"]
+            if desired and desired!=self.current_group_key:
+                print(f"[KingdomVoice] {self.key} scène effective : " + " + ".join(f"{x['source']}={x['group_key']}" for x in scene["explanation"]))
+                await self.set_group(desired)
+        except Exception as exc:
+            print(f"[KingdomVoice] {self.key} : résolution de scène conservée sur {self.current_group_key or 'fallback'} ({exc}).")
+
     def _group(self, group_key: str) -> dict[str, Any] | None:
         return next((group for group in self._building_audio().get("groups", []) if group.get("key") == group_key), None)
 
@@ -202,6 +225,7 @@ class VoiceBotManager:
         self.store = store or ContentStore()
         self.assets_root = Path(assets_root) if assets_root else Path(__file__).resolve().parents[1] / "KingdomData"
         self.clients: dict[str, ManagedVoiceBot] = {}
+        self._last_scene_check = 0.0
 
     def configured(self) -> list[dict[str, Any]]:
         return [entity for entity in self.store.list("bot", published=True) if entity["payload"].get("bot_type") == "voice"]
@@ -263,6 +287,10 @@ class VoiceBotManager:
     async def _dispatch_audio(self) -> None:
         await asyncio.sleep(2)
         while not self.is_closed():
+            now=asyncio.get_running_loop().time()
+            if now-self._last_scene_check>=5:
+                self._last_scene_check=now
+                await asyncio.gather(*(client.sync_effective_scene() for client in self.clients.values()),return_exceptions=True)
             for command in self.store.pending_audio():
                 error = ""
                 try:
