@@ -52,6 +52,11 @@ DEFAULT_SERVER_SETTINGS: dict[str, Any] = {
         "primary_color": "7a1f1f",
         "accent_color": "b9924c",
     },
+    "world_map": {
+        "background_path": "",
+        "width": 1600,
+        "height": 900,
+    },
 }
 
 

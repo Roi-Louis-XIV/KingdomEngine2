@@ -50,8 +50,40 @@ class MagasinsServeurs:
             magasin.seed(DEFINITIONS)
             seed_legacy_audio_catalog(magasin)
             self._magasins[chemin] = magasin
+        self._synchroniser_modeles_bots(magasin)
         self._selection.set(magasin)
         return magasin
+
+    def _synchroniser_modeles_bots(self, magasin: ContentStore) -> None:
+        """Ajoute aux royaumes secondaires les bots globaux qui leur manquent.
+
+        Les applications Discord et leurs variables .env appartiennent à
+        l'installation KingdomEngine. Chaque royaume conserve ensuite sa propre
+        fiche afin de pouvoir changer bâtiment, salon et activation sans que les
+        personnalisations locales soient écrasées.
+        """
+        if magasin.path.resolve() == self.principal.path.resolve():
+            return
+        batiments = {item["entity_key"] for item in magasin.list("building")}
+        for modele in self.principal.list("bot", published=True):
+            try:
+                magasin.get("bot", modele["entity_key"])
+                continue
+            except NotFoundError:
+                pass
+            configuration = dict(modele["payload"])
+            if configuration.get("bot_type") == "voice":
+                # Les identifiants de salons appartiennent au serveur source.
+                # Le nouveau royaume retrouvera son salon depuis le bâtiment
+                # associé après provisionnement.
+                configuration["voice_channel_id"] = "0"
+                configuration["voice_channel_env"] = ""
+                if str(configuration.get("building_key", "")) not in batiments:
+                    configuration["building_key"] = ""
+            brouillon = magasin.save(
+                "bot", modele["entity_key"], configuration, "shared-bot-template"
+            )
+            magasin.publish("bot", modele["entity_key"], brouillon["version"], "shared-bot-template")
 
     def __getattr__(self, nom: str):
         return getattr(self._selection.get(), nom)
@@ -85,6 +117,8 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Kingdom Studio", version="2.0.0", lifespan=lifespan)
 STATIC = Path(__file__).with_name("static")
+KINGDOM_DATA_ROOT = Path(__file__).resolve().parents[1] / "KingdomData"
+MAP_ASSETS = KINGDOM_DATA_ROOT / "assets" / "maps"
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
@@ -473,6 +507,7 @@ def publish_content(entity_type: str, key: str, version: int, body: dict[str, An
     try:
         result = store.publish(entity_type, key, version, (body or {}).get("author", "studio"))
         if entity_type == "building":
+            store.request_discord_provision("building", key, "building-publication")
             group_key = str(result["payload"].get("modules", {}).get("audio", {}).get("default_group_key", ""))
             if group_key:
                 with store.connection() as db:
@@ -480,6 +515,25 @@ def publish_content(entity_type: str, key: str, version: int, body: dict[str, An
         return result
     except NotFoundError as exc: raise HTTPException(404, str(exc)) from exc
     except ConflictError as exc: raise HTTPException(409, str(exc)) from exc
+
+
+@app.get("/api/admin/discord/provision/status", dependencies=[Depends(authorize)])
+def discord_provision_status():
+    status = store.discord_provision_status()
+    with store.connection() as db:
+        channels = int(db.execute("SELECT COUNT(*) FROM building_discord_channels").fetchone()[0])
+    return {**status, "installed": status.get("status") == "done", "managed_buildings": channels}
+
+
+@app.post("/api/admin/discord/provision", dependencies=[Depends(authorize)])
+def request_discord_provision(request: Request, body: dict[str, Any] | None = None):
+    configuration = body or {}
+    scope = str(configuration.get("scope", "server"))
+    building_key = str(configuration.get("building_key", ""))
+    if scope == "building" and not building_key:
+        raise HTTPException(422, "Choisissez le bâtiment à synchroniser.")
+    request_id = store.request_discord_provision(scope, building_key, f"KingdomWeb:{request.state.compte.get('username', 'admin')}")
+    return {"ok": True, "request_id": request_id, "status": "pending", "scope": scope, "building_key": building_key}
 
 
 @app.get("/api/changes", dependencies=[Depends(authorize)])
@@ -558,6 +612,65 @@ def save_server_settings(body: dict[str, Any]):
         raise HTTPException(422, str(exc)) from exc
     except ConflictError as exc:
         raise HTTPException(409, str(exc)) from exc
+
+
+def _publish_world_map(configuration: dict[str, Any]) -> dict[str, Any]:
+    """Met à jour uniquement la carte dans les paramètres publiés du royaume."""
+    current = store.get("server_settings", SERVER_SETTINGS_KEY)
+    payload = get_server_settings(store)
+    payload["world_map"] = {**payload.get("world_map", {}), **configuration}
+    draft = store.save("server_settings", SERVER_SETTINGS_KEY, payload, "studio-world-map", current["version"])
+    store.publish("server_settings", SERVER_SETTINGS_KEY, draft["version"], "studio-world-map")
+    return payload["world_map"]
+
+
+@app.post("/api/world/map/settings", dependencies=[Depends(authorize)])
+def save_world_map(body: dict[str, Any]):
+    try:
+        return _publish_world_map({
+            "background_path": str(body.get("background_path", "")),
+            "width": int(body.get("width", 1600)),
+            "height": int(body.get("height", 900)),
+        })
+    except (ConflictError, ValidationError, ValueError, TypeError) as exc:
+        raise HTTPException(409 if isinstance(exc, ConflictError) else 422, str(exc)) from exc
+
+
+@app.post("/api/world/map/background", dependencies=[Depends(authorize)])
+async def upload_world_map_background(request: Request, file: UploadFile = File(...)):
+    extension = Path(file.filename or "").suffix.lower()
+    if extension not in {".png", ".jpg", ".jpeg", ".webp"} or (file.content_type and not file.content_type.startswith("image/")):
+        await file.close()
+        raise HTTPException(422, "Choisissez une image PNG, JPG ou WEBP.")
+    slug = str(getattr(request.state, "serveur", {}).get("slug") or "principal")
+    target_dir = (MAP_ASSETS / slug).resolve()
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / f"world_map{extension}"
+    total = 0
+    try:
+        with target.open("wb") as output:
+            while chunk := await file.read(1024 * 1024):
+                total += len(chunk)
+                if total > 15 * 1024 * 1024:
+                    output.close()
+                    target.unlink(missing_ok=True)
+                    raise HTTPException(413, "L’image de fond ne doit pas dépasser 15 Mo.")
+                output.write(chunk)
+        relative = target.relative_to(KINGDOM_DATA_ROOT).as_posix()
+        configuration = _publish_world_map({"background_path": relative})
+        return {**configuration, "background_url": "/api/world/map/background"}
+    finally:
+        await file.close()
+
+
+@app.get("/api/world/map/background", dependencies=[Depends(authorize)])
+def world_map_background():
+    source = str(get_server_settings(store).get("world_map", {}).get("background_path", ""))
+    root = KINGDOM_DATA_ROOT.resolve()
+    path = (root / source).resolve()
+    if not source or root not in path.parents or not path.is_file():
+        raise HTTPException(404, "Aucune image de fond n’est configurée.")
+    return FileResponse(path, media_type=mimetypes.guess_type(path.name)[0] or "image/*", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/api/admin/discord/channels/audit", dependencies=[Depends(authorize)])

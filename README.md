@@ -14,14 +14,53 @@ V2 modulaire de KingdomEngine : un moteur de jeu no-code conçu pour Discord. Le
 
 La règle structurante est : **les modules dépendent des contrats, jamais des écrans ni d’un bâtiment concret**. Ajouter un bâtiment ne demande donc aucun cog, repository ou service Python.
 
+## Fonctionnalités disponibles
+
+- studio web responsive avec comptes, profils, collaborateurs, permissions et séparation des serveurs Discord ;
+- tableau de bord enrichi : services, joueurs, bâtiments, objets, événements, activités, stocks, alertes et classements ;
+- bâtiments entièrement no-code avec modes Simple et Avancé, pages Discord, boutons, menus, navigation et organigramme ;
+- métiers, zones, niveaux, outils, durabilité, expérience, cooldowns et activités temporisées ;
+- objets, inventaires joueur et bâtiment, recettes, commerce, productions, livraisons et objectifs collectifs ;
+- résultats aléatoires pondérés contenant plusieurs effets génériques ;
+- événements, modificateurs du monde, calendrier autonome, saisons, météo et cycle jour/nuit ;
+- lieux, connexions, voyages, exploration Discord et monde vivant ;
+- bots Discord et bots vocaux indépendants, association aux bâtiments et provisionnement des salons ;
+- banque sonore no-code avec préécoute, ambiances, musiques, voix et SFX déclenchés par les actions ;
+- administration des joueurs avec pseudos, avatars, inventaires, métiers, outils, activités et cooldowns ;
+- supervision des services, journaux consultables, arrêt/redémarrage et état de la base SQLite ;
+- import idempotent des contenus V1 : Mine, Forêt, Construction, Forge, Taverne, objets et sons historiques ;
+- publication versionnée, contrôle de concurrence, synchronisation live et historique des changements ;
+- tutoriels intégrés et aide contextuelle non bloquante dans le Studio.
+
 ## Démarrage
 
+Sous Windows, le lanceur PowerShell est le point d’entrée recommandé. Après la première installation et la configuration de `.env` :
+
 ```powershell
-cd D:\KingdomEngine2
+cd E:\Dev\KingdomEngine2
+.\start-test-server.ps1
+```
+
+Cette commande démarre automatiquement **KingdomWeb, KingdomCore et KingdomVoice**, écrit leurs sorties dans `var\logs` et ouvre le Studio sur `http://127.0.0.1:8000`. Elle peut être relancée sans créer un second exemplaire des services déjà actifs.
+
+Pour travailler sans les bots vocaux :
+
+```powershell
+.\start-test-server.ps1 -WithoutVoice
+```
+
+Pour tout arrêter proprement :
+
+```powershell
+.\stop-test-server.ps1
+```
+
+Lors d’une toute première installation seulement :
+
+```powershell
 py -3.11 -m venv .venv
-.venv\Scripts\pip install -e ".[dev]"
+.venv\Scripts\python.exe -m pip install -e ".[dev]"
 Copy-Item .env.example .env
-.venv\Scripts\python run.py web
 ```
 
 Ouvrir `http://127.0.0.1:8000`, puis se connecter avec `KINGDOM_ADMIN_USERNAME` et `KINGDOM_ADMIN_PASSWORD` (par défaut `admin` / `change-me` en développement). Le compte administrateur initial est créé au premier démarrage. Il faut impérativement changer ces valeurs en production. `KINGDOM_ADMIN_TOKEN` reste disponible pour les scripts et les anciens clients API, mais l'interface n'enregistre plus ce secret dans le navigateur.
@@ -46,10 +85,10 @@ Les bots vocaux se configurent dans **Bots Discord**. Le Studio stocke uniquemen
 
 Pour inviter un bot vocal depuis le Studio, renseigner son Application ID dans `.env` (`EDGAR_APPLICATION_ID`, `ROLAND_APPLICATION_ID`, etc.), redémarrer KingdomWeb, puis cliquer sur **Inviter** sur sa carte. Chaque fiche référence uniquement le nom de cette variable. Le lien OAuth est généré automatiquement avec les permissions vocales nécessaires ; aucun token ni identifiant sensible n’est enregistré dans KingdomData.
 
-Pour tout lancer ensemble sur la machine de test :
+Le lancement manuel reste disponible pour diagnostiquer un module isolé, mais n’est pas nécessaire au quotidien :
 
 ```powershell
-.\start-test-server.ps1 -WithVoice
+.venv\Scripts\python.exe run.py voice
 ```
 
 Le superviseur lance une identité Discord indépendante par profil activé. Un bot rejoint son salon quand un joueur y entre, joue son accueil et son ambiance, puis se déconnecte après le délai configuré. `FFMPEG_PATH` permet d’indiquer le chemin de FFmpeg s’il n’est pas dans le `PATH`.
@@ -79,11 +118,13 @@ Compléter ensuite `.env` avec `KINGDOM_APPLICATION_ID`, `KINGDOM_CORE_TOKEN` et
 .venv\Scripts\python.exe run.py invite-url
 ```
 
-Ouvrir ce lien, sélectionner le serveur test, puis placer le rôle du bot au-dessus des rôles KingdomEngine. Dans **Bot → Privileged Gateway Intents**, activer **Server Members Intent**. Provisionner ensuite le serveur :
+Ouvrir ce lien, sélectionner le serveur test, puis placer le rôle du bot au-dessus des rôles KingdomEngine. Dans **Bot → Privileged Gateway Intents**, activer **Server Members Intent**. Démarrer KingdomCore, puis installer ou mettre à jour le serveur depuis **Paramètres → Installer le serveur Discord**, ou avec cette commande :
 
 ```powershell
-.\install.ps1 -ProvisionDiscord
+.venv\Scripts\python.exe run.py discord-sync
 ```
+
+La demande est traitée par KingdomCore déjà connecté, ce qui évite de lancer une seconde session du bot. Après l'installation initiale, chaque publication de bâtiment crée ou met à jour automatiquement sa catégorie et ses salons Discord correspondants.
 
 Cette commande crée ou met à jour :
 
@@ -99,16 +140,16 @@ Les membres non assermentés ne voient pas le Royaume. Après le serment, ils vo
 
 Le rôle du bot doit rester au-dessus de ces trois rôles, car Discord interdit à un bot de gérer un rôle supérieur au sien. Le provisionneur ne demande pas la permission `Administrateur` et peut être relancé sans créer de doublons. Cette contrainte suit la [hiérarchie officielle des permissions Discord](https://docs.discord.com/developers/topics/permissions) et les [permissions de salons discord.py](https://discordpy.readthedocs.io/en/stable/api.html).
 
-Pour lancer le Studio et le Core :
+Pour lancer tout KingdomEngine :
 
 ```powershell
 .\start-test-server.ps1
 ```
 
-Avec les bots vocaux :
+Sans les bots vocaux :
 
 ```powershell
-.\start-test-server.ps1 -WithVoice
+.\start-test-server.ps1 -WithoutVoice
 ```
 
 Arrêt propre :
@@ -153,7 +194,7 @@ L'interface et la mécanique sont réunies dans la même fiche **Bâtiment**. L'
 
 Le bâtiment publié contient directement ce document visuel et il est interprété par Discord : le canvas KingdomWeb et le bot utilisent donc le même contrat, sans vue spécifique codée par bâtiment. Les anciennes entités `interface` sont migrées automatiquement et restent lisibles pour compatibilité.
 
-Le **Tableau de bord** résume services, bâtiments, joueurs, événements et actions importantes. **Supervision** expose le pilotage des services configurés dans `KingdomWeb/services.json`, leurs journaux, les publications, tâches, stocks, joueurs, inventaires et l'activité récente. **Paramètres serveur** centralise le serment, les règles, les rôles, les catégories, les salons, les messages d'entrée et les couleurs. La supervision se rafraîchit automatiquement sans interrompre le Core.
+Le **Tableau de bord** résume services, bâtiments, objets, stocks, joueurs, événements, tâches, alertes, classements et activité récente. **Services & journaux** expose le pilotage des services configurés dans `KingdomWeb/services.json`, leur état visuel, leurs PID, les commandes fiables de démarrage/arrêt/redémarrage, les journaux copiables, les publications, tâches, stocks, joueurs, inventaires et l'activité récente. **Paramètres serveur** centralise le serment, les règles, les rôles, les catégories, les salons, les messages d'entrée et les couleurs. La supervision se rafraîchit automatiquement sans interrompre le Core et suspend son rafraîchissement pendant la lecture des logs.
 
 Le Studio conserve chaque modification en brouillon. La publication archive la version active précédente. Le contrôle de version empêche deux administrateurs d’écraser silencieusement leurs changements.
 

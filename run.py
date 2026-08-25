@@ -84,7 +84,7 @@ def require_single_instance(module: str) -> SingleInstance:
     return lock
 
 parser = argparse.ArgumentParser()
-parser.add_argument("module", choices=["web", "core", "voice", "provision", "invite-url"])
+parser.add_argument("module", choices=["web", "core", "voice", "provision", "discord-sync", "invite-url"])
 args = parser.parse_args()
 
 if args.module == "web":
@@ -110,6 +110,12 @@ elif args.module == "provision":
     from seed import DEFINITIONS
     provision_store = ContentStore(); provision_store.initialize(); provision_store.seed(DEFINITIONS); import_v1(provision_store)
     run_provisioning(provision_store)
+elif args.module == "discord-sync":
+    from KingdomData import ContentStore
+    sync_store = ContentStore(); sync_store.initialize()
+    request_id = sync_store.request_discord_provision("server", requested_by="run.py")
+    print(f"[Discord] Synchronisation complète demandée (requête #{request_id}).")
+    print("KingdomCore créera ou mettra à jour les rôles et salons sans supprimer les salons manuels.")
 else:
     import discord
     from kingdomCore.provisioner import required_bot_permissions

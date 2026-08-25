@@ -445,3 +445,10 @@ def _validate_server_settings(payload: dict[str, Any]) -> None:
     for field in ("primary_color", "accent_color"):
         if not re.fullmatch(r"#?[0-9a-fA-F]{6}", str(payload["theme"].get(field, ""))):
             raise ValidationError(f"La couleur {field} doit contenir 6 caractères hexadécimaux.")
+    world_map = payload.get("world_map", {})
+    if not isinstance(world_map, dict):
+        raise ValidationError("La configuration de la carte doit être un objet.")
+    if not 800 <= int(world_map.get("width", 1600)) <= 4000:
+        raise ValidationError("La largeur de la carte doit être comprise entre 800 et 4000 pixels.")
+    if not 500 <= int(world_map.get("height", 900)) <= 2500:
+        raise ValidationError("La hauteur de la carte doit être comprise entre 500 et 2500 pixels.")

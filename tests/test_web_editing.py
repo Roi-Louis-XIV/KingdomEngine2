@@ -52,6 +52,36 @@ def test_building_and_item_can_be_edited_and_published(tmp_path, monkeypatch):
         assert store.get("item", "test_potion", published=True)["payload"]["price"] == 4
 
 
+def test_web_queues_server_install_and_building_publication(tmp_path, monkeypatch):
+    store = ContentStore(tmp_path / "discord-web.db")
+    store.initialize()
+    building = store.save("building", "new_inn", {"name": "Nouvelle auberge", "actions": []})
+    monkeypatch.setattr(web, "store", store)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+
+    with TestClient(web.app) as client:
+        headers = {"Authorization": "Bearer change-me"}
+        install = client.post("/api/admin/discord/provision", headers=headers, json={"scope": "server"})
+        assert install.status_code == 200
+        assert install.json()["status"] == "pending"
+
+        status = client.get("/api/admin/discord/provision/status", headers=headers)
+        assert status.status_code == 200
+        assert status.json()["scope"] == "server"
+
+        published = client.post(
+            f"/api/content/building/new_inn/{building['version']}/publish",
+            headers=headers,
+            json={},
+        )
+        assert published.status_code == 200
+        latest = store.discord_provision_status()
+        assert latest["scope"] == "building"
+        assert latest["building_key"] == "new_inn"
+        assert latest["status"] == "pending"
+
+
 def test_editor_has_non_validating_close_controls():
     with TestClient(web.app) as client:
         html = client.get("/").text
@@ -272,6 +302,24 @@ def test_voice_bot_invite_link_uses_its_application_id(tmp_path, monkeypatch):
     assert "client_id=123456789012345678" in response.json()["url"]
     assert "permissions=" in response.json()["url"]
     assert "applications.commands" not in response.json()["url"]
+
+
+def test_secondary_server_receives_missing_voice_bot_templates(tmp_path):
+    principal = ContentStore(tmp_path / "principal.db")
+    principal.initialize()
+    draft = principal.save("bot", "voice_bard", {
+        "name": "Barde", "bot_type": "voice", "token_env": "BARD_BOT_TOKEN",
+        "application_id_env": "BARD_APPLICATION_ID", "voice_channel_id": "42", "enabled": True,
+    })
+    principal.publish("bot", "voice_bard", draft["version"])
+    stores = web.MagasinsServeurs(principal)
+    secondary_path = tmp_path / "secondary.db"
+
+    secondary = stores.selectionner({"database_path": str(secondary_path)})
+    copied = secondary.get("bot", "voice_bard", published=True)
+
+    assert copied["payload"]["bot_type"] == "voice"
+    assert copied["payload"]["application_id_env"] == "BARD_APPLICATION_ID"
 
 
 def test_server_settings_are_saved_and_published_from_one_endpoint(tmp_path, monkeypatch):

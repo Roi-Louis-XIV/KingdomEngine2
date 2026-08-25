@@ -6,6 +6,8 @@ import json
 import os
 import subprocess
 import sys
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -22,6 +24,8 @@ LOGS_DIR = ROOT / "var" / "logs"
 
 
 class ServiceSupervisor:
+    _control_lock = threading.RLock()
+
     def definitions(self) -> list[dict[str, Any]]:
         return json.loads(SERVICES_CONFIG.read_text(encoding="utf-8"))["services"]
 
@@ -40,11 +44,14 @@ class ServiceSupervisor:
             raise ValueError("Ce service ne peut pas etre pilote depuis KingdomWeb.")
         if operation not in {"start", "stop", "restart"}:
             raise ValueError("Operation de service inconnue.")
-        if operation in {"stop", "restart"}:
-            self._stop(service_key)
-        if operation in {"start", "restart"}:
-            self._start(definition)
-        return next(item for item in self.statuses() if item["key"] == service_key)
+        # Les routes FastAPI synchrones peuvent s'exécuter en parallèle. Deux clics
+        # ne doivent jamais lancer ou arrêter simultanément la même identité Discord.
+        with self._control_lock:
+            if operation in {"stop", "restart"}:
+                self._stop(service_key)
+            if operation in {"start", "restart"}:
+                self._start(definition)
+            return next(item for item in self.statuses() if item["key"] == service_key)
 
     def logs(self, limit: int = 120) -> dict[str, dict[str, Any]]:
         result: dict[str, dict[str, Any]] = {}
@@ -73,15 +80,55 @@ class ServiceSupervisor:
         registry = [item for item in self._registry() if item.get("service") != definition["key"]]
         registry.append({"service": definition["key"], "Id": process.pid, "ProcessName": "python", "StartTime": datetime.now(timezone.utc).isoformat()})
         self._write_registry(registry)
+        if not self._wait_for_process(process.pid, alive=True, timeout=5):
+            self._remove_runtime_pid(definition["key"])
+            self._write_registry([item for item in self._registry() if item.get("service") != definition["key"]])
+            raise ValueError(f"{definition['name']} n'a pas réussi à démarrer. Consultez son journal d'erreurs.")
 
     def _stop(self, service_key: str) -> None:
         registry = self._registry()
         entry = next((item for item in registry if item.get("service") == service_key), None)
         pid = self._runtime_pid(service_key, entry)
         if not pid:
-            raise ValueError("Ce service est deja arrete.")
-        os.kill(pid, 15)
+            self._remove_runtime_pid(service_key)
+            self._write_registry([item for item in registry if item.get("service") != service_key])
+            return
+        self._terminate_process_tree(pid)
+        if not self._wait_for_process(pid, alive=False, timeout=8):
+            raise ValueError("Le service ne répond pas à l'arrêt. Consultez les journaux puis réessayez.")
+        self._remove_runtime_pid(service_key)
         self._write_registry([item for item in registry if item.get("service") != service_key])
+
+    def _terminate_process_tree(self, pid: int) -> None:
+        """Arrête le runtime et ses éventuels enfants audio, sans toucher aux autres bots."""
+        if sys.platform == "win32":
+            result = subprocess.run(
+                ["taskkill", "/PID", str(pid), "/T", "/F"],
+                capture_output=True, text=True, check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            if result.returncode and self._alive(pid):
+                raise ValueError("Windows n'a pas pu arrêter le processus du service.")
+            return
+        try:
+            os.kill(pid, 15)
+        except ProcessLookupError:
+            return
+
+    def _wait_for_process(self, pid: int, *, alive: bool, timeout: float) -> bool:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self._alive(pid) is alive:
+                return True
+            time.sleep(0.1)
+        return self._alive(pid) is alive
+
+    @staticmethod
+    def _remove_runtime_pid(service_key: str) -> None:
+        try:
+            (ROOT / "var" / f"{service_key}.pid").unlink(missing_ok=True)
+        except OSError:
+            pass
 
     def _runtime_pid(self, service_key: str, registry_entry: dict[str, Any] | None = None) -> int:
         """Retourne le PID réel publié par le service, puis le PID historique en secours."""

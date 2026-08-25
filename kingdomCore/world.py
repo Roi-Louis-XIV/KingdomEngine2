@@ -44,9 +44,18 @@ class WorldEngine:
             if location_key in attached:
                 attached[location_key].append({"key": row["entity_key"], "name": row["payload"].get("name", row["entity_key"]), "emoji": row["payload"].get("emoji", "🏰")})
         nodes = [{**location, "children": sorted(children[key]), "buildings": attached[key]} for key, location in locations.items()]
+        hierarchy = [
+            {"key": f"parent__{key}", "origin": key,
+             "target": str(location.get("parent_key", "")),
+             "name": "Appartient à", "relation": "parent"}
+            for key, location in locations.items()
+            if str(location.get("parent_key", "")) in locations
+        ]
         return {
             "nodes": sorted(nodes, key=lambda item: (item.get("parent_key", ""), item.get("name", item["key"]))),
             "roots": sorted([key for key, value in locations.items() if not value.get("parent_key")]),
+            # Une appartenance structure le monde mais n'est pas une route praticable.
+            "hierarchy": hierarchy,
             "connections": self._connections(locations),
             "counts": {
                 "locations": len(locations), "buildings": len(buildings),

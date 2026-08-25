@@ -74,3 +74,25 @@ def test_deleted_building_keeps_category_with_manual_channel(tmp_path):
     category = Category(); store = ContentStore(tmp_path / "safe-cleanup.db"); store.initialize()
     asyncio.run(DiscordProvisioner(SimpleNamespace(categories=[category]), store).remove_building_channels("forge", {"name": "La Forge", "emoji": "🏰"}))
     assert deleted == ["la-forge", "🔊 La Forge"]
+
+
+def test_discord_provision_queue_survives_and_recovers_a_core_restart(tmp_path):
+    store = ContentStore(tmp_path / "discord-provision.db")
+    store.initialize()
+
+    request_id = store.request_discord_provision("server", requested_by="test")
+    assert store.discord_provision_status()["status"] == "pending"
+
+    claimed = store.pending_discord_provision()
+    assert [job["id"] for job in claimed] == [request_id]
+    assert store.discord_provision_status()["status"] == "processing"
+
+    assert store.recover_discord_provision() == 1
+    assert store.discord_provision_status()["status"] == "pending"
+
+    claimed_again = store.pending_discord_provision()
+    assert claimed_again[0]["attempts"] == 1
+    store.finish_discord_provision(request_id, report="Discord synchronisé")
+    status = store.discord_provision_status()
+    assert status["status"] == "done"
+    assert status["report"] == "Discord synchronisé"

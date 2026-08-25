@@ -38,6 +38,9 @@ def test_geography_is_hierarchical_and_building_relation_is_derived(living_store
     assert set(central["children"]) == {"capital", "forest", "village"}
     assert forest["buildings"][0]["key"] == "woodcamp"
     assert geography["counts"] == {"locations": 5, "buildings": 1, "connections": 2, "secret_routes": 1}
+    assert {link["origin"]: link["target"] for link in geography["hierarchy"]} == {
+        "central": "realm", "capital": "central", "forest": "central", "village": "central"
+    }
 
 
 def test_player_travel_exploration_and_discovery_are_persistent(living_store):

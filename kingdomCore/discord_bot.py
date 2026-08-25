@@ -8,6 +8,7 @@ import asyncio
 import json
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import discord
@@ -895,6 +896,8 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
     access_reconciled = False
     deleted_buildings_processed: set[tuple[str, int]] = set()
     deletion_watcher: asyncio.Task | None = None
+    provisioning_watcher: asyncio.Task | None = None
+    recovered_provision_stores: set[str] = set()
     logger.info(
         "Vue persistante du serment enregistrée : %s.",
         [getattr(item, "custom_id", None) for item in oath_view.children],
@@ -992,6 +995,52 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
                 logger.exception("Impossible de réconcilier les bâtiments supprimés avec Discord.")
             await asyncio.sleep(5)
 
+    def managed_provision_targets() -> list[tuple[discord.Guild, ContentStore]]:
+        """Associe chaque serveur Discord à sa base KingdomData indépendante."""
+        with store.connection() as db:
+            tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            rows = db.execute("SELECT guild_id,database_path FROM managed_servers WHERE active=1 AND guild_id<>''").fetchall() if "managed_servers" in tables else []
+        targets: list[tuple[discord.Guild, ContentStore]] = []
+        for guild_id, database_path in rows:
+            guild = bot.get_guild(int(guild_id)) if str(guild_id).isdigit() else None
+            if guild is None:
+                continue
+            path = Path(str(database_path)).resolve()
+            target_store = store if path == store.path.resolve() else ContentStore(path)
+            target_store.initialize()
+            targets.append((guild, target_store))
+        if not targets:
+            configured = int(os.getenv("KINGDOM_GUILD_ID", "0") or 0)
+            targets = [(guild, store) for guild in bot.guilds if not configured or guild.id == configured]
+        return targets
+
+    async def watch_discord_provisioning() -> None:
+        """Exécute les installations demandées par KingdomWeb avec le Core connecté."""
+        while not bot.is_closed():
+            try:
+                for guild, target_store in managed_provision_targets():
+                    store_key = str(target_store.path.resolve())
+                    if store_key not in recovered_provision_stores:
+                        recovered = target_store.recover_discord_provision()
+                        recovered_provision_stores.add(store_key)
+                        if recovered:
+                            logger.warning("%s installation(s) Discord interrompue(s) remise(s) en attente pour %s.", recovered, guild.name)
+                    for request in target_store.pending_discord_provision():
+                        try:
+                            report = await DiscordProvisioner(guild, target_store).provision()
+                            summary = (
+                                f"{len(report.created_roles)} rôle(s), {len(report.created_channels)} salon(s) créés, "
+                                f"{report.assigned_roles} attribution(s) de rôle"
+                            )
+                            target_store.finish_discord_provision(request["id"], report=summary)
+                            logger.warning("Synchronisation Discord terminée pour %s : %s.", guild.name, summary)
+                        except Exception as exc:
+                            target_store.finish_discord_provision(request["id"], error=str(exc))
+                            logger.exception("Synchronisation Discord impossible pour %s.", guild.name)
+            except (OSError, ValueError):
+                logger.exception("Impossible de lire la file de provisionnement Discord.")
+            await asyncio.sleep(3)
+
     @bot.event
     async def on_member_join(member: discord.Member):
         """Les humains doivent prêter serment ; seuls les bots sont autorisés immédiatement."""
@@ -1033,7 +1082,7 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
 
     @bot.event
     async def on_ready():
-        nonlocal access_reconciled, deletion_watcher
+        nonlocal access_reconciled, deletion_watcher, provisioning_watcher
         # KingdomWeb affiche ainsi les serveurs sur lesquels l'application
         # principale est réellement présente, sans se fier à un clic OAuth.
         with store.connection() as db:
@@ -1095,6 +1144,8 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
             await reconcile_building_access()
         if deletion_watcher is None or deletion_watcher.done():
             deletion_watcher = asyncio.create_task(watch_deleted_buildings(), name="kingdom-deleted-buildings")
+        if provisioning_watcher is None or provisioning_watcher.done():
+            provisioning_watcher = asyncio.create_task(watch_discord_provisioning(), name="kingdom-discord-provisioning")
         logger.warning("KingdomCore prêt : %s ; %s vue(s) persistante(s).", bot.user, len(bot.persistent_views))
 
     return bot
