@@ -13,6 +13,7 @@ from typing import Any
 import discord
 
 from KingdomData import ContentStore
+from KingdomData.paths import PACKAGE_DATA_ROOT, persistent_data_root
 from KingdomVoice.resolver import resolve_audio_scene
 from kingdomEvent.lifecycle import EventLifecycle
 from kingdomEvent.runtime import WorldClock
@@ -93,10 +94,13 @@ class ManagedVoiceBot(discord.Client):
     def _tracks(self, folder: str | None) -> list[Path]:
         if not folder: return []
         relative = str(folder).replace("\\", "/").strip("/")
-        candidates = [self.assets_root / relative.removeprefix("assets/"), self.assets_root / relative]
+        roots = tuple(dict.fromkeys((self.assets_root, PACKAGE_DATA_ROOT)))
+        candidates = []
+        for root in roots:
+            candidates.extend((root / relative.removeprefix("assets/"), root / relative))
         # Les profils V1 n'étaient pas homogènes : certains stockaient
         # ``assets/forest`` et d'autres simplement ``village``.
-        candidates.append(self.assets_root / "assets" / relative.removeprefix("assets/"))
+        candidates.extend(root / "assets" / relative.removeprefix("assets/") for root in roots)
         for target in dict.fromkeys(candidates):
             if target.exists():
                 tracks = sorted(path for path in target.glob("*") if path.suffix.lower() in {".mp3", ".wav", ".ogg"})
@@ -114,10 +118,11 @@ class ManagedVoiceBot(discord.Client):
         entity = self.store.get("audio", audio_key, published=True)
         payload = entity["payload"]
         relative = str(payload.get("storage_path", payload.get("source", ""))).replace("\\", "/")
-        path = (self.assets_root / relative).resolve()
-        if self.assets_root.resolve() not in path.parents or not path.is_file():
-            raise FileNotFoundError(f"Fichier audio introuvable pour {audio_key}.")
-        return path, payload
+        for root in dict.fromkeys((self.assets_root.resolve(), PACKAGE_DATA_ROOT.resolve())):
+            path = (root / relative).resolve()
+            if root in path.parents and path.is_file():
+                return path, payload
+        raise FileNotFoundError(f"Fichier audio introuvable pour {audio_key}.")
 
     def _building_audio(self) -> dict[str, Any]:
         building_key = str(self.config.get("building_key", ""))
@@ -223,7 +228,7 @@ class VoiceBotManager:
 
     def __init__(self, store: ContentStore | None = None, assets_root: str | Path | None = None) -> None:
         self.store = store or ContentStore()
-        self.assets_root = Path(assets_root) if assets_root else Path(__file__).resolve().parents[1] / "KingdomData"
+        self.assets_root = Path(assets_root) if assets_root else persistent_data_root()
         self.clients: dict[str, ManagedVoiceBot] = {}
         self._last_scene_check = 0.0
 

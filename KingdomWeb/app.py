@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import mimetypes
+import time
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from pathlib import Path
@@ -15,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from KingdomData import ConflictError, ContentStore, NotFoundError, ValidationError, SERVER_SETTINGS_KEY, get_server_settings
 from KingdomData.audio_storage import audio_key, safe_audio_path, store_audio_file
+from KingdomData.paths import persistent_data_root
 from import_v1 import import_v1, seed_legacy_audio_catalog
 from kingdomCore.provisioner import managed_bot_permissions, required_bot_permissions
 from KingdomWeb.supervision import AdministrationService, ServiceSupervisor
@@ -92,6 +94,7 @@ class MagasinsServeurs:
 magasin_principal = ContentStore()
 store = MagasinsServeurs(magasin_principal)
 comptes = RegistreComptes(magasin_principal.path)
+_inscriptions_recentes: dict[str, list[float]] = {}
 
 
 def _application_id_env(config: dict[str, Any]) -> str:
@@ -117,7 +120,7 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Kingdom Studio", version="2.0.0", lifespan=lifespan)
 STATIC = Path(__file__).with_name("static")
-KINGDOM_DATA_ROOT = Path(__file__).resolve().parents[1] / "KingdomData"
+KINGDOM_DATA_ROOT = persistent_data_root()
 MAP_ASSETS = KINGDOM_DATA_ROOT / "assets" / "maps"
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
@@ -352,6 +355,34 @@ def connexion_compte(body: dict[str, Any], response: Response):
         secure=os.getenv("KINGDOM_SECURE_COOKIES", "0") == "1",
     )
     return {"ok": True, "account": compte}
+
+
+@app.post("/api/auth/register")
+def inscription_compte(request: Request, body: dict[str, Any]):
+    if os.getenv("KINGDOM_ALLOW_REGISTRATION", "1") != "1":
+        raise HTTPException(403, "La création publique de comptes est désactivée.")
+    adresse = request.client.host if request.client else "unknown"
+    maintenant = time.monotonic()
+    tentatives = [instant for instant in _inscriptions_recentes.get(adresse, []) if maintenant - instant < 900]
+    if len(tentatives) >= 5:
+        raise HTTPException(429, "Trop de créations de comptes. Réessayez dans quelques minutes.")
+    tentatives.append(maintenant)
+    _inscriptions_recentes[adresse] = tentatives
+    password = str(body.get("password", ""))
+    if password != str(body.get("password_confirmation", "")):
+        raise HTTPException(422, "Les deux mots de passe ne correspondent pas.")
+    try:
+        compte = comptes.creer_compte(
+            str(body.get("username", "")), str(body.get("display_name", "")), password,
+            email=str(body.get("email", "")),
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {
+        "ok": True,
+        "account": compte,
+        "message": "Compte créé. Un administrateur doit maintenant vous attribuer un serveur.",
+    }
 
 
 @app.post("/api/auth/logout")

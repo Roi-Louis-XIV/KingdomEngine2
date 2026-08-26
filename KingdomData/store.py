@@ -12,6 +12,7 @@ from threading import RLock
 from typing import Any, Iterator
 
 from .schemas import ValidationError, validate_entity, validate_key
+from .paths import database_path
 
 
 class ConflictError(RuntimeError):
@@ -24,7 +25,7 @@ class NotFoundError(LookupError):
 
 class ContentStore:
     def __init__(self, path: str | Path | None = None) -> None:
-        configured = path or os.getenv("KINGDOM_DATABASE", "var/kingdom.db")
+        configured = path or database_path()
         self.path = Path(configured)
         self._lock = RLock()
 

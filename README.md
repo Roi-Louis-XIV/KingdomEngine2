@@ -17,6 +17,7 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 ## Fonctionnalités disponibles
 
 - studio web responsive avec comptes, profils, collaborateurs, permissions et séparation des serveurs Discord ;
+- création de compte depuis l'écran de connexion, sans droit serveur automatique, et suivi global des inscriptions par l'administrateur ;
 - tableau de bord enrichi : services, joueurs, bâtiments, objets, événements, activités, stocks, alertes et classements ;
 - bâtiments entièrement no-code avec modes Simple et Avancé, pages Discord, boutons, menus, navigation et organigramme ;
 - métiers, zones, niveaux, outils, durabilité, expérience, cooldowns et activités temporisées ;
@@ -59,6 +60,8 @@ Pour tout arrêter proprement :
 
 Ce guide suffit pour installer, démarrer et mettre à jour KingdomEngine sur le serveur. Les commandes sont à exécuter dans un terminal Debian. L'installation conserve les données dans `var/` et les secrets dans `.env`.
 
+> Règle de maintenance : toute modification d'une commande de lancement, d'une variable `.env`, d'un service systemd, du stockage ou du déploiement doit être répercutée dans ce guide au même moment que le code.
+
 Checklist rapide pour Atilla :
 
 1. cloner le projet dans `/opt/KingdomEngine2` ;
@@ -79,7 +82,10 @@ cd /opt
 sudo git clone --branch agent/kingdomengine2-v2 https://github.com/Roi-Louis-XIV/KingdomEngine2.git
 sudo chown -R "$USER":"$USER" /opt/KingdomEngine2
 cd /opt/KingdomEngine2
-sudo bash ./install-debian.sh
+sudo bash ./install-debian.sh \
+  --data-dir /mnt/hdd/kingdomengine-data \
+  --domain kingdom.votre-domaine.fr \
+  --email admin@votre-domaine.fr
 ```
 
 L'installateur effectue automatiquement les opérations suivantes :
@@ -87,15 +93,31 @@ L'installateur effectue automatiquement les opérations suivantes :
 - installation de Python, FFmpeg et des dépendances système ;
 - création de `.venv` et installation de KingdomEngine ;
 - création de `.env` s'il n'existe pas ;
+- stockage des bases, sons et images dans le dossier indiqué par `--data-dir` ;
 - remplacement du mot de passe `change-me` par un mot de passe aléatoire ;
 - exposition de KingdomWeb sur le réseau avec `KINGDOM_WEB_HOST=0.0.0.0` ;
 - création et démarrage automatique des services Web, Core et Voice.
+- configuration HTTPS automatique avec Caddy lorsque `--domain` est renseigné ;
+- activation de la synchronisation GitHub toutes les cinq minutes.
 
 Conserver le mot de passe administrateur affiché par l'installateur. KingdomWeb est ensuite disponible à l'adresse indiquée, généralement :
 
 ```text
 http://IP_DU_SERVEUR:8000
 ```
+
+Le paramètre `--data-dir` est facultatif, mais recommandé si le système est sur SSD et qu'un HDD plus volumineux est monté. Le code et `.venv` restent dans `/opt/KingdomEngine2`, tandis que les données évolutives sont placées sur le HDD :
+
+```text
+/mnt/hdd/kingdomengine-data/
+├── kingdom.db          # base principale
+├── servers/            # bases des autres serveurs Discord
+└── assets/
+    ├── audio/          # sons téléversés
+    └── maps/           # fonds de carte
+```
+
+Le disque doit être monté avant le démarrage des services. Son montage permanent doit donc être déclaré dans `/etc/fstab` sur le serveur Debian.
 
 ### 2. Configuration Discord
 
@@ -126,22 +148,53 @@ sudo systemctl restart kingdomengine-web kingdomengine-core kingdomengine-voice
 
 Dans KingdomWeb, sélectionner le serveur Discord puis utiliser **Paramètres → Installer le serveur Discord**. Cette opération crée les rôles et les salons initiaux. Ensuite, la publication d'un bâtiment crée ou actualise automatiquement ses salons textuel et vocal.
 
-### 3. Autoriser l'accès réseau
+### 3. Rendre KingdomWeb accessible depuis Internet
 
-Si UFW est utilisé sur le serveur :
+La méthode recommandée utilise un nom de domaine et Caddy. Caddy obtient et renouvelle automatiquement le certificat HTTPS. Avant l'installation :
+
+1. attribuer une adresse IP locale fixe au serveur Debian, par exemple `192.168.1.50` ;
+2. créer chez le fournisseur DNS un enregistrement **A** pour `kingdom.votre-domaine.fr` pointant vers l'adresse IPv4 publique de la connexion ;
+3. si IPv6 est utilisée, créer également un enregistrement **AAAA** correct ;
+4. rediriger sur la box les ports TCP publics `80` et `443` vers les ports `80` et `443` du serveur Debian ;
+5. vérifier que l'opérateur ne bloque pas l'hébergement entrant et que l'IP publique n'est pas placée derrière un CGNAT.
+
+Ouvrir ensuite uniquement HTTP et HTTPS dans UFW :
 
 ```bash
-sudo ufw allow 8000/tcp
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
 sudo ufw status
 ```
 
-Pour un serveur hébergé à domicile, rediriger également le port TCP `8000` de la box vers l'adresse locale du serveur Debian. Pour une mise en production publique, utiliser ensuite un nom de domaine et un reverse proxy HTTPS ; activer `KINGDOM_SECURE_COOKIES=1` uniquement lorsque HTTPS est opérationnel.
-
-Vérifier depuis une autre machine :
+Puis lancer ou relancer l'installation avec le domaine :
 
 ```bash
-curl -I http://IP_DU_SERVEUR:8000
+cd /opt/KingdomEngine2
+sudo bash ./install-debian.sh \
+  --data-dir /mnt/hdd/kingdomengine-data \
+  --domain kingdom.votre-domaine.fr \
+  --email admin@votre-domaine.fr
 ```
+
+Dans ce mode, KingdomWeb écoute seulement sur `127.0.0.1:8000`. Caddy est le seul service exposé et transmet les requêtes HTTPS. `KINGDOM_SECURE_COOKIES=1` et `KINGDOM_PUBLIC_URL` sont configurés automatiquement.
+
+Vérifier depuis un téléphone en 4G/5G, et non depuis le Wi-Fi local :
+
+```text
+https://kingdom.votre-domaine.fr
+```
+
+Diagnostic HTTPS :
+
+```bash
+sudo systemctl status caddy --no-pager
+sudo journalctl -u caddy -n 100 --no-pager
+curl -I https://kingdom.votre-domaine.fr
+```
+
+Sans domaine, omettre `--domain` et `--email`. KingdomWeb restera disponible en HTTP sur `http://IP_PUBLIQUE:8000`, après ouverture et redirection du port `8000`. Ce mode est réservé aux tests car les identifiants ne bénéficient pas du chiffrement HTTPS.
 
 ### 4. Vérifier et administrer les services
 
@@ -175,21 +228,82 @@ tail -f var/logs/voice.err.log
 
 Les sorties normales sont dans `web.out.log`, `core.out.log` et `voice.out.log`, dans le même dossier.
 
-### 5. Mettre KingdomEngine à jour
+### 5. Synchronisation automatique avec GitHub
+
+L'installation active `kingdomengine-update.timer`. Toutes les cinq minutes, le serveur :
+
+1. vérifie la branche `agent/kingdomengine2-v2` sur GitHub ;
+2. ne fait rien si le code est déjà à jour ;
+3. refuse la mise à jour si des fichiers suivis ont été modifiés sur le serveur ;
+4. refuse tout historique divergent et n'accepte qu'une avance rapide ;
+5. sauvegarde `.env`, les bases et les médias ;
+6. récupère le nouveau code et les dépendances Python ;
+7. redémarre Web, Core et Voice.
+
+Vérifier le timer et son dernier passage :
+
+```bash
+sudo systemctl status kingdomengine-update.timer --no-pager
+sudo systemctl status kingdomengine-update.service --no-pager
+sudo journalctl -u kingdomengine-update.service -n 100 --no-pager
+```
+
+Déclencher immédiatement la même procédure :
+
+```bash
+cd /opt/KingdomEngine2
+sudo bash ./update-server.sh
+```
+
+Pour désactiver volontairement les mises à jour automatiques :
+
+```bash
+sudo systemctl disable --now kingdomengine-update.timer
+```
+
+Elles peuvent aussi être désactivées lors de l'installation avec `--no-auto-update`.
+
+Si le dépôt GitHub devient privé, configurer une clé de déploiement en lecture seule dans le compte Linux propriétaire de `/opt/KingdomEngine2`, puis utiliser une URL distante SSH. Ne jamais enregistrer un token GitHub dans le README ou dans le dépôt :
+
+```bash
+git remote set-url origin git@github.com:Roi-Louis-XIV/KingdomEngine2.git
+ssh -T git@github.com
+```
+
+### 6. Mise à jour manuelle complète
 
 Sauvegarder les données, récupérer GitHub, réinstaller les éventuelles nouvelles dépendances et redémarrer :
 
 ```bash
 cd /opt/KingdomEngine2
-tar -czf "$HOME/kingdomengine-backup-$(date +%F-%H%M).tar.gz" .env var KingdomData/assets
+bash ./backup-server.sh
 git switch agent/kingdomengine2-v2
 git pull --ff-only
-sudo bash ./install-debian.sh
+sudo bash ./install-debian.sh \
+  --data-dir /mnt/hdd/kingdomengine-data \
+  --domain kingdom.votre-domaine.fr \
+  --email admin@votre-domaine.fr
 ```
 
 Le script peut être relancé : il conserve `.env`, les bases de données, les cartes et les fichiers audio. Après la mise à jour, vérifier que les trois services indiquent `active (running)`.
 
-### 6. Lancement manuel de secours
+### 7. Déplacer une installation existante du SSD vers le HDD
+
+Arrêter les services avant toute copie de base SQLite :
+
+```bash
+cd /opt/KingdomEngine2
+sudo systemctl stop kingdomengine-web kingdomengine-core kingdomengine-voice
+sudo mkdir -p /mnt/hdd/kingdomengine-data
+sudo cp -a var/kingdom.db* /mnt/hdd/kingdomengine-data/ 2>/dev/null || true
+sudo cp -a var/servers /mnt/hdd/kingdomengine-data/ 2>/dev/null || true
+sudo cp -a KingdomData/assets /mnt/hdd/kingdomengine-data/
+sudo bash ./install-debian.sh --data-dir /mnt/hdd/kingdomengine-data
+```
+
+Vérifier le fonctionnement dans KingdomWeb avant de supprimer les anciennes copies du SSD. L'installateur enregistre automatiquement `KINGDOM_DATA_DIR` et `KINGDOM_DATABASE` dans `.env`.
+
+### 8. Lancement manuel de secours
 
 Si systemd n'est pas souhaité, ou pour un diagnostic ponctuel :
 
@@ -207,16 +321,18 @@ tail -n 100 var/logs/core.err.log
 tail -n 100 var/logs/voice.err.log
 ```
 
-### 7. Dépannage rapide
+### 9. Dépannage rapide
 
 | Symptôme | Vérification |
 |---|---|
 | Le site ne répond pas | `sudo systemctl status kingdomengine-web` puis `tail -n 100 var/logs/web.err.log` |
 | Le site fonctionne sur Debian mais pas depuis un autre PC | vérifier `sudo ufw status`, le port `8000` et la redirection de la box |
+| Le domaine ne reçoit pas de certificat HTTPS | vérifier les DNS A/AAAA, les ports 80/443 et `journalctl -u caddy` |
 | Le bot Discord reste hors ligne | vérifier `KINGDOM_CORE_TOKEN`, puis redémarrer `kingdomengine-core` |
 | Les bots vocaux ne démarrent pas | vérifier leurs tokens, Application ID, activation dans KingdomWeb et `voice.err.log` |
 | Un service indique « address already in use » | rechercher l'ancien processus avec `sudo ss -lptn 'sport = :8000'` |
 | Une mise à jour échoue sur Git | ne pas supprimer `.env` ou `var/`; sauvegarder puis vérifier `git status` avant de recommencer |
+| La synchronisation GitHub ne se lance pas | vérifier `kingdomengine-update.timer` puis les logs de `kingdomengine-update.service` |
 
 En cas de demande d'aide, transmettre la sortie de ces commandes sans copier les tokens du fichier `.env` :
 
@@ -238,6 +354,16 @@ Copy-Item .env.example .env
 Ouvrir `http://127.0.0.1:8000`, puis se connecter avec `KINGDOM_ADMIN_USERNAME` et `KINGDOM_ADMIN_PASSWORD` (par défaut `admin` / `change-me` en développement). Le compte administrateur initial est créé au premier démarrage. Il faut impérativement changer ces valeurs en production. `KINGDOM_ADMIN_TOKEN` reste disponible pour les scripts et les anciens clients API, mais l'interface n'enregistre plus ce secret dans le navigateur.
 
 ### Comptes et serveurs Discord
+
+L'écran de connexion propose **Créer un compte**. Une inscription crée uniquement une identité KingdomWeb : elle ne donne accès à aucun serveur Discord. L'administrateur retrouve tous les comptes dans **Mon profil & serveurs**, avec leur date de création, leurs accès et le nombre de serveurs qu'ils administrent, puis attribue le rôle adapté.
+
+L'inscription publique est activée par défaut et limitée contre les créations répétées. Pour la désactiver sur une installation privée :
+
+```dotenv
+KINGDOM_ALLOW_REGISTRATION=0
+```
+
+Redémarrer `kingdomengine-web` après modification de cette variable.
 
 La page **Mon profil & serveurs** affiche les serveurs accessibles au compte, l'état d'installation du bot et le rôle détenu sur chacun. Le sélecteur de l'en-tête change de royaume sans mélanger les données : chaque serveur supplémentaire possède sa propre base SQLite sous `var/servers/`, tandis que le registre des comptes et des accès reste centralisé dans KingdomData.
 

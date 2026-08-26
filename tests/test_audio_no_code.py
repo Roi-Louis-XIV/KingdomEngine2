@@ -21,6 +21,19 @@ def test_audio_file_is_centralized_and_versioned(tmp_path, monkeypatch):
     assert (audio_storage.AUDIO_ROOT / "coupe_bois" / "source.mp3").read_bytes() == b"fake mp3"
 
 
+def test_external_audio_storage_keeps_packaged_legacy_audio_as_fallback(tmp_path, monkeypatch):
+    external = tmp_path / "hdd"
+    packaged = tmp_path / "package" / "KingdomData"
+    legacy = packaged / "assets" / "forest" / "axe.mp3"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_bytes(b"legacy")
+    monkeypatch.setattr(audio_storage, "DATA_ROOT", external)
+    monkeypatch.setattr(audio_storage, "AUDIO_ROOT", external / "assets" / "audio")
+    monkeypatch.setattr(audio_storage, "PACKAGE_DATA_ROOT", packaged)
+
+    assert audio_storage.safe_audio_path("assets/forest/axe.mp3") == legacy
+
+
 def test_legacy_audio_files_become_no_code_catalog_entries(tmp_path):
     track = tmp_path / "forest" / "sfx" / "axe_01.mp3"
     track.parent.mkdir(parents=True)

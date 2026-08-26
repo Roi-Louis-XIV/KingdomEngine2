@@ -10,10 +10,11 @@ from pathlib import Path
 from typing import BinaryIO
 
 from .schemas import ValidationError
+from .paths import PACKAGE_DATA_ROOT, persistent_data_root
 
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac", ".opus"}
 MAX_AUDIO_BYTES = int(os.getenv("KINGDOM_AUDIO_MAX_BYTES", str(100 * 1024 * 1024)))
-DATA_ROOT = Path(__file__).resolve().parent
+DATA_ROOT = persistent_data_root()
 AUDIO_ROOT = DATA_ROOT / "assets" / "audio"
 
 
@@ -29,11 +30,19 @@ def safe_audio_path(storage_path: str) -> Path:
     # Les imports historiques sont rangés par bâtiment sous ``assets`` alors
     # que les nouveaux téléversements vivent sous ``assets/audio``. Les deux
     # emplacements restent confinés à la banque média de KingdomData.
-    root = (DATA_ROOT / "assets").resolve()
-    target = (DATA_ROOT / storage_path).resolve()
-    if root != target and root not in target.parents:
-        raise ValidationError("Chemin audio invalide.")
-    return target
+    writable_target: Path | None = None
+    for data_root in dict.fromkeys((DATA_ROOT.resolve(), PACKAGE_DATA_ROOT.resolve())):
+        root = (data_root / "assets").resolve()
+        target = (data_root / storage_path).resolve()
+        if root != target and root not in target.parents:
+            continue
+        if target.is_file():
+            return target
+        if data_root == DATA_ROOT.resolve():
+            writable_target = target
+    if writable_target is not None:
+        return writable_target
+    raise ValidationError("Chemin audio invalide.")
 
 
 def store_audio_file(stream: BinaryIO, entity_key: str, original_name: str, namespace: str = "") -> dict[str, object]:

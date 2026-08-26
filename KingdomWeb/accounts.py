@@ -100,12 +100,18 @@ class RegistreComptes:
         identifiant = identifiant.strip().lower()
         if not re.fullmatch(r"[a-z0-9_.-]{3,50}", identifiant):
             raise ValueError("L'identifiant doit contenir 3 a 50 lettres, chiffres, points, tirets ou underscores.")
+        nom = nom.strip()
+        email = email.strip().lower()
+        if not 2 <= len(nom) <= 80:
+            raise ValueError("Le nom affiché doit contenir entre 2 et 80 caractères.")
+        if email and (len(email) > 254 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email)):
+            raise ValueError("L'adresse e-mail n'est pas valide.")
         sel, empreinte = _empreinte_mot_de_passe(mot_de_passe)
         try:
             with self.connexion() as base:
                 curseur = base.execute(
                     "INSERT INTO web_accounts(username,display_name,email,password_salt,password_hash,is_admin,active,created_at) VALUES(?,?,?,?,?,?,1,?)",
-                    (identifiant, nom.strip() or identifiant, email.strip(), sel, empreinte, int(administrateur), _maintenant()),
+                    (identifiant, nom, email, sel, empreinte, int(administrateur), _maintenant()),
                 )
                 compte_id = int(curseur.lastrowid)
         except sqlite3.IntegrityError as exc:
@@ -175,7 +181,18 @@ class RegistreComptes:
             lignes = base.execute(
                 "SELECT id,username,display_name,email,is_admin,active,created_at FROM web_accounts ORDER BY display_name,username"
             ).fetchall()
-        return [{**dict(ligne), "access": self.lister_acces(int(ligne["id"]))} for ligne in lignes]
+            total_serveurs = int(base.execute("SELECT COUNT(*) FROM managed_servers WHERE active=1").fetchone()[0])
+        resultats = []
+        for ligne in lignes:
+            compte = dict(ligne)
+            acces = self.lister_acces(int(ligne["id"]))
+            compte["access"] = acces
+            compte["server_count"] = total_serveurs if compte["is_admin"] else len(acces)
+            compte["administered_server_count"] = total_serveurs if compte["is_admin"] else sum(
+                1 for droit in acces if droit["role"] in {"gestionnaire", "proprietaire"}
+            )
+            resultats.append(compte)
+        return resultats
 
     def lister_acces(self, compte_id: int) -> list[dict[str, Any]]:
         with self.connexion() as base:

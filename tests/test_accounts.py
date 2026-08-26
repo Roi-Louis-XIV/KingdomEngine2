@@ -68,6 +68,63 @@ def test_web_accounts_and_servers_are_isolated(tmp_path, monkeypatch):
     assert os.path.isfile(created.json()["database_path"])
 
 
+def test_public_registration_creates_an_unassigned_account_visible_to_admin(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "registration.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "registration-admin")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "registration-password")
+    monkeypatch.setenv("KINGDOM_ALLOW_REGISTRATION", "1")
+    monkeypatch.setattr(web, "magasin_principal", primary)
+    monkeypatch.setattr(web, "store", web.MagasinsServeurs(primary))
+    monkeypatch.setattr(web, "comptes", registry)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+    web._inscriptions_recentes.clear()
+
+    with TestClient(web.app) as client:
+        mismatch = client.post("/api/auth/register", json={
+            "username": "atilla", "display_name": "Atilla", "email": "atilla@example.test",
+            "password": "password-atilla", "password_confirmation": "different-password",
+        })
+        assert mismatch.status_code == 422
+        created = client.post("/api/auth/register", json={
+            "username": "atilla", "display_name": "Atilla", "email": "atilla@example.test",
+            "password": "password-atilla", "password_confirmation": "password-atilla",
+        })
+        assert created.status_code == 200
+        assert "administrateur" in created.json()["message"]
+        assert registry.lister_acces(created.json()["account"]["id"]) == []
+
+        assert client.post("/api/auth/login", json={
+            "username": "registration-admin", "password": "registration-password",
+        }).status_code == 200
+        accounts = client.get("/api/accounts").json()["accounts"]
+        registered = next(account for account in accounts if account["username"] == "atilla")
+        assert registered["server_count"] == 0
+        assert registered["administered_server_count"] == 0
+        administrator = next(account for account in accounts if account["is_admin"])
+        assert administrator["administered_server_count"] == 1
+
+
+def test_public_registration_can_be_disabled(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "registration-disabled.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ALLOW_REGISTRATION", "0")
+    monkeypatch.setattr(web, "comptes", registry)
+    with TestClient(web.app) as client:
+        response = client.post("/api/auth/register", json={})
+    assert response.status_code == 403
+
+
+def test_login_interface_exposes_registration_and_account_statistics():
+    with TestClient(web.app) as client:
+        script = client.get("/static/app.js").text
+    assert "CRÉER UN COMPTE" in script
+    assert "/api/auth/register" in script
+    assert "COMPTES CRÉÉS" in script
+    assert "administered_server_count" in script
+
+
 def test_tutorial_progress_is_scoped_by_account_and_server(tmp_path, monkeypatch):
     database = tmp_path / "tutorials.db"
     monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "guide")
