@@ -55,6 +55,178 @@ Pour tout arrêter proprement :
 .\stop-test-server.ps1
 ```
 
+## Guide serveur Debian — pour Atilla
+
+Ce guide suffit pour installer, démarrer et mettre à jour KingdomEngine sur le serveur. Les commandes sont à exécuter dans un terminal Debian. L'installation conserve les données dans `var/` et les secrets dans `.env`.
+
+Checklist rapide pour Atilla :
+
+1. cloner le projet dans `/opt/KingdomEngine2` ;
+2. lancer `sudo bash ./install-debian.sh` ;
+3. compléter les identifiants Discord dans `.env` ;
+4. redémarrer les trois services ;
+5. ouvrir le port `8000` et tester KingdomWeb depuis un autre ordinateur ;
+6. lancer **Installer le serveur Discord** une seule fois depuis KingdomWeb.
+
+### 1. Première installation
+
+Installer Git, récupérer la branche de développement puis lancer l'installateur :
+
+```bash
+sudo apt update
+sudo apt install -y git
+cd /opt
+sudo git clone --branch agent/kingdomengine2-v2 https://github.com/Roi-Louis-XIV/KingdomEngine2.git
+sudo chown -R "$USER":"$USER" /opt/KingdomEngine2
+cd /opt/KingdomEngine2
+sudo bash ./install-debian.sh
+```
+
+L'installateur effectue automatiquement les opérations suivantes :
+
+- installation de Python, FFmpeg et des dépendances système ;
+- création de `.venv` et installation de KingdomEngine ;
+- création de `.env` s'il n'existe pas ;
+- remplacement du mot de passe `change-me` par un mot de passe aléatoire ;
+- exposition de KingdomWeb sur le réseau avec `KINGDOM_WEB_HOST=0.0.0.0` ;
+- création et démarrage automatique des services Web, Core et Voice.
+
+Conserver le mot de passe administrateur affiché par l'installateur. KingdomWeb est ensuite disponible à l'adresse indiquée, généralement :
+
+```text
+http://IP_DU_SERVEUR:8000
+```
+
+### 2. Configuration Discord
+
+Ouvrir le fichier de configuration :
+
+```bash
+cd /opt/KingdomEngine2
+nano .env
+```
+
+Renseigner au minimum :
+
+```dotenv
+KINGDOM_CORE_TOKEN=token_du_bot_principal
+KINGDOM_APPLICATION_ID=id_application_du_bot_principal
+KINGDOM_GUILD_ID=id_du_serveur_discord_principal
+KINGDOM_ADMIN_USERNAME=admin
+KINGDOM_ADMIN_PASSWORD=mot_de_passe_solide
+```
+
+Les tokens des bots vocaux sont facultatifs. Ils utilisent les variables `EDGAR_BOT_TOKEN`, `EDOUARD_BOT_TOKEN`, `ROLAND_BOT_TOKEN`, `SYLVAIN_BOT_TOKEN` et `WAGNER_BOT_TOKEN`, avec les Application ID correspondants. Ne jamais envoyer le fichier `.env` sur GitHub.
+
+Après une modification de `.env`, redémarrer les services :
+
+```bash
+sudo systemctl restart kingdomengine-web kingdomengine-core kingdomengine-voice
+```
+
+Dans KingdomWeb, sélectionner le serveur Discord puis utiliser **Paramètres → Installer le serveur Discord**. Cette opération crée les rôles et les salons initiaux. Ensuite, la publication d'un bâtiment crée ou actualise automatiquement ses salons textuel et vocal.
+
+### 3. Autoriser l'accès réseau
+
+Si UFW est utilisé sur le serveur :
+
+```bash
+sudo ufw allow 8000/tcp
+sudo ufw status
+```
+
+Pour un serveur hébergé à domicile, rediriger également le port TCP `8000` de la box vers l'adresse locale du serveur Debian. Pour une mise en production publique, utiliser ensuite un nom de domaine et un reverse proxy HTTPS ; activer `KINGDOM_SECURE_COOKIES=1` uniquement lorsque HTTPS est opérationnel.
+
+Vérifier depuis une autre machine :
+
+```bash
+curl -I http://IP_DU_SERVEUR:8000
+```
+
+### 4. Vérifier et administrer les services
+
+Afficher leur état :
+
+```bash
+sudo systemctl status kingdomengine-web kingdomengine-core kingdomengine-voice
+```
+
+Redémarrer tout KingdomEngine :
+
+```bash
+sudo systemctl restart kingdomengine-web kingdomengine-core kingdomengine-voice
+```
+
+Arrêter ou démarrer l'ensemble :
+
+```bash
+sudo systemctl stop kingdomengine-web kingdomengine-core kingdomengine-voice
+sudo systemctl start kingdomengine-web kingdomengine-core kingdomengine-voice
+```
+
+Lire les erreurs sans fenêtre éphémère :
+
+```bash
+cd /opt/KingdomEngine2
+tail -f var/logs/web.err.log
+tail -f var/logs/core.err.log
+tail -f var/logs/voice.err.log
+```
+
+Les sorties normales sont dans `web.out.log`, `core.out.log` et `voice.out.log`, dans le même dossier.
+
+### 5. Mettre KingdomEngine à jour
+
+Sauvegarder les données, récupérer GitHub, réinstaller les éventuelles nouvelles dépendances et redémarrer :
+
+```bash
+cd /opt/KingdomEngine2
+tar -czf "$HOME/kingdomengine-backup-$(date +%F-%H%M).tar.gz" .env var KingdomData/assets
+git switch agent/kingdomengine2-v2
+git pull --ff-only
+sudo bash ./install-debian.sh
+```
+
+Le script peut être relancé : il conserve `.env`, les bases de données, les cartes et les fichiers audio. Après la mise à jour, vérifier que les trois services indiquent `active (running)`.
+
+### 6. Lancement manuel de secours
+
+Si systemd n'est pas souhaité, ou pour un diagnostic ponctuel :
+
+```bash
+cd /opt/KingdomEngine2
+bash ./start-server.sh
+bash ./stop-server.sh
+```
+
+Pour consulter rapidement les dernières erreurs :
+
+```bash
+tail -n 100 var/logs/web.err.log
+tail -n 100 var/logs/core.err.log
+tail -n 100 var/logs/voice.err.log
+```
+
+### 7. Dépannage rapide
+
+| Symptôme | Vérification |
+|---|---|
+| Le site ne répond pas | `sudo systemctl status kingdomengine-web` puis `tail -n 100 var/logs/web.err.log` |
+| Le site fonctionne sur Debian mais pas depuis un autre PC | vérifier `sudo ufw status`, le port `8000` et la redirection de la box |
+| Le bot Discord reste hors ligne | vérifier `KINGDOM_CORE_TOKEN`, puis redémarrer `kingdomengine-core` |
+| Les bots vocaux ne démarrent pas | vérifier leurs tokens, Application ID, activation dans KingdomWeb et `voice.err.log` |
+| Un service indique « address already in use » | rechercher l'ancien processus avec `sudo ss -lptn 'sport = :8000'` |
+| Une mise à jour échoue sur Git | ne pas supprimer `.env` ou `var/`; sauvegarder puis vérifier `git status` avant de recommencer |
+
+En cas de demande d'aide, transmettre la sortie de ces commandes sans copier les tokens du fichier `.env` :
+
+```bash
+sudo systemctl status kingdomengine-web kingdomengine-core kingdomengine-voice --no-pager
+tail -n 100 var/logs/web.err.log
+tail -n 100 var/logs/core.err.log
+tail -n 100 var/logs/voice.err.log
+```
+
 Lors d’une toute première installation seulement :
 
 ```powershell
