@@ -41,5 +41,5 @@ mkdir -p "$BACKUP_DIR"
 bash "$ROOT/backup-server.sh" "$BACKUP_DIR/before-$REMOTE_REVISION-$(date +%F-%H%M).tar.gz"
 sudo -H -u "$SERVICE_USER" git merge --ff-only "origin/$BRANCH"
 sudo -H -u "$SERVICE_USER" "$ROOT/.venv/bin/python" -m pip install -e "$ROOT"
-systemctl restart kingdomengine-web kingdomengine-core kingdomengine-voice
+systemctl restart kingdom-web kingdom-core kingdom-voice
 echo "KingdomEngine mis à jour : $LOCAL_REVISION -> $REMOTE_REVISION"

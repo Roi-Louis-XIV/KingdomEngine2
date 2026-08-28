@@ -125,6 +125,24 @@ def test_login_interface_exposes_registration_and_account_statistics():
     assert "administered_server_count" in script
 
 
+def test_login_interface_uses_the_immersive_brand_assets():
+    with TestClient(web.app) as client:
+        page = client.get("/")
+        stylesheet = client.get("/static/login-v2.css")
+        panorama = client.get("/static/login-kingdom-panorama.png")
+
+    assert page.status_code == 200
+    assert "/static/login-v2.css" in page.text
+    assert "/static/kingdomengine-logo-transparent.png" in page.text
+    assert "PAYEN" in page.text
+    assert stylesheet.status_code == 200
+    assert "place-items:stretch" in stylesheet.text
+    assert 'url("/static/login-kingdom-panorama.png")' in stylesheet.text
+    assert "@media(max-width:960px)" in stylesheet.text
+    assert panorama.status_code == 200
+    assert panorama.headers["content-type"] == "image/png"
+
+
 def test_tutorial_progress_is_scoped_by_account_and_server(tmp_path, monkeypatch):
     database = tmp_path / "tutorials.db"
     monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "guide")
