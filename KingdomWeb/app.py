@@ -184,6 +184,17 @@ async def authorize(request: Request, authorization: str | None = Header(None), 
     return _autoriser(request, authorization, royaume_session, x_kingdom_server)
 
 
+async def authenticate_account(request: Request, authorization: str | None = Header(None), royaume_session: str | None = Cookie(None)) -> dict[str, Any]:
+    """Authentifie un compte même si aucun royaume ne lui est encore attribué."""
+    expected = os.getenv("KINGDOM_ADMIN_TOKEN", "change-me")
+    compte = ({"id": 0, "username": "legacy-admin", "display_name": "Administrateur", "email": "", "is_admin": True}
+              if authorization == f"Bearer {expected}" else comptes.compte_session(royaume_session or ""))
+    if not compte:
+        raise HTTPException(401, "Connectez-vous à KingdomWeb.")
+    request.state.compte = compte
+    return compte
+
+
 # Deux dépendances distinctes préparent une future permission de consultation
 # sans écriture, tout en conservant le jeton administrateur actuel.
 async def authorize_player_view(request: Request, authorization: str | None = Header(None), royaume_session: str | None = Cookie(None), x_kingdom_server: str | None = Header(None)) -> dict[str, Any]:
@@ -358,7 +369,7 @@ def connexion_compte(body: dict[str, Any], response: Response):
 
 
 @app.post("/api/auth/register")
-def inscription_compte(request: Request, body: dict[str, Any]):
+def inscription_compte(request: Request, response: Response, body: dict[str, Any]):
     if os.getenv("KINGDOM_ALLOW_REGISTRATION", "1") != "1":
         raise HTTPException(403, "La création publique de comptes est désactivée.")
     adresse = request.client.host if request.client else "unknown"
@@ -378,10 +389,15 @@ def inscription_compte(request: Request, body: dict[str, Any]):
         )
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+    jeton = comptes.ouvrir_session(int(compte["id"]))
+    response.set_cookie(
+        "royaume_session", jeton, httponly=True, samesite="strict", max_age=7 * 24 * 3600,
+        secure=os.getenv("KINGDOM_SECURE_COOKIES", "0") == "1",
+    )
     return {
         "ok": True,
         "account": compte,
-        "message": "Compte créé. Un administrateur doit maintenant vous attribuer un serveur.",
+        "message": "Compte créé et connecté. Un administrateur doit maintenant vous attribuer un serveur.",
     }
 
 
@@ -405,14 +421,15 @@ def _bots_disponibles() -> list[dict[str, Any]]:
     return resultats
 
 
-@app.get("/api/profile", dependencies=[Depends(authorize)])
-def profil(request: Request):
+@app.get("/api/profile", dependencies=[Depends(authenticate_account)])
+def profil(request: Request, x_kingdom_server: str | None = Header(None)):
     compte = request.state.compte
     serveurs = comptes.lister_serveurs(int(compte["id"]), bool(compte["is_admin"])) if int(compte["id"]) else comptes.lister_serveurs(0, True)
     bots = _bots_disponibles()
     return {
         "account": compte,
-        "current_server": request.state.serveur["slug"],
+        "current_server": (next((serveur["slug"] for serveur in serveurs if serveur["slug"] == x_kingdom_server), None)
+                           or (serveurs[0]["slug"] if serveurs else "")),
         "servers": [{**serveur, "bots": [{**bot, "installed": bool(serveur["bot_installed"])} for bot in bots]} for serveur in serveurs],
     }
 
@@ -721,6 +738,82 @@ def cleanup_discord_channels(body: dict[str, Any], request: Request):
             [str(value) for value in body.get("channel_ids", [])], bool(body.get("confirmed", False))
         )
     except DiscordChannelError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+def _serveur_administrable(compte: dict[str, Any], slug: str) -> dict[str, Any]:
+    try:
+        serveur = comptes.serveur_autorise(compte, slug)
+    except ErreurAutorisation as exc:
+        raise HTTPException(404, str(exc)) from exc
+    if not comptes.autorise(compte, serveur, "bots:installer"):
+        raise HTTPException(403, "Le rôle gestionnaire ou propriétaire est requis.")
+    return serveur
+
+
+def _magasin_serveur(serveur: dict[str, Any]) -> ContentStore:
+    magasin = ContentStore(serveur["database_path"])
+    magasin.initialize()
+    magasin.seed(DEFINITIONS)
+    if isinstance(store, MagasinsServeurs):
+        store._synchroniser_modeles_bots(magasin)
+    return magasin
+
+
+@app.post("/api/servers/{slug}/install", dependencies=[Depends(authenticate_account)])
+def installer_kingdomengine(slug: str, request: Request):
+    serveur = _serveur_administrable(request.state.compte, slug)
+    guild_id = str(serveur.get("guild_id", ""))
+    if not guild_id.isdigit():
+        raise HTTPException(422, "Renseignez d'abord l'identifiant Discord du serveur.")
+    application_id = str(os.getenv("KINGDOM_APPLICATION_ID", "")).strip()
+    if not application_id.isdigit():
+        raise HTTPException(422, "Renseignez KINGDOM_APPLICATION_ID dans le fichier .env.")
+    magasin = _magasin_serveur(serveur)
+    request_id = magasin.request_discord_provision("server", requested_by=f"KingdomWeb:{request.state.compte['username']}")
+    url = discord.utils.oauth_url(
+        int(application_id), permissions=required_bot_permissions(), scopes=("bot",),
+        guild=discord.Object(id=int(guild_id)), disable_guild_select=True,
+    )
+    return {"ok": True, "request_id": request_id, "status": "pending", "url": url}
+
+
+@app.post("/api/servers/{slug}/uninstall", dependencies=[Depends(authenticate_account)])
+def desinstaller_kingdomengine(slug: str, request: Request):
+    serveur = _serveur_administrable(request.state.compte, slug)
+    magasin = _magasin_serveur(serveur)
+    if not serveur.get("bot_installed"):
+        return {"ok": True, "status": "not_installed", "message": "KingdomCore n'est plus présent sur Discord."}
+    request_id = magasin.request_discord_provision("uninstall", requested_by=f"KingdomWeb:{request.state.compte['username']}")
+    return {"ok": True, "request_id": request_id, "status": "pending"}
+
+
+@app.get("/api/servers/{slug}/operation", dependencies=[Depends(authenticate_account)])
+def operation_serveur(slug: str, request: Request):
+    serveur = _serveur_administrable(request.state.compte, slug)
+    return _magasin_serveur(serveur).discord_provision_status()
+
+
+@app.delete("/api/servers/{slug}", dependencies=[Depends(authenticate_account)])
+def supprimer_serveur_supervise(slug: str, request: Request):
+    serveur = _serveur_administrable(request.state.compte, slug)
+    if serveur.get("bot_installed"):
+        statut = _magasin_serveur(serveur).discord_provision_status()
+        if statut.get("scope") != "uninstall" or statut.get("status") != "done":
+            raise HTTPException(409, "Désinstallez d'abord KingdomEngine du serveur Discord.")
+    comptes.archiver_serveur(slug)
+    return {"ok": True, "message": "Le serveur n'est plus supervisé. Sa base KingdomData a été conservée."}
+
+
+@app.post("/api/accounts/{account_id}/password", dependencies=[Depends(_administrateur_global)])
+def reinitialiser_mot_de_passe_compte(account_id: int, request: Request, body: dict[str, Any]):
+    if account_id == int(request.state.compte["id"]):
+        raise HTTPException(422, "Utilisez la section Sécurité du compte pour modifier votre propre mot de passe.")
+    try:
+        comptes.compte(account_id)
+        comptes.changer_mot_de_passe(account_id, "", str(body.get("new_password", "")), administrateur=True)
+        return {"ok": True, "message": "Mot de passe réinitialisé. Toutes les anciennes sessions ont été fermées."}
+    except (ErreurAuthentification, ValueError) as exc:
         raise HTTPException(422, str(exc)) from exc
 
 

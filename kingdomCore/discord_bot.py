@@ -1027,19 +1027,47 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
                             logger.warning("%s installation(s) Discord interrompue(s) remise(s) en attente pour %s.", recovered, guild.name)
                     for request in target_store.pending_discord_provision():
                         try:
-                            report = await DiscordProvisioner(guild, target_store).provision()
-                            summary = (
-                                f"{len(report.created_roles)} rôle(s), {len(report.created_channels)} salon(s) créés, "
-                                f"{report.assigned_roles} attribution(s) de rôle"
-                            )
+                            provisioner = DiscordProvisioner(guild, target_store)
+                            if request["scope"] == "uninstall":
+                                report = await provisioner.uninstall()
+                                summary = (
+                                    f"{len(report.removed_voice_bots)} bot(s) vocal(aux), "
+                                    f"{len(report.removed_channels)} salon(s) et {len(report.removed_roles)} rôle(s) retirés"
+                                )
+                            else:
+                                report = await provisioner.provision()
+                                summary = (
+                                    f"{len(report.created_roles)} rôle(s), {len(report.created_channels)} salon(s) créés, "
+                                    f"{report.assigned_roles} attribution(s) de rôle"
+                                )
                             target_store.finish_discord_provision(request["id"], report=summary)
                             logger.warning("Synchronisation Discord terminée pour %s : %s.", guild.name, summary)
+                            if request["scope"] == "uninstall":
+                                await guild.leave()
                         except Exception as exc:
                             target_store.finish_discord_provision(request["id"], error=str(exc))
                             logger.exception("Synchronisation Discord impossible pour %s.", guild.name)
             except (OSError, ValueError):
                 logger.exception("Impossible de lire la file de provisionnement Discord.")
             await asyncio.sleep(3)
+
+    @bot.event
+    async def on_guild_join(guild: discord.Guild):
+        """Rend immédiatement visible l'installation OAuth sans redémarrer le Core."""
+        with store.connection() as db:
+            tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            if "managed_servers" in tables:
+                db.execute(
+                    "UPDATE managed_servers SET bot_installed=1,name=CASE WHEN name='Royaume principal' THEN ? ELSE name END WHERE guild_id=?",
+                    (guild.name, str(guild.id)),
+                )
+
+    @bot.event
+    async def on_guild_remove(guild: discord.Guild):
+        with store.connection() as db:
+            tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            if "managed_servers" in tables:
+                db.execute("UPDATE managed_servers SET bot_installed=0 WHERE guild_id=?", (str(guild.id),))
 
     @bot.event
     async def on_member_join(member: discord.Member):

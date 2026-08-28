@@ -1,0 +1,119 @@
+/* KingdomWeb mobile — une couche finale isolée qui conserve toutes les fonctions. */
+.mobile-dock{display:none}
+body:has(.login-screen:not([hidden])){padding-bottom:0}
+body:has(.login-screen:not([hidden])) .mobile-dock{display:none!important}
+
+@media(max-width:760px){
+  html{scroll-padding-bottom:84px}
+  body{display:block!important;min-width:0;padding-bottom:calc(72px + env(safe-area-inset-bottom));overflow-x:hidden}
+  body.modal-open{overflow:hidden}
+  main.app-main{width:100%;min-width:0;padding:12px 12px 28px!important}
+
+  /* En-tête compact : le royaume et les alertes restent accessibles. */
+  .app-header{position:sticky;z-index:12;top:0;display:grid!important;grid-template-columns:42px minmax(0,1fr);gap:8px!important;align-items:center!important;min-height:64px;margin:-12px -12px 14px!important;padding:9px 12px!important;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--background,#09110c) 92%,transparent);backdrop-filter:blur(18px)}
+  .mobile-menu{display:grid!important;width:42px;height:42px;place-items:center;border:1px solid var(--line);border-radius:11px;background:var(--surface);font-size:20px}
+  .header-copy{min-width:0}
+  .header-copy p,.header-copy>span{display:none!important}
+  .header-copy h1{overflow:hidden;margin:0!important;font-size:clamp(19px,6vw,25px)!important;line-height:1.1;text-overflow:ellipsis;white-space:nowrap}
+  .header-actions{grid-column:1/-1;display:grid!important;grid-template-columns:minmax(0,1fr) 42px 42px!important;gap:7px!important;width:100%;padding-top:2px}
+  .server-switcher{grid-column:auto!important;min-width:0;margin:0!important}
+  .server-switcher>span,.account-button b,.theme-label,.save-state{display:none!important}
+  .server-switcher select{width:100%!important;min-width:0!important;height:42px;margin:0;padding:8px 29px 8px 10px;font-size:12px}
+  .account-button,.theme-toggle{display:grid!important;width:42px;height:42px;min-width:42px;padding:0!important;place-items:center;border:1px solid var(--line);border-radius:11px;background:var(--surface)}
+  .account-button span{margin:0!important}
+  .header-actions>#new{grid-column:1/-1;width:100%;min-height:44px;margin:0!important}
+
+  /* Tiroir complet : aucune fonctionnalité de bureau ne disparaît. */
+  body>.app-sidebar{position:fixed!important;z-index:40;inset:0 auto 0 0;width:min(88vw,340px)!important;height:100dvh!important;padding:18px 14px calc(20px + env(safe-area-inset-bottom))!important;overflow-y:auto;overscroll-behavior:contain;transform:translateX(-105%);transition:transform .22s ease;background:var(--sidebar,#09110c);box-shadow:24px 0 70px #0009}
+  body.sidebar-open>.app-sidebar{transform:translateX(0)}
+  body.sidebar-open{overflow:hidden}
+  body.sidebar-open>.sidebar-scrim{display:block!important;position:fixed;z-index:39;inset:0;width:100%;height:100%;border:0;background:#020704b8;backdrop-filter:blur(3px)}
+  .app-sidebar #sidebar-collapse{display:none}
+  .app-sidebar #nav{display:grid!important;grid-template-columns:1fr!important;gap:4px!important}
+  .app-sidebar #nav .nav-divider,.app-sidebar #nav .nav-submenu{display:grid!important;grid-column:1!important;grid-template-columns:1fr!important;margin-left:0!important}
+  .app-sidebar #nav .nav-divider{display:block!important;margin-top:9px}
+  .app-sidebar #nav button{min-height:44px;padding:10px 12px!important}
+  .app-sidebar footer{display:grid!important}
+
+  /* Accès d'urgence toujours à portée du pouce. */
+  .mobile-dock{position:fixed;z-index:30;right:8px;bottom:calc(7px + env(safe-area-inset-bottom));left:8px;display:grid;grid-template-columns:repeat(5,1fr);gap:2px;margin:0;padding:6px;border:1px solid color-mix(in srgb,var(--line) 80%,#49d36c);border-radius:17px;background:color-mix(in srgb,var(--surface,#101812) 92%,transparent);box-shadow:0 16px 50px #0009;backdrop-filter:blur(20px)}
+  .mobile-dock button{display:grid;min-width:0;min-height:52px;padding:5px 2px;place-items:center;align-content:center;gap:3px;border-radius:11px;color:var(--text-soft)}
+  .mobile-dock button>span{font-size:19px;line-height:1}
+  .mobile-dock button>small{overflow:hidden;width:100%;font-size:9px;text-align:center;text-overflow:ellipsis;white-space:nowrap}
+  .mobile-dock button.active{color:#071108;background:var(--brand-green,#54e448)}
+
+  /* Listes et cartes lisibles sans zoom manuel. */
+  .stats,.admin-metrics,.dashboard-health,.dashboard-metrics,.dashboard-columns,.dashboard-quick>div:last-child,.cards,.building-card-grid,.service-grid,.logs-grid,.player-cards,.live-player-grid,.simple-mechanic-grid,.simple-action-list,.simple-exchange-grid{grid-template-columns:1fr!important}
+  .stats{gap:8px;margin-bottom:12px}
+  .stats article{padding:13px}
+  .stats strong{font-size:23px}
+  .workspace{min-height:0;border-radius:12px}
+  .toolbar{align-items:stretch!important;gap:7px!important;flex-direction:column!important;padding:10px!important}
+  .toolbar input{width:100%!important;min-height:43px}
+  .toolbar>span{display:none}
+  .cards{gap:10px;padding:10px!important}
+  .card,.building-card{min-height:0!important;padding:14px!important}
+  .card p,.building-card>p{min-height:0!important}
+  button,input,select,textarea,summary{touch-action:manipulation}
+  button,.primary,.secondary{min-height:42px}
+
+  /* Les tableaux restent complets mais défilent horizontalement. */
+  .admin-table-wrap,.table-scroll{margin-inline:-2px;overflow-x:auto;overscroll-behavior-inline:contain;border-radius:10px;-webkit-overflow-scrolling:touch}
+  .admin-table,.player-table{min-width:680px}
+
+  /* Les onglets et filtres deviennent des rubans tactiles. */
+  .section-tabs,.building-editor-tabs,.player-tabs{display:flex!important;justify-content:flex-start!important;max-width:100%;padding-bottom:3px;overflow-x:auto;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+  .section-tabs button,.building-editor-tabs button,.player-tabs button{flex:0 0 auto;min-height:42px;scroll-snap-align:start;white-space:nowrap}
+  .player-filters,.item-catalog-toolbar,.live-secondary-filters{grid-template-columns:1fr!important}
+
+  /* Éditeurs plein écran, actions toujours accessibles. */
+  .modal{padding:0!important;place-items:stretch!important}
+  .modal-panel,.wizard-panel,.wizard-panel.visual-mode{width:100vw!important;max-width:none!important;height:100dvh!important;max-height:none!important;border:0!important;border-radius:0!important}
+  .modal-panel form{display:flex;flex-direction:column;height:100dvh;max-height:none!important}
+  .dialog-head{flex:0 0 auto;padding:12px 14px!important}
+  .dialog-head h2{font-size:19px;line-height:1.15}
+  .editor-layout{display:block!important;min-height:0!important;flex:1;overflow:hidden}
+  .editor-main,.visual-mode .editor-main{height:100%;max-height:none!important;padding:7px 12px 18px!important;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .context-help{display:none!important}
+  .actions{position:sticky;z-index:6;bottom:0;display:grid!important;grid-template-columns:1fr 1fr;gap:8px!important;margin:0!important;padding:10px 12px calc(10px + env(safe-area-inset-bottom))!important;border-top:1px solid var(--line);background:var(--surface)}
+  .actions .action-spacer{display:none}
+  .actions button{width:100%;margin:0!important}
+  .actions button:only-of-type,.actions button:last-child:nth-child(3){grid-column:auto}
+  .visual-studio{display:grid!important;grid-template-columns:1fr!important;min-height:0!important}
+  .component-library{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .builder-canvas{min-height:420px;padding:10px!important}
+  .canvas-page{min-height:390px;padding:10px}
+  .studio-inspector,.property-panel{max-height:none!important}
+
+  dialog:not(.simple-building-dialog){width:calc(100vw - 16px)!important;max-width:none;max-height:calc(100dvh - 16px);margin:auto;border-radius:14px}
+  dialog form{max-height:calc(100dvh - 18px);overflow-y:auto}
+  form>label,.cols,form>#error{margin-right:14px!important;margin-left:14px!important}
+  .cols,.form-grid,.effect-row,.friendly-effect,.condition-grid,.outcome-effect-grid{grid-template-columns:1fr!important}
+  .simple-zone-form{padding-inline:14px!important}
+
+  /* Cartographie exploitable au doigt et panneaux empilés. */
+  .interactive-world-layout,.world-layout{grid-template-columns:1fr!important}
+  .interactive-map-viewport{height:58dvh!important;min-height:380px;touch-action:pan-x pan-y}
+  .map-toolbar{gap:6px;padding:9px!important;overflow-x:auto;flex-wrap:nowrap!important}
+  .map-toolbar button,.map-background-button{flex:0 0 auto!important;white-space:nowrap}
+  .world-map-side{grid-template-columns:1fr!important}
+
+  /* Les informations secondaires restent disponibles sous forme repliable. */
+  .dashboard-welcome{padding:17px!important}
+  .dashboard-welcome h2{font-size:31px!important}
+  .dashboard-logo-wrap{display:none!important}
+  .dashboard-hero-actions{display:grid!important;grid-template-columns:1fr!important}
+  .dashboard-hero-actions button{width:100%}
+  .explain-screen{right:12px!important;bottom:calc(82px + env(safe-area-inset-bottom))!important}
+  .explain-screen span{display:none}
+}
+
+@media(max-width:390px){
+  main.app-main{padding-inline:9px!important}
+  .app-header{margin-inline:-9px!important;padding-inline:9px!important}
+  .mobile-dock{right:4px;left:4px}
+  .mobile-dock button>small{font-size:8px}
+  .component-library{grid-template-columns:1fr!important}
+}
+
+@media(min-width:761px){.mobile-dock{display:none!important}}

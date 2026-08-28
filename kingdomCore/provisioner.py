@@ -27,6 +27,14 @@ class ProvisionReport:
     skipped_members: int = 0
 
 
+@dataclass(slots=True)
+class UninstallReport:
+    removed_voice_bots: list[str]
+    removed_channels: list[str]
+    removed_roles: list[str]
+    preserved_channels: list[str]
+
+
 def channel_slug(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode().lower()
     return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", normalized)).strip("-")[:80] or "royaume"
@@ -57,7 +65,9 @@ def managed_bot_permissions() -> discord.Permissions:
 
 def required_bot_permissions() -> discord.Permissions:
     value = game_master_permissions().value | player_permissions().value | managed_bot_permissions().value
-    return discord.Permissions(value)
+    permissions = discord.Permissions(value)
+    permissions.kick_members = True
+    return permissions
 
 
 class DiscordProvisioner:
@@ -102,6 +112,68 @@ class DiscordProvisioner:
         assigned, skipped = await self._assign_privileged_roles(master, bot_role)
         report.assigned_roles += assigned
         report.skipped_members += skipped
+        return report
+
+    async def uninstall(self) -> UninstallReport:
+        """Retire uniquement les ressources déterministes gérées par KingdomEngine."""
+        me = self.guild.me
+        if me is None:
+            raise RuntimeError("Le membre représentant KingdomCore est introuvable.")
+        required = ("manage_channels", "manage_roles", "kick_members")
+        missing = [name for name in required if not getattr(me.guild_permissions, name, False)]
+        if missing:
+            raise PermissionError("Permissions Discord manquantes pour la désinstallation : " + ", ".join(missing))
+
+        report = UninstallReport([], [], [], [])
+        voice_application_ids: set[int] = set()
+        for entity in self.store.list("bot", published=True):
+            configuration = entity["payload"]
+            if configuration.get("bot_type") != "voice":
+                continue
+            variable = str(configuration.get("application_id_env", "")).strip()
+            if not variable:
+                token_variable = str(configuration.get("token_env", ""))
+                variable = token_variable.removesuffix("_BOT_TOKEN") + "_APPLICATION_ID" if token_variable.endswith("_BOT_TOKEN") else ""
+            application_id = str(os.getenv(variable, configuration.get("application_id", ""))).strip()
+            if application_id.isdigit():
+                voice_application_ids.add(int(application_id))
+
+        for member in list(self.guild.members):
+            if member.id not in voice_application_ids:
+                continue
+            await member.kick(reason="Désinstallation de KingdomEngine 2")
+            report.removed_voice_bots.append(str(member))
+
+        for entity in self.store.list("building", published=True):
+            report.removed_channels.extend(await self.remove_building_channels(entity["entity_key"], entity["payload"]))
+
+        discord_settings = self.settings["discord"]
+        general = discord.utils.get(self.guild.categories, name=discord_settings["general_category"][:100])
+        if general is not None:
+            managed_names = {
+                channel_slug(discord_settings["welcome_channel"]),
+                channel_slug(discord_settings["commands_channel"]),
+                channel_slug(discord_settings["administration_channel"]),
+                channel_slug(self.settings["onboarding"]["channel_name"]),
+            }
+            for channel in list(general.channels):
+                if channel.name in managed_names:
+                    await channel.delete(reason="Désinstallation de KingdomEngine 2")
+                    report.removed_channels.append(channel.name)
+                else:
+                    report.preserved_channels.append(channel.name)
+            if not report.preserved_channels:
+                await general.delete(reason="Désinstallation de KingdomEngine 2")
+                report.removed_channels.append(general.name)
+
+        for role_name in dict.fromkeys(self.settings["roles"].values()):
+            role = discord.utils.get(self.guild.roles, name=role_name)
+            if role is None:
+                continue
+            if role >= me.top_role:
+                raise PermissionError(f"Le rôle `{role_name}` doit être placé sous KingdomCore avant la désinstallation.")
+            await role.delete(reason="Désinstallation de KingdomEngine 2")
+            report.removed_roles.append(role.name)
         return report
 
     async def remove_building_channels(self, building_key: str, payload: dict[str, Any]) -> list[str]:

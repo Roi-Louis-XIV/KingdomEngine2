@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -94,6 +95,11 @@ def test_public_registration_creates_an_unassigned_account_visible_to_admin(tmp_
         assert created.status_code == 200
         assert "administrateur" in created.json()["message"]
         assert registry.lister_acces(created.json()["account"]["id"]) == []
+        unassigned_profile = client.get("/api/profile")
+        assert unassigned_profile.status_code == 200
+        assert unassigned_profile.json()["account"]["username"] == "atilla"
+        assert unassigned_profile.json()["servers"] == []
+        assert unassigned_profile.json()["current_server"] == ""
 
         assert client.post("/api/auth/login", json={
             "username": "registration-admin", "password": "registration-password",
@@ -105,6 +111,10 @@ def test_public_registration_creates_an_unassigned_account_visible_to_admin(tmp_
         administrator = next(account for account in accounts if account["is_admin"])
         assert administrator["administered_server_count"] == 1
 
+        reset = client.post(f'/api/accounts/{registered["id"]}/password', json={"new_password": "nouveau-password-atilla"})
+        assert reset.status_code == 200
+        assert registry.authentifier("atilla", "nouveau-password-atilla")["id"] == registered["id"]
+
 
 def test_public_registration_can_be_disabled(tmp_path, monkeypatch):
     primary = ContentStore(tmp_path / "registration-disabled.db")
@@ -114,6 +124,46 @@ def test_public_registration_can_be_disabled(tmp_path, monkeypatch):
     with TestClient(web.app) as client:
         response = client.post("/api/auth/register", json={})
     assert response.status_code == 403
+
+
+def test_managed_server_install_and_safe_removal_lifecycle(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "server-lifecycle.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "lifecycle-admin")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "lifecycle-password")
+    monkeypatch.setenv("KINGDOM_APPLICATION_ID", "123456789012345678")
+    monkeypatch.setattr(web, "magasin_principal", primary)
+    monkeypatch.setattr(web, "store", web.MagasinsServeurs(primary))
+    monkeypatch.setattr(web, "comptes", registry)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+
+    with TestClient(web.app) as client:
+        assert client.post("/api/auth/login", json={
+            "username": "lifecycle-admin", "password": "lifecycle-password",
+        }).status_code == 200
+        created = client.post("/api/servers", json={"name": "Royaume à retirer", "guild_id": "987654321012345678"})
+        assert created.status_code == 200
+        server = created.json()
+
+        install = client.post(f'/api/servers/{server["slug"]}/install', json={})
+        assert install.status_code == 200
+        assert "discord.com" in install.json()["url"]
+        target = ContentStore(server["database_path"])
+        assert target.discord_provision_status()["scope"] == "server"
+
+        with primary.connection() as database:
+            database.execute("UPDATE managed_servers SET bot_installed=1 WHERE slug=?", (server["slug"],))
+        uninstall = client.post(f'/api/servers/{server["slug"]}/uninstall', json={})
+        assert uninstall.status_code == 200
+        latest = target.discord_provision_status()
+        assert latest["scope"] == "uninstall"
+        assert client.delete(f'/api/servers/{server["slug"]}').status_code == 409
+        target.finish_discord_provision(latest["id"], report="Discord nettoyé")
+        removed = client.delete(f'/api/servers/{server["slug"]}')
+        assert removed.status_code == 200
+        assert Path(server["database_path"]).exists()
+        assert all(item["slug"] != server["slug"] for item in registry.lister_serveurs(1, True))
 
 
 def test_login_interface_exposes_registration_and_account_statistics():
@@ -141,6 +191,25 @@ def test_login_interface_uses_the_immersive_brand_assets():
     assert "@media(max-width:960px)" in stylesheet.text
     assert panorama.status_code == 200
     assert panorama.headers["content-type"] == "image/png"
+
+
+def test_mobile_shell_keeps_essential_tools_within_thumb_reach():
+    with TestClient(web.app) as client:
+        page = client.get("/")
+        stylesheet = client.get("/static/mobile.css")
+        script = client.get("/static/app.js")
+
+    assert page.status_code == 200
+    assert "/static/mobile.css" in page.text
+    assert 'id="mobile-dock"' in page.text
+    for target in ("dashboard", "live_world", "players", "supervision"):
+        assert f'data-mobile-type="{target}"' in page.text
+    assert stylesheet.status_code == 200
+    assert "@media(max-width:760px)" in stylesheet.text
+    assert "env(safe-area-inset-bottom)" in stylesheet.text
+    assert "height:100dvh" in stylesheet.text
+    assert "body:has(.login-screen:not([hidden])) .mobile-dock" in stylesheet.text
+    assert "navigateTo(button.dataset.mobileType)" in script.text
 
 
 def test_tutorial_progress_is_scoped_by_account_and_server(tmp_path, monkeypatch):

@@ -19,7 +19,7 @@ def test_invited_bot_gets_only_required_management_permissions():
     assert permissions.manage_channels
     assert permissions.manage_messages
     assert permissions.embed_links and permissions.attach_files
-    assert not permissions.kick_members
+    assert permissions.kick_members
     assert not permissions.ban_members
     assert not permissions.moderate_members
     assert permissions.connect and permissions.speak
@@ -96,3 +96,14 @@ def test_discord_provision_queue_survives_and_recovers_a_core_restart(tmp_path):
     status = store.discord_provision_status()
     assert status["status"] == "done"
     assert status["report"] == "Discord synchronisé"
+
+
+def test_discord_uninstall_uses_the_persistent_provision_queue(tmp_path):
+    store = ContentStore(tmp_path / "discord-uninstall.db")
+    store.initialize()
+    request_id = store.request_discord_provision("uninstall", requested_by="test")
+    claimed = store.pending_discord_provision()
+    assert claimed[0]["id"] == request_id
+    assert claimed[0]["scope"] == "uninstall"
+    store.finish_discord_provision(request_id, report="Discord désinstallé")
+    assert store.discord_provision_status()["report"] == "Discord désinstallé"

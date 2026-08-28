@@ -88,7 +88,7 @@ chown -R "$SERVICE_USER:$SERVICE_GROUP" "$ROOT/var"
 
 install_unit() {
   local service="$1"
-  cat >"/etc/systemd/system/kingdomengine-$service.service" <<EOF
+  cat >"/etc/systemd/system/kingdom-$service.service" <<EOF
 [Unit]
 Description=KingdomEngine $service
 After=network-online.target
@@ -140,7 +140,7 @@ Persistent=true
 WantedBy=timers.target
 EOF
 systemctl daemon-reload
-systemctl enable --now kingdomengine-web kingdomengine-core kingdomengine-voice
+systemctl enable --now kingdom-web kingdom-core kingdom-voice
 if [[ "$AUTO_UPDATE" -eq 1 ]]; then
   systemctl enable --now kingdomengine-update.timer
 else
@@ -151,6 +151,6 @@ PORT="$(sed -n 's/^KINGDOM_WEB_PORT=//p' "$ROOT/.env")"
 PUBLIC_IP="$(hostname -I | awk '{print $1}')"
 echo "KingdomEngine est installé et démarrera automatiquement avec Debian."
 echo "KingdomWeb : http://${PUBLIC_IP:-127.0.0.1}:${PORT:-8000}"
-echo "État : sudo systemctl status kingdomengine-web kingdomengine-core kingdomengine-voice"
+echo "État : sudo systemctl status kingdom-web kingdom-core kingdom-voice"
 [[ -n "$DOMAIN" ]] && echo "Accès HTTPS : https://$DOMAIN"
 [[ "$AUTO_UPDATE" -eq 1 ]] && echo "Synchronisation GitHub automatique : active (toutes les 5 minutes)"

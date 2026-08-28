@@ -198,7 +198,7 @@ class RegistreComptes:
         with self.connexion() as base:
             lignes = base.execute(
                 "SELECT s.slug,s.name,a.role,a.permissions_json FROM server_access a JOIN managed_servers s ON s.id=a.server_id "
-                "WHERE a.account_id=? ORDER BY s.name", (compte_id,)
+                "WHERE a.account_id=? AND s.active=1 ORDER BY s.name", (compte_id,)
             ).fetchall()
         resultats = []
         for ligne in lignes:
@@ -285,6 +285,12 @@ class RegistreComptes:
             if not serveur:
                 raise ValueError("Serveur introuvable.")
             base.execute("DELETE FROM server_access WHERE account_id=? AND server_id=?", (compte_id, serveur["id"]))
+
+    def archiver_serveur(self, slug: str) -> dict[str, Any]:
+        serveur = self.serveur(slug)
+        with self.connexion() as base:
+            base.execute("UPDATE managed_servers SET active=0,bot_installed=0 WHERE slug=?", (slug,))
+        return {**serveur, "active": False, "bot_installed": False}
 
     def progression_tutoriels(self, compte_id: int, serveur_slug: str) -> dict[str, Any]:
         """Retourne la progression pédagogique sans la mélanger aux données du monde."""

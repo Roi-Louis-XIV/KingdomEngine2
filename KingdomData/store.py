@@ -314,7 +314,7 @@ class ContentStore:
         return dict(row) if row else {}
 
     def request_discord_provision(self, scope: str = "server", building_key: str = "", requested_by: str = "web") -> int:
-        if scope not in {"server", "building"}:
+        if scope not in {"server", "building", "uninstall"}:
             raise ValidationError("Portée de synchronisation Discord inconnue.")
         with self.connection() as db:
             cursor = db.execute(

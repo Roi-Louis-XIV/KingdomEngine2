@@ -14,7 +14,8 @@ def test_debian_launcher_exposes_web_and_runs_all_modules():
 
 def test_debian_installer_creates_autostart_services_and_secures_password():
     script = (ROOT / "install-debian.sh").read_text(encoding="utf-8")
-    assert "systemctl enable --now kingdomengine-web kingdomengine-core kingdomengine-voice" in script
+    assert '"/etc/systemd/system/kingdom-$service.service"' in script
+    assert "systemctl enable --now kingdom-web kingdom-core kingdom-voice" in script
     assert "Restart=on-failure" in script
     assert "KINGDOM_WEB_HOST=0.0.0.0" in script
     assert "KINGDOM_ADMIN_PASSWORD=change-me" in script
@@ -41,4 +42,5 @@ def test_github_updater_is_safe_and_restarts_services_only_after_fast_forward():
     assert "git merge-base --is-ancestor" in script
     assert "git merge --ff-only" in script
     assert "backup-server.sh" in script
-    assert "systemctl restart kingdomengine-web kingdomengine-core kingdomengine-voice" in script
+    assert "systemctl restart kingdom-web kingdom-core kingdom-voice" in script
+    assert "kingdomengine-web" not in script

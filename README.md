@@ -17,7 +17,8 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 ## Fonctionnalités disponibles
 
 - studio web responsive avec comptes, profils, collaborateurs, permissions et séparation des serveurs Discord ;
-- création de compte depuis l'écran de connexion, sans droit serveur automatique, et suivi global des inscriptions par l'administrateur ;
+- mode smartphone simplifié avec navigation complète en tiroir, accès rapides au monde, aux joueurs et aux services, éditeurs plein écran, contrôles tactiles et prise en charge des zones sûres iOS/Android ;
+- création de compte avec connexion immédiate, écran d'attente avant attribution d'un royaume, suivi global des inscriptions et réinitialisation administrative des mots de passe ;
 - tableau de bord enrichi : services, joueurs, bâtiments, objets, événements, activités, stocks, alertes et classements ;
 - bâtiments entièrement no-code avec modes Simple et Avancé, pages Discord, boutons, menus, navigation et organigramme ;
 - métiers, zones, niveaux, outils, durabilité, expérience, cooldowns et activités temporisées ;
@@ -143,7 +144,7 @@ Les tokens des bots vocaux sont facultatifs. Ils utilisent les variables `EDGAR_
 Après une modification de `.env`, redémarrer les services :
 
 ```bash
-sudo systemctl restart kingdomengine-web kingdomengine-core kingdomengine-voice
+sudo systemctl restart kingdom-web kingdom-core kingdom-voice
 ```
 
 Dans KingdomWeb, sélectionner le serveur Discord puis utiliser **Paramètres → Installer le serveur Discord**. Cette opération crée les rôles et les salons initiaux. Ensuite, la publication d'un bâtiment crée ou actualise automatiquement ses salons textuel et vocal.
@@ -201,20 +202,20 @@ Sans domaine, omettre `--domain` et `--email`. KingdomWeb restera disponible en 
 Afficher leur état :
 
 ```bash
-sudo systemctl status kingdomengine-web kingdomengine-core kingdomengine-voice
+sudo systemctl status kingdom-web kingdom-core kingdom-voice
 ```
 
 Redémarrer tout KingdomEngine :
 
 ```bash
-sudo systemctl restart kingdomengine-web kingdomengine-core kingdomengine-voice
+sudo systemctl restart kingdom-web kingdom-core kingdom-voice
 ```
 
 Arrêter ou démarrer l'ensemble :
 
 ```bash
-sudo systemctl stop kingdomengine-web kingdomengine-core kingdomengine-voice
-sudo systemctl start kingdomengine-web kingdomengine-core kingdomengine-voice
+sudo systemctl stop kingdom-web kingdom-core kingdom-voice
+sudo systemctl start kingdom-web kingdom-core kingdom-voice
 ```
 
 Lire les erreurs sans fenêtre éphémère :
@@ -293,7 +294,7 @@ Arrêter les services avant toute copie de base SQLite :
 
 ```bash
 cd /opt/KingdomEngine2
-sudo systemctl stop kingdomengine-web kingdomengine-core kingdomengine-voice
+sudo systemctl stop kingdom-web kingdom-core kingdom-voice
 sudo mkdir -p /mnt/hdd/kingdomengine-data
 sudo cp -a var/kingdom.db* /mnt/hdd/kingdomengine-data/ 2>/dev/null || true
 sudo cp -a var/servers /mnt/hdd/kingdomengine-data/ 2>/dev/null || true
@@ -325,10 +326,10 @@ tail -n 100 var/logs/voice.err.log
 
 | Symptôme | Vérification |
 |---|---|
-| Le site ne répond pas | `sudo systemctl status kingdomengine-web` puis `tail -n 100 var/logs/web.err.log` |
+| Le site ne répond pas | `sudo systemctl status kingdom-web` puis `tail -n 100 var/logs/web.err.log` |
 | Le site fonctionne sur Debian mais pas depuis un autre PC | vérifier `sudo ufw status`, le port `8000` et la redirection de la box |
 | Le domaine ne reçoit pas de certificat HTTPS | vérifier les DNS A/AAAA, les ports 80/443 et `journalctl -u caddy` |
-| Le bot Discord reste hors ligne | vérifier `KINGDOM_CORE_TOKEN`, puis redémarrer `kingdomengine-core` |
+| Le bot Discord reste hors ligne | vérifier `KINGDOM_CORE_TOKEN`, puis redémarrer `kingdom-core` |
 | Les bots vocaux ne démarrent pas | vérifier leurs tokens, Application ID, activation dans KingdomWeb et `voice.err.log` |
 | Un service indique « address already in use » | rechercher l'ancien processus avec `sudo ss -lptn 'sport = :8000'` |
 | Une mise à jour échoue sur Git | ne pas supprimer `.env` ou `var/`; sauvegarder puis vérifier `git status` avant de recommencer |
@@ -337,7 +338,7 @@ tail -n 100 var/logs/voice.err.log
 En cas de demande d'aide, transmettre la sortie de ces commandes sans copier les tokens du fichier `.env` :
 
 ```bash
-sudo systemctl status kingdomengine-web kingdomengine-core kingdomengine-voice --no-pager
+sudo systemctl status kingdom-web kingdom-core kingdom-voice --no-pager
 tail -n 100 var/logs/web.err.log
 tail -n 100 var/logs/core.err.log
 tail -n 100 var/logs/voice.err.log
@@ -363,11 +364,13 @@ L'inscription publique est activée par défaut et limitée contre les création
 KINGDOM_ALLOW_REGISTRATION=0
 ```
 
-Redémarrer `kingdomengine-web` après modification de cette variable.
+Redémarrer `kingdom-web` après modification de cette variable.
 
 La page **Mon profil & serveurs** affiche les serveurs accessibles au compte, l'état d'installation du bot et le rôle détenu sur chacun. Le sélecteur de l'en-tête change de royaume sans mélanger les données : chaque serveur supplémentaire possède sa propre base SQLite sous `var/servers/`, tandis que le registre des comptes et des accès reste centralisé dans KingdomData.
 
-L'administrateur peut créer les profils, ajouter un serveur Discord et attribuer un niveau d'accès : lecture, éditeur, gestionnaire ou propriétaire. Les liens d'installation Discord sont générés pour le serveur sélectionné. KingdomCore confirme ensuite automatiquement dans le profil les serveurs sur lesquels le bot est réellement présent.
+L'administrateur peut créer les profils, ajouter un serveur Discord et attribuer un niveau d'accès : lecture, éditeur, gestionnaire ou propriétaire. Depuis la fiche du serveur, **Installer KingdomEngine sur ce serveur** ouvre l'autorisation Discord de KingdomCore et programme automatiquement la création des rôles, salons généraux et salons de bâtiments. Les bots vocaux sont ensuite ajoutés individuellement, Discord exigeant une autorisation OAuth pour chaque application.
+
+Le bouton **Supprimer ce serveur** demande de recopier son nom avant de lancer la désinstallation. KingdomCore retire dans l'ordre les bots vocaux configurés, les salons et rôles gérés, puis quitte lui-même le serveur Discord. La supervision locale n'est archivée qu'après la réussite de cette opération. Les salons ajoutés manuellement dans une catégorie KingdomEngine sont conservés et signalés. La base KingdomData du royaume reste également sur disque afin d'éviter toute perte irréversible.
 
 Pour Discord, renseigner `KINGDOM_CORE_TOKEN`, puis :
 
