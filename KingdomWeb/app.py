@@ -514,9 +514,20 @@ def retirer_acces_compte(account_id: int, server_slug: str):
         raise HTTPException(422, str(exc)) from exc
 
 
-@app.post("/api/servers", dependencies=[Depends(_administrateur_global)])
+@app.post("/api/servers", dependencies=[Depends(authenticate_account)])
 def creer_serveur(request: Request, body: dict[str, Any]):
     try:
+        compte = request.state.compte
+        if int(compte["id"]) <= 0:
+            raise ValueError("Le compte de compatibilité ne peut pas créer de serveur.")
+        if not compte.get("is_admin"):
+            limite = max(1, int(os.getenv("KINGDOM_MAX_SERVERS_PER_ACCOUNT", "10")))
+            administres = sum(
+                1 for serveur in comptes.lister_serveurs(int(compte["id"]))
+                if serveur.get("role") in {"gestionnaire", "proprietaire"}
+            )
+            if administres >= limite:
+                raise ValueError(f"Limite de {limite} serveurs administrés atteinte.")
         serveur = comptes.creer_serveur(str(body.get("name", "")), str(body.get("guild_id", "")), int(request.state.compte["id"]))
         magasin = ContentStore(serveur["database_path"])
         magasin.initialize()

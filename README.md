@@ -356,7 +356,13 @@ Ouvrir `http://127.0.0.1:8000`, puis se connecter avec `KINGDOM_ADMIN_USERNAME` 
 
 ### Comptes et serveurs Discord
 
-L'écran de connexion propose **Créer un compte**. Une inscription crée uniquement une identité KingdomWeb : elle ne donne accès à aucun serveur Discord. L'administrateur retrouve tous les comptes dans **Mon profil & serveurs**, avec leur date de création, leurs accès et le nombre de serveurs qu'ils administrent, puis attribue le rôle adapté.
+L'écran de connexion propose **Créer un compte**. Après l'inscription, le nouveau compte est connecté directement et ne voit que son profil et l'ajout de serveur. Il renseigne le nom et l'identifiant de son serveur Discord, devient automatiquement propriétaire de cet espace, puis débloque tous les modules KingdomWeb. Un administrateur peut aussi lui attribuer un serveur existant depuis **Mon profil & serveurs**.
+
+Par défaut, un compte peut administrer jusqu'à 10 serveurs. Cette limite peut être adaptée sur une installation hébergée :
+
+```dotenv
+KINGDOM_MAX_SERVERS_PER_ACCOUNT=10
+```
 
 L'inscription publique est activée par défaut et limitée contre les créations répétées. Pour la désactiver sur une installation privée :
 

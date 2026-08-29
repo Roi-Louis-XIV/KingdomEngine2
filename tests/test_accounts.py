@@ -126,6 +126,37 @@ def test_public_registration_can_be_disabled(tmp_path, monkeypatch):
     assert response.status_code == 403
 
 
+def test_unassigned_account_can_create_its_first_server_and_becomes_owner(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "self-service-server.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "self-service-admin")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "self-service-password")
+    monkeypatch.setenv("KINGDOM_ALLOW_REGISTRATION", "1")
+    monkeypatch.setattr(web, "magasin_principal", primary)
+    monkeypatch.setattr(web, "store", web.MagasinsServeurs(primary))
+    monkeypatch.setattr(web, "comptes", registry)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+    web._inscriptions_recentes.clear()
+
+    with TestClient(web.app) as client:
+        registration = client.post("/api/auth/register", json={
+            "username": "nouveau-roi", "display_name": "Nouveau Roi",
+            "password": "royaume-password", "password_confirmation": "royaume-password",
+        })
+        assert registration.status_code == 200
+        assert client.get("/api/profile").json()["servers"] == []
+
+        created = client.post("/api/servers", json={
+            "name": "Royaume autonome", "guild_id": "123456789012345678",
+        })
+        assert created.status_code == 200
+        profile = client.get("/api/profile").json()
+        assert profile["current_server"] == created.json()["slug"]
+        assert profile["servers"][0]["role"] == "proprietaire"
+        assert profile["servers"][0]["guild_id"] == "123456789012345678"
+
+
 def test_managed_server_install_and_safe_removal_lifecycle(tmp_path, monkeypatch):
     primary = ContentStore(tmp_path / "server-lifecycle.db")
     registry = RegistreComptes(primary.path)
