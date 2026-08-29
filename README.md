@@ -21,6 +21,8 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 - création de compte avec connexion immédiate, écran d'attente avant attribution d'un royaume, suivi global des inscriptions et réinitialisation administrative des mots de passe ;
 - tableau de bord enrichi : services, joueurs, bâtiments, objets, événements, activités, stocks, alertes et classements ;
 - bâtiments entièrement no-code avec modes Simple et Avancé, pages Discord, boutons, menus, navigation et organigramme ;
+- bâtiment de référence **Atelier-école no-code**, jouable et duplicable, qui montre métier, conditions, activité temporisée, hasard multi-effets, XP et inventaires ;
+- boutons Discord conditionnels héritant des règles de leur action : rejoindre/quitter un métier et les autres choix incompatibles sont automatiquement masqués ;
 - métiers, zones, niveaux, outils, durabilité, expérience, cooldowns et activités temporisées ;
 - objets, inventaires joueur et bâtiment, recettes, commerce, productions, livraisons et objectifs collectifs ;
 - résultats aléatoires pondérés contenant plusieurs effets génériques ;
@@ -33,6 +35,8 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 - import idempotent des contenus V1 : Mine, Forêt, Construction, Forge, Taverne, objets et sons historiques ;
 - publication versionnée, contrôle de concurrence, synchronisation live et historique des changements ;
 - Académie interactive avec bulles ancrées sur les vrais contrôles, progression par compte et serveur, reprise, saut d’étape et rejeu à volonté.
+- dotation en écus des nouveaux joueurs configurable dans **Paramètres → Serment**, versée une seule fois lors du serment.
+- bibliothèque visuelle d’emojis avec recherche et catégories pour choisir rapidement l’icône des bâtiments et des objets, tout en conservant la saisie libre.
 
 ### Aide et tutoriels interactifs
 

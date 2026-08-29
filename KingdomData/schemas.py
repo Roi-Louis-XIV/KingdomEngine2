@@ -460,6 +460,12 @@ def _validate_server_settings(payload: dict[str, Any]) -> None:
             raise ValidationError(f"La section {section} doit être un objet.")
     if not str(payload["roles"].get("player", "")).strip():
         raise ValidationError("Le rôle accordé après le serment est obligatoire.")
+    try:
+        starting_money = int(payload["onboarding"].get("starting_money", 100))
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("La dotation de départ doit être un nombre entier.") from exc
+    if starting_money < 0:
+        raise ValidationError("La dotation de départ ne peut pas être négative.")
     if "{name}" not in str(payload["discord"].get("building_category_template", "")):
         raise ValidationError("Le modèle de catégorie doit contenir {name}.")
     allowed_variables = {"name", "key", "emoji"}

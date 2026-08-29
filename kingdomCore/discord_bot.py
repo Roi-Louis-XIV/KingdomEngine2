@@ -245,19 +245,44 @@ class InterfaceView(discord.ui.View):
 
     def _is_visible(self, component: dict[str, Any]) -> bool:
         condition = component.get("visible_when", {})
-        if not condition or self.owner_id is None:
+        if self.owner_id is None:
             return True
-        player = self.engine.player(str(self.owner_id))
+        player = self.engine.player(str(self.owner_id)) if hasattr(self.engine, "player") else {"professions": {}}
         professions = set(player.get("professions", {}))
         if condition.get("profession") and str(condition["profession"]) not in professions:
             return False
         if set(condition.get("none_of_professions", [])).intersection(professions):
             return False
-        pending_building = str(condition.get("no_pending_building") or self._building_key())
-        pending = {item["action"] for item in self.engine.pending_actions(str(self.owner_id), pending_building)}
-        if condition.get("no_pending_building") and pending:
-            return False
-        if condition.get("pending_action") and str(condition["pending_action"]) not in pending:
+        if condition:
+            pending_building = str(condition.get("no_pending_building") or self._building_key())
+            pending = {item["action"] for item in self.engine.pending_actions(str(self.owner_id), pending_building)}
+            if condition.get("no_pending_building") and pending:
+                return False
+            if condition.get("pending_action") and str(condition["pending_action"]) not in pending:
+                return False
+        interaction = component.get("interaction", {})
+        generic_condition = component.get("visibility_conditions")
+        if interaction.get("type") == "action" and interaction.get("inherit_action_conditions", True):
+            try:
+                building_key = str(interaction.get("building") or self._building_key())
+                action = next(
+                    item for item in self.engine.building(building_key)["payload"].get("actions", [])
+                    if str(item.get("key")) == str(interaction.get("action"))
+                )
+                generic_condition = generic_condition or action.get("conditions")
+                effects = action.get("effects", [])
+                profession_join = next((effect.get("profession") for effect in effects if effect.get("type") in {"profession_join", "profession"} and effect.get("operation", "join") == "join"), None)
+                profession_leave = next((effect.get("profession") for effect in effects if effect.get("type") in {"profession_leave", "profession"} and effect.get("operation") == "leave"), None)
+                if profession_join and str(profession_join) in professions:
+                    return False
+                if profession_leave and str(profession_leave) not in professions:
+                    return False
+            except (StopIteration, KeyError, AttributeError):
+                pass
+        if generic_condition and hasattr(self.engine, "condition_met") and not self.engine.condition_met(
+            str(self.owner_id), str(interaction.get("building") or self._building_key()),
+            str(interaction.get("action") or component.get("id", "visibility")), generic_condition,
+        ):
             return False
         return True
 
@@ -682,7 +707,8 @@ class OathView(discord.ui.View):
             granted = grant_oath_reward(self.store, interaction.user)
             confirmation = settings["onboarding"]["confirmation"]
             if granted:
-                confirmation += "\n\n🪙 **100 écus** ont été ajoutés à ta bourse pour commencer l’aventure."
+                amount = int(settings["onboarding"].get("starting_money", 100))
+                confirmation += f"\n\n🪙 **{amount} écus** ont été ajoutés à ta bourse pour commencer l’aventure."
             await interaction.followup.send(confirmation, ephemeral=True)
         except discord.Forbidden:
             logger.exception("Discord a refusé l'attribution du rôle après le serment.")
@@ -751,8 +777,9 @@ def persist_player_presence(store: ContentStore, member: discord.Member, channel
 
 
 def grant_oath_reward(store: ContentStore, member: discord.Member) -> bool:
-    """Crée le joueur et verse une seule fois les 100 écus de départ."""
+    """Crée le joueur et verse une seule fois la dotation configurée."""
     now = datetime.now(timezone.utc).isoformat()
+    amount = max(0, int(get_server_settings(store)["onboarding"].get("starting_money", 100)))
     with store.connection() as db:
         db.execute("BEGIN IMMEDIATE")
         db.execute(
@@ -764,11 +791,11 @@ def grant_oath_reward(store: ContentStore, member: discord.Member) -> bool:
             (member.display_name, str(member.display_avatar.url), now, str(member.id)),
         )
         granted = db.execute(
-            "INSERT OR IGNORE INTO onboarding_grants(discord_id,amount,granted_at) VALUES(?,100,?)",
-            (str(member.id), now),
+            "INSERT OR IGNORE INTO onboarding_grants(discord_id,amount,granted_at) VALUES(?,?,?)",
+            (str(member.id), amount, now),
         ).rowcount
         if granted:
-            db.execute("UPDATE players SET money=money+100 WHERE discord_id=?", (str(member.id),))
+            db.execute("UPDATE players SET money=money+? WHERE discord_id=?", (amount, str(member.id)))
     return bool(granted)
 
 

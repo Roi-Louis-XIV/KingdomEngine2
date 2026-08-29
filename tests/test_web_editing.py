@@ -5,6 +5,16 @@ import KingdomWeb.app as web
 from KingdomData import ContentStore, default_server_settings
 
 
+def test_building_and_item_editor_exposes_searchable_emoji_library():
+    static_root = Path(web.__file__).parent / "static"
+    html = (static_root / "index.html").read_text(encoding="utf-8")
+    javascript = (static_root / "app.js").read_text(encoding="utf-8")
+    assert 'id="open-emoji-library"' in html
+    assert 'id="emoji-search"' in html
+    assert '["building","item"].includes(state.type)' in javascript
+    assert 'data-emoji-choice' in javascript
+
+
 def test_content_deletion_keeps_history_but_hides_definition(tmp_path):
     from KingdomData import NotFoundError
     import pytest
@@ -332,12 +342,14 @@ def test_server_settings_are_saved_and_published_from_one_endpoint(tmp_path, mon
     monkeypatch.setattr(web, "import_v1", lambda _store: 0)
     payload = default_server_settings()
     payload["roles"]["player"] = "⚔️ Habitants assermentés"
+    payload["onboarding"]["starting_money"] = 250
     with TestClient(web.app) as client:
         headers = {"Authorization": "Bearer change-me"}
         response = client.post("/api/server/settings", headers=headers, json={"payload": payload, "expected_version": 1})
     assert response.status_code == 200
     assert response.json()["status"] == "published"
     assert store.get("server_settings", "kingdom_server", published=True)["payload"]["roles"]["player"] == "⚔️ Habitants assermentés"
+    assert store.get("server_settings", "kingdom_server", published=True)["payload"]["onboarding"]["starting_money"] == 250
 
 
 def test_legacy_entry_channel_is_presented_as_building_name(tmp_path, monkeypatch):

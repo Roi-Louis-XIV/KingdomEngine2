@@ -18,6 +18,7 @@ DEFAULT_SERVER_SETTINGS: dict[str, Any] = {
     "description": "Accueil, rôles, catégories et accès Discord du Royaume.",
     "onboarding": {
         "enabled": True,
+        "starting_money": 100,
         "channel_name": "prestation-de-serment",
         "title": "Le Serment de la Sainte Pelle",
         "rules_text": (

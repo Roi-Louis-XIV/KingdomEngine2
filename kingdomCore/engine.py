@@ -38,6 +38,17 @@ class GameEngine:
             payload["actions"] = actions_from_modules(key, payload.get("modules", {}))
         return entity
 
+    def condition_met(
+        self, discord_id: str, building_key: str, action_key: str,
+        condition: dict[str, Any] | None, context: dict[str, Any] | None = None,
+    ) -> bool:
+        """Évalue une condition no-code sans exécuter ni modifier l'action."""
+        if not condition:
+            return True
+        with self.store.connection() as db:
+            self._ensure_player(db, discord_id)
+            return self._condition_value(db, discord_id, building_key, action_key, condition, context or {})
+
     async def execute(
         self, discord_id: str, building_key: str, action_key: str, interaction_id: str,
         context: dict[str, Any] | None = None,

@@ -135,20 +135,43 @@ def test_player_cards_keep_v1_ergonomics_and_live_refresh():
     assert "@media(max-width:1100px)" in styles
 
 
-def test_oath_grants_100_coins_once_and_saves_discord_identity(tmp_path):
+def test_oath_grants_configured_coins_once_and_saves_discord_identity(tmp_path):
     from types import SimpleNamespace
     from kingdomCore.discord_bot import grant_oath_reward
     class Avatar:
         url="https://cdn.example/avatar.png"
         def __str__(self): return "https://cdn.example/avatar.png"
     store=ContentStore(tmp_path/"oath.db");store.initialize()
+    from KingdomData.server_settings import default_server_settings
+    settings=default_server_settings();settings["onboarding"]["starting_money"]=275
+    draft=store.save("server_settings","kingdom_server",settings);store.publish("server_settings","kingdom_server",draft["version"])
     member=SimpleNamespace(id=123,display_name="Louis",display_avatar=Avatar())
     assert grant_oath_reward(store,member) is True
     assert grant_oath_reward(store,member) is False
     with store.connection() as db:
         player=db.execute("SELECT money,display_name,avatar_url FROM players WHERE discord_id='123'").fetchone()
-        assert tuple(player) == (100,"Louis","https://cdn.example/avatar.png")
+        assert tuple(player) == (275,"Louis","https://cdn.example/avatar.png")
         assert db.execute("SELECT COUNT(*) FROM onboarding_grants WHERE discord_id='123'").fetchone()[0] == 1
+
+
+def test_action_conditions_hide_irrelevant_profession_buttons(tmp_path):
+    from kingdomCore.discord_bot import InterfaceView
+    from kingdomCore.engine import GameEngine
+    store=ContentStore(tmp_path/"conditional-buttons.db");store.initialize()
+    payload={"name":"Atelier","actions":[
+        {"key":"join_job","name":"Devenir Artisan","conditions":{"type":"no_active_profession"},"effects":[{"type":"profession_join","profession":"artisan"}]},
+        {"key":"leave_job","name":"Démissionner","conditions":{"type":"profession_active","profession":"artisan"},"effects":[{"type":"profession_leave","profession":"artisan"}]},
+    ]}
+    draft=store.save("building","condition_workshop",payload);store.publish("building","condition_workshop",draft["version"])
+    definition={"name":"Atelier","target_building_key":"condition_workshop","start_page":"home","pages":[{"key":"home","name":"Accueil","components":[
+        {"id":"join","type":"button","slot":0,"props":{"label":"Devenir Artisan"},"interaction":{"type":"action","building":"condition_workshop","action":"join_job"}},
+        {"id":"leave","type":"button","slot":1,"props":{"label":"Démissionner"},"interaction":{"type":"action","building":"condition_workshop","action":"leave_job"}},
+    ]}]}
+    engine=GameEngine(store)
+    assert [item.label for item in InterfaceView(engine,definition,owner_id=42).children] == ["Devenir Artisan"]
+    import asyncio
+    asyncio.run(engine.execute("42","condition_workshop","join_job","join-once"))
+    assert [item.label for item in InterfaceView(engine,definition,owner_id=42).children] == ["Démissionner"]
 
 
 def test_claim_button_is_grey_during_countdown_then_green(monkeypatch):
