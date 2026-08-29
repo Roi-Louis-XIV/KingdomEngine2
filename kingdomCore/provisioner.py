@@ -107,6 +107,11 @@ class DiscordProvisioner:
             await self._provision_oath(general, master, player, bot_role, me, report)
 
         for entity in self.store.list("building", published=True):
+            if entity["payload"].get("is_reference"):
+                # Nettoie aussi les salons créés par les anciennes versions où
+                # l'Atelier-école était encore considéré comme un vrai lieu.
+                await self.remove_building_channels(entity["entity_key"], entity["payload"])
+                continue
             await self._provision_building(entity, master, player, bot_role, me, report)
 
         assigned, skipped = await self._assign_privileged_roles(master, bot_role)

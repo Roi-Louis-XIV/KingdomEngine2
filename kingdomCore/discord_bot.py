@@ -743,6 +743,8 @@ def building_for_voice(store: ContentStore, channel: discord.VoiceChannel | None
     voice_template = settings["building_voice_channel_template"]
     for entity in store.list("building", published=True):
         payload = entity["payload"]
+        if payload.get("is_reference"):
+            continue
         variables = {"name": payload["name"], "key": entity["entity_key"], "emoji": payload.get("emoji", "🏰")}
         expected_category = category_template.format(**variables).strip()[:100]
         expected_voice = voice_template.format(**variables).strip()[:100]

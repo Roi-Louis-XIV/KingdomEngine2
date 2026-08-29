@@ -24,7 +24,10 @@ class GameEngine:
         self._world_snapshot: dict[str, Any] | None = None
 
     def buildings(self) -> list[dict[str, Any]]:
-        buildings = self.store.list("building", published=True)
+        buildings = [
+            entity for entity in self.store.list("building", published=True)
+            if not entity["payload"].get("is_reference")
+        ]
         for entity in buildings:
             payload = entity["payload"]
             if payload.get("action_mode") == "generated":
@@ -34,6 +37,8 @@ class GameEngine:
     def building(self, key: str) -> dict[str, Any]:
         entity = self.store.get("building", key, published=True)
         payload = entity["payload"]
+        if payload.get("is_reference"):
+            raise NotFoundError(f"Bâtiment de jeu introuvable : {key}")
         if payload.get("action_mode") == "generated":
             payload["actions"] = actions_from_modules(key, payload.get("modules", {}))
         return entity

@@ -9,7 +9,8 @@ const state = {
   worldMapZoom: 1, worldMapDragged: false, worldMapBackgroundUrl: "",
   catalogs: {item: [], itemEnriched: [], event: [], building: [], interface: [], audio: [], audio_group: [], audio_story: [], bot: [], location: [], npc: [], profession: [], environment: []},
   viewRequest: 0,
-  token: "", profile: null, server: localStorage.getItem("kingdomServer")||"", editorDirty:false
+  token: "", profile: null, server: localStorage.getItem("kingdomServer")||"", editorDirty:false,
+  referencePreview:false, referenceReturnType:null
 };
 
 const $ = selector => document.querySelector(selector);
@@ -150,7 +151,7 @@ async function load() {
   if (state.type === "supervision") { await loadSupervision(); return; }
   if (state.type === "settings") { await loadSettings(); return; }
   if (state.type === "profile") { await loadProfile(); return; }
-  if (state.type === "academy") { await KingdomTutorials.renderAcademy(); return; }
+  if (state.type === "academy") { await KingdomTutorials.renderAcademy(); installReferenceAcademyCard(); return; }
   $("#content-stats").hidden = false; $("#content-workspace").hidden = false; $("#admin-view").hidden = true; $("#new").hidden = false;
   if (state.type === "item") { await loadItemCatalog(); return; }
   if (state.type === "profession") { await loadProfessionCatalog(); return; }
@@ -428,6 +429,26 @@ function resetEditor() {
   $("#definition-step").hidden = false;
   $$(".common-fields").forEach(element => element.hidden = false);
   configureCommonFields();
+  $(".reference-demo-banner")?.remove();$("#save").hidden = false; $("#cancel-editor").textContent = "Annuler";
+}
+
+function installReferenceAcademyCard(){
+  const academy=$(".academy");if(!academy||academy.querySelector("[data-open-reference-building]"))return;
+  academy.querySelector(".academy-hero")?.insertAdjacentHTML("afterend",`<section class="academy-reference-building"><div class="academy-reference-icon">🎓</div><div><small>LABORATOIRE PÉDAGOGIQUE ISOLÉ</small><h3>Atelier-école no-code</h3><p>Explorez un bâtiment complet dans le véritable éditeur : métier, activité temporisée, résultats multi-effets, commerce, recette, livraison, interface Discord et audio. Cette démonstration n'appartient à aucun serveur et ne peut pas être publiée.</p><div class="academy-reference-tags"><span>Métier + niveaux</span><span>Zone + cooldown</span><span>Résultats pondérés</span><span>Audio</span><span>Interface Discord</span></div></div><button type="button" class="primary" data-open-reference-building>Explorer l'atelier</button></section>`);
+  academy.querySelector("[data-open-reference-building]").onclick=openReferenceBuilding;
+}
+
+async function openReferenceBuilding(){
+  const response=await fetch("/api/tutorials/reference-building",{headers,cache:"no-store"});
+  if(!response.ok){alert((await response.json()).detail||"Démonstration indisponible.");return;}
+  const entity=await response.json(),payload=clone(entity.payload),returnType=state.type;
+  state.type="building";resetEditor();state.referencePreview=true;state.referenceReturnType=returnType;
+  state.buildingBase=clone(payload);state.selectedPreset=payload.building_kind||"custom";
+  $("#key").value=entity.entity_key;$("#key").disabled=true;$("#name").value=payload.name;$("#emoji").value=payload.emoji||"";$("#description").value=payload.description||"";
+  $("#editor-kicker").textContent="ACADÉMIE · DÉMONSTRATION ISOLÉE";$("#editor-title").textContent="Explorer l'Atelier-école";
+  renderBuildingFields(payload);
+  $("#definition-step").insertAdjacentHTML("afterbegin",'<div class="reference-demo-banner"><b>Mode démonstration</b><span>Vous utilisez le véritable éditeur KingdomWeb. Les essais restent locaux : aucun serveur, salon Discord ou contenu du royaume ne sera modifié.</span></div>');
+  $("#save").hidden=true;$("#cancel-editor").textContent="Fermer la démonstration";setHelp("building_mechanics");showModal();
 }
 
 function configureCommonFields() {
@@ -1539,8 +1560,8 @@ async function publishItem(key, version) {
   await loadCatalogs(); await load();
 }
 
-function markEditorDirty(){if($("#editor").hidden)return;state.editorDirty=true;setSaveState("saving","Modifications non enregistrées");}
-function closeEditor(force=false) { if(state.editorDirty&&!force&&!confirm("Des modifications ne sont pas enregistrées. Fermer quand même ?"))return false;resetEditor(); $("#editor").hidden=true; document.body.classList.remove("modal-open");return true; }
+function markEditorDirty(){if($("#editor").hidden||state.referencePreview)return;state.editorDirty=true;setSaveState("saving","Modifications non enregistrées");}
+function closeEditor(force=false) { if(state.editorDirty&&!force&&!confirm("Des modifications ne sont pas enregistrées. Fermer quand même ?"))return false;const returnType=state.referencePreview?state.referenceReturnType:null;resetEditor();state.referencePreview=false;state.referenceReturnType=null;if(returnType)state.type=returnType;$("#editor").hidden=true; document.body.classList.remove("modal-open");return true; }
 
 function metricCard(label,value,detail="") { return `<article class="admin-metric"><span>${label}</span><strong>${escapeHtml(value)}</strong>${detail?`<small>${escapeHtml(detail)}</small>`:""}</article>`; }
 function inventoryChips(inventory) { const entries=Array.isArray(inventory)?inventory:Object.entries(inventory||{}).map(([id,quantity])=>({id,quantity,...itemDisplay(id)}));return entries.length?`<div class="inventory-chips">${entries.map(item=>`<span class="inventory-chip ${item.missing?'missing-reference':''}" title="ID : ${escapeHtml(item.id)}">${escapeHtml(item.emoji||'📦')} ${escapeHtml(item.name||'Objet inconnu')} × ${item.quantity}${item.missing?' · ⚠ Référence manquante':''}</span>`).join("")}</div>`:"<span class=\"empty-admin\">Vide</span>"; }
@@ -1777,6 +1798,7 @@ $("#editor").onclick=event=>{if(event.target===$("#editor"))closeEditor();};
 document.addEventListener("keydown",event=>{if(event.key==="Escape"&&!$("#editor").hidden)closeEditor();});
 
 $("#save").onclick = async () => {
+  if(state.referencePreview)return;
   const button=$("#save");
   try {
     const name=$("#name").value.trim();

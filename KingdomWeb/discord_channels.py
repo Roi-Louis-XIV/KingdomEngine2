@@ -72,6 +72,8 @@ class DiscordChannelAdministrationService:
 
         for entity in self.store.list("building", published=True):
             key, payload = entity["entity_key"], entity["payload"]
+            if payload.get("is_reference"):
+                continue
             name = str(payload.get("name") or key)
             category_name = str(settings["building_category_template"]).format(name=name)[:100]
             text_name = channel_slug(str(settings["building_text_channel"]).format(name=name))

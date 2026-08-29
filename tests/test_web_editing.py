@@ -432,3 +432,32 @@ def test_interactive_tutorial_supports_real_actions_and_stable_building_targets(
     assert 'KingdomTutorials.notify("content_saved"' in app_script
     assert '.tutorial-mode-target .tutorial-target' in styles
     assert 'pointer-events:auto!important' in styles
+
+
+def test_reference_building_is_an_isolated_rich_academy_demo():
+    from seed import DEFINITIONS, REFERENCE_BUILDING
+
+    assert not any(row["type"] == "building" and row["key"] == "nocode_academy" for row in DEFINITIONS)
+    assert REFERENCE_BUILDING["is_reference"] is True
+    assert REFERENCE_BUILDING["modules"]["professions"]
+    assert REFERENCE_BUILDING["modules"]["activities"][0]["outcomes"]
+    assert len(REFERENCE_BUILDING["modules"]["activities"][0]["outcomes"][1]["effects"]) >= 3
+    assert REFERENCE_BUILDING["modules"]["audio"]["groups"]
+    assert REFERENCE_BUILDING["interface"]["pages"]
+
+    static = Path(web.__file__).with_name("static")
+    script = (static / "app.js").read_text(encoding="utf-8")
+    assert "/api/tutorials/reference-building" in script
+    assert "installReferenceAcademyCard" in script
+    assert '$("#save").hidden=true' in script
+
+
+def test_reference_building_is_filtered_from_game_engine(tmp_path):
+    from kingdomCore.engine import GameEngine
+
+    store = ContentStore(tmp_path / "reference.db"); store.initialize()
+    normal = store.save("building", "forge", {"name": "Forge", "actions": []})
+    store.publish("building", "forge", normal["version"])
+    demo = store.save("building", "nocode_academy", {"name": "Atelier", "is_reference": True, "actions": []})
+    store.publish("building", "nocode_academy", demo["version"])
+    assert [row["entity_key"] for row in GameEngine(store).buildings()] == ["forge"]

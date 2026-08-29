@@ -14,20 +14,63 @@ DEFINITIONS = [
     {"type":"audio","key":"forest_chop_sound","payload":{"name":"Coup de hache","emoji":"🔊","description":"Réaction sonore de la forêt.","source":"assets/forest/axe.mp3","triggers":["forest.wood.chopped"],"volume":0.7}},
 ]
 
-# Ce bâtiment jouable sert de documentation vivante. Il n'emploie aucune
-# branche Python dédiée : chaque comportement est une primitive no-code que
-# l'administrateur peut ouvrir, dupliquer et adapter dans KingdomWeb.
+# Cette définition n'est jamais semée dans un royaume. KingdomWeb l'expose
+# comme une démonstration isolée et non enregistrable depuis l'Académie.
 REFERENCE_BUILDING = {
     "name": "Atelier-école no-code", "emoji": "🎓", "color": "22c55e",
     "description": "Bâtiment de référence : métier, conditions, activité, hasard, XP, inventaires et navigation.",
-    "source": "KingdomEngine 2", "is_reference": True,
+    "source": "KingdomEngine 2", "is_reference": True, "action_mode": "generated",
+    "modules": {
+        "professions": [{
+            "key": "academy_apprentice", "name": "Artisan stagiaire", "emoji": "🎓",
+            "description": "Métier pédagogique montrant niveaux, expérience et accès exclusif.",
+            "experience_per_level": 100, "max_level": 10, "grant_required_item": False,
+        }],
+        "activities": [{
+            "key": "training_expedition", "name": "Expédition d'entraînement", "emoji": "🧭",
+            "description": "Une activité temporisée avec coût, niveau, résultats pondérés et effets multiples.",
+            "profession": "academy_apprentice", "required_level": 1, "duration_seconds": 10,
+            "energy_cost": 2, "cooldown_seconds": 15, "limit_scope": "player_action",
+            "destination": "player", "outcomes": [
+                {"name": "Exercice réussi", "weight": 8, "effects": [
+                    {"type": "reward", "resource": "raw_wood", "amount": 2},
+                    {"type": "profession_experience", "profession": "academy_apprentice", "amount": 10},
+                    {"type": "message", "text": "Exercice réussi : bois et expérience gagnés."},
+                ]},
+                {"name": "Trouvaille rare", "weight": 2, "effects": [
+                    {"type": "stock_reward", "resource": "raw_wood", "amount": 4},
+                    {"type": "profession_experience", "profession": "academy_apprentice", "amount": 25},
+                    {"type": "emit", "event": "academy.rare_result"},
+                    {"type": "message", "text": "Trouvaille rare : stock, XP et événement appliqués ensemble."},
+                ]},
+            ],
+        }],
+        "products": [{"item_key": "raw_wood", "price": 5, "initial_stock": 20, "max_stock": 100}],
+        "recipes": [{
+            "key": "training_bundle", "name": "Lot d'entraînement", "emoji": "📦",
+            "ingredients": {"raw_wood": 2},
+            "output_item_key": "raw_wood", "output_quantity": 1, "duration_seconds": 5,
+        }],
+        "deliveries": [{
+            "key": "academy_delivery", "name": "Livraison pédagogique", "item_key": "raw_wood",
+            "minimum_quantity": 1, "maximum_quantity": 10, "target_building_key": "village_square",
+            "source": "player_inventory", "destination": "building_stock", "unit_price": 2,
+        }],
+        "audio": {
+            "default_group_key": "global_ambience", "groups": [{
+                "key": "global_ambience", "name": "Ambiance de l'atelier", "volume": 0.7,
+                "tracks": {"music": [], "ambience": ["forest_chop_sound"], "sfx": [], "voice": []},
+            }], "event_routes": [],
+        },
+    },
+    "relations": {"primary_profession_key": "academy_apprentice", "ambience_audio_key": "forest_chop_sound"},
     "actions": [
         {"key": "join_apprentice", "name": "Devenir Artisan stagiaire", "emoji": "📜",
          "conditions": {"type": "no_active_profession"},
          "effects": [{"type": "profession_join", "profession": "academy_apprentice"}, {"type": "message", "text": "Bienvenue à l'atelier-école."}]},
         {"key": "training_expedition", "name": "Lancer un exercice", "emoji": "🧭", "duration_seconds": 10,
          "conditions": {"type": "profession_active", "profession": "academy_apprentice"},
-         "effects": [{"type": "cost", "resource": "energy", "amount": 2}, {"type": "schedule", "delay_seconds": 10, "effects": [
+         "effects": [{"type": "play_audio", "audio_key": "forest_chop_sound"}, {"type": "cost", "resource": "energy", "amount": 2}, {"type": "schedule", "delay_seconds": 10, "effects": [
              {"type": "random_result", "outcomes": [
                  {"weight": 8, "name": "Réussite", "effects": [{"type": "reward", "resource": "raw_wood", "amount": 2}, {"type": "profession_experience", "profession": "academy_apprentice", "amount": 10}, {"type": "message", "text": "Exercice réussi : bois et expérience gagnés."}]},
                  {"weight": 2, "name": "Trouvaille rare", "effects": [{"type": "reward", "resource": "raw_wood", "amount": 4}, {"type": "profession_experience", "profession": "academy_apprentice", "amount": 25}, {"type": "message", "text": "Belle trouvaille ! Plusieurs effets ont été appliqués."}]}
@@ -55,7 +98,6 @@ REFERENCE_BUILDING = {
         ]
     }
 }
-DEFINITIONS.append({"type": "building", "key": "nocode_academy", "payload": REFERENCE_BUILDING})
 
 # Les bâtiments natifs utilisent le même document unifié que ceux créés dans
 # KingdomWeb. Les anciennes entités `interface` restent uniquement un format de

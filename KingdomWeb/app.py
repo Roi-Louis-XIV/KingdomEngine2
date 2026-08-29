@@ -26,7 +26,7 @@ from KingdomWeb.discord_channels import DiscordChannelAdministrationService, Dis
 from KingdomWeb.world_creator import WorldCreatorService
 from kingdomCore.world import WorldEngine, WorldError
 from KingdomWeb.accounts import ErreurAuthentification, ErreurAutorisation, RegistreComptes
-from seed import DEFINITIONS
+from seed import DEFINITIONS, REFERENCE_BUILDING
 import discord
 
 class MagasinsServeurs:
@@ -538,7 +538,24 @@ def creer_serveur(request: Request, body: dict[str, Any]):
 
 
 @app.get("/api/content", dependencies=[Depends(authorize)])
-def content(entity_type: str | None = None): return store.list(entity_type)
+def content(entity_type: str | None = None):
+    rows = store.list(entity_type)
+    # Compatibilité avec les bases créées avant que l'Atelier-école soit
+    # déplacé dans l'Académie : il ne doit plus apparaître dans un royaume.
+    if entity_type in (None, "building"):
+        rows = [row for row in rows if not row.get("payload", {}).get("is_reference")]
+    return rows
+
+
+@app.get("/api/tutorials/reference-building", dependencies=[Depends(authenticate_account)])
+def reference_building():
+    """Retourne une copie pédagogique, indépendante du serveur sélectionné."""
+    import copy
+    return {
+        "entity_type": "building", "entity_key": "nocode_academy",
+        "version": 0, "status": "reference", "author": "KingdomEngine",
+        "payload": copy.deepcopy(REFERENCE_BUILDING),
+    }
 
 
 @app.get("/api/content/{entity_type}/{key}", dependencies=[Depends(authorize)])
