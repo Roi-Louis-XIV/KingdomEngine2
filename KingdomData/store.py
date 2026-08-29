@@ -129,6 +129,23 @@ class ContentStore:
             bots = {item["entity_key"]: item["payload"] for item in self.list("bot")}
             if bot_key not in bots or bots[bot_key].get("bot_type") != "voice":
                 raise ValidationError(f"Bot vocal associé au son introuvable : {bot_key}")
+        if entity_type in {"audio_group", "audio_story"}:
+            audios = {item["entity_key"] for item in self.list("audio")}
+            references = ([layer.get("audio_key") for layer in payload.get("layers", [])]
+                          if entity_type == "audio_group" else
+                          [step.get("audio_key") for step in payload.get("steps", [])])
+            for referenced in filter(None, references):
+                if str(referenced) not in audios:
+                    raise ValidationError(f"Son référencé introuvable : {referenced}")
+        if entity_type == "event":
+            groups = {item["entity_key"] for item in self.list("audio_group")}
+            buildings = {item["entity_key"] for item in self.list("building")}
+            for layer in payload.get("audio_layers", []):
+                if str(layer.get("group_key", "")) not in groups:
+                    raise ValidationError(f"Groupe d’ambiance introuvable : {layer.get('group_key')}")
+                missing = set(map(str, layer.get("building_keys", []))) - buildings
+                if missing:
+                    raise ValidationError(f"Bâtiment audio introuvable : {sorted(missing)[0]}")
         if entity_type == "location":
             locations = {item["entity_key"] for item in self.list("location")} | {entity_key}
             buildings = {item["entity_key"] for item in self.list("building")}
@@ -157,7 +174,7 @@ class ContentStore:
             raise ValidationError(f"Localisation du bâtiment introuvable : {payload['location_key']}")
         audio_module = payload.get("modules", {}).get("audio", {})
         groups = audio_module.get("groups", [])
-        group_keys = {str(group.get("key")) for group in groups}
+        group_keys = {str(group.get("key")) for group in groups} | {item["entity_key"] for item in self.list("audio_group")}
         for group in groups:
             for audio_key in (track for channel in ("music", "ambience", "sfx", "voice") for track in group.get("tracks", {}).get(channel, [])):
                 if str(audio_key) not in audios:
@@ -225,7 +242,7 @@ class ContentStore:
 
     def delete(self, entity_type: str, key: str, author: str = "web") -> dict[str, Any]:
         """Masque une définition sans détruire son historique versionné."""
-        if entity_type not in {"building", "item", "event", "audio", "profession", "environment", "location", "npc"}:
+        if entity_type not in {"building", "item", "event", "audio", "audio_group", "audio_story", "profession", "environment", "location", "npc"}:
             raise ValidationError("Ce type de contenu ne peut pas être supprimé.")
         current = self.get(entity_type, key)
         with self._lock, self.connection() as db:

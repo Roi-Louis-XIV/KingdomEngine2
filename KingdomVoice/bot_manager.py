@@ -141,7 +141,27 @@ class ManagedVoiceBot(discord.Client):
         try:
             payload=self.store.get("building",building_key,published=True)["payload"]
             world=WorldClock(self.store).state()
-            scene=resolve_audio_scene({"key":building_key,**payload},period=world["time_of_day"],weather=world["weather"],season=world.get("season"),events=EventLifecycle(self.store).active_definitions())
+            # Les groupes autonomes sont ajoutés au registre de résolution sans
+            # écraser les groupes locaux historiques du bâtiment.
+            prepared = dict(payload)
+            prepared["modules"] = dict(payload.get("modules", {}))
+            audio_module = dict(prepared["modules"].get("audio", {}))
+            local_groups = list(audio_module.get("groups", []))
+            local_keys = {str(group.get("key", "")) for group in local_groups}
+            global_group_keys = []
+            for entity in self.store.list("audio_group", published=True):
+                if entity["entity_key"] in local_keys:
+                    continue
+                group_payload = entity["payload"]
+                tracks = {channel: [] for channel in ("music", "ambience", "sfx", "voice")}
+                for layer in group_payload.get("layers", []):
+                    tracks.setdefault(str(layer.get("role", "ambience")), []).append(str(layer.get("audio_key", "")))
+                local_groups.append({"key": entity["entity_key"], "name": group_payload.get("name"), "volume": group_payload.get("volume", 1), "tracks": tracks})
+                global_group_keys.append(entity["entity_key"])
+            audio_module["groups"] = local_groups
+            audio_module["global_group_keys"] = global_group_keys
+            prepared["modules"]["audio"] = audio_module
+            scene=resolve_audio_scene({"key":building_key,**prepared},period=world["time_of_day"],weather=world["weather"],season=world.get("season"),events=EventLifecycle(self.store).active_definitions())
             desired=scene["effective_group_key"]
             if desired and desired!=self.current_group_key:
                 print(f"[KingdomVoice] {self.key} scène effective : " + " + ".join(f"{x['source']}={x['group_key']}" for x in scene["explanation"]))
@@ -150,7 +170,20 @@ class ManagedVoiceBot(discord.Client):
             print(f"[KingdomVoice] {self.key} : résolution de scène conservée sur {self.current_group_key or 'fallback'} ({exc}).")
 
     def _group(self, group_key: str) -> dict[str, Any] | None:
-        return next((group for group in self._building_audio().get("groups", []) if group.get("key") == group_key), None)
+        local = next((group for group in self._building_audio().get("groups", []) if group.get("key") == group_key), None)
+        if local:
+            return local
+        try:
+            payload = self.store.get("audio_group", group_key, published=True)["payload"]
+        except Exception:
+            return None
+        # Le lecteur historique consomme quatre pistes par canal. La fiche
+        # autonome conserve davantage de réglages, mais expose ce contrat pour
+        # que les bots existants puissent la jouer sans migration destructive.
+        tracks = {channel: [] for channel in ("music", "ambience", "sfx", "voice")}
+        for layer in payload.get("layers", []):
+            tracks.setdefault(str(layer.get("role", "ambience")), []).append(str(layer.get("audio_key", "")))
+        return {"key": group_key, "name": payload.get("name", group_key), "volume": payload.get("volume", 1), "tracks": tracks}
 
     async def play_audio(self, audio_key: str) -> None:
         async with self._audio_lock:

@@ -74,3 +74,23 @@ def test_event_route_queues_group_change(tmp_path):
     command = store.pending_audio()[0]
     assert command["command"] == "set_group"
     assert command["group_key"] == "foret_orage"
+
+
+def test_reusable_ambience_group_and_audio_story_are_versioned(tmp_path):
+    store = ContentStore(tmp_path / "kingdom.db")
+    store.initialize()
+    publish(store, "audio", "vent_foret", {"name": "Vent de forêt", "storage_path": "assets/audio/vent/source.ogg", "audio_type": "ambience", "volume": 0.5})
+    group = publish(store, "audio_group", "foret_profonde", {
+        "name": "Forêt profonde", "volume": 0.8,
+        "layers": [{"audio_key": "vent_foret", "role": "ambience", "volume": 0.7, "loop": True}],
+        "transitions": {"fade_in_seconds": 2, "fade_out_seconds": 1, "crossfade_seconds": 0},
+    })
+    story = publish(store, "audio_story", "depart_expedition", {
+        "name": "Départ en expédition",
+        "steps": [
+            {"key": "intro", "name": "Le départ", "audio_key": "vent_foret", "delay_seconds": 0, "wait_for_end": True, "text": "Les portes s’ouvrent."},
+            {"key": "silence", "name": "Au loin", "audio_key": "", "delay_seconds": 3, "wait_for_end": False, "text": "La forêt se rapproche."},
+        ],
+    })
+    assert group["payload"]["layers"][0]["audio_key"] == "vent_foret"
+    assert story["payload"]["steps"][1]["delay_seconds"] == 3

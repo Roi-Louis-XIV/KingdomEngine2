@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-ENTITY_TYPES = {"building", "item", "event", "bot", "audio", "npc", "recipe", "interface", "server_settings", "profession", "environment", "location"}
+ENTITY_TYPES = {"building", "item", "event", "bot", "audio", "audio_group", "audio_story", "npc", "recipe", "interface", "server_settings", "profession", "environment", "location"}
 KEY_RE = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
 ACTION_TYPES = {
     "message", "reward", "cost", "emit", "random_reward", "random_bundle", "random_result",
@@ -105,6 +105,10 @@ def validate_entity(entity_type: str, payload: dict[str, Any]) -> dict[str, Any]
                 raise ValidationError("Opérateur de modificateur invalide.")
             if not str(modifier.get("property", "")).strip():
                 raise ValidationError("La propriété du modificateur est obligatoire.")
+        for layer in payload.get("audio_layers", []):
+            validate_key(str(layer.get("group_key", "")))
+            if layer.get("building_keys") is not None and not isinstance(layer.get("building_keys"), list):
+                raise ValidationError("Les bâtiments d’une ambiance Event doivent former une liste.")
     if entity_type == "profession":
         if payload.get("required_item"): validate_key(str(payload["required_item"]))
     if entity_type == "environment":
@@ -147,6 +151,30 @@ def validate_entity(entity_type: str, payload: dict[str, Any]) -> dict[str, Any]
             raise ValidationError("Le fichier audio est obligatoire.")
         if not 0 <= float(payload.get("volume", 0.5)) <= 1:
             raise ValidationError("Le volume doit être compris entre 0 et 1.")
+    if entity_type == "audio_group":
+        layers = payload.get("layers", [])
+        if not isinstance(layers, list) or not layers:
+            raise ValidationError("Un groupe d’ambiance doit contenir au moins une couche audio.")
+        for layer in layers:
+            validate_key(str(layer.get("audio_key", "")))
+            if layer.get("role", "ambience") not in {"ambience", "music", "sfx", "voice"}:
+                raise ValidationError("Rôle de couche audio invalide.")
+            if not 0 <= float(layer.get("volume", 1)) <= 1:
+                raise ValidationError("Le volume d’une couche doit être compris entre 0 et 1.")
+        transitions = payload.get("transitions", {})
+        if any(float(transitions.get(field, 0)) < 0 for field in ("fade_in_seconds", "fade_out_seconds", "crossfade_seconds")):
+            raise ValidationError("Les transitions audio ne peuvent pas être négatives.")
+    if entity_type == "audio_story":
+        steps = payload.get("steps", [])
+        if not isinstance(steps, list) or not steps:
+            raise ValidationError("Une histoire auditive doit contenir au moins une étape.")
+        for step in steps:
+            if not str(step.get("name", "")).strip():
+                raise ValidationError("Chaque étape d’une histoire doit avoir un nom.")
+            if step.get("audio_key"):
+                validate_key(str(step["audio_key"]))
+            if float(step.get("delay_seconds", 0)) < 0:
+                raise ValidationError("Le délai d’une étape ne peut pas être négatif.")
     if entity_type == "interface":
         _validate_interface(payload)
     if entity_type == "server_settings":

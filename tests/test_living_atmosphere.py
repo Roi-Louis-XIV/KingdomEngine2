@@ -61,6 +61,15 @@ def test_audio_scene_is_layered_explainable_and_event_layer_disappears():
     assert "wolves.ogg" in active["track_keys"] and "wolves.ogg" not in ended["track_keys"]
 
 
+def test_event_audio_layer_can_target_selected_buildings():
+    groups=[{"key":"festival","tracks":{"music":["fanfare"]}}]
+    event={"key":"festival_event","audio_layers":[{"group_key":"festival","building_keys":["tavern"]}]}
+    tavern=resolve_audio_scene({"key":"tavern","modules":{"audio":{"groups":groups}}},events=[event])
+    forge=resolve_audio_scene({"key":"forge","modules":{"audio":{"groups":groups,"global_group_keys":["festival"]}}},events=[event])
+    assert tavern["effective_group_key"] == "festival"
+    assert forge["effective_group_key"] == ""
+
+
 def test_legacy_audio_fallback_and_generic_sfx_priority():
     scene=resolve_audio_scene({"modules":{"audio":{"groups":[{"key":"legacy","tracks":{"ambience":["old.ogg"]}}]}}})
     assert scene["explanation"][0]["provenance"]=="fallback_historique"

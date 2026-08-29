@@ -404,6 +404,14 @@ Le superviseur lance une identité Discord indépendante par profil activé. Un 
 
 Le menu **Voix & audio** importe les fichiers MP3, WAV, OGG, FLAC, M4A, AAC et OPUS directement dans `KingdomData/assets/audio`. Chaque son possède un type (voix, musique, ambiance ou SFX), des mots-clés, un volume et, si nécessaire, un bot parlant. Le menu **Bots Discord** attribue un bot vocal à un bâtiment ; après provisionnement, l’identifiant réel du salon vocal est conservé dans KingdomData et utilisé automatiquement.
 
+La gestion audio propose maintenant trois espaces distincts :
+
+- **Banque sonore** : fichiers audio unitaires, écoute, classement et attribution aux bots ;
+- **Groupes d’ambiance** : compositions réutilisables associant plusieurs couches (ambiance, musique, voix et SFX), leurs volumes, boucles et transitions. Une fiche Event peut appliquer un groupe à tout le royaume ou à une sélection de bâtiments pendant son occurrence ;
+- **Histoires auditives** : chronologies no-code composées d’étapes ordonnées, de sons, de délais, de textes narratifs et d’une option d’attente. Elles constituent le contrat réutilisable prévu pour les expéditions et scénarios audio à venir.
+
+Les anciens groupes enregistrés directement dans les bâtiments restent pris en charge. Les nouveaux groupes autonomes sont versionnés dans KingdomData et peuvent être partagés entre plusieurs bâtiments sans dupliquer leur configuration.
+
 Dans la fiche d’un bâtiment, l’onglet **Gestion sonore** compose des groupes de musique, ambiance, SFX et voix. Un groupe général démarre quand des joueurs entrent dans le vocal. Une action ou un résultat aléatoire peut jouer un son ponctuel ou changer de groupe, et une règle événementielle peut basculer l’ambiance. Ces demandes transitent par la file SQLite `audio_queue`, afin que KingdomCore et KingdomVoice restent fiables lorsqu’ils tournent dans des processus séparés.
 
 Au premier lancement du Studio, les 48 objets, les cinq profils vocaux, les cinq lieux historiques et leurs cinq interfaces présents dans `KingdomEngine` V1 sont importés et publiés automatiquement : Mine, Forêt, Forge, Taverne et chantier du Pont royal. Les marchés de livraison et le catalogue de rumeurs sont également repris. L’import est idempotent : une définition V2 existante n’est jamais écrasée.

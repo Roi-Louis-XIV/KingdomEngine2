@@ -9,8 +9,9 @@ def _matches(rule: dict[str, Any], value: str, context: set[str]) -> bool:
 def resolve_audio_scene(building: dict[str, Any], *, period: str="", weather: dict[str, Any] | None=None, season:dict[str,Any]|None=None, events: list[dict[str, Any]] | None=None) -> dict[str, Any]:
     audio=building.get("modules",{}).get("audio",{}); groups={str(g.get("key")):g for g in audio.get("groups",[])}
     context=set(building.get("context_tags",building.get("tags",[]))); weather=weather or {}; season=season or {}; events=events or []
-    layers=[]; default=str(audio.get("default_group_key", ""))
-    if not default and groups: default=next(iter(groups)); provenance="fallback_historique"
+    layers=[]; default=str(audio.get("default_group_key", "")); global_keys=set(map(str,audio.get("global_group_keys",[])))
+    local_fallback=next((key for key in groups if key not in global_keys),"")
+    if not default and local_fallback: default=local_fallback; provenance="fallback_historique"
     else: provenance="configuration_batiment"
     if default and default in groups: layers.append({"source":"base","source_label":"Ambiance du bâtiment","group_key":default,"group":groups[default],"provenance":provenance})
     for rule in audio.get("time_layers",[]):
@@ -21,7 +22,9 @@ def resolve_audio_scene(building: dict[str, Any], *, period: str="", weather: di
         if _matches(rule,str(season.get("key","")),context) and rule.get("group_key") in groups: layers.append({"source":"season","source_label":season.get("name",season.get("key","")),"group_key":rule["group_key"],"group":groups[rule["group_key"]],"provenance":"règle saisonnière"})
     for event in sorted(events,key=lambda e:(int(e.get("priority",0)),str(e.get("key","")))):
         for contribution in event.get("audio_layers",[]):
-            if contribution.get("group_key") in groups and (not contribution.get("contexts") or context.intersection(contribution["contexts"])):
+            targets=set(map(str,contribution.get("building_keys",[])))
+            building_key=str(building.get("key",""))
+            if contribution.get("group_key") in groups and (not targets or building_key in targets) and (not contribution.get("contexts") or context.intersection(contribution["contexts"])):
                 layers.append({"source":"event","source_label":event.get("name",event.get("key","Event")),"group_key":contribution["group_key"],"group":groups[contribution["group_key"]],"provenance":"occurrence active"})
     return {"building_key":building.get("key",""),"period":period,"weather":weather,"season":season,"layers":layers,"effective_group_key":layers[-1]["group_key"] if layers else "","playback_strategy":"priority_overlay","track_keys":[track for layer in layers for channel in ("ambience","music") for track in layer["group"].get("tracks",{}).get(channel,[])],"explanation":[{"source":layer["source"],"label":layer["source_label"],"group_key":layer["group_key"],"provenance":layer["provenance"]} for layer in layers]}
 
