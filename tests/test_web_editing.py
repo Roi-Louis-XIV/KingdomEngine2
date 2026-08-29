@@ -15,6 +15,18 @@ def test_building_and_item_editor_exposes_searchable_emoji_library():
     assert 'data-emoji-choice' in javascript
 
 
+def test_tutorial_keeps_profession_and_zone_creation_in_simple_mode():
+    static_root = Path(web.__file__).parent / "static"
+    tutorial = (static_root / "tutorial-content.js").read_text(encoding="utf-8")
+    javascript = (static_root / "app.js").read_text(encoding="utf-8")
+    styles = (static_root / "tutorials.css").read_text(encoding="utf-8")
+    assert '#add-simple-mechanic' in tutorial
+    assert '[data-add-simple-zone]' in tutorial
+    assert '#simple-profession-dialog' in tutorial
+    assert 'id="add-simple-action"' in javascript
+    assert 'backdrop-filter:none!important' in styles
+
+
 def test_content_deletion_keeps_history_but_hides_definition(tmp_path):
     from KingdomData import NotFoundError
     import pytest
@@ -410,7 +422,7 @@ def test_interactive_tutorial_supports_real_actions_and_stable_building_targets(
     assert 'id:"discord_interface"' in content
     assert 'id:"weather"' in content
     assert 'id:"events"' in content
-    assert 'selector:"#add-action"' in content
+    assert 'selector:"#add-simple-action"' in content
     assert 'selector:"#add-weather-option"' in content
     assert 'selector:"#add-event-audio-layer"' in content
     assert 'data-tutorial="building-open"' in app_script

@@ -22,3 +22,10 @@
 @media(min-width:769px){.tutorial-mode-target .tutorial-popover,.tutorial-mode-free .tutorial-popover{left:var(--tutorial-left,24px)!important;right:auto;top:var(--tutorial-top,24px)!important}}
 .tutorial-progress-line{height:4px;margin:-17px -19px 13px;overflow:hidden;border-radius:16px 16px 0 0;background:#ffffff12}.tutorial-progress-line i{display:block;height:100%;background:linear-gradient(90deg,#2dbd5a,#74ef86);transition:width .25s ease}.tutorial-popover.has-target::before{content:"";position:absolute;left:-9px;top:28px;width:16px;height:16px;transform:rotate(45deg);border-left:1px solid #4ecb6088;border-bottom:1px solid #4ecb6088;background:var(--panel,#101a16)}.tutorial-stop{border-color:transparent!important;color:var(--muted,#a4afa9)!important;background:transparent!important}.tutorial-wait{padding:9px 11px;border-radius:8px;background:#f0bb5012}.tutorial-target{animation:tutorial-pulse 1.5s ease-in-out infinite}.academy-tour-progress{display:block;width:min(260px,100%);height:5px;margin:8px 0;border-radius:9px;overflow:hidden;background:#ffffff12}.academy-tour-progress i{display:block;height:100%;background:#48d55d}@keyframes tutorial-pulse{0%,100%{box-shadow:0 0 0 7px #45d85c28,0 0 28px #45d85c44!important}50%{box-shadow:0 0 0 13px #45d85c14,0 0 52px #45d85c77!important}}
 @media(max-width:768px){.tutorial-popover.has-target::before{display:none}.tutorial-progress-line{margin:-15px -17px 12px}.tutorial-actions .tutorial-stop{flex:0 0 auto}}
+
+/* La cible doit rester réellement au-dessus du voile. Aucun flou n'est
+   appliqué : le joueur continue à lire et manipuler l'écran qu'il apprend. */
+.tutorial-shade{background:#02080652!important;backdrop-filter:none!important}
+.tutorial-target,.tutorial-active .tutorial-target,.tutorial-mode-target .tutorial-target{z-index:2002!important;filter:none!important;opacity:1!important}
+.tutorial-active .modal:not([hidden]){z-index:2001}
+.tutorial-mode-target .tutorial-shade,.tutorial-mode-free .tutorial-shade{background:#02080638!important}

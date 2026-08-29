@@ -44,6 +44,8 @@ Le menu **Aide & tutoriels** affiche deux progressions complémentaires : les é
 
 Pendant un parcours, KingdomWeb met en lumière le contrôle réel à utiliser et place une bulle à proximité. Lorsqu’un clic précis est attendu, seule la zone indiquée reste active et l’étape suivante apparaît automatiquement après l’ouverture de la page, de l’onglet ou de la fenêtre. **Passer cette étape** continue le parcours ; **Quitter** le ferme en conservant l’avancement. Un parcours terminé peut être rejoué depuis l’Académie.
 
+Le parcours **Métier et zones** reste entièrement dans le mode Simple : création du métier, choix de l’outil, création de la zone, durée, niveau, énergie et résultats. Le voile pédagogique n’applique aucun flou et laisse la fiche en cours parfaitement lisible.
+
 ## Démarrage
 
 Sous Windows, le lanceur PowerShell est le point d’entrée recommandé. Après la première installation et la configuration de `.env` :
