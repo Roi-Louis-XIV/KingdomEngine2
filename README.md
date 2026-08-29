@@ -32,7 +32,13 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 - supervision des services, journaux consultables, arrêt/redémarrage et état de la base SQLite ;
 - import idempotent des contenus V1 : Mine, Forêt, Construction, Forge, Taverne, objets et sons historiques ;
 - publication versionnée, contrôle de concurrence, synchronisation live et historique des changements ;
-- tutoriels intégrés et aide contextuelle non bloquante dans le Studio.
+- Académie interactive avec bulles ancrées sur les vrais contrôles, progression par compte et serveur, reprise, saut d’étape et rejeu à volonté.
+
+### Aide et tutoriels interactifs
+
+Le menu **Aide & tutoriels** affiche deux progressions complémentaires : les étapes guidées déjà parcourues et les objectifs réellement présents dans le royaume. Les parcours disponibles couvrent le premier royaume complet, la création d’un bâtiment, les actions, les métiers et zones, l’interface Discord, l’audio, la météo et les grands Events.
+
+Pendant un parcours, KingdomWeb met en lumière le contrôle réel à utiliser et place une bulle à proximité. Lorsqu’un clic précis est attendu, seule la zone indiquée reste active et l’étape suivante apparaît automatiquement après l’ouverture de la page, de l’onglet ou de la fenêtre. **Passer cette étape** continue le parcours ; **Quitter** le ferme en conservant l’avancement. Un parcours terminé peut être rejoué depuis l’Académie.
 
 ## Démarrage
 

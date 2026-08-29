@@ -1,62 +1,80 @@
-/* Contenu pédagogique centralisé. Les cibles reposent uniquement sur des attributs stables. */
-window.KingdomTutorialContent = {
-  tutorials: [
-    {id:"first_realm",icon:"👑",module:"dashboard",title:"Construire mon premier royaume",description:"Passez d’un monde vide à une première expérience jouable sur Discord.",steps:[
-      {id:"dashboard",page:"dashboard",target:"[data-type='dashboard']",title:"Votre centre de commandement",content:"Le tableau de bord résume votre royaume. Vous pourrez toujours revenir ici.",position:"right"},
-      {id:"building",page:"building",target:"#new",title:"Créez un premier bâtiment",content:"Un bâtiment rassemble les actions, métiers, sons et pages Discord d’un lieu.",position:"bottom",rule:"has_building"},
-      {id:"profession",page:"building",target:"[data-building-tab='mechanics']",title:"Ajoutez un métier",content:"Dans Fonctionnement, associez un métier puis créez une activité accessible aux joueurs.",rule:"has_profession"},
-      {id:"activity",page:"building",target:"[data-building-tab='mechanics']",title:"Créez une activité",content:"Une activité précise l’outil, la durée, l’énergie et les résultats.",rule:"has_activity"},
-      {id:"audio",page:"building",target:"[data-building-tab='sound']",title:"Donnez une ambiance au lieu",content:"L’ambiance joue dans le vocal. Un SFX se déclenche seulement lors d’une action.",rule:"has_ambience"},
-      {id:"discord",page:"building",target:"[data-building-tab='visual']",title:"Préparez l’interface Discord",content:"Créez une page, un texte et un bouton relié à une vraie action.",rule:"has_discord_page"},
-      {id:"publish",page:"building",target:"#save",title:"Sauvegarder puis publier",content:"Sauvegarder crée un brouillon. Publier l’active. Synchroniser transmet ensuite les changements aux services.",rule:"has_published_building"}
-    ]},
-    {id:"building",icon:"🏰",module:"building",title:"Créer mon premier bâtiment",description:"Identité, fonctionnement, relations, audio, Discord et localisation.",steps:[
-      {id:"open",page:"building",target:"[data-tutorial='building-open']",title:"Choisissez un bâtiment",content:"Cliquez sur Modifier sur le bâtiment que vous souhaitez découvrir.",interaction:"free",completion:{event:"building_editor_opened"}},
-      {id:"relations_open",page:"building",target:"[data-tutorial='building-tab-relations']",title:"Ouvrez Relations",content:"Cliquez sur l’onglet Relations pour continuer.",interaction:"target",completion:{event:"building_tab_changed",value:"relations"}},
-      {id:"relations_explain",page:"building",target:"[data-tutorial='building-panel-relations']",title:"Les relations du bâtiment",content:"Vous voyez ici le métier principal, le bot, les objets utilisés et les relations calculées.",interaction:"blocked"},
-      {id:"functioning",page:"building",target:"[data-tutorial='building-tab-mechanics']",title:"Passez au fonctionnement",content:"Cliquez ici pour retrouver les métiers, zones, résultats, recettes et livraisons.",interaction:"target",completion:{event:"building_tab_changed",value:"mechanics"},rule:"has_activity"},
-      {id:"audio",page:"building",target:"[data-tutorial='building-tab-audio']",title:"Ouvrez Audio",content:"Cliquez sur Audio. Vous pourrez ensuite rechercher et sélectionner librement une ambiance.",interaction:"target",completion:{event:"building_tab_changed",value:"sound"},rule:"has_ambience"},
-      {id:"audio_work",page:"building",target:"[data-building-panel='sound']",title:"Configurez le son",content:"L’interface reste entièrement utilisable : écoutez, choisissez une ambiance ou associez un SFX.",interaction:"free"},
-      {id:"discord",page:"building",target:"[data-tutorial='building-tab-discord']",title:"Ouvrez Discord",content:"Cliquez sur Discord pour composer les pages, textes, boutons et actions.",interaction:"target",completion:{event:"building_tab_changed",value:"visual"},rule:"has_discord_page"},
-      {id:"discord_work",page:"building",target:"[data-building-panel='visual']",title:"Construisez l’interface",content:"Ajoutez ou modifiez les composants réels. Le tutoriel reste visible sans bloquer les sélecteurs.",interaction:"free"}
-    ]},
-    {id:"professions",icon:"⚒️",module:"profession",title:"Comprendre les métiers",description:"Métier → bâtiment → activité → outil → résultat.",steps:[
-      {id:"catalog",page:"profession",target:"#cards",title:"Des fiches transversales",content:"Un métier peut relier plusieurs activités, outils, productions et bâtiments.",rule:"has_profession"},
-      {id:"building_link",page:"building",target:"[data-building-tab='mechanics']",title:"Associer au gameplay",content:"Ajoutez le métier depuis le fonctionnement d’un bâtiment, puis configurez ses zones."}
-    ]},
-    {id:"items",icon:"🎒",module:"item",title:"Comprendre les objets",description:"Outils, récompenses, ingrédients, produits et conditions.",steps:[
-      {id:"catalog",page:"item",target:"#cards",title:"Un objet, plusieurs usages",content:"Les usages affichés viennent des relations réelles du moteur, pas d’une liste dupliquée.",rule:"has_item"},
-      {id:"create",page:"item",target:"#new",title:"Créer dans le contexte",content:"Quand un sélecteur ne contient pas encore l’objet voulu, créez-le sans perdre votre travail."}
-    ]},
-    {id:"audio",icon:"🔊",module:"audio",title:"Ambiances et effets sonores",description:"Comprendre la différence entre ambiance vocale et son d’action.",steps:[
-      {id:"bank",page:"audio",target:"#cards",title:"La banque audio",content:"Écoutez, classez et assignez les fichiers disponibles."},
-      {id:"voice",page:"bot",target:"#cards",title:"La contrainte vocale",content:"Un bot Discord ne peut rejoindre qu’un salon vocal à la fois. Associez un bot par espace nécessitant sa propre ambiance."},
-      {id:"ambience",page:"building",target:"[data-building-tab='sound']",title:"Ambiance globale",content:"Vent, oiseaux ou musique générale : ce son accompagne le bâtiment.",rule:"has_ambience"},
-      {id:"sfx",page:"building",target:"[data-building-tab='sound']",title:"SFX d’action",content:"Coup de hache, pièces ou boisson : le son se joue lorsque l’action correspondante est exécutée.",rule:"has_sfx"}
-    ]},
-    {id:"world",icon:"🗺️",module:"location",title:"Construire et relier mon monde",description:"Royaume → région → ville ou zone → lieu → bâtiment.",steps:[
-      {id:"map",page:"location",target:"#cards",title:"Votre géographie",content:"Placez les lieux puis reliez-les avec des chemins réellement empruntables.",rule:"has_location"},
-      {id:"route",page:"location",target:"#cards",title:"Relier deux lieux",content:"Une route possède une origine, une destination, une durée, une direction et éventuellement des conditions.",rule:"has_route"},
-      {id:"visibility",page:"location",target:"#cards",title:"Visible, verrouillée ou secrète",content:"Visible : affichée. Verrouillée : affichée mais inaccessible. Secrète : invisible jusqu’à sa découverte."},
-      {id:"exploration",page:"players",target:"#admin-view",title:"Une position logique individuelle",content:"Deux joueurs dans le même vocal peuvent explorer deux lieux logiques différents."}
-    ]},
-    {id:"events",icon:"⚡",module:"event",title:"Faire évoluer mon monde",description:"Cible → propriété → opération → valeur effective.",steps:[
-      {id:"create",page:"event",target:"#new",title:"Créer un événement",content:"Un événement applique temporairement des modificateurs génériques.",rule:"has_event"},
-      {id:"effective",page:"live_world",target:".world-impacts",title:"Base + modificateurs = effectif",content:"La configuration de base reste intacte. Quand l’événement disparaît, la valeur revient à sa valeur initiale."},
-      {id:"weather",page:"environment",target:"#admin-view",title:"Météo et temps",content:"La météo peut être manuelle, programmée ou pondérée et utiliser les mêmes modificateurs gameplay."}
-    ]},
-    {id:"publication",icon:"⇧",module:"building",title:"Publier et synchroniser",description:"Comprendre le cycle de mise en ligne sans risque.",steps:[
-      {id:"edit",page:"building",target:"#cards",title:"Modifier",content:"Ouvrir un contenu ne change pas encore le monde en direct."},
-      {id:"save",page:"building",target:"#save",title:"Sauvegarder",content:"Un brouillon versionné conserve votre travail sans l’activer."},
-      {id:"publish",page:"building",target:"#cards",title:"Publier",content:"La publication désigne la version que le moteur doit utiliser.",rule:"has_published_building"},
-      {id:"sync",page:"dashboard",target:"#save-state",title:"Synchroniser",content:"Synchronisé signifie que les services utilisent la version publiée. Une erreur reste visible et expliquée ici."}
-    ]}
-  ],
-  screenTours: {
-    dashboard:[{target:"#nav",title:"Navigation",content:"Tous les modules de votre royaume."},{target:"#save-state",title:"État réel",content:"Vérifiez ici si vos publications sont synchronisées."}],
-    building:[{target:"#new",title:"Créer",content:"L’assistant Simple prépare un bâtiment complet."},{target:"#cards",title:"Vos bâtiments",content:"Ouvrez, dupliquez, publiez ou archivez chaque lieu."}],
-    location:[{target:"#cards",title:"Carte et lieux",content:"La carte montre les connexions calculées entre vos lieux."}],
-    event:[{target:"#new",title:"Événements",content:"Créez des changements temporaires sans modifier les valeurs de base."}],
-    audio:[{target:"#cards",title:"Banque audio",content:"Préécoutez les sons avant de les associer."}]
-  }
-};
+/* Parcours pédagogiques. Les cibles utilisent uniquement des attributs ou ID stables. */
+window.KingdomTutorialContent={tutorials:[
+{id:"first_realm",icon:"👑",module:"dashboard",title:"Créer mon premier royaume",description:"Le parcours complet : bâtiment, métier, action, Discord, audio, météo et Event.",steps:[
+{id:"welcome",page:"dashboard",target:"[data-type='dashboard']",title:"Votre centre de commandement",content:"Ce parcours agit dans les vrais écrans. Vos créations sont réelles et la progression est enregistrée."},
+{id:"building",page:"building",target:"#new",title:"Commencez par un bâtiment",content:"Cliquez sur Nouvelle définition. Le bâtiment contiendra votre première expérience jouable.",interaction:"target",completion:{event:"dom_click",selector:"#new"}},
+{id:"preset",page:"building",target:"[data-preset]",title:"Choisissez un modèle",content:"Cliquez sur le type le plus proche de votre idée. Tout restera modifiable.",interaction:"target",completion:{event:"dom_click",selector:"[data-preset]"}},
+{id:"identity",page:"building",target:"#name",title:"Donnez-lui une identité",content:"Renseignez le nom, l’emoji et la description, puis continuez avec la bulle.",interaction:"free"},
+{id:"mechanics",page:"building",target:"[data-tutorial='building-tab-mechanics']",title:"Ouvrez Fonctionnement",content:"C’est ici que vivent métiers, zones, actions, recettes et livraisons.",interaction:"target",completion:{event:"building_tab_changed",value:"mechanics"}},
+{id:"profession",page:"building",target:"#add-profession",title:"Ajoutez un métier",content:"Créez le rôle que le joueur pourra exercer dans ce bâtiment.",interaction:"target",completion:{event:"dom_click",selector:"#add-profession"}},
+{id:"action",page:"building",target:"#add-action",title:"Ajoutez une action",content:"Une action devient un bouton Discord et enchaîne conditions puis résultats.",interaction:"target",completion:{event:"dom_click",selector:"#add-action"}},
+{id:"discord",page:"building",target:"[data-tutorial='building-tab-discord']",title:"Construisez Discord",content:"Organisez les pages, textes, boutons et menus du bâtiment.",interaction:"target",completion:{event:"building_tab_changed",value:"visual"}},
+{id:"audio",page:"building",target:"[data-tutorial='building-tab-audio']",title:"Ajoutez une identité sonore",content:"Choisissez l’ambiance et les sons déclenchés par le gameplay.",interaction:"target",completion:{event:"building_tab_changed",value:"sound"}},
+{id:"save",page:"building",target:"#save",title:"Enregistrez le brouillon",content:"Cliquez lorsque la fiche est prête. Rien n’est publié automatiquement.",interaction:"target",completion:{event:"content_saved",value:"building"}},
+{id:"weather",page:"environment",target:"#new",title:"Configurez le climat",content:"La météo donne un contexte vivant au royaume. Créez ou ouvrez sa configuration."},
+{id:"events",page:"event",target:"#new",title:"Faites vivre le royaume",content:"Les Events déclenchent des résultats, modifient les règles et pilotent les ambiances."},
+{id:"finish",page:"academy",target:".academy-progress",title:"Revenez quand vous voulez",content:"L’Académie conserve l’avancement et permet de reprendre ou rejouer chaque parcours."}]},
+{id:"building",icon:"🏰",module:"building",title:"Créer un bâtiment",description:"Assistant, identité, relations et premier brouillon.",steps:[
+{id:"new",page:"building",target:"#new",title:"Créer une fiche",content:"Cliquez sur Nouvelle définition.",interaction:"target",completion:{event:"dom_click",selector:"#new"}},
+{id:"preset",page:"building",target:"[data-preset]",title:"Choisir un preset",content:"Récolte, production, commerce, social ou administration : tout restera modifiable.",interaction:"target",completion:{event:"dom_click",selector:"[data-preset]"}},
+{id:"name",page:"building",target:"#name",title:"Nom visible",content:"Ce nom sera affiché dans Discord et utilisé pour les salons.",interaction:"free"},
+{id:"description",page:"building",target:"#description",title:"Promesse au joueur",content:"Décrivez en une phrase ce que le joueur pourra faire ici.",interaction:"free"},
+{id:"overview",page:"building",target:"[data-building-panel='overview']",title:"Aperçu de la fiche",content:"Il résume métier, bot, ambiance, actions et pages Discord."},
+{id:"relations",page:"building",target:"[data-tutorial='building-tab-relations']",title:"Relier le bâtiment",content:"Associez lieu, objets, métier principal et bot sans manipuler d’identifiants.",interaction:"target",completion:{event:"building_tab_changed",value:"relations"}},
+{id:"save",page:"building",target:"#save",title:"Conserver le travail",content:"Enregistrer crée un brouillon versionné. Vous publierez quand vous serez prêt.",interaction:"target",completion:{event:"content_saved",value:"building"}}]},
+{id:"actions",icon:"⚡",module:"building",title:"Créer une action",description:"Bouton → conditions → effets → interface Discord.",steps:[
+{id:"open",page:"building",target:"[data-tutorial='building-open']",title:"Ouvrez un bâtiment",content:"Cliquez sur Modifier.",interaction:"target",completion:{event:"building_editor_opened"}},
+{id:"mechanics",page:"building",target:"[data-tutorial='building-tab-mechanics']",title:"Ouvrez Fonctionnement",content:"Les actions complémentaires sont sous les métiers et zones.",interaction:"target",completion:{event:"building_tab_changed",value:"mechanics"}},
+{id:"add",page:"building",target:"#add-action",title:"Ajouter une action",content:"Cliquez ici pour faire apparaître sa fiche.",interaction:"target",completion:{event:"dom_click",selector:"#add-action"}},
+{id:"name",page:"building",target:"#actions .action-builder:last-child [data-field='action_name']",title:"Nommer le bouton",content:"Utilisez un verbe explicite : Récolter, Acheter, Fouiller ou Parler.",interaction:"free"},
+{id:"conditions",page:"building",target:"#actions .action-builder:last-child .add-condition",title:"Conditions d’accès",content:"Ajoutez-en seulement si l’action exige un objet, métier, niveau, rôle ou état.",interaction:"free"},
+{id:"effects",page:"building",target:"#actions .action-builder:last-child .add-inner",title:"Résultats",content:"Ajoutez coût, message, récompense, XP, son ou Event dans leur ordre d’exécution.",interaction:"free"},
+{id:"discord",page:"building",target:"[data-tutorial='building-tab-discord']",title:"Rendre l’action accessible",content:"Ajoutez un bouton ou menu Discord puis sélectionnez l’action par son nom.",interaction:"target",completion:{event:"building_tab_changed",value:"visual"}},
+{id:"save",page:"building",target:"#save",title:"Enregistrer",content:"Sauvegardez le bâtiment et son interface.",interaction:"target",completion:{event:"content_saved",value:"building"}}]},
+{id:"professions",icon:"⚒️",module:"profession",title:"Créer un métier et ses zones",description:"Métier → outil → niveau → activité → récompenses.",steps:[
+{id:"catalog",page:"profession",target:"#new",title:"Créer la fiche métier",content:"Cliquez ici pour créer un métier partagé par le royaume.",interaction:"target",completion:{event:"dom_click",selector:"#new"}},
+{id:"identity",page:"profession",target:"#name",title:"Nom et identité",content:"Renseignez le nom visible, l’emoji, l’outil requis et la courbe d’expérience.",interaction:"free"},
+{id:"save_profession",page:"profession",target:"#save",title:"Enregistrer la fiche",content:"Créez le brouillon autonome avant de relier ce métier à un bâtiment.",interaction:"target",completion:{event:"content_saved",value:"profession"}},
+{id:"building",page:"building",target:"[data-tutorial='building-open']",title:"Ouvrez son bâtiment",content:"Le gameplay concret se configure dans un bâtiment.",interaction:"target",completion:{event:"building_editor_opened"}},
+{id:"mechanics",page:"building",target:"[data-tutorial='building-tab-mechanics']",title:"Ouvrez Fonctionnement",content:"Vous allez relier le métier à ses zones.",interaction:"target",completion:{event:"building_tab_changed",value:"mechanics"}},
+{id:"add_profession",page:"building",target:"#add-profession",title:"Ajouter le métier",content:"Choisissez son nom, son outil et si l’outil est remis automatiquement.",interaction:"target",completion:{event:"dom_click",selector:"#add-profession"}},
+{id:"add_activity",page:"building",target:"#add-activity",title:"Créer une zone",content:"La zone définit durée, énergie, niveau, usure et résultats pondérés.",interaction:"target",completion:{event:"dom_click",selector:"#add-activity"}},
+{id:"results",page:"building",target:"#activity-modules",title:"Récompenses et XP",content:"Chaque résultat peut donner ressources, XP métier, messages, sons et Events.",interaction:"free"},
+{id:"save",page:"building",target:"#save",title:"Enregistrer",content:"Le moteur générera les actions nécessaires sans logique liée au nom du métier.",interaction:"target",completion:{event:"content_saved",value:"building"}}]},
+{id:"discord_interface",icon:"🧩",module:"building",title:"Construire l’interface Discord",description:"Pages, textes, boutons, menus et navigation.",steps:[
+{id:"open",page:"building",target:"[data-tutorial='building-open']",title:"Ouvrez le bâtiment",content:"Choisissez celui dont les joueurs verront l’interface.",interaction:"target",completion:{event:"building_editor_opened"}},
+{id:"tab",page:"building",target:"[data-tutorial='building-tab-discord']",title:"Ouvrez Discord",content:"Le mode simple montre d’abord les pages essentielles.",interaction:"target",completion:{event:"building_tab_changed",value:"visual"}},
+{id:"pages",page:"building",target:".simple-discord-pages",title:"Parcours entre pages",content:"La page d’accueil est l’entrée. Les boutons et menus créent les liaisons."},
+{id:"add_page",page:"building",target:"[data-add-simple-page]",title:"Ajouter une page",content:"Créez une nouvelle étape du parcours joueur.",interaction:"target",completion:{event:"dom_click",selector:"[data-add-simple-page]"}},
+{id:"page_name",page:"building",target:"#simple-page-dialog [name='name']",title:"Nommer la page",content:"Utilisez un titre clair : Boutique, Expédition ou Inventaire.",interaction:"free"},
+{id:"builder",page:"building",target:"#simple-page-dialog [data-page-full-builder]",title:"Builder complet",content:"Il permet de placer embeds, boutons, menus, inventaires et liaisons.",interaction:"free"},
+{id:"save",page:"building",target:"#save",title:"Enregistrer",content:"Les pages sont conservées et publiées avec le bâtiment.",interaction:"target",completion:{event:"content_saved",value:"building"}}]},
+{id:"audio",icon:"🔊",module:"audio",title:"Sons, ambiances et histoires",description:"Importer, écouter, grouper et relier au gameplay.",steps:[
+{id:"bank",page:"audio",target:"[data-audio-mode='library']",title:"Banque sonore",content:"Chaque fichier est centralisé dans KingdomData et réutilisable partout."},
+{id:"upload",page:"audio",target:"#audio-upload-form",title:"Importer et classer",content:"Choisissez fichier, type, bot parlant et mots-clés. Vous pourrez l’écouter avant attribution.",interaction:"free"},
+{id:"groups",page:"audio",target:"[data-audio-mode='groups']",title:"Groupes d’ambiance",content:"Cliquez pour réunir plusieurs sons dans une atmosphère réutilisable.",interaction:"target",completion:{event:"dom_click",selector:"[data-audio-mode='groups']"}},
+{id:"create",page:"audio",target:"#create-audio-composition",title:"Créer un groupe",content:"Ajoutez des couches, leurs rôles et les bâtiments suggérés.",interaction:"target",completion:{event:"dom_click",selector:"#create-audio-composition"}},
+{id:"layers",page:"audio",target:"#audio-composition-dialog",title:"Couches sonores",content:"Sélectionnez sons, rôles, volumes et boucles. Annulez si vous explorez seulement.",interaction:"free"},
+{id:"stories",page:"audio",target:"[data-audio-mode='stories']",title:"Histoires auditives",content:"Fermez la fenêtre puis ouvrez ce menu : chaque étape contient son, délai et texte.",interaction:"free"},
+{id:"building",page:"building",target:"[data-tutorial='building-open']",title:"Relier au gameplay",content:"Dans un bâtiment, l’onglet Audio associe ambiance et SFX aux actions."}]},
+{id:"weather",icon:"🌦️",module:"environment",title:"Configurer météo et temps",description:"Horloge, climats, probabilités et influences.",steps:[
+{id:"open",page:"environment",target:"#new",title:"Créer l’environnement",content:"Cliquez sur Nouvelle définition. Si un environnement existe déjà, vous pourrez quitter et ouvrir sa fiche à la place.",interaction:"target",completion:{event:"dom_click",selector:"#new"}},
+{id:"clock",page:"environment",target:"[data-field='clock_mode']",title:"Horloge",content:"Temps autonome avance selon la vitesse ; heure administrée reste sous votre contrôle.",interaction:"free"},
+{id:"mode",page:"environment",target:"[data-field='environment_mode']",title:"Mode météo",content:"Manuel fixe la météo ; pondéré effectue des tirages ; programmé suit les plages prévues.",interaction:"free"},
+{id:"add",page:"environment",target:"#add-weather-option",title:"Ajouter un climat",content:"Définissez nom, emoji, poids et paramètres visuels.",interaction:"target",completion:{event:"dom_click",selector:"#add-weather-option"}},
+{id:"modifier",page:"environment",target:"#add-world-modifier",title:"Influencer le gameplay",content:"Modifiez production, durée, énergie, prix, cooldown ou disponibilité.",interaction:"free"},
+{id:"save",page:"environment",target:"#save",title:"Enregistrer",content:"Sauvegardez puis publiez pour alimenter Monde en direct.",interaction:"target",completion:{event:"content_saved",value:"environment"}}]},
+{id:"events",icon:"✦",module:"event",title:"Créer un grand événement",description:"Déclencheur, effets, modificateurs et ambiance.",steps:[
+{id:"new",page:"event",target:"#new",title:"Créer la définition",content:"Cliquez pour ouvrir le grand éditeur Event.",interaction:"target",completion:{event:"dom_click",selector:"#new"}},
+{id:"trigger",page:"event",target:"[data-field='trigger_type']",title:"Déclencheur",content:"Manuel, programmé, récurrent, action de jeu ou nombre de joueurs.",interaction:"free"},
+{id:"effect",page:"event",target:"#add-effect",title:"Ajouter un résultat",content:"Message, ressource, XP, son ou autre Event.",interaction:"target",completion:{event:"dom_click",selector:"#add-effect"}},
+{id:"audio",page:"event",target:"#add-event-audio-layer",title:"Changer l’atmosphère",content:"Appliquez un groupe à tout le royaume ou aux bâtiments cochés.",interaction:"target",completion:{event:"dom_click",selector:"#add-event-audio-layer"}},
+{id:"save",page:"event",target:"#save",title:"Enregistrer avant activation",content:"Créez le brouillon, publiez-le puis activez son occurrence.",interaction:"target",completion:{event:"content_saved",value:"event"}}]}
+],screenTours:{
+dashboard:[{target:"#nav",title:"Navigation",content:"Tous les modules du royaume."},{target:"#save-state",title:"État réel",content:"Vérifiez la synchronisation."}],
+building:[{target:"#new",title:"Créer",content:"L’assistant prépare une base complète."},{target:"#cards",title:"Bâtiments",content:"Ouvrez, dupliquez et publiez chaque lieu."}],
+profession:[{target:"#new",title:"Métiers",content:"Créez les métiers partagés puis reliez-les aux bâtiments."}],
+environment:[{target:"#cards",title:"Temps et météo",content:"Gérez horloge, climats et influences."}],
+event:[{target:"#new",title:"Events",content:"Créez des changements temporaires."}],
+audio:[{target:"[data-audio-mode='library']",title:"Banque audio",content:"Importez et écoutez les sons."},{target:"[data-audio-mode='groups']",title:"Groupes",content:"Composez des ambiances réutilisables."}]
+}};

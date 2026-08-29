@@ -388,11 +388,23 @@ def test_interactive_tutorial_supports_real_actions_and_stable_building_targets(
     assert 'tutorial-mode-target' in script
     assert 'tutorial-mode-free' in script
     assert 'function notify(event,value=null)' in script
+    assert 'function observeRealInteraction(event)' in script
+    assert 'new MutationObserver' in script
+    assert 'data-tutorial-skip>Passer cette étape' in script
+    assert 'data-tutorial-stop>Quitter' in script
     assert 'completion:{event:"building_editor_opened"}' in content
     assert 'completion:{event:"building_tab_changed",value:"relations"}' in content
+    assert 'id:"actions"' in content
+    assert 'id:"discord_interface"' in content
+    assert 'id:"weather"' in content
+    assert 'id:"events"' in content
+    assert 'selector:"#add-action"' in content
+    assert 'selector:"#add-weather-option"' in content
+    assert 'selector:"#add-event-audio-layer"' in content
     assert 'data-tutorial="building-open"' in app_script
     assert 'data-tutorial="building-tab-relations"' in app_script
     assert 'KingdomTutorials.notify("building_editor_opened"' in app_script
     assert 'KingdomTutorials.notify("building_tab_changed"' in app_script
+    assert 'KingdomTutorials.notify("content_saved"' in app_script
     assert '.tutorial-mode-target .tutorial-target' in styles
     assert 'pointer-events:auto!important' in styles

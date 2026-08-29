@@ -1769,7 +1769,7 @@ $("#save").onclick = async () => {
       const published=await fetch(`/api/content/audio/${saved.entity_key}/${saved.version}/publish`,{method:"POST",headers,body:"{}"});
       if(!published.ok)throw Error((await published.json()).detail);
     }
-    state.editorDirty=false;closeEditor(true); await loadCatalogs(); await load(); setSaveState("saved",state.type==="audio"?"Publié":"Brouillon enregistré");
+    const savedType=state.type;KingdomTutorials.notify("content_saved",savedType);state.editorDirty=false;closeEditor(true); await loadCatalogs(); await load(); setSaveState("saved",savedType==="audio"?"Publié":"Brouillon enregistré");
   } catch(error) { $("#error").textContent=error.message; setSaveState("error","Échec de sauvegarde"); }
   finally { button.disabled=false; button.textContent="Enregistrer le brouillon"; }
 };
