@@ -686,7 +686,10 @@ def get_content(entity_type: str, key: str):
 
 @app.post("/api/content/{entity_type}/{key}", dependencies=[Depends(authorize)])
 def save_content(entity_type: str, key: str, body: dict[str, Any]):
-    try: return store.save(entity_type, key, body["payload"], body.get("author", "studio"), body.get("expected_version"))
+    payload = body.get("payload", {})
+    if entity_type == "building" and (key == "nocode_academy" or payload.get("is_reference")):
+        raise HTTPException(422, "Les démonstrations de l'Académie sont isolées et ne peuvent pas être enregistrées dans un royaume.")
+    try: return store.save(entity_type, key, payload, body.get("author", "studio"), body.get("expected_version"))
     except (ValidationError, KeyError) as exc: raise HTTPException(422, str(exc)) from exc
     except ConflictError as exc: raise HTTPException(409, str(exc)) from exc
 
@@ -701,6 +704,9 @@ def delete_content(entity_type: str, key: str):
 @app.post("/api/content/{entity_type}/{key}/{version}/publish", dependencies=[Depends(authorize)])
 def publish_content(entity_type: str, key: str, version: int, body: dict[str, Any] | None = None):
     try:
+        current = store.get(entity_type, key)
+        if entity_type == "building" and (key == "nocode_academy" or current.get("payload", {}).get("is_reference")):
+            raise HTTPException(422, "Une démonstration de l'Académie ne peut jamais être publiée sur Discord.")
         result = store.publish(entity_type, key, version, (body or {}).get("author", "studio"))
         if entity_type == "building":
             store.request_discord_provision("building", key, "building-publication")

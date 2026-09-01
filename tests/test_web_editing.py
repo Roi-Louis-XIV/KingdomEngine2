@@ -450,9 +450,14 @@ def test_reference_building_is_an_isolated_rich_academy_demo():
     assert not any(row["type"] == "building" and row["key"] == "nocode_academy" for row in DEFINITIONS)
     assert REFERENCE_BUILDING["is_reference"] is True
     assert REFERENCE_BUILDING["modules"]["professions"]
+    assert len(REFERENCE_BUILDING["modules"]["professions"]) >= 2
+    assert len(REFERENCE_BUILDING["modules"]["activities"]) >= 2
     assert REFERENCE_BUILDING["modules"]["activities"][0]["outcomes"]
     assert len(REFERENCE_BUILDING["modules"]["activities"][0]["outcomes"][1]["effects"]) >= 3
     assert REFERENCE_BUILDING["modules"]["audio"]["groups"]
+    assert REFERENCE_BUILDING["modules"]["upgrades"]
+    assert REFERENCE_BUILDING["modules"]["repairs"]
+    assert len(REFERENCE_BUILDING["academy_showcase"]["chapters"]) >= 6
     assert REFERENCE_BUILDING["interface"]["pages"]
 
     static = Path(web.__file__).with_name("static")
@@ -460,6 +465,24 @@ def test_reference_building_is_an_isolated_rich_academy_demo():
     assert "/api/tutorials/reference-building" in script
     assert "installReferenceAcademyCard" in script
     assert '$("#save").hidden=true' in script
+
+
+def test_reference_building_cannot_be_saved_or_published_through_world_api(tmp_path, monkeypatch):
+    store = ContentStore(tmp_path / "reference-protection.db"); store.initialize()
+    monkeypatch.setattr(web, "store", store)
+    with TestClient(web.app) as client:
+        headers = {"Authorization": "Bearer change-me"}
+        saved = client.post(
+            "/api/content/building/nocode_academy", headers=headers,
+            json={"payload": {"name": "Copie interdite", "is_reference": True}},
+        )
+        assert saved.status_code == 422
+        legacy = store.save("building", "legacy_demo", {"name": "Ancienne démo", "is_reference": True})
+        published = client.post(
+            f"/api/content/building/legacy_demo/{legacy['version']}/publish", headers=headers,
+        )
+        assert published.status_code == 422
+        assert store.get("building", "legacy_demo")["status"] == "draft"
 
 
 def test_reference_building_is_filtered_from_game_engine(tmp_path):
@@ -493,6 +516,20 @@ def test_navigation_uses_generic_world_editor_vocabulary():
     static = Path(web.__file__).with_name("static")
     page = (static / "index.html").read_text(encoding="utf-8")
     assert "Entités & lieux" in page
+
+
+def test_navigation_and_dark_theme_remain_available_in_desktop_and_mobile_shells():
+    static = Path(web.__file__).with_name("static")
+    page = (static / "index.html").read_text(encoding="utf-8")
+    script = (static / "app.js").read_text(encoding="utf-8")
+    styles = (static / "generation-v3.css").read_text(encoding="utf-8")
+    assert 'id="sidebar-theme"' in page
+    assert '$('# + '"nav"' + ').addEventListener("click"' in script
+    assert 'applyTheme(current==="dark"?"light":"dark",true)' in script
+    assert ':root[data-theme="dark"]' in styles
+    assert '--accent:#24945f' in styles
+    assert '--violet:#7667d8' in styles
+    assert '[hidden]{display:none!important}' in styles
     assert "Espaces interactifs" in page
     assert "Objets & ressources" in page
     assert "Temps & calendrier" in page

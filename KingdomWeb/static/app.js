@@ -69,6 +69,7 @@ function applyTheme(theme, persist=false) {
   button.title="Apparence : "+current[1];
   button.querySelector(".theme-icon").textContent=current[0];
   button.querySelector(".theme-label").textContent=current[1];
+  const sidebarButton=$("#sidebar-theme");if(sidebarButton)sidebarButton.textContent=`${selected==="dark"?"☀":"☾"} Mode ${selected==="dark"?"clair":"sombre"}`;
   $$('[data-theme-choice]').forEach(choice=>choice.setAttribute("aria-pressed",String(choice.dataset.themeChoice===preference)));
 }
 
@@ -495,8 +496,16 @@ function resetEditor() {
 
 function installReferenceAcademyCard(){
   const academy=$(".academy");if(!academy||academy.querySelector("[data-open-reference-building]"))return;
-  academy.querySelector(".academy-hero")?.insertAdjacentHTML("afterend",`<section class="academy-reference-building"><div class="academy-reference-icon">🎓</div><div><small>LABORATOIRE PÉDAGOGIQUE ISOLÉ</small><h3>Atelier-école no-code</h3><p>Explorez un bâtiment complet dans le véritable éditeur : métier, activité temporisée, résultats multi-effets, commerce, recette, livraison, interface Discord et audio. Cette démonstration n'appartient à aucun serveur et ne peut pas être publiée.</p><div class="academy-reference-tags"><span>Métier + niveaux</span><span>Zone + cooldown</span><span>Résultats pondérés</span><span>Audio</span><span>Interface Discord</span></div></div><button type="button" class="primary" data-open-reference-building>Explorer l'atelier</button></section>`);
+  academy.querySelector(".academy-hero")?.insertAdjacentHTML("afterend",`<section class="academy-reference-building"><div class="academy-reference-heading"><div class="academy-reference-icon">🎓</div><div><small>LABORATOIRE PÉDAGOGIQUE · HORS DE VOS SERVEURS</small><h3>Atelier-école no-code</h3><p>Suivez le parcours d'un joueur, puis inspectez exactement les réglages qui le rendent possible dans le véritable éditeur KingdomWeb.</p></div></div><div class="academy-reference-feature-grid"><article><b>⚒️ 2 métiers</b><span>Niveaux, outil offert et exclusivité royaume</span></article><article><b>🗺️ 2 zones</b><span>Verrouillage, durée, énergie, usure et cooldown</span></article><article><b>🎲 Résultats riches</b><span>Objets, stock, XP, message et Event en un tirage</span></article><article><b>🛒 Économie</b><span>Recette, vente, livraison, réparation et amélioration</span></article><article><b>🧩 Discord</b><span>Pages, menu, navigation, inventaires et conditions</span></article><article><b>🔊 Audio</b><span>Ambiance, SFX et changement lors d'un événement</span></article></div><ol class="academy-reference-journey"><li>Choisir un métier</li><li>Débloquer une zone</li><li>Lancer l'activité</li><li>Recevoir plusieurs effets</li><li>Transformer ou livrer</li></ol><div class="academy-reference-actions"><span>🔒 Lecture seule · aucune donnée créée · aucune publication Discord</span><div><button type="button" data-open-reference-building>Explorer librement</button><button type="button" class="primary" data-guide-reference-building>Visite guidée</button></div></div></section>`);
   academy.querySelector("[data-open-reference-building]").onclick=openReferenceBuilding;
+  academy.querySelector("[data-guide-reference-building]").onclick=async()=>{await openReferenceBuilding();KingdomTutorials.guide([
+    {target:".reference-demo-banner",title:"Votre bâtiment-école",content:"Cette copie est indépendante de votre serveur. Les onglets et formulaires sont les vrais outils du Studio, verrouillés en lecture seule."},
+    {target:"[data-reference-tab='mechanics']",title:"Métiers et activités",content:"Vous y trouverez deux métiers, leurs outils, niveaux, zones, limites, durées, cooldowns et résultats pondérés."},
+    {target:"[data-reference-tab='visual']",title:"Parcours Discord",content:"Observez comment les pages, menus, inventaires et boutons composent l'expérience visible par le joueur."},
+    {target:"[data-reference-tab='relations']",title:"Relations calculées",content:"Le Studio explique ici quels objets sont produits, consommés et livrés, sans vous demander de recopier les liens."},
+    {target:"[data-reference-tab='sound']",title:"Atmosphère vivante",content:"Ambiance globale, effet sonore et changement déclenché par Event sont réunis dans ce chapitre."},
+    {target:"[data-reference-tab='advanced']",title:"Pour aller plus loin",content:"Réparation, amélioration et primitives détaillées restent disponibles lorsque le mode Simple ne suffit plus."},
+  ])};
 }
 
 async function openReferenceBuilding(){
@@ -508,7 +517,15 @@ async function openReferenceBuilding(){
   $("#key").value=entity.entity_key;$("#key").disabled=true;$("#name").value=payload.name;$("#emoji").value=payload.emoji||"";$("#description").value=payload.description||"";
   $("#editor-kicker").textContent="ACADÉMIE · DÉMONSTRATION ISOLÉE";$("#editor-title").textContent="Explorer l'Atelier-école";
   renderBuildingFields(payload);
-  $("#definition-step").insertAdjacentHTML("afterbegin",'<div class="reference-demo-banner"><b>Mode démonstration</b><span>Vous utilisez le véritable éditeur KingdomWeb. Les essais restent locaux : aucun serveur, salon Discord ou contenu du royaume ne sera modifié.</span></div>');
+  const chapters=payload.academy_showcase?.chapters||[];
+  $("#definition-step").insertAdjacentHTML("afterbegin",`<div class="reference-demo-banner"><div><b>🎓 Démonstration isolée</b><span>Vous utilisez le véritable éditeur en lecture seule. Choisissez un chapitre pour afficher les vrais réglages.</span></div><nav>${chapters.map((chapter,index)=>`<button type="button" class="${index===0?'active':''}" data-reference-tab="${escapeHtml(chapter.tab)}" title="${escapeHtml(chapter.summary)}"><span>${escapeHtml(chapter.icon)}</span>${escapeHtml(chapter.name)}</button>`).join("")}</nav><p data-reference-explanation>${escapeHtml(chapters[0]?.summary||"")}</p></div>`);
+  const banner=$(".reference-demo-banner");
+  banner?.querySelectorAll("[data-reference-tab]").forEach(button=>button.onclick=()=>{
+    banner.querySelectorAll("[data-reference-tab]").forEach(item=>item.classList.toggle("active",item===button));
+    const chapter=chapters.find(item=>item.tab===button.dataset.referenceTab);
+    banner.querySelector("[data-reference-explanation]").textContent=chapter?.summary||"";
+    $("[data-building-tab='"+button.dataset.referenceTab+"']")?.click();
+  });
   $("#save").hidden=true;$("#cancel-editor").textContent="Fermer la démonstration";setHelp("building_mechanics");showModal();
 }
 
@@ -1957,7 +1974,11 @@ $("#editor-form").addEventListener("input",markEditorDirty);$("#editor-form").ad
 window.addEventListener("beforeunload",event=>{if(!state.editorDirty)return;event.preventDefault();event.returnValue=""});
 installProductShell();
 applyTheme(localStorage.getItem(THEME_KEY)||"system");
-$("#theme-toggle").onclick=event=>{event.stopPropagation();$("#account-button").click()};
+$("#theme-toggle").onclick=event=>{
+  event.stopPropagation();
+  const current=document.documentElement.dataset.theme||"dark";
+  applyTheme(current==="dark"?"light":"dark",true);
+};
 $("#server-selector").onchange=event=>selectServer(event.target.value);
 const setSidebarOpen=open=>document.body.classList.toggle("sidebar-open",open);
 $("#mobile-menu").onclick=()=>setSidebarOpen(true);
@@ -1965,6 +1986,7 @@ $("#sidebar-scrim").onclick=()=>setSidebarOpen(false);
 $$('#mobile-dock [data-mobile-type]').forEach(button=>button.onclick=()=>navigateTo(button.dataset.mobileType));
 $('#mobile-dock [data-mobile-menu]').onclick=()=>setSidebarOpen(true);
 $("#sidebar-logout").onclick=logoutAccount;
+$("#sidebar-theme").onclick=()=>applyTheme((document.documentElement.dataset.theme||"dark")==="dark"?"light":"dark",true);
 $("#sidebar-collapse").onclick=()=>{document.body.classList.toggle("sidebar-collapsed");localStorage.setItem("kingdomSidebarCollapsed",document.body.classList.contains("sidebar-collapsed")?"1":"0")};
 if(localStorage.getItem("kingdomSidebarCollapsed")==="1")document.body.classList.add("sidebar-collapsed");
 function setupPublicRegistration(){
@@ -1981,7 +2003,15 @@ setupPublicRegistration();
 $("#login-form").onsubmit=async event=>{event.preventDefault();const error=$("#login-error"),button=event.currentTarget.querySelector('button[type="submit"]');error.classList.remove("success");error.textContent="";button.disabled=true;try{const response=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))});let data={};try{data=await response.json()}catch(_){data={detail:"Le serveur n’a pas renvoyé de réponse exploitable."}}if(!response.ok){error.textContent=data.detail||"Connexion impossible.";return}await initializeAccount()}catch(_){error.textContent="KingdomWeb est momentanément inaccessible."}finally{button.disabled=false}};
 $$('#nav [data-nav-group]').forEach(button=>button.onclick=()=>openNavigationGroup(button.dataset.navGroup));
 openNavigationGroup("");
-$$('#nav [data-type]').forEach(button=>button.onclick=async()=>{KingdomTutorials.pauseForNavigation(button.dataset.type);state.viewRequest++;activateNavigation(button);setSidebarOpen(false);state.type=button.dataset.type;$("#title").textContent=labels[state.type];$("#crumb").textContent=labels[state.type].toUpperCase();$("#page-description").textContent=pageDescriptions[state.type]||"Administrez le Royaume depuis un espace unique.";setSaveState("saved","Synchronisé");await load();KingdomTutorials.resumeForPage(state.type);});
+async function selectNavigationPage(button){
+  const nextType=button?.dataset.type;if(!nextType)return;
+  KingdomTutorials.pauseForNavigation(nextType);state.viewRequest++;activateNavigation(button);setSidebarOpen(false);state.type=nextType;
+  $("#title").textContent=labels[state.type];$("#crumb").textContent=labels[state.type].toUpperCase();$("#page-description").textContent=pageDescriptions[state.type]||"Administrez le Royaume depuis un espace unique.";setSaveState("saved","Synchronisé");
+  await load();KingdomTutorials.resumeForPage(state.type);
+}
+// La délégation résiste aux reconstructions partielles du shell et garantit
+// qu'un clic sur l'icône ou le libellé active toujours la bonne page.
+$("#nav").addEventListener("click",event=>{const button=event.target.closest("[data-type]");if(button){event.preventDefault();selectNavigationPage(button)}});
 initializeAccount();
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&state.type==="players")loadPlayers(true)});
 document.addEventListener("click",event=>{const button=event.target.closest?.('#calendar-config-save');if(button)saveCalendarConfiguration(button)});

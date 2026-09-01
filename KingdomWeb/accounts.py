@@ -88,6 +88,10 @@ class RegistreComptes:
                 owner_id = int(owner["account_id"]) if owner else int(fallback[0])
                 organization = base.execute("SELECT id FROM organizations WHERE slug=?", (f"personal-{owner_id}",)).fetchone()
                 base.execute("INSERT OR IGNORE INTO worlds(slug,name,organization_id,plan_key,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)", (server["slug"], server["name"], organization["id"], "standard", "active" if server["active"] else "archived", now, now))
+                base.execute(
+                    "UPDATE worlds SET name=?,status=?,updated_at=? WHERE slug=?",
+                    (server["name"], "active" if server["active"] else "archived", now, server["slug"]),
+                )
                 world = base.execute("SELECT id FROM worlds WHERE slug=?", (server["slug"],)).fetchone()
                 base.execute("INSERT OR IGNORE INTO world_discord_servers(world_id,managed_server_id,created_at) VALUES(?,?,?)", (world["id"], server["id"], now))
             platform_username = os.getenv("KINGDOM_PLATFORM_ADMIN_USERNAME", "").strip().lower()
@@ -330,6 +334,7 @@ class RegistreComptes:
             raise ValueError("L'identifiant Discord du serveur doit etre numerique.")
         slug_base = _slug_serveur(nom)
         slug = slug_base
+        slug_reactive: str | None = None
         with self.connexion() as base:
             if guild_id:
                 existant = base.execute(
@@ -338,28 +343,40 @@ class RegistreComptes:
                     (proprietaire_id, guild_id),
                 ).fetchone()
                 if existant:
-                    if existant["role"]:
+                    if not bool(existant["active"]) and existant["role"] in {"proprietaire", "gestionnaire"}:
+                        # La suppression conserve KingdomData. Le même propriétaire
+                        # peut donc réactiver cette supervision sans heurter l'index
+                        # unique de l'identifiant Discord.
+                        base.execute(
+                            "UPDATE managed_servers SET active=1,bot_installed=0,name=? WHERE slug=?",
+                            (nom, existant["slug"]),
+                        )
+                        slug_reactive = str(existant["slug"])
+                    elif existant["role"]:
                         raise ValueError(
                             f"Ce serveur Discord est déjà présent dans votre profil sous le nom « {existant['name']} »."
                         )
-                    raise ValueError(
-                        "Ce serveur Discord est déjà supervisé par KingdomEngine. "
-                        "Demandez à l’administrateur Payen Studio de vous attribuer son accès."
-                    )
-            suffixe = 2
-            while base.execute("SELECT 1 FROM managed_servers WHERE slug=?", (slug,)).fetchone():
-                slug, suffixe = f"{slug_base[:42]}-{suffixe}", suffixe + 1
-            chemin = self.chemin.parent / "servers" / f"{slug}.db"
-            curseur = base.execute(
-                "INSERT INTO managed_servers(slug,name,guild_id,database_path,bot_installed,active,created_at) VALUES(?,?,?,?,0,1,?)",
-                (slug, nom, guild_id, str(chemin), _maintenant()),
-            )
-            base.execute(
-                "INSERT INTO server_access(account_id,server_id,role,permissions_json,created_at) VALUES(?,?,?,?,?)",
-                (proprietaire_id, curseur.lastrowid, "proprietaire", "[]", _maintenant()),
-            )
+                    else:
+                        raise ValueError(
+                            "Ce serveur Discord est déjà supervisé par KingdomEngine. "
+                            "Demandez à l’administrateur Payen Studio de vous attribuer son accès."
+                        )
+            if not slug_reactive:
+                suffixe = 2
+                while base.execute("SELECT 1 FROM managed_servers WHERE slug=?", (slug,)).fetchone():
+                    slug, suffixe = f"{slug_base[:42]}-{suffixe}", suffixe + 1
+                chemin = self.chemin.parent / "servers" / f"{slug}.db"
+                curseur = base.execute(
+                    "INSERT INTO managed_servers(slug,name,guild_id,database_path,bot_installed,active,created_at) VALUES(?,?,?,?,0,1,?)",
+                    (slug, nom, guild_id, str(chemin), _maintenant()),
+                )
+                base.execute(
+                    "INSERT INTO server_access(account_id,server_id,role,permissions_json,created_at) VALUES(?,?,?,?,?)",
+                    (proprietaire_id, curseur.lastrowid, "proprietaire", "[]", _maintenant()),
+                )
         self._migrer_fondations_produit()
-        return self.serveur(slug)
+        resultat = self.serveur(slug_reactive or slug)
+        return {**resultat, "reactivated": bool(slug_reactive)}
 
     def serveur(self, slug: str) -> dict[str, Any]:
         with self.connexion() as base:

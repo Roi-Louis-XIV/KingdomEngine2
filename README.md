@@ -18,11 +18,13 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 
 - studio web responsive avec comptes, profils, collaborateurs, permissions et séparation des serveurs Discord ;
 - interface KingdomWeb Generation 3 : shell SaaS, surfaces de création hiérarchisées et thèmes **Clair**, **Sombre** ou **Système**, appliqués sans rechargement et mémorisés dans le navigateur ;
+- navigation principale robuste par délégation de clic, avec bascule clair/sombre immédiate dans l’en-tête et directement dans le menu mobile ;
+- palette KingdomWeb dominée par le vert Payen/Kingdom, avec quelques accents violets réservés à la voix et aux éléments pédagogiques ;
 - mode smartphone orienté supervision : monde en direct, joueurs, événements, alertes, profil et interventions légères ; la création structurelle reste volontairement sur ordinateur ;
 - création de compte avec connexion immédiate, écran d'attente avant attribution d'un royaume, suivi global des inscriptions et réinitialisation administrative des mots de passe ;
 - tableau de bord enrichi : services, joueurs, bâtiments, objets, événements, activités, stocks, alertes et classements ;
 - bâtiments entièrement no-code avec modes Simple et Avancé, pages Discord, boutons, menus, navigation et organigramme ;
-- **Atelier-école no-code** isolé dans l’Académie : démonstration non publiable et non modifiable, utilisant les vrais éditeurs sans toucher au serveur Discord ;
+- **Atelier-école no-code** isolé dans l’Académie : démonstration non publiable et non modifiable, utilisant les vrais éditeurs sans toucher au serveur Discord. Sa visite par chapitres couvre deux métiers, zones et niveaux, outils et durabilité, cooldowns, résultats pondérés multi-effets, recettes, commerce, livraison, réparation, amélioration, inventaires, pages Discord, boutons conditionnels, relations et audio ;
 - boutons Discord conditionnels héritant des règles de leur action : rejoindre/quitter un métier et les autres choix incompatibles sont automatiquement masqués ;
 - métiers, zones, niveaux, outils, durabilité, expérience, cooldowns et activités temporisées ;
 - objets, inventaires joueur et bâtiment, recettes, commerce, productions, livraisons et objectifs collectifs ;
@@ -64,6 +66,10 @@ Le menu **Aide & tutoriels** affiche deux progressions complémentaires : les é
 Pendant un parcours, KingdomWeb met en lumière le contrôle réel à utiliser et place une bulle à proximité. Lorsqu’un clic précis est attendu, seule la zone indiquée reste active et l’étape suivante apparaît automatiquement après l’ouverture de la page, de l’onglet ou de la fenêtre. **Passer cette étape** continue le parcours ; **Quitter** le ferme en conservant l’avancement. Un parcours terminé peut être rejoué depuis l’Académie.
 
 Le parcours **Métier et zones** reste entièrement dans le mode Simple : création du métier, choix de l’outil, création de la zone, durée, niveau, énergie et résultats. Le voile pédagogique n’applique aucun flou et laisse la fiche en cours parfaitement lisible.
+
+L’**Atelier-école no-code** se trouve uniquement dans cette Académie. Une frise explique d’abord le parcours joueur, puis des chapitres ouvrent directement les vrais onglets Fonctionnement, Discord, Relations, Audio et Avancé en lecture seule. L’exemple n’est rattaché à aucun monde, n’est jamais semé dans `KingdomData` et les API refusent explicitement son enregistrement ou sa publication : il ne peut donc créer ni salon ni interface sur Discord.
+
+Lorsqu’un serveur Discord précédemment supprimé de KingdomEngine est ajouté de nouveau par son ancien propriétaire, sa supervision est réactivée automatiquement. Sa base KingdomData conservée est réutilisée et le serveur peut être réinstallé sans contourner l’unicité de son identifiant Discord. Un autre compte ne peut pas récupérer cette guilde sans attribution explicite d’un accès.
 
 ## Démarrage
 

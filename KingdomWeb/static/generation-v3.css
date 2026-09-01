@@ -4,7 +4,7 @@
   --background:#f3f6fb;--background-glow:#e7eafe;--surface:#fff;--surface-elevated:#fff;
   --surface-soft:#f7f8fc;--surface-muted:#eef1f8;--border:#dfe3ed;--border-strong:#cbd2e1;
   --text-primary:#151927;--text-secondary:#61697a;--text-muted:#8c94a4;
-  --accent:#6656e8;--accent-hover:#5543da;--accent-soft:#eeebff;--accent-contrast:#fff;
+  --accent:#24945f;--accent-hover:#187247;--accent-soft:#e8f6ee;--accent-contrast:#fff;--violet:#7667d8;--violet-soft:#efedff;
   --cyan:#1aa7b8;--success:#16875b;--success-soft:#e4f7ef;--warning:#a76710;--warning-soft:#fff3d8;
   --danger:#c64154;--danger-soft:#ffeaed;--panel:var(--surface);--line:var(--border);--text:var(--text-primary);
   --text-soft:var(--text-secondary);--text-muted:var(--text-muted);--app-bg:var(--background);
@@ -17,13 +17,17 @@
   --background:#090b12;--background-glow:#17162c;--surface:#11141d;--surface-elevated:#171a25;
   --surface-soft:#141721;--surface-muted:#1b1f2c;--border:#272c3b;--border-strong:#363d50;
   --text-primary:#f3f4f8;--text-secondary:#a6adbd;--text-muted:#737b8e;
-  --accent:#8b7cff;--accent-hover:#a095ff;--accent-soft:#25213f;--accent-contrast:#fff;
+  --accent:#48c985;--accent-hover:#72dda3;--accent-soft:#193a29;--accent-contrast:#07110b;--violet:#9a8cff;--violet-soft:#292442;
   --cyan:#46c6d4;--success:#45d69b;--success-soft:#123126;--warning:#f3b951;--warning-soft:#362a15;
   --danger:#ff7184;--danger-soft:#371a21;--shadow-card:0 1px 1px #0008,0 18px 48px #0003;--shadow-float:0 28px 90px #0009;
 }
 html{background:var(--background)}body{color:var(--text-primary);background:radial-gradient(circle at 75% -20%,var(--background-glow),transparent 38%),var(--background)}
+[hidden]{display:none!important}
 body:before{position:fixed;z-index:-1;inset:0;content:"";opacity:.28;pointer-events:none;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:54px 54px;mask-image:linear-gradient(to bottom,#000,transparent 45%)}
 button,.card,.royal-panel,.admin-section,.workspace{transition:background .18s,border-color .18s,box-shadow .18s,transform .18s}
+.app-sidebar,#nav,#nav button{pointer-events:auto}.app-sidebar{z-index:60}.sidebar-scrim{z-index:55}
+.sidebar-theme{width:100%;margin-top:8px;border:1px solid var(--border);background:var(--surface-soft);color:var(--text-secondary)}
+.module-ribbon [data-module="voice"] b,.module-ribbon [data-module="voice"] strong,.academy-reference-icon{color:var(--violet)}
 
 /* Shell produit */
 body{grid-template-columns:272px minmax(0,1fr)}body>aside.app-sidebar{padding:20px 14px;background:color-mix(in srgb,var(--surface-elevated) 94%,#090b12);border-right:1px solid var(--border);box-shadow:18px 0 60px #0000000c}
@@ -40,7 +44,7 @@ main.app-main{max-width:none;padding:0 clamp(22px,3vw,52px) 60px}.app-header{pos
 .header-copy h1,main>header h1{font-size:clamp(25px,2.4vw,38px);font-weight:750;letter-spacing:-.045em}.header-copy>span{max-width:680px;color:var(--text-secondary)}
 .header-copy p{color:var(--text-muted)}.header-copy p strong{color:var(--accent)}.header-actions{position:relative;gap:8px}.server-switcher,.account-button,.theme-toggle,.save-state{min-height:44px;border:1px solid var(--border);border-radius:12px;background:var(--surface-elevated);box-shadow:0 1px 1px #0000000a}
 .server-switcher select{color:var(--text-primary)}.account-button:hover,.theme-toggle:hover{border-color:var(--accent);background:var(--accent-soft)}
-.account-button #account-avatar,.account-popover-head>span{background:linear-gradient(135deg,var(--accent),var(--cyan));color:#fff}
+.account-button #account-avatar,.account-popover-head>span{background:linear-gradient(135deg,var(--accent),var(--violet));color:#fff}
 .primary{color:var(--accent-contrast)!important;background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 62%,var(--cyan)))!important;border-color:transparent!important;box-shadow:0 9px 24px color-mix(in srgb,var(--accent) 22%,transparent)}
 .primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 13px 30px color-mix(in srgb,var(--accent) 30%,transparent)}
 

@@ -18,13 +18,38 @@ DEFINITIONS = [
 # comme une démonstration isolée et non enregistrable depuis l'Académie.
 REFERENCE_BUILDING = {
     "name": "Atelier-école no-code", "emoji": "🎓", "color": "22c55e",
-    "description": "Bâtiment de référence : métier, conditions, activité, hasard, XP, inventaires et navigation.",
+    "description": "Laboratoire pédagogique isolé : découvrez les principales primitives no-code sans toucher à votre royaume.",
     "source": "KingdomEngine 2", "is_reference": True, "action_mode": "generated",
+    "academy_showcase": {
+        "promise": "Comprendre comment une idée devient une expérience Discord, sans écrire de code.",
+        "chapters": [
+            {"key": "overview", "icon": "🧭", "name": "Vue d'ensemble", "tab": "overview", "summary": "Identité, modules actifs et parcours du joueur."},
+            {"key": "gameplay", "icon": "⚙️", "name": "Fonctionnement", "tab": "mechanics", "summary": "Deux métiers, zones, outils, niveaux, cooldowns et résultats multi-effets."},
+            {"key": "discord", "icon": "🧩", "name": "Interface Discord", "tab": "visual", "summary": "Pages, navigation, inventaires et boutons visibles selon la situation du joueur."},
+            {"key": "relations", "icon": "↔️", "name": "Relations", "tab": "relations", "summary": "Objets produits, consommés, livrés et dépendances entre bâtiments."},
+            {"key": "audio", "icon": "🔊", "name": "Audio", "tab": "sound", "summary": "Ambiance globale, SFX d'action et changement d'atmosphère par événement."},
+            {"key": "advanced", "icon": "🧰", "name": "Boîte à outils", "tab": "advanced", "summary": "Réparation, amélioration, stock collectif et configuration détaillée."},
+        ],
+        "player_journey": [
+            "Choisir un métier : Artisan ou Explorateur",
+            "Débloquer une zone selon son niveau et son outil",
+            "Lancer une activité temporisée avec énergie, usure et cooldown",
+            "Recevoir un résultat pondéré combinant objet, XP, message et événement",
+            "Transformer, vendre, livrer ou stocker la production",
+        ],
+        "guarantees": ["Lecture seule", "Hors de tous les royaumes", "Jamais publié sur Discord"],
+    },
     "modules": {
         "professions": [{
             "key": "academy_apprentice", "name": "Artisan stagiaire", "emoji": "🎓",
             "description": "Métier pédagogique montrant niveaux, expérience et accès exclusif.",
             "experience_per_level": 100, "max_level": 10, "grant_required_item": False,
+        }, {
+            "key": "academy_explorer", "name": "Explorateur stagiaire", "emoji": "🧭",
+            "description": "Second métier démontrant que plusieurs parcours indépendants cohabitent dans un bâtiment.",
+            "required_item": "training_compass", "tool_level": 1,
+            "initial_durability": 40, "max_durability": 40, "grant_required_item": True,
+            "experience_per_level": 80, "max_level": 5,
         }],
         "activities": [{
             "key": "training_expedition", "name": "Expédition d'entraînement", "emoji": "🧭",
@@ -44,6 +69,26 @@ REFERENCE_BUILDING = {
                     {"type": "message", "text": "Trouvaille rare : stock, XP et événement appliqués ensemble."},
                 ]},
             ],
+        }, {
+            "key": "advanced_exploration", "name": "Exploration avancée", "emoji": "🔭",
+            "description": "Zone verrouillée avant le niveau 2, avec outil, durabilité, limite par catégorie et production en stock.",
+            "profession": "academy_explorer", "tool": "training_compass", "required_level": 2,
+            "duration_seconds": 30, "energy_cost": 5, "cooldown_seconds": 45,
+            "durability_cost": 3, "minimum_durability": 3, "tool_max_durability": 40,
+            "activity_limit": {"scope": "category", "max_active": 1, "category": "academy_expedition"},
+            "destination": "building_stock", "outcomes": [
+                {"name": "Relevé cartographique", "weight": 7, "effects": [
+                    {"type": "stock_reward", "resource": "academy_fragment", "amount": 2},
+                    {"type": "profession_experience", "profession": "academy_explorer", "amount": 15},
+                    {"type": "message", "text": "La carte de l'atelier s'enrichit."},
+                ]},
+                {"name": "Découverte exceptionnelle", "weight": 1, "effects": [
+                    {"type": "reward", "resource": "academy_relic", "amount": 1},
+                    {"type": "profession_experience", "profession": "academy_explorer", "amount": 40},
+                    {"type": "emit", "event": "academy.discovery"},
+                    {"type": "message", "text": "Une découverte rare déclenche plusieurs effets simultanés."},
+                ]},
+            ],
         }],
         "products": [{"item_key": "raw_wood", "price": 5, "initial_stock": 20, "max_stock": 100}],
         "recipes": [{
@@ -56,11 +101,20 @@ REFERENCE_BUILDING = {
             "minimum_quantity": 1, "maximum_quantity": 10, "target_building_key": "village_square",
             "source": "player_inventory", "destination": "building_stock", "unit_price": 2,
         }],
+        "repairs": {"training_compass_price_per_point": 1, "durability": {"training_compass": 40}},
+        "upgrades": [{
+            "tool_key": "training_compass", "from_level": 1, "to_level": 2,
+            "name": "Boussole pédagogique renforcée", "price": 25,
+            "max_durability": 70, "loot_bonus": 5, "ingredients": {"academy_fragment": 3},
+        }],
         "audio": {
             "default_group_key": "global_ambience", "groups": [{
                 "key": "global_ambience", "name": "Ambiance de l'atelier", "volume": 0.7,
                 "tracks": {"music": [], "ambience": ["forest_chop_sound"], "sfx": [], "voice": []},
-            }], "event_routes": [],
+            }, {
+                "key": "academy_discovery", "name": "Découverte mystérieuse", "volume": 0.8,
+                "tracks": {"music": [], "ambience": [], "sfx": ["forest_chop_sound"], "voice": []},
+            }], "event_routes": [{"event": "academy.discovery", "group_key": "academy_discovery"}],
         },
     },
     "relations": {"primary_profession_key": "academy_apprentice", "ambience_audio_key": "forest_chop_sound"},
@@ -79,6 +133,12 @@ REFERENCE_BUILDING = {
         {"key": "leave_apprentice", "name": "Démissionner", "emoji": "🚪",
          "conditions": {"type": "profession_active", "profession": "academy_apprentice"},
          "effects": [{"type": "profession_leave", "profession": "academy_apprentice"}, {"type": "message", "text": "Tu as quitté le métier de démonstration."}]},
+        {"key": "join_explorer", "name": "Devenir Explorateur stagiaire", "emoji": "🧭",
+         "conditions": {"type": "no_active_profession"},
+         "effects": [{"type": "profession_join", "profession": "academy_explorer"}, {"type": "tool_grant", "tool": "training_compass", "max_durability": 40}, {"type": "message", "text": "La boussole d'entraînement vous est confiée."}]},
+        {"key": "repair_compass", "name": "Réparer la boussole", "emoji": "🛠️",
+         "conditions": {"type": "profession_active", "profession": "academy_explorer"},
+         "effects": [{"type": "repair", "tool": "training_compass", "max_durability": 40, "price_per_point": 1}]},
     ],
     "interface": {
         "name": "Interface · Atelier-école no-code", "target_building_key": "nocode_academy",
@@ -94,6 +154,16 @@ REFERENCE_BUILDING = {
                 {"id": "academy_inventory", "type": "player_inventory", "props": {"title": "Inventaire du joueur"}},
                 {"id": "academy_stock", "type": "building_inventory", "props": {"title": "Stock du bâtiment"}},
                 {"id": "academy_refresh", "type": "button", "slot": 5, "props": {"label": "Actualiser", "emoji": "🔄", "style": "secondary"}, "interaction": {"type": "refresh"}}
+            ]},
+            {"key": "professions", "name": "Choisir un parcours", "components": [
+                {"id": "academy_jobs_title", "type": "card", "props": {"title": "Deux métiers, deux progressions", "text": "Les conditions masquent automatiquement les choix incompatibles avec le métier actif."}},
+                {"id": "academy_jobs_menu", "type": "select", "props": {"placeholder": "Choisir un métier", "options": [{"label": "Artisan stagiaire", "value": "join_apprentice", "emoji": "🎓"}, {"label": "Explorateur stagiaire", "value": "join_explorer", "emoji": "🧭"}]}, "interaction": {"type": "action_select", "building": "nocode_academy"}},
+                {"id": "academy_jobs_back", "type": "button", "props": {"label": "Retour", "emoji": "↩️", "style": "secondary"}, "interaction": {"type": "navigate", "page": "home"}}
+            ]},
+            {"key": "workshop", "name": "Atelier et stock", "components": [
+                {"id": "academy_workshop_title", "type": "card", "props": {"title": "Économie et équipement", "text": "Production joueur ou stock, recette, commerce, livraison, réparation et amélioration utilisent les mêmes primitives génériques."}},
+                {"id": "academy_workshop_stock", "type": "building_inventory", "props": {"title": "Stock pédagogique"}},
+                {"id": "academy_workshop_back", "type": "button", "props": {"label": "Retour", "emoji": "↩️", "style": "secondary"}, "interaction": {"type": "navigate", "page": "home"}}
             ]}
         ]
     }

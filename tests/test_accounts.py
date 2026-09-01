@@ -55,6 +55,27 @@ def test_discord_server_cannot_be_duplicated_or_claimed_by_another_account(tmp_p
         raise AssertionError("A Discord server cannot be claimed without an access grant")
 
 
+def test_archived_discord_server_can_be_reactivated_by_its_previous_owner(tmp_path, monkeypatch):
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "restore-owner")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "restore-password")
+    registry = RegistreComptes(tmp_path / "restore-server.db")
+    registry.initialiser()
+    owner = registry.authentifier("restore-owner", "restore-password")
+    created = registry.creer_serveur("Premier nom", "123456789012345679", owner["id"])
+    registry.archiver_serveur(created["slug"])
+
+    restored = registry.creer_serveur("Serveur restauré", "123456789012345679", owner["id"])
+
+    assert restored["slug"] == created["slug"]
+    assert restored["database_path"] == created["database_path"]
+    assert restored["name"] == "Serveur restauré"
+    assert restored["active"] is True
+    assert restored["bot_installed"] is False
+    assert restored["reactivated"] is True
+    matching = [item for item in registry.lister_serveurs(owner["id"]) if item["guild_id"] == "123456789012345679"]
+    assert len(matching) == 1
+
+
 def test_login_requires_fresh_v2_session_and_remember_is_opt_in(tmp_path, monkeypatch):
     primary = ContentStore(tmp_path / "secure-session.db")
     registry = RegistreComptes(primary.path)
