@@ -10,7 +10,7 @@ const state = {
   catalogs: {item: [], itemEnriched: [], event: [], building: [], interface: [], audio: [], audio_group: [], audio_story: [], voice_presence: [], voice_profile: [], bot: [], location: [], npc: [], profession: [], environment: []},
   viewRequest: 0,
   token: "", profile: null, server: localStorage.getItem("kingdomServer")||"", editorDirty:false,
-  referencePreview:false, referenceReturnType:null
+  referencePreview:false, referenceReturnType:null, botStatuses:[]
 };
 
 const $ = selector => document.querySelector(selector);
@@ -173,6 +173,7 @@ async function load() {
   if (state.type === "profession") { await loadProfessionCatalog(); return; }
   if (state.type === "audio") { await loadAudioBank(); return; }
   if (state.type === "voice_presence") { await loadVoicePresenceStudio(); return; }
+  if (state.type === "bot") { await loadDiscordConnections(); return; }
   if (state.type === "location") { await loadLocationWorld(); return; }
   restoreContentToolbar();
   const response = await fetch(`/api/content?entity_type=${state.type}`, {headers});
@@ -466,6 +467,33 @@ function renderCards() {
         ${["building","item","event"].includes(state.type)?` · <button type="button" class="danger-link" data-delete="${item.entity_key}">Supprimer</button>`:""}
       </span></div>
     </article>`).join("") || `<p class="empty">Aucune définition. Crée la première.</p>`;
+}
+
+async function loadDiscordConnections(){
+  restoreContentToolbar();
+  const [contentResponse,statusResponse]=await Promise.all([
+    fetch('/api/content?entity_type=bot',{headers}),
+    fetch('/api/bots/status',{headers,cache:'no-store'}),
+  ]);
+  if(!contentResponse.ok){alert('Les connexions Discord sont indisponibles.');return}
+  state.items=await contentResponse.json();
+  state.botStatuses=statusResponse.ok?await statusResponse.json():[];
+  renderDiscordConnections();
+}
+
+function discordConnectionCard(entity){
+  const payload=entity.payload||{},voice=payload.bot_type==='voice',status=state.botStatuses.find(item=>item.key===entity.entity_key)||{};
+  const applicationReady=!!status.application_id_configured,tokenReady=!!status.token_configured,enabled=!!payload.enabled;
+  const readiness=applicationReady&&tokenReady?(enabled?'Prêt':'Désactivé'):!applicationReady?'Application ID manquant':'Token manquant';
+  return `<article class="discord-connection-card ${voice?'audio-connection':'core-connection'}" data-open="${escapeHtml(entity.entity_key)}" data-access-tier="included" tabindex="0"><div class="discord-connection-icon">${escapeHtml(payload.emoji||(voice?'🎙️':'🛡️'))}</div><div class="discord-connection-copy"><small>${voice?'BOT AUDIO DISCORD':'CONNEXION PRINCIPALE'}</small><h3>${escapeHtml(payload.name||entity.entity_key)}</h3><p>${escapeHtml(payload.description||(voice?'Diffuse les ambiances, voix et scènes de KingdomVoice.':'Pilote les interfaces textuelles du monde.'))}</p><div class="discord-connection-meta"><span class="${applicationReady?'ready':'missing'}">${applicationReady?'✓ Application configurée':'⚠ Application ID à renseigner'}</span><span class="${tokenReady?'ready':'missing'}">${tokenReady?'✓ Token configuré':'⚠ Token à renseigner'}</span>${voice?`<span>${payload.building_key?`🏰 ${escapeHtml((state.catalogs.building.find(item=>item.entity_key===payload.building_key)?.payload.name)||payload.building_key)}`:'◇ Aucun bâtiment attribué'}</span>`:''}</div></div><div class="discord-connection-actions"><span class="connection-readiness ${applicationReady&&tokenReady?'ready':'missing'}">${readiness}</span><button type="button" class="primary" data-invite="${escapeHtml(entity.entity_key)}" ${applicationReady?'':'disabled'}>${voice?'Ajouter à Discord':'Installer'}</button><button type="button" data-edit="${escapeHtml(entity.entity_key)}">Configurer</button>${entity.status==='draft'?`<button type="button" data-publish="${escapeHtml(entity.entity_key)}" data-version="${entity.version}">Publier</button>`:''}</div></article>`;
+}
+
+function renderDiscordConnections(){
+  const query=$('#search').value.toLowerCase(),items=state.items.filter(item=>`${item.entity_key} ${item.payload.name||''}`.toLowerCase().includes(query));
+  const core=items.filter(item=>item.payload.bot_type!=='voice'),audio=items.filter(item=>item.payload.bot_type==='voice'),audioTotal=state.items.filter(item=>item.payload.bot_type==='voice').length;
+  $('#count').textContent=state.items.length;$('#published').textContent=state.items.filter(item=>item.status==='published').length;$('#drafts').textContent=state.items.filter(item=>item.status==='draft').length;
+  $('#cards').classList.remove('building-card-grid');
+  $('#cards').innerHTML=`<section class="discord-connections-intro"><div><small>CONNEXION DISCORD</small><h2>Toutes les applications du monde</h2><p>KingdomCore gère les interfaces textuelles. Chaque bot audio ajoute une capacité vocale indépendante pour KingdomVoice.</p></div><span>${audioTotal} capacité(s) audio</span></section>${core.length?`<section class="discord-connection-group"><header><div><small>SYSTÈME PRINCIPAL</small><h2>KingdomCore</h2></div></header><div>${core.map(discordConnectionCard).join('')}</div></section>`:''}<section class="discord-connection-group audio"><header><div><small>KINGDOMVOICE</small><h2>Bots audio disponibles</h2><p>Tous les bots audio sont affichés, même désactivés ou pas encore configurés.</p></div><span class="future-entitlement">Accès inclus actuellement</span></header><div>${audio.map(discordConnectionCard).join('')||'<div class="product-empty"><span>🎙️</span><h3>Aucun bot audio ne correspond</h3><p>Modifiez la recherche ou créez une connexion vocale.</p></div>'}</div></section>`;
 }
 
 async function loadProfessionCatalog(){const response=await fetch('/api/world/professions',{headers});if(!response.ok){alert('Catalogue des métiers indisponible.');return}const professions=await response.json();state.items=professions;$('#count').textContent=professions.length;$('#published').textContent=professions.filter(item=>item.buildings.length).length;$('#drafts').textContent=professions.filter(item=>!item.buildings.length).length;$('#cards').innerHTML=professions.map(item=>`<article class="card profession-world-card"><div class="card-head"><span class="emoji">${escapeHtml(item.emoji||'⚒️')}</span><span class="badge published">${item.buildings.length?'UTILISÉ':'AUTONOME'}</span></div><h3>${escapeHtml(item.name||item.key)}</h3><p>${item.activities.length} activité(s) · ${item.buildings.length} bâtiment(s)</p><div class="item-tags">${item.required_item?`<span>${escapeHtml(itemDisplay(item.required_item).name)}</span>`:''}${item.produced_items.slice(0,3).map(key=>`<span>${escapeHtml(itemDisplay(key).name)}</span>`).join('')}</div><button type="button" class="primary" data-open-profession-world="${escapeHtml(item.key)}">Ouvrir la fiche</button></article>`).join('')||'<p class="empty">Aucun métier. Créez-en un ou ajoutez-en depuis un bâtiment.</p>';$$('[data-open-profession-world]').forEach(button=>button.onclick=()=>openProfessionProjection(professions.find(item=>item.key===button.dataset.openProfessionWorld)))}
@@ -1412,7 +1440,7 @@ function bindItemSelectors(root=document){
     };
   });
 }
-function restoreContentToolbar(){const toolbar=$("#content-workspace .toolbar");if(!$("#search"))toolbar.innerHTML='<input id="search" placeholder="Rechercher…"><span>Les changements publiés sont chargés par tous les modules.</span>';$("#search").oninput=renderCards;if(state.type!=="location")$("#cards").className="cards";}
+function restoreContentToolbar(){const toolbar=$("#content-workspace .toolbar");if(!$("#search"))toolbar.innerHTML='<input id="search" placeholder="Rechercher…"><span>Les changements publiés sont chargés par tous les modules.</span>';$("#search").oninput=()=>state.type==="bot"?renderDiscordConnections():renderCards();if(state.type!=="location")$("#cards").className="cards";}
 
 function itemDisplay(id){
   if(["money","energy"].includes(id))return {id,name:id==="money"?"Monnaie":"Énergie",emoji:id==="money"?"💰":"⚡",category:"system"};
@@ -1787,6 +1815,9 @@ function renderSettings(settings,provision={status:"never",installed:false}){
   const onboarding=settings.onboarding,roles=settings.roles,discord=settings.discord,theme=settings.theme;
   $("#admin-view").innerHTML=`<div class="settings-layout"><section class="admin-section settings-hero"><div><small>CONFIGURATION CENTRALE</small><h2>Le Royaume, depuis un seul endroit</h2><p>Les valeurs publiées sont utilisées par KingdomCore et par le provisionnement Discord.</p></div><div class="settings-hero-actions"><span id="discord-provision-status">${provision.status==='done'?`✓ Discord synchronisé · ${escapeHtml(provision.report||'')}`:provision.status==='failed'?`Échec précédent : ${escapeHtml(provision.error||'')}`:provision.status==='pending'||provision.status==='processing'?'Installation Discord en attente…':'Discord non installé depuis KingdomWeb.'}</span><div><button type="button" id="install-discord-server" class="secondary">${provision.installed?'Mettre à jour Discord':'Installer le serveur Discord'}</button><button type="button" class="primary" id="save-settings">Enregistrer et publier</button></div></div></section><section class="settings-shortcuts"><button data-go="building">🏰 Interfaces des bâtiments</button><button data-go="item">🎒 Objets</button><button data-go="event">⚡ Événements</button><button data-go="bot">🤖 Bots</button><button data-go="audio">🔊 Voix & audio</button></section><nav class="section-tabs" aria-label="Sections des paramètres"><button data-settings-tab="onboarding" class="${state.settingsTab==="onboarding"?"active":""}">Serment</button><button data-settings-tab="roles" class="${state.settingsTab==="roles"?"active":""}">Rôles & couleurs</button><button data-settings-tab="discord" class="${state.settingsTab==="discord"?"active":""}">Organisation Discord</button><button data-settings-tab="access" class="${state.settingsTab==="access"?"active":""}">Entrée des bâtiments</button></nav><div class="settings-grid"><section class="admin-section settings-card" data-settings-panel="onboarding"><h3>🛠️ Serment de la Sainte Pelle</h3>${settingCheck("Activer le serment à l'arrivée","onboarding.enabled",onboarding.enabled)}${settingField("Salon du serment","onboarding.channel_name",onboarding.channel_name)}${settingField("Titre","onboarding.title",onboarding.title)}${settingArea("Règles du serveur","onboarding.rules_text",onboarding.rules_text)}${settingField("Libellé du bouton","onboarding.button_label",onboarding.button_label)}${settingField("Emoji du bouton","onboarding.button_emoji",onboarding.button_emoji)}${settingField("Confirmation","onboarding.confirmation",onboarding.confirmation)}</section><section class="admin-section settings-card" data-settings-panel="roles"><h3>👥 Rôles Discord</h3>${settingField("Maître du Royaume","roles.game_master",roles.game_master)}${settingField("Joueur après serment","roles.player",roles.player)}${settingField("Bots du Royaume","roles.bot",roles.bot)}<p class="field-note">Le rôle joueur n'est accordé qu'après le serment.</p><h3>🎨 Couleurs</h3>${settingField("Couleur principale","theme.primary_color",theme.primary_color)}${settingField("Accent","theme.accent_color",theme.accent_color)}</section><section class="admin-section settings-card" data-settings-panel="discord"><h3>🏰 Organisation Discord</h3>${settingField("Catégorie générale","discord.general_category",discord.general_category)}${settingField("Modèle des catégories bâtiment","discord.building_category_template",discord.building_category_template)}${settingField("Salon d'accueil","discord.welcome_channel",discord.welcome_channel)}${settingField("Salon des commandes","discord.commands_channel",discord.commands_channel)}${settingField("Salon d'administration","discord.administration_channel",discord.administration_channel)}${settingField("Salon texte d'un bâtiment","discord.building_text_channel",discord.building_text_channel)}${settingField("Salon vocal d'un bâtiment","discord.building_voice_channel_template",discord.building_voice_channel_template)}</section><section class="admin-section settings-card" data-settings-panel="access"><h3>🚪 Entrée dans les bâtiments</h3>${settingCheck("Accès textuel seulement pendant la présence vocale","discord.temporary_text_access",discord.temporary_text_access)}${settingCheck("Publier le message d'entrée","discord.entry_message_enabled",discord.entry_message_enabled)}${settingArea("Message d'entrée","discord.entry_message",discord.entry_message)}<p class="field-note">Variables disponibles : {player}, {building}, {key}. Après une modification de structure, relancez le provisionnement Discord.</p></section></div></div>`;
   const onboardingEnabled=$('[data-setting="onboarding.enabled"]');
+  $('.settings-hero>div:first-child').innerHTML='<small>INSTALLATION ET SYNCHRONISATION DISCORD</small><h2>KingdomEngine sur votre serveur</h2><p>① Invitez KingdomCore depuis votre profil. ② Installez le serveur ci-contre. ③ Publiez vos bâtiments : leurs salons sont ensuite ajoutés automatiquement. Une suppression retire aussi automatiquement les salons correspondants.</p><div class="discord-install-steps"><span>① Bot invité</span><span>② Serveur installé</span><span>③ Bâtiments synchronisés</span></div>';
+  const provisionButton=$('#install-discord-server');provisionButton.className='primary';provisionButton.textContent=provision.installed?'Synchroniser maintenant':'Installer KingdomEngine sur Discord';
+  $('#save-settings').className='secondary';$('#save-settings').textContent='Enregistrer les paramètres';
   onboardingEnabled?.closest('label')?.insertAdjacentHTML('afterend',settingField("Écus remis à chaque nouveau joueur","onboarding.starting_money",onboarding.starting_money??100,"number"));
   const settingsTabs=$('.section-tabs');
   settingsTabs.insertAdjacentHTML('beforeend',`<button data-settings-tab="channels" class="${state.settingsTab==="channels"?"active":""}">Doublons Discord</button>`);
@@ -1801,7 +1832,7 @@ async function requestServerProvision(){
   const response=await fetch('/api/admin/discord/provision',{method:'POST',headers,body:JSON.stringify({scope:'server'})}),result=await response.json();
   if(!response.ok){button.disabled=false;status.textContent=result.detail||'Installation impossible.';return}
   status.textContent='Installation en cours sur Discord…';
-  const started=Date.now(),poll=setInterval(async()=>{const check=await fetch('/api/admin/discord/provision/status',{headers,cache:'no-store'});if(!check.ok)return;const current=await check.json();if(current.status==='done'){clearInterval(poll);status.textContent=`✓ Serveur synchronisé · ${current.report||'salons et rôles à jour'}`;button.textContent='Mettre à jour Discord';button.disabled=false}else if(current.status==='failed'){clearInterval(poll);status.textContent=`Échec : ${current.error}`;button.disabled=false}else if(Date.now()-started>120000){clearInterval(poll);status.textContent='KingdomCore ne répond pas. Vérifiez qu’il est démarré.';button.disabled=false}},1500);
+  const started=Date.now(),poll=setInterval(async()=>{const check=await fetch('/api/admin/discord/provision/status',{headers,cache:'no-store'});if(!check.ok)return;const current=await check.json();if(current.status==='done'){clearInterval(poll);status.textContent=`✓ Serveur synchronisé · ${current.report||'salons et rôles à jour'}`;button.textContent='Synchroniser maintenant';button.disabled=false}else if(current.status==='failed'){clearInterval(poll);status.textContent=`Échec : ${current.error}`;button.disabled=false}else if(Date.now()-started>120000){clearInterval(poll);status.textContent='KingdomCore ne répond pas. Vérifiez qu’il est démarré.';button.disabled=false}},1500);
 }
 
 async function persistBuildingBotRelation(buildingKey, botKey) {
@@ -1903,6 +1934,9 @@ function activateNavigation(button){
 }
 
 $("#cards").addEventListener("click", async event => {
+  // Les actions secondaires vivent dans une carte elle-même cliquable : elles
+  // ne doivent jamais propager le clic jusqu'à l'ouverture de l'éditeur.
+  if(event.target.closest(".building-card-actions details"))event.stopPropagation();
   const preview=event.target.closest("[data-audio-preview]");
   if(preview){event.stopPropagation();await previewAudio(preview.dataset.audioPreview);return;}
   const invite = event.target.closest("[data-invite]");
@@ -1918,8 +1952,11 @@ $("#cards").addEventListener("click", async event => {
     if(!entity||!confirm(`Supprimer « ${entity.payload.name} » ?\n\nCette définition disparaîtra du Studio, mais son historique restera conservé.`))return;
     const response=await fetch(`/api/content/${state.type}/${remove.dataset.delete}`,{method:"DELETE",headers});
     if(!response.ok){alert((await response.json()).detail);return;}
+    const deletion=await response.json();
+    if(state.type==="building"&&deletion.discord_sync?.requested)alert("Bâtiment supprimé du Studio. KingdomCore va retirer automatiquement ses salons Discord. Suivez l'opération dans Configuration du monde.");
     await loadCatalogs(); await load(); return;
   }
+  if(event.target.closest("details,summary,.building-card-actions"))return;
   const target = event.target.closest("[data-edit],[data-open]");
   if (target) { const key=target.dataset.edit||target.dataset.open; const entity=state.items.find(item=>item.entity_key===key); if(entity)openEditor(entity); }
 });
@@ -1969,7 +2006,7 @@ $("#save").onclick = async () => {
   finally { button.disabled=false; button.textContent="Enregistrer le brouillon"; }
 };
 
-$("#new").onclick=startCreate; $("#search").oninput=renderCards;
+$("#new").onclick=startCreate; $("#search").oninput=()=>state.type==="bot"?renderDiscordConnections():renderCards();
 $("#editor-form").addEventListener("input",markEditorDirty);$("#editor-form").addEventListener("change",markEditorDirty);
 window.addEventListener("beforeunload",event=>{if(!state.editorDirty)return;event.preventDefault();event.returnValue=""});
 installProductShell();

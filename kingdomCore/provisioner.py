@@ -213,6 +213,31 @@ class DiscordProvisioner:
             db.execute("DELETE FROM building_discord_channels WHERE building_key=?", (building_key,))
         return removed
 
+    async def remove_mapped_building_channels(self, building_key: str) -> list[str]:
+        """Retire un bâtiment déjà supprimé en s'appuyant sur ses IDs gérés."""
+        with self.store.connection() as db:
+            mapping = db.execute(
+                "SELECT category_id,text_channel_id,voice_channel_id FROM building_discord_channels WHERE building_key=?",
+                (building_key,),
+            ).fetchone()
+        if not mapping:
+            return []
+        removed: list[str] = []
+        category = self.guild.get_channel(int(mapping["category_id"])) if str(mapping["category_id"]).isdigit() else None
+        managed_ids = {int(mapping[field]) for field in ("text_channel_id", "voice_channel_id") if str(mapping[field]).isdigit()}
+        category_can_be_removed = category is not None and not any(channel.id not in managed_ids for channel in category.channels)
+        for field in ("text_channel_id", "voice_channel_id"):
+            channel = self.guild.get_channel(int(mapping[field])) if str(mapping[field]).isdigit() else None
+            if channel is not None:
+                removed.append(channel.name)
+                await channel.delete(reason=f"Suppression du bâtiment KingdomEngine : {building_key}")
+        if category_can_be_removed:
+            removed.append(category.name)
+            await category.delete(reason=f"Suppression du bâtiment KingdomEngine : {building_key}")
+        with self.store.connection() as db:
+            db.execute("DELETE FROM building_discord_channels WHERE building_key=?", (building_key,))
+        return removed
+
     def _general_overwrites(self, master: discord.Role, player: discord.Role, bot_role: discord.Role, me: discord.Member) -> dict[Any, discord.PermissionOverwrite]:
         return {
             self.guild.default_role: discord.PermissionOverwrite(view_channel=False),

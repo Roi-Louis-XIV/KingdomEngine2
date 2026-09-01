@@ -696,7 +696,12 @@ def save_content(entity_type: str, key: str, body: dict[str, Any]):
 
 @app.delete("/api/content/{entity_type}/{key}", dependencies=[Depends(authorize)])
 def delete_content(entity_type: str, key: str):
-    try: return store.delete(entity_type, key, "studio")
+    try:
+        result = store.delete(entity_type, key, "studio")
+        if entity_type == "building":
+            request_id = store.request_discord_provision("building", key, "building-deletion")
+            result["discord_sync"] = {"requested": True, "request_id": request_id, "message": "Suppression Discord demandée automatiquement."}
+        return result
     except NotFoundError as exc: raise HTTPException(404, str(exc)) from exc
     except ValidationError as exc: raise HTTPException(422, str(exc)) from exc
 
@@ -1052,7 +1057,9 @@ def import_legacy_content():
 @app.get("/api/bots/status", dependencies=[Depends(authorize)])
 def bot_statuses():
     statuses = []
-    for entity in store.list("bot", published=True):
+    # La page Connexion Discord est aussi un outil de préparation : un bot en
+    # brouillon doit donc signaler ses variables manquantes avant publication.
+    for entity in store.list("bot"):
         config = entity["payload"]
         token_env = str(config.get("token_env", ""))
         statuses.append({

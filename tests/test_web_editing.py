@@ -109,6 +109,31 @@ def test_web_queues_server_install_and_building_publication(tmp_path, monkeypatc
         assert latest["building_key"] == "new_inn"
         assert latest["status"] == "pending"
 
+        deleted = client.delete("/api/content/building/new_inn", headers=headers)
+        assert deleted.status_code == 200
+        assert deleted.json()["discord_sync"]["requested"] is True
+        latest = store.discord_provision_status()
+        assert latest["scope"] == "building"
+        assert latest["building_key"] == "new_inn"
+        assert latest["requested_by"] == "building-deletion"
+
+
+def test_building_secondary_menu_does_not_open_the_editor():
+    javascript = (Path(web.__file__).parent / "static" / "app.js").read_text(encoding="utf-8")
+    assert 'event.target.closest(".building-card-actions details")' in javascript
+    assert 'event.target.closest("details,summary,.building-card-actions")' in javascript
+
+
+def test_discord_connections_show_every_audio_bot_and_future_access_marker():
+    static_root = Path(web.__file__).parent / "static"
+    javascript = (static_root / "app.js").read_text(encoding="utf-8")
+    styles = (static_root / "generation-v3.css").read_text(encoding="utf-8")
+    assert "async function loadDiscordConnections" in javascript
+    assert "Bots audio disponibles" in javascript
+    assert "Tous les bots audio sont affichés" in javascript
+    assert 'data-access-tier="included"' in javascript
+    assert ".discord-connection-card.audio-connection" in styles
+
 
 def test_editor_has_non_validating_close_controls():
     with TestClient(web.app) as client:
@@ -334,6 +359,22 @@ def test_voice_bot_invite_link_uses_its_application_id(tmp_path, monkeypatch):
     assert "client_id=123456789012345678" in response.json()["url"]
     assert "permissions=" in response.json()["url"]
     assert "applications.commands" not in response.json()["url"]
+
+
+def test_discord_status_includes_unpublished_audio_bots(tmp_path, monkeypatch):
+    store = ContentStore(tmp_path / "draft-bot-status.db")
+    store.initialize()
+    store.save("bot", "voice_draft", {
+        "name": "Voix en préparation", "bot_type": "voice",
+        "token_env": "DRAFT_VOICE_TOKEN", "application_id_env": "DRAFT_VOICE_APPLICATION_ID",
+        "voice_channel_id": "42", "enabled": False,
+    })
+    monkeypatch.setattr(web, "store", store)
+    with TestClient(web.app) as client:
+        response = client.get("/api/bots/status", headers={"Authorization": "Bearer change-me"})
+    assert response.status_code == 200
+    draft = next(item for item in response.json() if item["key"] == "voice_draft")
+    assert draft["enabled"] is False
 
 
 def test_secondary_server_receives_missing_voice_bot_templates(tmp_path):

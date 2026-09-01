@@ -76,6 +76,26 @@ def test_deleted_building_keeps_category_with_manual_channel(tmp_path):
     assert deleted == ["la-forge", "🔊 La Forge"]
 
 
+def test_deleted_definition_is_removed_from_discord_using_persisted_channel_ids(tmp_path):
+    deleted = []
+    class Channel:
+        def __init__(self, channel_id, name): self.id, self.name, self.channels = channel_id, name, []
+        async def delete(self, reason=None): deleted.append(self.name)
+    text, voice, category = Channel(11, "forge"), Channel(12, "Forge"), Channel(10, "⚒️ Forge")
+    category.channels = [text, voice]
+    channels = {10: category, 11: text, 12: voice}
+    guild = SimpleNamespace(get_channel=lambda channel_id: channels.get(channel_id))
+    store = ContentStore(tmp_path / "mapped-cleanup.db"); store.initialize()
+    with store.connection() as database:
+        database.execute("INSERT INTO building_discord_channels VALUES('forge','10','11','12',datetime('now'))")
+
+    removed = asyncio.run(DiscordProvisioner(guild, store).remove_mapped_building_channels("forge"))
+
+    assert removed == ["forge", "Forge", "⚒️ Forge"]
+    assert deleted == removed
+    assert store.building_channels("forge") == {}
+
+
 def test_discord_provision_queue_survives_and_recovers_a_core_restart(tmp_path):
     store = ContentStore(tmp_path / "discord-provision.db")
     store.initialize()

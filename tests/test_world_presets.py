@@ -27,9 +27,11 @@ def test_blank_preset_contains_only_world_settings(tmp_path):
 def test_medieval_preset_is_a_complete_editable_vertical_slice(tmp_path):
     store = _seed(tmp_path, "medieval_kingdom")
     assert {row["entity_key"] for row in store.list("building", published=True)} == {
-        "market_square", "forester_lodge", "deep_mine",
+        "market_square", "forester_lodge", "deep_mine", "royal_forge", "healers_garden",
     }
-    assert {row["entity_key"] for row in store.list("profession", published=True)} == {"forester", "miner"}
+    assert len(store.list("item", published=True)) == 20
+    assert {row["entity_key"] for row in store.list("profession", published=True)} == {"forester", "miner", "blacksmith", "herbalist"}
+    assert len(store.list("event", published=True)) == 4
     assert store.get("environment", "realm_climate")["payload"]["calendar"]["months"]
     assert store.get("bot", "realm_steward")["payload"]["bot_type"] == "text"
 
@@ -37,8 +39,11 @@ def test_medieval_preset_is_a_complete_editable_vertical_slice(tmp_path):
 def test_space_preset_uses_the_same_generic_engine_primitives(tmp_path):
     store = _seed(tmp_path, "space_station")
     assert {row["entity_key"] for row in store.list("building", published=True)} == {
-        "command_deck", "engineering_bay", "expedition_airlock",
+        "command_deck", "engineering_bay", "expedition_airlock", "hydroponics_lab", "xenoscience_lab",
     }
+    assert len(store.list("item", published=True)) == 20
+    assert len(store.list("profession", published=True)) == 4
+    assert len(store.list("event", published=True)) == 4
     action = store.get("building", "expedition_airlock")["payload"]["actions"][1]
     assert action["effects"][1]["type"] == "random_result"
     assert len(action["effects"][1]["outcomes"][1]["effects"]) == 4

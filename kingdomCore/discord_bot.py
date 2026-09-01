@@ -1063,6 +1063,14 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
                                     f"{len(report.removed_voice_bots)} bot(s) vocal(aux), "
                                     f"{len(report.removed_channels)} salon(s) et {len(report.removed_roles)} rôle(s) retirés"
                                 )
+                            elif request["scope"] == "building" and not any(
+                                item["entity_key"] == request["building_key"]
+                                for item in target_store.list("building", published=True)
+                            ):
+                                removed = await provisioner.remove_mapped_building_channels(request["building_key"])
+                                target_store.finish_discord_provision(request["id"], report=f"{len(removed)} salon(s) du bâtiment retiré(s)")
+                                logger.warning("Suppression Discord du bâtiment %s terminée : %s", request["building_key"], ", ".join(removed) or "aucun salon restant")
+                                continue
                             else:
                                 report = await provisioner.provision()
                                 summary = (

@@ -28,6 +28,8 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 - boutons Discord conditionnels héritant des règles de leur action : rejoindre/quitter un métier et les autres choix incompatibles sont automatiquement masqués ;
 - métiers, zones, niveaux, outils, durabilité, expérience, cooldowns et activités temporisées ;
 - objets, inventaires joueur et bâtiment, recettes, commerce, productions, livraisons et objectifs collectifs ;
+- modèles de départ enrichis : **Royaume médiéval** et **Station spatiale** fournissent chacun 5 bâtiments, 4 métiers, 20 objets, 4 événements, une géographie, un environnement et un bot principal entièrement modifiables ;
+- **Connexion Discord** regroupe KingdomCore et tous les bots audio KingdomVoice, y compris les connexions désactivées ou incomplètes. Elles sont toutes incluses actuellement ; l'affichage est prêt à accueillir de futurs droits d'abonnement ;
 - résultats aléatoires pondérés contenant plusieurs effets génériques ;
 - événements, modificateurs du monde, calendrier autonome, saisons, météo et cycle jour/nuit ;
 - lieux, connexions, voyages, exploration Discord et monde vivant ;
@@ -70,6 +72,8 @@ Le parcours **Métier et zones** reste entièrement dans le mode Simple : créat
 L’**Atelier-école no-code** se trouve uniquement dans cette Académie. Une frise explique d’abord le parcours joueur, puis des chapitres ouvrent directement les vrais onglets Fonctionnement, Discord, Relations, Audio et Avancé en lecture seule. L’exemple n’est rattaché à aucun monde, n’est jamais semé dans `KingdomData` et les API refusent explicitement son enregistrement ou sa publication : il ne peut donc créer ni salon ni interface sur Discord.
 
 Lorsqu’un serveur Discord précédemment supprimé de KingdomEngine est ajouté de nouveau par son ancien propriétaire, sa supervision est réactivée automatiquement. Sa base KingdomData conservée est réutilisée et le serveur peut être réinstallé sans contourner l’unicité de son identifiant Discord. Un autre compte ne peut pas récupérer cette guilde sans attribution explicite d’un accès.
+
+Dans **Configuration du monde**, le bloc Installation Discord présente le parcours complet : inviter KingdomCore, installer le serveur, puis publier les bâtiments. Une publication crée ou met à jour automatiquement les salons correspondants. Une suppression de bâtiment demande immédiatement à KingdomCore de retirer ses salons gérés ; aucune synchronisation manuelle supplémentaire n’est nécessaire.
 
 ## Démarrage
 
