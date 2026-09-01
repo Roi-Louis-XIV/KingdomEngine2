@@ -17,6 +17,7 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 ## Fonctionnalités disponibles
 
 - studio web responsive avec comptes, profils, collaborateurs, permissions et séparation des serveurs Discord ;
+- interface KingdomWeb Generation 3 : shell SaaS, surfaces de création hiérarchisées et thèmes **Clair**, **Sombre** ou **Système**, appliqués sans rechargement et mémorisés dans le navigateur ;
 - mode smartphone orienté supervision : monde en direct, joueurs, événements, alertes, profil et interventions légères ; la création structurelle reste volontairement sur ordinateur ;
 - création de compte avec connexion immédiate, écran d'attente avant attribution d'un royaume, suivi global des inscriptions et réinitialisation administrative des mots de passe ;
 - tableau de bord enrichi : services, joueurs, bâtiments, objets, événements, activités, stocks, alertes et classements ;
@@ -42,7 +43,7 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 
 KingdomEngine conserve les comptes et serveurs existants, puis ajoute par migration idempotente les notions extensibles `Organization`, `World`, `Discord Server`, `Plan`, `Entitlement`, `Quota` et `Usage`. Aucun abonnement commercial n’est codé en dur : le plan technique `standard` sert uniquement de fondation. Un monde appartient à une organisation et peut être relié à un ou plusieurs serveurs Discord.
 
-L’administration interne Payen Studio est une application séparée, disponible à `/platform-admin` uniquement pour le compte défini par `KINGDOM_PLATFORM_ADMIN_USERNAME`. Elle peut voir la santé technique globale ; KingdomWeb client ne révèle ni processus, ni PID, ni chemins de base, ni journaux système globaux, ni autres clients.
+L’administration interne Payen Studio est une application séparée, accessible depuis le menu du compte uniquement pour le rôle `platform_admin`. La route `/platform-admin` et son API restent protégées côté serveur. Elle présente la santé technique globale, la capacité Voice, le Support Mode et le commit déployé ; KingdomWeb client ne révèle ni processus, ni PID, ni chemins de base, ni journaux système globaux, ni autres clients. Sur Debian, la supervision utilise les unités `kingdom-web.service`, `kingdom-core.service` et `kingdom-voice.service` comme source de vérité, avec un repli sur les processus locaux hors systemd.
 
 Le **Support Mode** se demande depuis le profil. Le client choisit explicitement le monde, les diagnostics autorisés et une durée limitée ; il peut révoquer l’accès à tout moment. Chaque autorisation et révocation est auditée. Les tokens, secrets et conversations privées ne font jamais partie des périmètres proposés.
 

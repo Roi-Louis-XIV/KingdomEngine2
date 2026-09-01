@@ -57,18 +57,31 @@ function setSaveState(kind="saved", text="Synchronisé") {
 
 const THEME_KEY="kingdomTheme";
 function applyTheme(theme, persist=false) {
-  const selected=theme==="dark"?"dark":"light";
+  const preference=["light","dark","system"].includes(theme)?theme:"system";
+  const selected=preference==="system"?(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):preference;
   document.documentElement.dataset.theme=selected;
-  if(persist)localStorage.setItem(THEME_KEY,selected);
+  document.documentElement.dataset.themePreference=preference;
+  if(persist)localStorage.setItem(THEME_KEY,preference);
   const button=$("#theme-toggle");
   if(!button)return;
-  const dark=selected==="dark";
-  const action=dark?"Activer le mode clair":"Activer le mode sombre";
-  button.setAttribute("aria-label",action);
-  button.title=action;
-  button.setAttribute("aria-pressed",String(dark));
-  button.querySelector(".theme-icon").textContent=dark?"☀":"☾";
-  button.querySelector(".theme-label").textContent=dark?"Mode jour":"Mode nuit";
+  const labels={light:["☀","Clair"],dark:["☾","Sombre"],system:["◐","Système"]},current=labels[preference];
+  button.setAttribute("aria-label","Choisir le thème de KingdomWeb");
+  button.title="Apparence : "+current[1];
+  button.querySelector(".theme-icon").textContent=current[0];
+  button.querySelector(".theme-label").textContent=current[1];
+  $$('[data-theme-choice]').forEach(choice=>choice.setAttribute("aria-pressed",String(choice.dataset.themeChoice===preference)));
+}
+
+function installProductShell(){
+  let productStyles=document.querySelector('link[href*="generation-v3.css"]');if(!productStyles){productStyles=document.createElement("link");productStyles.rel="stylesheet";productStyles.href="/static/generation-v3.css?v=20260901.1"}document.body.append(productStyles);
+  const actions=document.querySelector(".header-actions");if(!actions||$("#account-menu"))return;
+  actions.insertAdjacentHTML("beforeend",`<div class="account-popover" id="account-menu" hidden><div class="account-popover-head"><span id="menu-account-avatar">A</span><div><b id="menu-account-name">Compte</b><small>ESPACE DE TRAVAIL</small></div></div><button type="button" data-account-destination="profile">♙ Profil et serveurs</button><div class="theme-preferences"><small>APPARENCE</small><div role="group" aria-label="Thème"><button type="button" data-theme-choice="light">☀ Clair</button><button type="button" data-theme-choice="dark">☾ Sombre</button><button type="button" data-theme-choice="system">◐ Système</button></div></div><a id="platform-admin-entry" href="/platform-admin" hidden>◇ Administration Payen Studio <span>→</span></a></div>`);
+  $("#account-button").setAttribute("aria-expanded","false");
+  $("#account-button").onclick=event=>{event.stopPropagation();const menu=$("#account-menu"),open=menu.hidden;menu.hidden=!open;$("#account-button").setAttribute("aria-expanded",String(open))};
+  $('[data-account-destination="profile"]').onclick=()=>{$("#account-menu").hidden=true;navigateTo("profile")};
+  $$('[data-theme-choice]').forEach(button=>button.onclick=()=>applyTheme(button.dataset.themeChoice,true));
+  document.addEventListener("click",event=>{if(!event.target.closest("#account-menu,#account-button")){const menu=$("#account-menu");if(menu)menu.hidden=true}});
+  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change",()=>{if((localStorage.getItem(THEME_KEY)||"system")==="system")applyTheme("system")});
 }
 
 const HELP = {
@@ -327,6 +340,9 @@ function renderAccountShell(){
   selector.disabled=unassigned;const profileNavigation=$('#nav [data-type="profile"] span:last-child');if(profileNavigation)profileNavigation.textContent=unassigned?"Ajouter mon serveur":"Mon profil & serveurs";
   $("#account-name").textContent=account.display_name||account.username;
   $("#account-avatar").textContent=(account.display_name||account.username||"A").trim().charAt(0).toUpperCase();
+  if($("#menu-account-name"))$("#menu-account-name").textContent=account.display_name||account.username;
+  if($("#menu-account-avatar"))$("#menu-account-avatar").textContent=(account.display_name||account.username||"A").trim().charAt(0).toUpperCase();
+  if($("#platform-admin-entry"))$("#platform-admin-entry").hidden=account.platform_role!=="platform_admin";
 }
 
 async function selectServer(slug,navigate=true){
@@ -1683,7 +1699,7 @@ async function loadDashboard() {
   const activeEvents=(data.events||[]).filter(event=>event.status==="published"&&event.enabled).slice(0,4).map(event=>`<article class="dashboard-event"><span>${escapeHtml(event.emoji)}</span><div><b>${escapeHtml(event.name)}</b><small>${escapeHtml(event.trigger==="manual"?"Déclenchement manuel":event.trigger)}</small></div><i>${escapeHtml(event.status)}</i></article>`).join("")||`<p class="empty-admin">Aucun événement actif pour le moment.</p>`;
   const alerts=[...data.services.filter(service=>!service.running).map(service=>({icon:"□",title:`${service.name} indisponible`,detail:"Cette capacité peut nécessiter une intervention",kind:"danger"})),...(metrics.pending_jobs?[]:[{icon:"✓",title:"Aucune activité bloquée",detail:"Les actions temporisées sont disponibles",kind:"success"}])].slice(0,5);
   $("#admin-view").innerHTML=`<div class="royal-dashboard"><section class="dashboard-welcome"><div class="dashboard-welcome-copy"><small>CENTRE DE COMMANDEMENT</small><h2>KINGDOM<span>WEB</span></h2><p>Créez, supervisez et donnez vie à votre royaume Discord depuis un seul espace.</p><div class="dashboard-hero-actions"><button class="primary" data-go="live_world">◉ Voir le monde en direct</button><button data-go="calendar">▦ Ouvrir le calendrier</button></div></div></section><section class="dashboard-health"><article class="${core?.running?'healthy':'warning'}"><span>⬡</span><div><small>KINGDOMCORE</small><b>${core?.running?'Opérationnel':'Intervention requise'}</b></div></article><article class="${voice?.running?'healthy':'warning'}"><span>◖</span><div><small>KINGDOMVOICE</small><b>${voice?.running?'Audio disponible':'Service hors ligne'}</b></div></article><article class="${serviceRate===100?'healthy':'warning'}"><span>⌁</span><div><small>SANTÉ DES SERVICES</small><b>${serviceRate}% opérationnels</b></div></article><article class="healthy"><span>▱</span><div><small>DERNIÈRE SYNCHRONISATION</small><b>${formatDate(data.generated_at)}</b></div></article></section><section class="royal-metrics dashboard-metrics">${metricCard("JOUEURS",metrics.players,`${activeToday} actif(s) aujourd’hui`)}${metricCard("BÂTIMENTS PUBLIÉS",metrics.published_buildings,`${publishedRate}% des définitions`)}${metricCard("OBJETS DISPONIBLES",itemCount,`${totalStock} unité(s) en stock`)}${metricCard("ÉVÉNEMENTS ACTIFS",metrics.active_events,"publiés et activés")}${metricCard("ACTIVITÉS EN COURS",metrics.pending_jobs,"tâches temporisées")}${metricCard("SERVICES CONNECTÉS",`${connectedBots}/${data.services.length}`,core?.running?"KingdomCore en ligne":"KingdomCore arrêté")}</section><div class="dashboard-columns"><section class="royal-panel dashboard-activity"><div class="royal-panel-title"><div><small>ACTIVITÉ RÉCENTE</small><h2>Ce qui se passe dans le royaume</h2></div><button data-go="supervision">Voir tout</button></div><ol class="royal-activity">${activity}</ol></section><section class="royal-panel"><div class="royal-panel-title"><div><small>ÉVÉNEMENTS</small><h2>Animations en cours</h2></div><button data-go="event">Gérer</button></div><div class="dashboard-events">${activeEvents}</div></section><section class="royal-panel"><div class="royal-panel-title"><div><small>VIGILANCE</small><h2>Alertes système</h2></div><button data-go="supervision">Superviser</button></div><div class="dashboard-alerts">${alerts.map(alert=>`<article class="${alert.kind}"><span>${alert.icon}</span><div><b>${escapeHtml(alert.title)}</b><small>${escapeHtml(alert.detail)}</small></div></article>`).join("")}</div></section></div>${projects}<section class="dashboard-quick"><div class="dashboard-section-title"><div><small>ACCÈS RAPIDE</small><h2>Continuer à construire le royaume</h2></div><span>Les outils les plus utilisés</span></div><div><button data-go="building">♜ <span><b>Créer un bâtiment</b><small>Ajouter un lieu jouable</small></span></button><button data-go="profession">⚒ <span><b>Créer un métier</b><small>Définir une progression</small></span></button><button data-go="item">⚔ <span><b>Créer un objet</b><small>Enrichir le catalogue</small></span></button><button data-go="event">✦ <span><b>Créer un événement</b><small>Animer le Royaume</small></span></button><button data-go="location">⌖ <span><b>Organiser le monde</b><small>Relier les lieux</small></span></button><button data-go="bot">♙ <span><b>Gérer les agents</b><small>Configurer Discord</small></span></button></div></section><div class="royal-rankings dashboard-rankings"><section class="royal-panel"><div class="royal-panel-title"><div><small>FORTUNES</small><h2>Les plus riches</h2></div></div><ol>${rank(data.rankings?.wealth||[],"wealth")}</ol></section><section class="royal-panel"><div class="royal-panel-title"><div><small>MÉTIERS</small><h2>Les plus expérimentés</h2></div></div><ol>${rank(data.rankings?.experience||[],"experience")}</ol></section></div></div>`;
-  const healthLabels=$$(".dashboard-health article small");if(healthLabels[0])healthLabels[0].textContent="MONDE";if(healthLabels[1])healthLabels[1].textContent="AUDIO";if(healthLabels[2])healthLabels[2].textContent="DISPONIBILITÉ";
+  const healthLabels=$$(".dashboard-health article small"),healthValues=$$(".dashboard-health article b");if(healthLabels[0])healthLabels[0].textContent="MONDE";if(healthLabels[1])healthLabels[1].textContent="AUDIO";if(healthLabels[2])healthLabels[2].textContent="DISPONIBILITÉ";if(healthValues[0])healthValues[0].textContent=core?.running?"Monde opérationnel":"Monde indisponible";if(healthValues[1])healthValues[1].textContent=voice?.running?"Atmosphère disponible":"Audio indisponible";
   const voiceCapacity=state.catalogs.bot.filter(item=>item.payload.bot_type==='voice'&&item.payload.enabled).length,voiceActive=state.catalogs.voice_presence.filter(item=>item.status==='published'&&item.payload.current_state==='active').length,lastMetric=$('#admin-view .dashboard-metrics article:last-child');if(lastMetric)lastMetric.innerHTML=`<small>PRÉSENCES VOCALES</small><strong>${voiceActive} / ${voiceCapacity}</strong><span>${Math.max(0,voiceCapacity-voiceActive)} slot(s) disponible(s)</span>`;
   bindNavigationShortcuts();
 }
@@ -1910,9 +1926,9 @@ $("#save").onclick = async () => {
 $("#new").onclick=startCreate; $("#search").oninput=renderCards;
 $("#editor-form").addEventListener("input",markEditorDirty);$("#editor-form").addEventListener("change",markEditorDirty);
 window.addEventListener("beforeunload",event=>{if(!state.editorDirty)return;event.preventDefault();event.returnValue=""});
-applyTheme(document.documentElement.dataset.theme);
-$("#theme-toggle").onclick=()=>applyTheme(document.documentElement.dataset.theme==="dark"?"light":"dark",true);
-$("#account-button").onclick=()=>navigateTo("profile");
+installProductShell();
+applyTheme(localStorage.getItem(THEME_KEY)||"system");
+$("#theme-toggle").onclick=event=>{event.stopPropagation();$("#account-button").click()};
 $("#server-selector").onchange=event=>selectServer(event.target.value);
 const setSidebarOpen=open=>document.body.classList.toggle("sidebar-open",open);
 $("#mobile-menu").onclick=()=>setSidebarOpen(true);

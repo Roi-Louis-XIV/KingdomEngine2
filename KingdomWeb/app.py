@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import mimetypes
+import json
+import subprocess
 import time
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -208,10 +210,6 @@ async def authorize_player_edit(request: Request, authorization: str | None = He
 
 @app.get("/")
 def index(): return FileResponse(STATIC / "index.html")
-
-
-@app.get("/platform-admin")
-def platform_admin_page(): return FileResponse(STATIC / "platform-admin.html")
 
 
 @app.get("/api/health")
@@ -489,6 +487,10 @@ async def _administrateur_plateforme(request: Request, compte: dict[str, Any] = 
     return compte
 
 
+@app.get("/platform-admin", dependencies=[Depends(_administrateur_plateforme)])
+def platform_admin_page(): return FileResponse(STATIC / "platform-admin.html")
+
+
 @app.get("/api/product/foundations", dependencies=[Depends(authenticate_account)])
 def product_foundations(request: Request):
     return comptes.fondations_produit(int(request.state.compte["id"]))
@@ -532,7 +534,26 @@ def platform_overview():
             voice_worlds.append({"world_slug": server["slug"], "world_name": server["name"], "guild_id": server["guild_id"], "capacity": len(voice_bots), "active": sum(item["payload"].get("current_state") == "active" for item in presences), "presences": [{"key": item["entity_key"], "name": item["payload"].get("name", item["entity_key"]), "type": item["payload"].get("presence_type", "custom"), "state": item["payload"].get("current_state", "ready"), "location_key": item["payload"].get("location_key", "")} for item in presences]})
         except Exception as exc:
             voice_worlds.append({"world_slug": server["slug"], "world_name": server["name"], "guild_id": server["guild_id"], "capacity": 0, "active": 0, "presences": [], "error": type(exc).__name__})
-    return {"accounts": accounts, "metrics": {"users": len(accounts), "organizations": organizations, "worlds": worlds, "active_support": active_support}, "services": ServiceSupervisor().statuses(), "voice_worlds": voice_worlds, "support": support, "audit": audit}
+    return {"accounts": accounts, "metrics": {"users": len(accounts), "organizations": organizations, "worlds": worlds, "active_support": active_support}, "services": ServiceSupervisor().statuses(), "voice_worlds": voice_worlds, "support": support, "audit": audit, "deployment": _deployment_summary()}
+
+
+def _deployment_summary() -> dict[str, Any]:
+    """Expose uniquement les métadonnées non sensibles utiles à l'exploitation."""
+    root = Path(__file__).resolve().parents[1]
+    result: dict[str, Any] = {"environment": os.getenv("KINGDOM_ENVIRONMENT", "Production"), "commit": "inconnu", "deployed_at": None, "status": "unknown", "message": "Aucun rapport d’auto-update disponible."}
+    try:
+        commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=root, capture_output=True, text=True, check=False, timeout=2)
+        if commit.returncode == 0: result["commit"] = commit.stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    report_path = root / "var" / "deployment-status.json"
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        for key in ("deployed_at", "status", "message", "version"):
+            if key in report and isinstance(report[key], (str, int, float, type(None))): result[key] = report[key]
+    except (OSError, json.JSONDecodeError):
+        pass
+    return result
 
 
 def _maintenant_for_platform() -> str:

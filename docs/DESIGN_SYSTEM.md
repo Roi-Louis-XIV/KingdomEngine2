@@ -6,7 +6,7 @@ KingdomWeb est un éditeur de monde SaaS. Son interface reste neutre vis-à-vis 
 
 - Espacements : échelle `--ke-space-1` à `--ke-space-6` (4, 8, 12, 16, 24, 32 px).
 - Rayons : `--ke-radius-sm`, `--ke-radius-md`, `--ke-radius-lg`.
-- Couleurs : employer les tokens existants `--background`, `--panel`, `--surface`, `--surface-soft`, `--line`, `--text`, `--text-soft`, `--text-muted` et `--brand-green`.
+- Couleurs : employer `--background`, `--surface`, `--surface-elevated`, `--surface-soft`, `--border`, `--border-strong`, `--text-primary`, `--text-secondary`, `--text-muted`, `--accent`, `--success`, `--warning` et `--danger`. Les anciens alias restent uniquement pour la compatibilité des écrans historiques.
 - Typographie : sans-serif pour l’interface ; les polices décoratives ne doivent pas porter l’information fonctionnelle.
 - Focus : chaque contrôle interactif reçoit un anneau visible via `--ke-focus`.
 
@@ -31,3 +31,7 @@ KingdomWeb est un éditeur de monde SaaS. Son interface reste neutre vis-à-vis 
 ## Accessibilité et états
 
 Les actions ont un libellé visible ou un `aria-label`. Les états ne reposent jamais uniquement sur une couleur. `disabled` et `readonly` restent visuellement distincts. Les animations respectent `prefers-reduced-motion`.
+
+## Thèmes
+
+Les composants partagent la même structure et les mêmes tokens dans les modes Clair, Sombre et Système. `data-theme` contient le thème effectivement rendu ; `data-theme-preference` conserve le choix utilisateur. Le mode Système suit `prefers-color-scheme`. Aucun composant ne doit reproduire une seconde feuille complète uniquement pour le mode sombre.

@@ -25,6 +25,7 @@ LOGS_DIR = ROOT / "var" / "logs"
 
 class ServiceSupervisor:
     _control_lock = threading.RLock()
+    SYSTEMD_UNITS = {"web": "kingdom-web.service", "core": "kingdom-core.service", "voice": "kingdom-voice.service"}
 
     def definitions(self) -> list[dict[str, Any]]:
         return json.loads(SERVICES_CONFIG.read_text(encoding="utf-8"))["services"]
@@ -33,10 +34,56 @@ class ServiceSupervisor:
         registry = self._registry()
         statuses = []
         for definition in self.definitions():
+            systemd = self._systemd_status(definition["key"])
+            if systemd is not None:
+                statuses.append({**definition, **systemd})
+                continue
             entry = next((item for item in registry if item.get("service") == definition["key"]), None)
             pid = os.getpid() if definition["key"] == "web" else self._runtime_pid(definition["key"], entry)
-            statuses.append({**definition, "pid": pid or None, "running": self._alive(pid), "started_at": entry.get("StartTime") if entry else None})
+            running = self._alive(pid)
+            statuses.append({**definition, "pid": pid or None, "running": running, "status": "running" if running else "stopped", "provider": "process", "started_at": entry.get("StartTime") if entry else None, "checked_at": datetime.now(timezone.utc).isoformat(), "restart_count": None, "last_error": None})
         return statuses
+
+    def _systemd_status(self, service_key: str) -> dict[str, Any] | None:
+        """Utilise systemd comme source de vérité Debian, avec repli portable sur les PID."""
+        if sys.platform == "win32" or not Path("/run/systemd/system").exists():
+            return None
+        unit = self.SYSTEMD_UNITS.get(service_key)
+        if not unit:
+            return None
+        try:
+            result = subprocess.run(
+                ["systemctl", "show", unit, "--no-pager", "--property=ActiveState,SubState,MainPID,ActiveEnterTimestamp,ExecMainStatus,NRestarts"],
+                capture_output=True, text=True, check=False, timeout=3,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if result.returncode and "could not be found" in result.stderr.lower():
+            return None
+        values = dict(line.split("=", 1) for line in result.stdout.splitlines() if "=" in line)
+        if not values:
+            return None
+        active, sub = values.get("ActiveState", "unknown"), values.get("SubState", "unknown")
+        status = self._normalise_systemd_state(active, sub)
+        main_pid = int(values.get("MainPID", "0") or 0)
+        exit_code = int(values.get("ExecMainStatus", "0") or 0)
+        return {
+            "pid": main_pid or None, "running": status == "running", "status": status,
+            "provider": "systemd", "unit": unit, "started_at": values.get("ActiveEnterTimestamp") or None,
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "restart_count": int(values.get("NRestarts", "0") or 0),
+            "last_error": f"Code de sortie {exit_code}" if exit_code else None,
+            "controllable": False,
+        }
+
+    @staticmethod
+    def _normalise_systemd_state(active: str, sub: str) -> str:
+        if active == "active" and sub in {"running", "exited", "listening"}: return "running"
+        if active == "activating": return "restarting" if sub in {"auto-restart", "restart"} else "starting"
+        if active == "reloading": return "restarting"
+        if active == "failed": return "degraded"
+        if active in {"inactive", "deactivating"}: return "stopped"
+        return "unknown"
 
     def control(self, service_key: str, operation: str) -> dict[str, Any]:
         definition = next((item for item in self.definitions() if item["key"] == service_key), None)

@@ -30,6 +30,30 @@ def test_account_sessions_and_server_roles(tmp_path, monkeypatch):
     assert registry.lister_acces(editor["id"]) == []
 
 
+def test_platform_admin_page_and_api_are_server_side_protected(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "platform-access.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "platform-owner")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "platform-password-123")
+    monkeypatch.setenv("KINGDOM_PLATFORM_ADMIN_USERNAME", "platform-owner")
+    monkeypatch.setenv("KINGDOM_ALLOW_REGISTRATION", "1")
+    monkeypatch.setattr(web, "magasin_principal", primary)
+    monkeypatch.setattr(web, "store", web.MagasinsServeurs(primary))
+    monkeypatch.setattr(web, "comptes", registry)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+
+    with TestClient(web.app) as client:
+        normal = client.post("/api/auth/register", json={"username": "client-normal", "display_name": "Client", "email": "", "password": "client-password-123", "password_confirmation": "client-password-123"})
+        assert normal.status_code == 200
+        assert client.get("/platform-admin").status_code == 403
+        assert client.get("/api/platform/overview").status_code == 403
+        client.post("/api/auth/logout")
+        assert client.post("/api/auth/login", json={"username": "platform-owner", "password": "platform-password-123"}).status_code == 200
+        assert client.get("/platform-admin").status_code == 200
+        assert client.get("/api/platform/overview").status_code == 200
+
+
 def test_web_accounts_and_servers_are_isolated(tmp_path, monkeypatch):
     primary = ContentStore(tmp_path / "kingdom.db")
     registry = RegistreComptes(primary.path)

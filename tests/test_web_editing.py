@@ -201,6 +201,10 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
     assert 'id="theme-toggle"' in html
     assert 'localStorage.getItem("kingdomTheme")' in html
     assert 'function applyTheme(theme, persist=false)' in script
+    assert '["light","dark","system"]' in script
+    assert 'data-theme-choice="system"' in script
+    assert 'id="platform-admin-entry"' in script
+    assert 'account.platform_role!=="platform_admin"' in script
     assert 'data-building-tab="visual"' in script
     assert 'id="interaction-grid"' in script
     assert 'draggable="true"' in script

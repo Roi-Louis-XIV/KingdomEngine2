@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 import KingdomWeb.supervision as supervision
 from KingdomWeb.supervision import AdministrationService, ServiceSupervisor
@@ -70,3 +71,30 @@ def test_client_overview_never_exposes_process_logs_or_database_path(monkeypatch
     assert result["database"] == {"size_bytes": 42}
     assert all("pid" not in item for item in result["services"])
     assert {item["key"] for item in result["services"]} == {"world", "audio", "studio"}
+
+
+def test_systemd_is_the_source_of_truth_on_debian(monkeypatch):
+    monkeypatch.setattr(supervision.sys, "platform", "linux")
+    monkeypatch.setattr(supervision.Path, "exists", lambda self: self.as_posix() == "/run/systemd/system")
+    output = "ActiveState=active\nSubState=running\nMainPID=1916\nActiveEnterTimestamp=Tue 2026-09-01 10:00:00 CEST\nExecMainStatus=0\nNRestarts=2\n"
+    monkeypatch.setattr(supervision.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=output, stderr=""))
+    supervisor = ServiceSupervisor()
+    monkeypatch.setattr(supervisor, "definitions", lambda: [{"key": "core", "name": "KingdomCore", "controllable": True}])
+
+    status = supervisor.statuses()[0]
+
+    assert status["provider"] == "systemd"
+    assert status["unit"] == "kingdom-core.service"
+    assert status["status"] == "running"
+    assert status["running"] is True
+    assert status["restart_count"] == 2
+    assert status["controllable"] is False
+
+
+def test_systemd_states_are_not_reduced_to_a_boolean():
+    normalise = ServiceSupervisor._normalise_systemd_state
+    assert normalise("activating", "start") == "starting"
+    assert normalise("activating", "auto-restart") == "restarting"
+    assert normalise("failed", "failed") == "degraded"
+    assert normalise("inactive", "dead") == "stopped"
+    assert normalise("mystery", "mystery") == "unknown"
