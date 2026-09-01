@@ -88,7 +88,26 @@ def test_systemd_is_the_source_of_truth_on_debian(monkeypatch):
     assert status["status"] == "running"
     assert status["running"] is True
     assert status["restart_count"] == 2
-    assert status["controllable"] is False
+    assert status["controllable"] is True
+
+
+def test_systemd_control_is_limited_to_the_declared_kingdom_unit(monkeypatch):
+    calls = []
+    supervisor = ServiceSupervisor()
+    monkeypatch.setattr(supervision.os, "geteuid", lambda: 0, raising=False)
+    monkeypatch.setattr(
+        supervision.subprocess, "run",
+        lambda command, **kwargs: calls.append(command) or SimpleNamespace(returncode=0, stdout="", stderr=""),
+    )
+    monkeypatch.setattr(supervision.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(supervisor, "statuses", lambda: [{
+        "key": "core", "name": "KingdomCore", "provider": "systemd", "running": True,
+    }])
+
+    result = supervisor._control_systemd("core", "restart", supervisor.statuses()[0])
+
+    assert calls == [["/usr/bin/systemctl", "restart", "kingdom-core.service"]]
+    assert result["accepted"] is True
 
 
 def test_systemd_states_are_not_reduced_to_a_boolean():

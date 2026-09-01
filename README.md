@@ -43,7 +43,7 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 
 KingdomEngine conserve les comptes et serveurs existants, puis ajoute par migration idempotente les notions extensibles `Organization`, `World`, `Discord Server`, `Plan`, `Entitlement`, `Quota` et `Usage`. Aucun abonnement commercial n’est codé en dur : le plan technique `standard` sert uniquement de fondation. Un monde appartient à une organisation et peut être relié à un ou plusieurs serveurs Discord.
 
-L’administration interne Payen Studio est une application séparée, accessible depuis le menu du compte uniquement pour le rôle `platform_admin`. La route `/platform-admin` et son API restent protégées côté serveur. Elle présente la santé technique globale, la capacité Voice, le Support Mode et le commit déployé ; KingdomWeb client ne révèle ni processus, ni PID, ni chemins de base, ni journaux système globaux, ni autres clients. Sur Debian, la supervision utilise les unités `kingdom-web.service`, `kingdom-core.service` et `kingdom-voice.service` comme source de vérité, avec un repli sur les processus locaux hors systemd.
+L’administration interne Payen Studio est une application séparée, accessible depuis le menu du compte uniquement pour le rôle `platform_admin`. La route `/platform-admin` et son API restent protégées côté serveur. Elle présente la santé technique globale, la capacité Voice, le Support Mode et le commit déployé ; KingdomWeb client ne révèle ni processus, ni PID, ni chemins de base, ni journaux système globaux, ni autres clients. Sur Debian, la supervision utilise les unités `kingdom-web.service`, `kingdom-core.service` et `kingdom-voice.service` comme source de vérité, avec un repli sur les processus locaux hors systemd. Chaque carte de service propose **Démarrer**, **Redémarrer** et **Arrêter**. Arrêter KingdomWeb coupe naturellement l’interface et impose un redémarrage par SSH ; son bouton affiche donc une confirmation renforcée.
 
 Le **Support Mode** se demande depuis le profil. Le client choisit explicitement le monde, les diagnostics autorisés et une durée limitée ; il peut révoquer l’accès à tout moment. Chaque autorisation et révocation est auditée. Les tokens, secrets et conversations privées ne font jamais partie des périmètres proposés.
 
@@ -180,6 +180,15 @@ Après une modification de `.env`, redémarrer les services :
 ```bash
 sudo systemctl restart kingdom-web kingdom-core kingdom-voice
 ```
+
+Après une mise à jour ajoutant les commandes de services à Payen Studio Admin, relancer une fois l’installateur afin d’installer la règle sudoers strictement limitée à KingdomEngine :
+
+```bash
+cd /opt/KingdomEngine2
+sudo bash ./install-debian.sh
+```
+
+Cette règle ne donne pas un accès administrateur général au processus web : elle autorise uniquement `start`, `stop` et `restart` sur `kingdom-web.service`, `kingdom-core.service` et `kingdom-voice.service`.
 
 Dans KingdomWeb, sélectionner le serveur Discord puis utiliser **Paramètres → Installer le serveur Discord**. Cette opération crée les rôles et les salons initiaux. Ensuite, la publication d'un bâtiment crée ou actualise automatiquement ses salons textuel et vocal.
 

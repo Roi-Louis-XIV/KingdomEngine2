@@ -31,7 +31,7 @@ SERVICE_USER="${SUDO_USER:-root}"
 SERVICE_GROUP="$(id -gn "$SERVICE_USER")"
 
 apt-get update
-apt-get install -y python3 python3-venv python3-pip ffmpeg curl
+apt-get install -y python3 python3-venv python3-pip ffmpeg curl sudo
 
 if [[ ! -x "$ROOT/.venv/bin/python" ]]; then
   sudo -u "$SERVICE_USER" python3 -m venv --clear "$ROOT/.venv"
@@ -115,6 +115,23 @@ EOF
 install_unit web
 install_unit core
 install_unit voice
+# KingdomWeb n'obtient aucun accès root général. Cette règle autorise seulement
+# Payen Studio Admin à piloter les trois unités explicitement listées.
+CONTROL_RULE="/etc/sudoers.d/kingdomengine-service-control"
+{
+  printf '%s ALL=(root) NOPASSWD: ' "$SERVICE_USER"
+  first=1
+  for operation in start stop restart; do
+    for unit in kingdom-web.service kingdom-core.service kingdom-voice.service; do
+      [[ "$first" -eq 1 ]] || printf ', '
+      printf '/usr/bin/systemctl %s %s' "$operation" "$unit"
+      first=0
+    done
+  done
+  printf '\n'
+} >"$CONTROL_RULE"
+chmod 0440 "$CONTROL_RULE"
+visudo -cf "$CONTROL_RULE"
 cat >"/etc/systemd/system/kingdomengine-update.service" <<EOF
 [Unit]
 Description=Mise à jour automatique de KingdomEngine depuis GitHub

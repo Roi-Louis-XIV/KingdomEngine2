@@ -26,6 +26,9 @@ def test_debian_installer_creates_autostart_services_and_secures_password():
     assert "reverse_proxy 127.0.0.1" in script
     assert "KINGDOM_SECURE_COOKIES=1" in script
     assert "kingdomengine-update.timer" in script
+    assert "/etc/sudoers.d/kingdomengine-service-control" in script
+    assert "/usr/bin/systemctl %s %s" in script
+    assert "visudo -cf" in script
 
 
 def test_backup_script_includes_the_configured_external_data_directory():

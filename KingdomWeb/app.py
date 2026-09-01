@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import mimetypes
 import json
+import logging
 import subprocess
 import time
 from contextlib import asynccontextmanager
@@ -31,6 +32,8 @@ from kingdomCore.world import WorldEngine, WorldError
 from KingdomWeb.accounts import ErreurAuthentification, ErreurAutorisation, RegistreComptes
 from seed import DEFINITIONS, REFERENCE_BUILDING
 import discord
+
+logger = logging.getLogger("KingdomWeb")
 
 class MagasinsServeurs:
     """Selectionne une base KingdomData independante pour chaque serveur."""
@@ -610,6 +613,7 @@ def modeles_de_monde():
 
 @app.post("/api/servers", dependencies=[Depends(authenticate_account)])
 def creer_serveur(request: Request, body: dict[str, Any]):
+    serveur: dict[str, Any] | None = None
     try:
         compte = request.state.compte
         if int(compte["id"]) <= 0:
@@ -631,7 +635,17 @@ def creer_serveur(request: Request, body: dict[str, Any]):
         store._magasins[str(magasin.path.resolve())] = magasin
         return {**serveur, "preset": preset_key, "seeded_entities": len(definitions)}
     except (ValueError, ConflictError) as exc:
+        if serveur:
+            comptes.archiver_serveur(str(serveur["slug"]))
         raise HTTPException(422, str(exc)) from exc
+    except Exception as exc:
+        if serveur:
+            comptes.archiver_serveur(str(serveur["slug"]))
+        logger.exception("Échec de création du monde KingdomEngine")
+        raise HTTPException(
+            500,
+            f"Le monde n'a pas pu être initialisé ({type(exc).__name__}). Consultez les logs KingdomWeb.",
+        ) from exc
 
 
 @app.get("/api/content", dependencies=[Depends(authorize)])

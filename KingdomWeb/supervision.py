@@ -73,7 +73,8 @@ class ServiceSupervisor:
             "checked_at": datetime.now(timezone.utc).isoformat(),
             "restart_count": int(values.get("NRestarts", "0") or 0),
             "last_error": f"Code de sortie {exit_code}" if exit_code else None,
-            "controllable": False,
+            # Protégé par le rôle platform_admin et une règle sudoers limitée.
+            "controllable": True,
         }
 
     @staticmethod
@@ -87,18 +88,41 @@ class ServiceSupervisor:
 
     def control(self, service_key: str, operation: str) -> dict[str, Any]:
         definition = next((item for item in self.definitions() if item["key"] == service_key), None)
-        if not definition or not definition.get("controllable"):
+        current = next((item for item in self.statuses() if item["key"] == service_key), None)
+        if not definition or not current or (current.get("provider") != "systemd" and not definition.get("controllable")):
             raise ValueError("Ce service ne peut pas etre pilote depuis KingdomWeb.")
         if operation not in {"start", "stop", "restart"}:
             raise ValueError("Operation de service inconnue.")
         # Les routes FastAPI synchrones peuvent s'exécuter en parallèle. Deux clics
         # ne doivent jamais lancer ou arrêter simultanément la même identité Discord.
         with self._control_lock:
+            if current.get("provider") == "systemd":
+                return self._control_systemd(service_key, operation, current)
             if operation in {"stop", "restart"}:
                 self._stop(service_key)
             if operation in {"start", "restart"}:
                 self._start(definition)
             return next(item for item in self.statuses() if item["key"] == service_key)
+
+    def _control_systemd(self, service_key: str, operation: str, current: dict[str, Any]) -> dict[str, Any]:
+        """Pilote uniquement les trois unités KingdomEngine autorisées."""
+        unit = self.SYSTEMD_UNITS[service_key]
+        command = ["/usr/bin/systemctl", operation, unit]
+        if hasattr(os, "geteuid") and os.geteuid() != 0:
+            command = ["/usr/bin/sudo", "-n", *command]
+        if service_key == "web" and operation in {"stop", "restart"}:
+            subprocess.Popen(
+                ["/bin/sh", "-c", f"sleep 1; {' '.join(command)}"],
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            return {**current, "operation": operation, "accepted": True, "message": "Commande systemd programmée."}
+        result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=15)
+        if result.returncode:
+            detail = (result.stderr or result.stdout or "Autorisation systemd refusée.").strip()
+            raise ValueError(f"Commande systemd impossible : {detail[:300]}")
+        time.sleep(.35)
+        return {**next(item for item in self.statuses() if item["key"] == service_key), "operation": operation, "accepted": True}
 
     def logs(self, limit: int = 120) -> dict[str, dict[str, Any]]:
         result: dict[str, dict[str, Any]] = {}
