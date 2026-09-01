@@ -28,9 +28,10 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 - boutons Discord conditionnels héritant des règles de leur action : rejoindre/quitter un métier et les autres choix incompatibles sont automatiquement masqués ;
 - métiers, zones, niveaux, outils, durabilité, expérience, cooldowns et activités temporisées ;
 - objets, inventaires joueur et bâtiment, recettes, commerce, productions, livraisons et objectifs collectifs ;
-- modèles de départ enrichis : **Royaume médiéval** et **Station spatiale** fournissent chacun 5 bâtiments, 4 métiers, 20 objets, 4 événements, une géographie, un environnement et un bot principal entièrement modifiables ;
+- modèles de départ jouables : **Royaume médiéval** et **Station spatiale** fournissent chacun 5 bâtiments avec pages Discord, métiers reliés, outils, actions, inventaires et chaînes de production, ainsi que leurs objets, événements, géographie, environnement et bot principal entièrement modifiables ;
 - **Connexion Discord** regroupe KingdomCore et tous les bots audio KingdomVoice, y compris les connexions désactivées ou incomplètes. Elles sont toutes incluses actuellement ; l'affichage est prêt à accueillir de futurs droits d'abonnement ;
 - Payen Studio Admin peut supprimer un compte client inactif après confirmation. Ses sessions et accès sont retirés, mais les bases de ses mondes sont conservées ; un serveur Discord archivé et devenu sans propriétaire peut ensuite être repris et réinstallé avec le même identifiant ;
+- le parcours d'arrivée Discord est propre à chaque monde : serment médiéval, accréditation d'équipage ou accueil générique. Son titre, son salon, son bouton, sa confirmation, sa dotation et le nom de sa monnaie restent modifiables dans **Configuration du monde → Arrivée des joueurs** ;
 - résultats aléatoires pondérés contenant plusieurs effets génériques ;
 - événements, modificateurs du monde, calendrier autonome, saisons, météo et cycle jour/nuit ;
 - lieux, connexions, voyages, exploration Discord et monde vivant ;
@@ -429,8 +430,10 @@ Par défaut, la connexion utilise un cookie de session fermé avec le navigateur
 Chaque serveur possède une base KingdomData indépendante. Lors de sa création, trois points de départ sont proposés :
 
 - **Monde vierge** : uniquement les paramètres généraux, sans lieu, bâtiment, métier, événement ni mécanique imposée ;
-- **Royaume médiéval** : capitale, forêt, mine, métiers de forestier et mineur, ressources, économie, calendrier saisonnier, météo, événement et intendant Discord ;
-- **Station spatiale** : station orbitale et ses connexions, ingénierie, exploration, ressources, crédits, cycles de mission, phénomènes spatiaux, événement et intelligence Discord.
+- **Royaume médiéval** : 5 bâtiments jouables, 4 métiers et leurs outils, 22 objets, récolte de bois et de minerai, transformation en planches et lingots, forge, herboristerie, commerce, 4 événements, calendrier saisonnier, météo et intendant Discord ;
+- **Station spatiale** : 5 bâtiments jouables, 4 métiers et leurs équipements, 20 objets, ingénierie, hydroponie, exploration aléatoire, recherche xéno, comptoir orbital, 4 événements, cycles de mission, phénomènes spatiaux et intelligence Discord.
+
+Chaque bâtiment du modèle possède dès sa création une interface Discord avec un accueil, des pages d'actions et une page d'inventaires. Les bâtiments commerciaux ajoutent un comptoir interactif. Les métiers sont intégrés dans leurs bâtiments : l'inscription remet l'outil requis, les activités contrôlent sa présence, consomment sa durabilité et attribuent l'expérience métier. Les ressources produites sont reliées aux actions suivantes afin que le monde puisse être joué immédiatement après son installation sur Discord.
 
 Ces modèles sont uniquement des données no-code initiales. Tous leurs éléments peuvent être modifiés, supprimés et complétés depuis KingdomWeb. Ils n'ajoutent aucune logique Python propre à un univers. Le modèle est appliqué une seule fois à la création ; installer ensuite KingdomEngine sur Discord provisionne les salons correspondant aux bâtiments publiés.
 

@@ -480,7 +480,7 @@ def _validate_server_settings(payload: dict[str, Any]) -> None:
         if not isinstance(payload.get(section), dict):
             raise ValidationError(f"La section {section} doit être un objet.")
     if not str(payload["roles"].get("player", "")).strip():
-        raise ValidationError("Le rôle accordé après le serment est obligatoire.")
+        raise ValidationError("Le rôle accordé après la validation d'arrivée est obligatoire.")
     try:
         starting_money = int(payload["onboarding"].get("starting_money", 100))
     except (TypeError, ValueError) as exc:

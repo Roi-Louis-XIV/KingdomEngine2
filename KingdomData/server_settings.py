@@ -13,29 +13,31 @@ from typing import Any
 SERVER_SETTINGS_KEY = "kingdom_server"
 
 DEFAULT_SERVER_SETTINGS: dict[str, Any] = {
-    "name": "Paramètres du Royaume",
+    "name": "Paramètres du monde",
     "emoji": "⚙️",
-    "description": "Accueil, rôles, catégories et accès Discord du Royaume.",
+    "description": "Accueil, rôles, catégories et accès Discord du monde.",
     "onboarding": {
         "enabled": True,
         "starting_money": 100,
-        "channel_name": "prestation-de-serment",
-        "title": "Le Serment de la Sainte Pelle",
+        "channel_name": "bienvenue-et-regles",
+        "title": "Bienvenue dans ce monde",
         "rules_text": (
-            "Avant d'entrer dans le Royaume, lis les règles puis prête serment :\n\n"
-            "• Respecte les autres habitants et leurs créations.\n"
+            "Avant de commencer, lis les règles puis valide ton arrivée :\n\n"
+            "• Respecte les autres participants et leurs créations.\n"
             "• Ne triche pas et n'exploite pas les erreurs du moteur.\n"
-            "• Suis les indications des Maîtres du Royaume.\n\n"
-            "En cliquant ci-dessous, tu jures fidélité au Royaume sur la Sainte Pelle."
+            "• Suis les indications de l'équipe d'administration.\n\n"
+            "En cliquant ci-dessous, tu confirmes avoir lu et accepté ces règles."
         ),
-        "button_label": "Je prête serment",
-        "button_emoji": "🛠️",
-        "confirmation": "Serment accepté. Les portes du Royaume te sont ouvertes.",
+        "button_label": "Valider mon arrivée",
+        "button_emoji": "✅",
+        "confirmation": "Bienvenue ! Ton accès au monde est maintenant ouvert.",
+        "action_name": "validation d'arrivée",
+        "currency_label": "unités",
     },
     "roles": {
-        "game_master": "👑 Maître du Royaume",
-        "player": "⚔️ Aventurier",
-        "bot": "🤖 Bots du Royaume",
+        "game_master": "🛡️ Administrateur du monde",
+        "player": "👤 Participant",
+        "bot": "🤖 Agents KingdomEngine",
     },
     "discord": {
         "general_category": "🏰 KINGDOM ENGINE",
@@ -73,6 +75,14 @@ def get_server_settings(store: Any) -> dict[str, Any]:
     except Exception:
         return settings
     settings = _deep_merge(settings, published)
+    published_onboarding = published.get("onboarding", {}) if isinstance(published, dict) else {}
+    # Compatibilité avec les royaumes existants créés avant le vocabulaire
+    # d'arrivée configurable : leur serment historique conserve son nom et ses
+    # écus, tandis que les autres univers utilisent les termes génériques.
+    if "action_name" not in published_onboarding and "serment" in str(settings["onboarding"].get("title", "")).lower():
+        settings["onboarding"]["action_name"] = "serment"
+    if "currency_label" not in published_onboarding and "serment" in str(settings["onboarding"].get("title", "")).lower():
+        settings["onboarding"]["currency_label"] = "écus"
     # Migration de l'ancien modèle unique : les royaumes qui utilisent encore
     # la valeur historique obtiennent automatiquement un salon nommé d'après le
     # bâtiment. Les modèles personnalisés restent strictement inchangés.

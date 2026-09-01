@@ -681,19 +681,21 @@ class OathView(discord.ui.View):
 
     async def accept_oath(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
+        settings = get_server_settings(self.store)
+        action_name = str(settings["onboarding"].get("action_name", "validation d'arrivée"))
         if not isinstance(interaction.user, discord.Member):
-            await interaction.followup.send("Ce serment doit être prêté depuis le serveur.", ephemeral=True)
+            await interaction.followup.send(f"Cette {action_name} doit être effectuée depuis le serveur.", ephemeral=True)
             return
         try:
-            settings = get_server_settings(self.store)
             role = discord.utils.get(interaction.user.guild.roles, name=settings["roles"]["player"])
             if role is None:
-                await interaction.followup.send("Le rôle du Royaume n'existe pas encore. Relancez le provisionnement.", ephemeral=True)
+                await interaction.followup.send("Le rôle d'accès au monde n'existe pas encore. Relancez la synchronisation Discord.", ephemeral=True)
                 return
             bot_member = interaction.user.guild.me
             if bot_member is None or role >= bot_member.top_role:
                 logger.error(
-                    "Serment refusé : le rôle %s (position %s) n'est pas sous le rôle de KingdomCore (position %s).",
+                    "%s refusée : le rôle %s (position %s) n'est pas sous le rôle de KingdomCore (position %s).",
+                    action_name.capitalize(),
                     role.name, role.position, bot_member.top_role.position if bot_member else "inconnue",
                 )
                 await interaction.followup.send(
@@ -703,25 +705,26 @@ class OathView(discord.ui.View):
                 )
                 return
             if role not in interaction.user.roles:
-                await interaction.user.add_roles(role, reason="Serment de la Sainte Pelle")
+                await interaction.user.add_roles(role, reason=action_name[:512])
             granted = grant_oath_reward(self.store, interaction.user)
             confirmation = settings["onboarding"]["confirmation"]
             if granted:
                 amount = int(settings["onboarding"].get("starting_money", 100))
-                confirmation += f"\n\n🪙 **{amount} écus** ont été ajoutés à ta bourse pour commencer l’aventure."
+                currency_label = str(settings["onboarding"].get("currency_label", "unités"))
+                confirmation += f"\n\n🪙 **{amount} {currency_label}** ont été ajoutés à ton compte pour commencer."
             await interaction.followup.send(confirmation, ephemeral=True)
         except discord.Forbidden:
-            logger.exception("Discord a refusé l'attribution du rôle après le serment.")
+            logger.exception("Discord a refusé l'attribution du rôle après la validation d'arrivée.")
             await interaction.followup.send(
                 "Discord refuse l'attribution du rôle. Vérifie que KingdomCore possède « Gérer les rôles » "
                 "et que son rôle est placé au-dessus du rôle joueur.", ephemeral=True,
             )
         except discord.HTTPException:
-            logger.exception("Erreur Discord pendant le serment.")
-            await interaction.followup.send("Discord n'a pas pu terminer le serment. Réessaie dans quelques secondes.", ephemeral=True)
+            logger.exception("Erreur Discord pendant la validation d'arrivée.")
+            await interaction.followup.send(f"Discord n'a pas pu terminer la {action_name}. Réessaie dans quelques secondes.", ephemeral=True)
         except Exception:
-            logger.exception("Erreur inattendue pendant le serment.")
-            await interaction.followup.send("Le serment a échoué. L'erreur a été enregistrée dans KingdomCore.", ephemeral=True)
+            logger.exception("Erreur inattendue pendant la validation d'arrivée.")
+            await interaction.followup.send(f"La {action_name} a échoué. L'erreur a été enregistrée dans KingdomCore.", ephemeral=True)
 
 
 def interface_for_building(store: ContentStore, payload: dict[str, Any]) -> dict[str, Any] | None:
