@@ -85,5 +85,6 @@ building:[{target:"#new",title:"Créer",content:"L’assistant prépare une base
 profession:[{target:"#new",title:"Métiers",content:"Créez les métiers partagés puis reliez-les aux bâtiments."}],
 environment:[{target:"#cards",title:"Temps et météo",content:"Gérez horloge, climats et influences."}],
 event:[{target:"#new",title:"Events",content:"Créez des changements temporaires."}],
-audio:[{target:"[data-audio-mode='library']",title:"Banque audio",content:"Importez et écoutez les sons."},{target:"[data-audio-mode='groups']",title:"Groupes",content:"Composez des ambiances réutilisables."}]
+audio:[{target:"[data-audio-mode='library']",title:"Banque audio",content:"Importez et écoutez les sons."},{target:"[data-audio-mode='groups']",title:"Groupes",content:"Composez des ambiances réutilisables."}],
+voice_presence:[{target:"[data-tutorial='voice-presence-studio']",title:"Présence et capacité",content:"La présence est l’identité entendue. Une capacité Discord libre l’exécute temporairement."},{target:"[data-new-presence]",title:"Créer une identité",content:"Choisissez Personnage, Ambiance ou Personnalisée, puis son lieu et son comportement."},{target:"[data-voice-tab='profiles']",title:"Profils vocaux",content:"Regroupez langue, clips, volume et fallback sans lier la voix à un bot fixe."}]
 }};

@@ -521,7 +521,18 @@ def platform_overview():
         worlds = int(base.execute("SELECT COUNT(*) FROM worlds WHERE status='active'").fetchone()[0])
         active_support = int(base.execute("SELECT COUNT(*) FROM support_grants WHERE status='active' AND expires_at>?", (_maintenant_for_platform(),)).fetchone()[0])
         audit = [dict(row) for row in base.execute("SELECT action,target_type,target_id,created_at FROM platform_audit ORDER BY id DESC LIMIT 30").fetchall()]
-    return {"accounts": accounts, "metrics": {"users": len(accounts), "organizations": organizations, "worlds": worlds, "active_support": active_support}, "services": ServiceSupervisor().statuses(), "audit": audit}
+        support = [dict(row) for row in base.execute("SELECT g.grant_id,w.slug world_slug,g.scopes_json,g.expires_at,g.status,g.created_at FROM support_grants g JOIN worlds w ON w.id=g.world_id ORDER BY g.created_at DESC LIMIT 30").fetchall()]
+        servers = [dict(row) for row in base.execute("SELECT slug,name,guild_id,database_path FROM managed_servers WHERE active=1 ORDER BY name").fetchall()]
+    voice_worlds = []
+    for server in servers:
+        try:
+            world_store = ContentStore(server["database_path"]); world_store.initialize()
+            presences = world_store.list("voice_presence")
+            voice_bots = [item for item in world_store.list("bot") if item["payload"].get("bot_type") == "voice" and item["payload"].get("enabled")]
+            voice_worlds.append({"world_slug": server["slug"], "world_name": server["name"], "guild_id": server["guild_id"], "capacity": len(voice_bots), "active": sum(item["payload"].get("current_state") == "active" for item in presences), "presences": [{"key": item["entity_key"], "name": item["payload"].get("name", item["entity_key"]), "type": item["payload"].get("presence_type", "custom"), "state": item["payload"].get("current_state", "ready"), "location_key": item["payload"].get("location_key", "")} for item in presences]})
+        except Exception as exc:
+            voice_worlds.append({"world_slug": server["slug"], "world_name": server["name"], "guild_id": server["guild_id"], "capacity": 0, "active": 0, "presences": [], "error": type(exc).__name__})
+    return {"accounts": accounts, "metrics": {"users": len(accounts), "organizations": organizations, "worlds": worlds, "active_support": active_support}, "services": ServiceSupervisor().statuses(), "voice_worlds": voice_worlds, "support": support, "audit": audit}
 
 
 def _maintenant_for_platform() -> str:

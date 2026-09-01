@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-ENTITY_TYPES = {"building", "item", "event", "bot", "audio", "audio_group", "audio_story", "npc", "recipe", "interface", "server_settings", "profession", "environment", "location"}
+ENTITY_TYPES = {"building", "item", "event", "bot", "audio", "audio_group", "audio_story", "voice_presence", "voice_profile", "npc", "recipe", "interface", "server_settings", "profession", "environment", "location"}
 KEY_RE = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
 ACTION_TYPES = {
     "message", "reward", "cost", "emit", "random_reward", "random_bundle", "random_result",
@@ -102,6 +102,22 @@ def validate_entity(entity_type: str, payload: dict[str, Any]) -> dict[str, Any]
         for volume in payload.get("volume", {}).values():
             if not 0 <= float(volume) <= 1:
                 raise ValidationError("Les volumes doivent être compris entre 0 et 1.")
+    if entity_type == "voice_presence":
+        if payload.get("presence_type", "custom") not in {"npc", "ambience", "custom"}:
+            raise ValidationError("Type de présence vocale invalide.")
+        if payload.get("assignment_mode", "on_demand") not in {"on_demand", "automatic", "follow_source"}:
+            raise ValidationError("Mode d’affectation vocale invalide.")
+        for field in ("source_key", "voice_profile_key", "scene_key", "location_key"):
+            if payload.get(field): validate_key(str(payload[field]))
+        if int(payload.get("release_timeout_seconds", 30)) < 0:
+            raise ValidationError("Le délai de libération ne peut pas être négatif.")
+    if entity_type == "voice_profile":
+        if not isinstance(payload.get("clips", []), list):
+            raise ValidationError("Les clips du profil vocal doivent former une liste.")
+        if not isinstance(payload.get("tags", []), list):
+            raise ValidationError("Les tags du profil vocal doivent former une liste.")
+        if not 0 <= float(payload.get("volume", 1)) <= 2:
+            raise ValidationError("Le volume du profil vocal doit être compris entre 0 et 2.")
     if entity_type == "event":
         if payload.get("trigger", {}).get("type", "manual") not in {"manual", "scheduled", "recurring", "action", "players"}:
             raise ValidationError("Déclencheur d’événement invalide.")

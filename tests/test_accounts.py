@@ -244,6 +244,9 @@ def test_mobile_shell_keeps_essential_tools_within_thumb_reach():
     assert "mobileCreationBlocked" in script.text
     assert "La création de contenu" in script.text
     assert '[data-type="building"]' in stylesheet.text
+    tablet = client.get("/static/tablet.css")
+    assert "min-width:761px" in tablet.text
+    assert "max-width:1024px" in tablet.text
 
 
 def test_tutorial_progress_is_scoped_by_account_and_server(tmp_path, monkeypatch):

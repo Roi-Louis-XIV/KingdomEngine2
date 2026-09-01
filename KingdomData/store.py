@@ -137,6 +137,29 @@ class ContentStore:
             for referenced in filter(None, references):
                 if str(referenced) not in audios:
                     raise ValidationError(f"Son référencé introuvable : {referenced}")
+        if entity_type == "voice_profile":
+            audios = {item["entity_key"] for item in self.list("audio")}
+            for clip in payload.get("clips", []):
+                audio_key = str(clip.get("audio_key", ""))
+                if audio_key and audio_key not in audios:
+                    raise ValidationError(f"Clip vocal introuvable : {audio_key}")
+            fallback = str(payload.get("fallback_profile_key", ""))
+            profiles = {item["entity_key"] for item in self.list("voice_profile")}
+            if fallback and fallback != entity_key and fallback not in profiles:
+                raise ValidationError(f"Profil vocal de secours introuvable : {fallback}")
+        if entity_type == "voice_presence":
+            profiles = {item["entity_key"] for item in self.list("voice_profile")}
+            locations = {item["entity_key"] for item in self.list("location")}
+            groups = {item["entity_key"] for item in self.list("audio_group")}
+            npcs = {item["entity_key"] for item in self.list("npc")}
+            if payload.get("voice_profile_key") and str(payload["voice_profile_key"]) not in profiles:
+                raise ValidationError(f"Profil vocal introuvable : {payload['voice_profile_key']}")
+            if payload.get("location_key") and str(payload["location_key"]) not in locations:
+                raise ValidationError(f"Lieu de la présence introuvable : {payload['location_key']}")
+            if payload.get("scene_key") and str(payload["scene_key"]) not in groups:
+                raise ValidationError(f"Scène audio introuvable : {payload['scene_key']}")
+            if payload.get("presence_type") == "npc" and payload.get("source_key") and str(payload["source_key"]) not in npcs:
+                raise ValidationError(f"PNJ source introuvable : {payload['source_key']}")
         if entity_type == "event":
             groups = {item["entity_key"] for item in self.list("audio_group")}
             buildings = {item["entity_key"] for item in self.list("building")}
@@ -157,9 +180,11 @@ class ContentStore:
             # en plusieurs étapes). Le moteur ignore la route tant que le lieu
             # cible n'existe pas ; l'éditeur normal ne propose que des lieux réels.
         if entity_type == "npc":
-            locations={item["entity_key"] for item in self.list("location")}; buildings={item["entity_key"] for item in self.list("building")}; audios={item["entity_key"] for item in self.list("audio")}
+            locations={item["entity_key"] for item in self.list("location")}; buildings={item["entity_key"] for item in self.list("building")}; audios={item["entity_key"] for item in self.list("audio")}; profiles={item["entity_key"] for item in self.list("voice_profile")}; presences={item["entity_key"] for item in self.list("voice_presence")}
             if payload.get("location_key") and str(payload["location_key"]) not in locations: raise ValidationError(f"Lieu du PNJ introuvable : {payload['location_key']}")
             if payload.get("building_key") and str(payload["building_key"]) not in buildings: raise ValidationError(f"Bâtiment du PNJ introuvable : {payload['building_key']}")
+            if payload.get("voice_profile_key") and str(payload["voice_profile_key"]) not in profiles: raise ValidationError(f"Profil vocal du personnage introuvable : {payload['voice_profile_key']}")
+            if payload.get("voice_presence_key") and str(payload["voice_presence_key"]) not in presences: raise ValidationError(f"Présence vocale du personnage introuvable : {payload['voice_presence_key']}")
             for reaction in payload.get("reactions",[]):
                 for variant in reaction.get("variants",[]):
                     if variant.get("audio_key") and str(variant["audio_key"]) not in audios: raise ValidationError(f"Voix du PNJ introuvable : {variant['audio_key']}")
@@ -244,7 +269,7 @@ class ContentStore:
 
     def delete(self, entity_type: str, key: str, author: str = "web") -> dict[str, Any]:
         """Masque une définition sans détruire son historique versionné."""
-        if entity_type not in {"building", "item", "event", "audio", "audio_group", "audio_story", "profession", "environment", "location", "npc"}:
+        if entity_type not in {"building", "item", "event", "audio", "audio_group", "audio_story", "voice_presence", "voice_profile", "profession", "environment", "location", "npc"}:
             raise ValidationError("Ce type de contenu ne peut pas être supprimé.")
         current = self.get(entity_type, key)
         with self._lock, self.connection() as db:

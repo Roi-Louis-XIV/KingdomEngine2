@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from threading import RLock
 from typing import Any
 
 
@@ -67,38 +68,63 @@ class VoiceWorkerPool:
 
     def __init__(self, workers: list[VoiceWorkerState] | None = None, *, max_concurrent_voice_presences: int | None = None) -> None:
         self.workers = {worker.key: worker for worker in (workers or [])}
+        self._lock = RLock()
         physical_capacity = len(self.workers)
         requested = physical_capacity if max_concurrent_voice_presences is None else max(0, int(max_concurrent_voice_presences))
         self.max_concurrent_voice_presences = min(physical_capacity, requested)
 
     def register(self, worker: VoiceWorkerState) -> None:
-        self.workers[worker.key] = worker
-        if self.max_concurrent_voice_presences == 0:
-            self.max_concurrent_voice_presences = len(self.workers)
+        with self._lock:
+            self.workers[worker.key] = worker
+            if self.max_concurrent_voice_presences == 0:
+                self.max_concurrent_voice_presences = len(self.workers)
 
     def allocate(self, presence: VoicePresence, *, guild_id: str = "", channel_id: str = "") -> VoiceWorkerState | None:
-        existing = next((worker for worker in self.workers.values() if worker.presence_key == presence.key), None)
-        if existing:
-            existing.guild_id = guild_id or existing.guild_id; existing.channel_id = channel_id or existing.channel_id; existing.last_activity = _now()
-            return existing
-        active = sum(not worker.free for worker in self.workers.values())
-        if active >= self.max_concurrent_voice_presences:
-            return None
-        worker = next((candidate for candidate in self.workers.values() if candidate.free), None)
-        if worker is None:
-            return None
-        worker.state = "assigned"; worker.presence_key = presence.key; worker.guild_id = guild_id
-        worker.channel_id = channel_id; worker.scene_key = presence.scene_key; worker.last_activity = _now(); worker.error = ""
-        return worker
+        with self._lock:
+            existing = next((worker for worker in self.workers.values() if worker.presence_key == presence.key), None)
+            if existing:
+                existing.guild_id = guild_id or existing.guild_id; existing.channel_id = channel_id or existing.channel_id; existing.last_activity = _now()
+                return existing
+            active = sum(not worker.free for worker in self.workers.values())
+            if active >= self.max_concurrent_voice_presences:
+                return None
+            worker = next((candidate for candidate in self.workers.values() if candidate.free), None)
+            if worker is None:
+                return None
+            worker.state = "assigned"; worker.presence_key = presence.key; worker.guild_id = guild_id
+            worker.channel_id = channel_id; worker.scene_key = presence.scene_key; worker.last_activity = _now(); worker.error = ""
+            return worker
 
     def release(self, *, presence_key: str = "", worker_key: str = "") -> VoiceWorkerState | None:
-        worker = self.workers.get(worker_key) if worker_key else next((item for item in self.workers.values() if item.presence_key == presence_key), None)
-        if not worker: return None
-        worker.state = "free"; worker.channel_id = ""; worker.presence_key = ""; worker.scene_key = ""; worker.last_activity = _now(); worker.error = ""
-        return worker
+        with self._lock:
+            worker = self.workers.get(worker_key) if worker_key else next((item for item in self.workers.values() if item.presence_key == presence_key), None)
+            if not worker: return None
+            worker.state = "free"; worker.channel_id = ""; worker.presence_key = ""; worker.scene_key = ""; worker.last_activity = _now(); worker.error = ""
+            return worker
 
     def fail(self, worker_key: str, error: Exception | str) -> None:
-        worker = self.workers[worker_key]; worker.state = "error"; worker.error = str(error)[:500]; worker.last_activity = _now()
+        with self._lock:
+            worker = self.workers[worker_key]; worker.state = "error"; worker.error = str(error)[:500]; worker.last_activity = _now()
+
+    def recover(self, worker_key: str) -> VoiceWorkerState:
+        """Rend un worker de nouveau allouable après reconnexion du client Discord."""
+        worker = self.release(worker_key=worker_key)
+        if worker is None: raise KeyError(worker_key)
+        return worker
+
+    def sweep(self, presences: dict[str, VoicePresence], *, now: datetime | None = None) -> list[str]:
+        """Libère les présences supprimées ou inactives, sans interrompre le gameplay."""
+        reference = now or datetime.now(timezone.utc); released: list[str] = []
+        with self._lock:
+            for worker in self.workers.values():
+                presence = presences.get(worker.presence_key)
+                if worker.free: continue
+                if presence is None:
+                    released.append(worker.key); self.release(worker_key=worker.key); continue
+                last = datetime.fromisoformat(worker.last_activity)
+                if presence.release_timeout_seconds and (reference - last).total_seconds() >= presence.release_timeout_seconds:
+                    released.append(worker.key); self.release(worker_key=worker.key)
+        return released
 
     def snapshot(self) -> dict[str, Any]:
         active = sum(not worker.free for worker in self.workers.values())

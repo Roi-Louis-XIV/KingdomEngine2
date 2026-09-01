@@ -461,3 +461,29 @@ def test_reference_building_is_filtered_from_game_engine(tmp_path):
     demo = store.save("building", "nocode_academy", {"name": "Atelier", "is_reference": True, "actions": []})
     store.publish("building", "nocode_academy", demo["version"])
     assert [row["entity_key"] for row in GameEngine(store).buildings()] == ["forge"]
+
+
+def test_voice_presence_has_a_real_client_ui_and_hides_worker_details():
+    static = Path(web.__file__).with_name("static")
+    page = (static / "index.html").read_text(encoding="utf-8")
+    script = (static / "app.js").read_text(encoding="utf-8")
+    styles = (static / "voice-presence.css").read_text(encoding="utf-8")
+    assert 'data-type="voice_presence"' in page
+    assert "loadVoicePresenceStudio" in script
+    assert "openVoicePresenceDialog" in script
+    assert "openVoiceProfileDialog" in script
+    assert "Une capacité audio, plusieurs identités" in script
+    assert "Aucune présence vocale" in script
+    assert "worker_01" not in script
+    assert ".voice-presence-grid" in styles
+    assert "@media(max-width:760px)" in styles
+
+
+def test_navigation_uses_generic_world_editor_vocabulary():
+    static = Path(web.__file__).with_name("static")
+    page = (static / "index.html").read_text(encoding="utf-8")
+    assert "Entités & lieux" in page
+    assert "Espaces interactifs" in page
+    assert "Objets & ressources" in page
+    assert "Temps & calendrier" in page
+    assert "Présences vocales" in page

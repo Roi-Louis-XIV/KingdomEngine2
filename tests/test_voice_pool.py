@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from KingdomVoice.pool import VoicePresence, VoiceProfile, VoiceWorkerPool, VoiceWorkerState
@@ -29,3 +31,24 @@ def test_voice_presence_and_profile_are_generic():
     assert profile.provider == "files"
     with pytest.raises(ValueError):
         VoicePresence("invalid", "Invalid", "bot")
+
+
+def test_pool_releases_timed_out_and_deleted_presences_without_blocking():
+    worker = VoiceWorkerState("worker_01")
+    pool = VoiceWorkerPool([worker], max_concurrent_voice_presences=1)
+    presence = VoicePresence("guide", "Guide", release_timeout_seconds=10)
+    pool.allocate(presence, guild_id="1", channel_id="2")
+    worker.last_activity = (datetime.now(timezone.utc) - timedelta(seconds=11)).isoformat()
+    assert pool.sweep({"guide": presence}) == ["worker_01"]
+    assert worker.free is True
+    pool.allocate(presence)
+    assert pool.sweep({}) == ["worker_01"]
+
+
+def test_pool_can_recover_a_worker_after_disconnect_error():
+    pool = VoiceWorkerPool([VoiceWorkerState("worker_01")], max_concurrent_voice_presences=1)
+    pool.fail("worker_01", "gateway disconnected")
+    assert pool.allocate(VoicePresence("radio", "Radio")) is None
+    recovered = pool.recover("worker_01")
+    assert recovered.free is True
+    assert pool.allocate(VoicePresence("radio", "Radio")).key == "worker_01"

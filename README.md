@@ -48,6 +48,14 @@ Le **Support Mode** se demande depuis le profil. Le client choisit explicitement
 
 Les principes d’architecture et la stratégie de migration sont détaillés dans [`docs/ARCHITECTURE_PRINCIPLES.md`](docs/ARCHITECTURE_PRINCIPLES.md) et [`docs/DATA_MIGRATIONS.md`](docs/DATA_MIGRATIONS.md).
 
+### Product Pass 2 — éditeur de monde et présences vocales
+
+La navigation de KingdomWeb est organisée comme un éditeur de monde générique : entités et lieux, espaces interactifs, personnages, activités, objets et ressources, événements, calendrier, environnement, audio et Discord. Le Design System partagé est documenté dans [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md).
+
+**Présences vocales** distingue clairement l’identité audible de la capacité Discord qui l’exécute. Le Studio permet de créer des présences `Personnage`, `Ambiance` ou `Personnalisée`, de choisir leur lieu, profil vocal, scène audio, priorité, affectation et délai de libération. Les profils regroupent langue, clips, volume, fallback et tags. Sur mobile, ces informations restent consultables mais leur édition structurelle est réservée à l’ordinateur.
+
+Le contenu historique **Le Royaume** est désormais identifié comme content pack de compatibilité dans [`content_packs/le_royaume`](content_packs/le_royaume). `seed.py` et `import_v1.py` restent temporairement le pont de chargement pour ne pas altérer les mondes installés.
+
 ### Aide et tutoriels interactifs
 
 Le menu **Aide & tutoriels** affiche deux progressions complémentaires : les étapes guidées déjà parcourues et les objectifs réellement présents dans le royaume. Les parcours disponibles couvrent le premier royaume complet, la création d’un bâtiment, les actions, les métiers et zones, l’interface Discord, l’audio, la météo et les grands Events.

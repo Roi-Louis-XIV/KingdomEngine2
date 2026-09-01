@@ -12,3 +12,19 @@ def test_revision_and_publish(tmp_path):
     except ConflictError: pass
     else: raise AssertionError("Un conflit de version devait être détecté")
 
+
+def test_voice_profiles_and_presences_are_versioned_content(tmp_path):
+    store = ContentStore(tmp_path / "voice-content.db"); store.initialize()
+    profile = store.save("voice_profile", "guide_voice", {
+        "name": "Voix du guide", "provider": "files", "language": "fr",
+        "volume": 1, "clips": [], "tags": ["guide"],
+    })
+    store.publish("voice_profile", "guide_voice", profile["version"])
+    presence = store.save("voice_presence", "station_guide", {
+        "name": "Guide de la station", "presence_type": "custom",
+        "voice_profile_key": "guide_voice", "assignment_mode": "on_demand",
+        "priority": 20, "release_timeout_seconds": 30,
+    })
+    assert store.publish("voice_presence", "station_guide", presence["version"])["status"] == "published"
+    assert store.get("voice_presence", "station_guide")["payload"]["voice_profile_key"] == "guide_voice"
+
