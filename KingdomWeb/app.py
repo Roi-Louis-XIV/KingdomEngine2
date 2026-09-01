@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from KingdomData import ConflictError, ContentStore, NotFoundError, ValidationError, SERVER_SETTINGS_KEY, get_server_settings
 from KingdomData.audio_storage import audio_key, safe_audio_path, store_audio_file
 from KingdomData.paths import persistent_data_root
+from KingdomData.world_presets import PRESET_CATALOG, world_preset
 from import_v1 import import_v1, seed_legacy_audio_catalog
 from kingdomCore.provisioner import managed_bot_permissions, required_bot_permissions
 from KingdomWeb.supervision import AdministrationService, ServiceSupervisor
@@ -51,7 +52,10 @@ class MagasinsServeurs:
         if magasin is None:
             magasin = ContentStore(chemin)
             magasin.initialize()
-            magasin.seed(DEFINITIONS)
+            # Une base créée depuis KingdomWeb possède déjà le modèle choisi.
+            # Le seed historique ne sert qu'aux anciennes bases réellement vides.
+            if not magasin.list():
+                magasin.seed(DEFINITIONS)
             seed_legacy_audio_catalog(magasin)
             self._magasins[chemin] = magasin
         self._synchroniser_modeles_bots(magasin)
@@ -599,6 +603,11 @@ def retirer_acces_compte(account_id: int, server_slug: str):
         raise HTTPException(422, str(exc)) from exc
 
 
+@app.get("/api/world-presets", dependencies=[Depends(authenticate_account)])
+def modeles_de_monde():
+    return {"presets": PRESET_CATALOG}
+
+
 @app.post("/api/servers", dependencies=[Depends(authenticate_account)])
 def creer_serveur(request: Request, body: dict[str, Any]):
     try:
@@ -613,11 +622,14 @@ def creer_serveur(request: Request, body: dict[str, Any]):
             )
             if administres >= limite:
                 raise ValueError(f"Limite de {limite} serveurs administrés atteinte.")
+        preset_key = str(body.get("preset", "blank")).strip() or "blank"
+        definitions = world_preset(preset_key)
         serveur = comptes.creer_serveur(str(body.get("name", "")), str(body.get("guild_id", "")), int(request.state.compte["id"]))
         magasin = ContentStore(serveur["database_path"])
         magasin.initialize()
-        magasin.seed(DEFINITIONS)
-        return serveur
+        magasin.seed(definitions)
+        store._magasins[str(magasin.path.resolve())] = magasin
+        return {**serveur, "preset": preset_key, "seeded_entities": len(definitions)}
     except (ValueError, ConflictError) as exc:
         raise HTTPException(422, str(exc)) from exc
 

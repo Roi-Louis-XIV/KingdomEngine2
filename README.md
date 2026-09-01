@@ -390,7 +390,17 @@ Ouvrir `http://127.0.0.1:8000`, puis se connecter avec `KINGDOM_ADMIN_USERNAME` 
 
 ### Comptes et serveurs Discord
 
-L'écran de connexion propose **Créer un compte**. Après l'inscription, le nouveau compte est connecté directement et ne voit que son profil et l'ajout de serveur. Il renseigne le nom et l'identifiant de son serveur Discord, devient automatiquement propriétaire de cet espace, puis débloque tous les modules KingdomWeb. Un administrateur peut aussi lui attribuer un serveur existant depuis **Mon profil & serveurs**.
+L'écran de connexion propose **Créer un compte**. Après l'inscription, le nouveau compte est connecté directement et ne voit que son profil et l'ajout de serveur. Il renseigne le nom et l'identifiant de son serveur Discord, choisit son modèle de départ, devient automatiquement propriétaire de cet espace, puis débloque tous les modules KingdomWeb. Le formulaire **Ajouter un autre serveur** reste disponible ensuite sur chaque profil, y compris le profil administrateur. Un administrateur peut aussi attribuer un serveur existant depuis **Mon profil & serveurs**.
+
+### Modèles de monde au premier démarrage
+
+Chaque serveur possède une base KingdomData indépendante. Lors de sa création, trois points de départ sont proposés :
+
+- **Monde vierge** : uniquement les paramètres généraux, sans lieu, bâtiment, métier, événement ni mécanique imposée ;
+- **Royaume médiéval** : capitale, forêt, mine, métiers de forestier et mineur, ressources, économie, calendrier saisonnier, météo, événement et intendant Discord ;
+- **Station spatiale** : station orbitale et ses connexions, ingénierie, exploration, ressources, crédits, cycles de mission, phénomènes spatiaux, événement et intelligence Discord.
+
+Ces modèles sont uniquement des données no-code initiales. Tous leurs éléments peuvent être modifiés, supprimés et complétés depuis KingdomWeb. Ils n'ajoutent aucune logique Python propre à un univers. Le modèle est appliqué une seule fois à la création ; installer ensuite KingdomEngine sur Discord provisionne les salons correspondant aux bâtiments publiés.
 
 Par défaut, un compte peut administrer jusqu'à 10 serveurs. Cette limite peut être adaptée sur une installation hébergée :
 

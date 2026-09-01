@@ -172,13 +172,19 @@ def test_unassigned_account_can_create_its_first_server_and_becomes_owner(tmp_pa
         assert client.get("/api/profile").json()["servers"] == []
 
         created = client.post("/api/servers", json={
-            "name": "Royaume autonome", "guild_id": "123456789012345678",
+            "name": "Station autonome", "guild_id": "123456789012345678", "preset": "space_station",
         })
         assert created.status_code == 200
+        assert created.json()["preset"] == "space_station"
+        assert created.json()["seeded_entities"] > 1
         profile = client.get("/api/profile").json()
         assert profile["current_server"] == created.json()["slug"]
         assert profile["servers"][0]["role"] == "proprietaire"
         assert profile["servers"][0]["guild_id"] == "123456789012345678"
+        world = ContentStore(created.json()["database_path"])
+        assert world.get("building", "command_deck")["payload"]["name"] == "Pont de commandement"
+        with __import__("pytest").raises(NotFoundError):
+            world.get("building", "market_square")
 
 
 def test_managed_server_install_and_safe_removal_lifecycle(tmp_path, monkeypatch):
