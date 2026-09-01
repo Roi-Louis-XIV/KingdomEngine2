@@ -76,6 +76,47 @@ def test_archived_discord_server_can_be_reactivated_by_its_previous_owner(tmp_pa
     assert len(matching) == 1
 
 
+def test_deleted_account_releases_archived_server_for_a_new_installation(tmp_path, monkeypatch):
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "platform-owner")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "platform-password")
+    registry = RegistreComptes(tmp_path / "released-server.db")
+    registry.initialiser()
+    administrator = registry.authentifier("platform-owner", "platform-password")
+    former_owner = registry.creer_compte("former-owner", "Ancien propriétaire", "former-password")
+    replacement = registry.creer_compte("new-owner", "Nouveau propriétaire", "replacement-password")
+    created = registry.creer_serveur("Monde de test", "123456789012345680", former_owner["id"])
+    registry.archiver_serveur(created["slug"])
+
+    deletion = registry.supprimer_compte(former_owner["id"], administrator["id"])
+    restored = registry.creer_serveur("Monde réinstallé", "123456789012345680", replacement["id"])
+
+    assert deletion["username"] == "former-owner"
+    assert deletion["preserved_servers"][0]["slug"] == created["slug"]
+    assert restored["slug"] == created["slug"]
+    assert restored["database_path"] == created["database_path"]
+    assert restored["reactivated"] is True
+    assert registry.lister_acces(replacement["id"])[0]["role"] == "proprietaire"
+
+
+def test_account_deletion_protects_administrators_and_current_operator(tmp_path, monkeypatch):
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "protected-admin")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "protected-password")
+    registry = RegistreComptes(tmp_path / "protected-accounts.db")
+    registry.initialiser()
+    administrator = registry.authentifier("protected-admin", "protected-password")
+    customer = registry.creer_compte("customer", "Client", "customer-password")
+
+    for target in (administrator["id"],):
+        try:
+            registry.supprimer_compte(target, administrator["id"])
+        except ValueError as exc:
+            assert "propre compte" in str(exc)
+        else:
+            raise AssertionError("The current administrator must remain protected")
+    registry.supprimer_compte(customer["id"], administrator["id"])
+    assert all(account["id"] != customer["id"] for account in registry.lister_comptes())
+
+
 def test_login_requires_fresh_v2_session_and_remember_is_opt_in(tmp_path, monkeypatch):
     primary = ContentStore(tmp_path / "secure-session.db")
     registry = RegistreComptes(primary.path)

@@ -30,6 +30,7 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 - objets, inventaires joueur et bâtiment, recettes, commerce, productions, livraisons et objectifs collectifs ;
 - modèles de départ enrichis : **Royaume médiéval** et **Station spatiale** fournissent chacun 5 bâtiments, 4 métiers, 20 objets, 4 événements, une géographie, un environnement et un bot principal entièrement modifiables ;
 - **Connexion Discord** regroupe KingdomCore et tous les bots audio KingdomVoice, y compris les connexions désactivées ou incomplètes. Elles sont toutes incluses actuellement ; l'affichage est prêt à accueillir de futurs droits d'abonnement ;
+- Payen Studio Admin peut supprimer un compte client inactif après confirmation. Ses sessions et accès sont retirés, mais les bases de ses mondes sont conservées ; un serveur Discord archivé et devenu sans propriétaire peut ensuite être repris et réinstallé avec le même identifiant ;
 - résultats aléatoires pondérés contenant plusieurs effets génériques ;
 - événements, modificateurs du monde, calendrier autonome, saisons, météo et cycle jour/nuit ;
 - lieux, connexions, voyages, exploration Discord et monde vivant ;

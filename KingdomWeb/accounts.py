@@ -283,6 +283,45 @@ class RegistreComptes:
             resultats.append(compte)
         return resultats
 
+    def supprimer_compte(self, compte_id: int, acteur_id: int) -> dict[str, Any]:
+        """Supprime un compte client sans détruire les mondes qu'il administrait.
+
+        Les accès et sessions disparaissent par cascade. Les organisations et
+        bases KingdomData restent disponibles afin qu'un serveur archivé puisse
+        être réattribué puis réinstallé ultérieurement.
+        """
+        if compte_id == acteur_id:
+            raise ValueError("Vous ne pouvez pas supprimer votre propre compte administrateur.")
+        with self.connexion() as base:
+            compte = base.execute(
+                "SELECT id,username,display_name,is_admin FROM web_accounts WHERE id=?", (compte_id,)
+            ).fetchone()
+            if not compte:
+                raise ValueError("Compte introuvable.")
+            role_plateforme = base.execute(
+                "SELECT role FROM account_platform_roles WHERE account_id=?", (compte_id,)
+            ).fetchone()
+            if bool(compte["is_admin"]) or (role_plateforme and role_plateforme["role"] == "platform_admin"):
+                raise ValueError("Un compte administrateur de plateforme ne peut pas être supprimé ici.")
+            serveurs = [dict(row) for row in base.execute(
+                "SELECT s.id,s.slug,s.name,s.active,a.role FROM server_access a "
+                "JOIN managed_servers s ON s.id=a.server_id WHERE a.account_id=? ORDER BY s.name",
+                (compte_id,),
+            ).fetchall()]
+            # organizations.created_by n'est volontairement pas en cascade :
+            # le responsable de la suppression reprend seulement la garde
+            # technique des conteneurs, pas leurs données privées dans l'UI.
+            base.execute("UPDATE organizations SET created_by=? WHERE created_by=?", (acteur_id, compte_id))
+            base.execute("DELETE FROM web_accounts WHERE id=?", (compte_id,))
+            self._audit_plateforme(
+                base, acteur_id, "account.deleted", "account", str(compte_id),
+                {"username": compte["username"], "preserved_servers": [item["slug"] for item in serveurs]},
+            )
+        return {
+            "ok": True, "deleted_account_id": compte_id, "username": str(compte["username"]),
+            "preserved_servers": serveurs,
+        }
+
     def lister_acces(self, compte_id: int) -> list[dict[str, Any]]:
         with self.connexion() as base:
             lignes = base.execute(
@@ -338,12 +377,22 @@ class RegistreComptes:
         with self.connexion() as base:
             if guild_id:
                 existant = base.execute(
-                    "SELECT s.slug,s.name,s.active,a.role FROM managed_servers s "
+                    "SELECT s.id,s.slug,s.name,s.active,a.role FROM managed_servers s "
                     "LEFT JOIN server_access a ON a.server_id=s.id AND a.account_id=? WHERE s.guild_id=?",
                     (proprietaire_id, guild_id),
                 ).fetchone()
                 if existant:
-                    if not bool(existant["active"]) and existant["role"] in {"proprietaire", "gestionnaire"}:
+                    nombre_acces = int(base.execute(
+                        "SELECT COUNT(*) FROM server_access WHERE server_id=?", (existant["id"],)
+                    ).fetchone()[0])
+                    est_admin_plateforme = bool(base.execute(
+                        "SELECT 1 FROM account_platform_roles WHERE account_id=? AND role='platform_admin'", (proprietaire_id,)
+                    ).fetchone())
+                    peut_reactiver = (
+                        not bool(existant["active"])
+                        and (existant["role"] in {"proprietaire", "gestionnaire"} or est_admin_plateforme or nombre_acces == 0)
+                    )
+                    if peut_reactiver:
                         # La suppression conserve KingdomData. Le même propriétaire
                         # peut donc réactiver cette supervision sans heurter l'index
                         # unique de l'identifiant Discord.
@@ -351,6 +400,11 @@ class RegistreComptes:
                             "UPDATE managed_servers SET active=1,bot_installed=0,name=? WHERE slug=?",
                             (nom, existant["slug"]),
                         )
+                        if not existant["role"] and not est_admin_plateforme:
+                            base.execute(
+                                "INSERT INTO server_access(account_id,server_id,role,permissions_json,created_at) VALUES(?,?,?,?,?)",
+                                (proprietaire_id, existant["id"], "proprietaire", "[]", _maintenant()),
+                            )
                         slug_reactive = str(existant["slug"])
                     elif existant["role"]:
                         raise ValueError(
@@ -375,6 +429,18 @@ class RegistreComptes:
                     (proprietaire_id, curseur.lastrowid, "proprietaire", "[]", _maintenant()),
                 )
         self._migrer_fondations_produit()
+        if slug_reactive:
+            # Un serveur repris après la suppression de son ancien compte doit
+            # rejoindre l'espace personnel de son nouveau propriétaire.
+            with self.connexion() as base:
+                organisation = base.execute(
+                    "SELECT id FROM organizations WHERE slug=?", (f"personal-{proprietaire_id}",)
+                ).fetchone()
+                if organisation:
+                    base.execute(
+                        "UPDATE worlds SET organization_id=?,status='active',updated_at=? WHERE slug=?",
+                        (organisation["id"], _maintenant(), slug_reactive),
+                    )
         resultat = self.serveur(slug_reactive or slug)
         return {**resultat, "reactivated": bool(slug_reactive)}
 

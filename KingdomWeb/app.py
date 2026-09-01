@@ -647,6 +647,14 @@ def creer_serveur(request: Request, body: dict[str, Any]):
         if serveur:
             comptes.archiver_serveur(str(serveur["slug"]))
         raise HTTPException(422, str(exc)) from exc
+
+
+@app.delete("/api/accounts/{account_id}", dependencies=[Depends(_administrateur_plateforme)])
+def supprimer_compte_client(account_id: int, request: Request):
+    try:
+        return comptes.supprimer_compte(account_id, int(request.state.compte["id"]))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     except Exception as exc:
         if serveur:
             comptes.archiver_serveur(str(serveur["slug"]))
