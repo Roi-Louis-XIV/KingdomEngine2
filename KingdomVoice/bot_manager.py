@@ -15,6 +15,7 @@ import discord
 from KingdomData import ContentStore
 from KingdomData.paths import PACKAGE_DATA_ROOT, persistent_data_root
 from KingdomVoice.resolver import resolve_audio_scene
+from KingdomVoice.pool import VoicePresence, VoiceWorkerPool, VoiceWorkerState
 from kingdomEvent.lifecycle import EventLifecycle
 from kingdomEvent.runtime import WorldClock
 
@@ -30,6 +31,7 @@ class ManagedVoiceBot(discord.Client):
         self._audio_lock = asyncio.Lock()
         self.current_group_key = str(config.get("default_group_key", ""))
         self._last_scene_check = 0.0
+        self._applied_identity = ""
 
     @property
     def channel_id(self) -> int:
@@ -60,6 +62,23 @@ class ManagedVoiceBot(discord.Client):
         print(f"[KingdomVoice] {self.key} connecté : {self.user}")
         if self.config.get("auto_join", True):
             await self.ensure_connected()
+
+    async def apply_presence_identity(self, presence: VoicePresence) -> None:
+        """Applique au plus une fois le surnom de serveur d'une présence.
+
+        Le username global n'est jamais modifié. L'avatar serveur reste une
+        capacité future car il dépend des droits et capacités Discord du bot.
+        """
+        identity = f"{presence.key}:{presence.name}"
+        if identity == self._applied_identity:
+            return
+        for guild in self.guilds:
+            member = guild.me
+            if member and member.nick != presence.name:
+                try: await member.edit(nick=presence.name[:32], reason="Affectation Voice Presence KingdomEngine")
+                except (discord.Forbidden, discord.HTTPException) as exc:
+                    print(f"[KingdomVoice] identité de présence non appliquée pour {self.key} : {exc}")
+        self._applied_identity = identity
 
     async def on_voice_state_update(self, _member, before, after) -> None:
         target = self.target_channel()
@@ -264,6 +283,7 @@ class VoiceBotManager:
         self.assets_root = Path(assets_root) if assets_root else persistent_data_root()
         self.clients: dict[str, ManagedVoiceBot] = {}
         self._last_scene_check = 0.0
+        self.pool = VoiceWorkerPool([], max_concurrent_voice_presences=0)
 
     def configured(self) -> list[dict[str, Any]]:
         return [entity for entity in self.store.list("bot", published=True) if entity["payload"].get("bot_type") == "voice"]
@@ -301,6 +321,11 @@ class VoiceBotManager:
             client = ManagedVoiceBot(key, config, self.assets_root, self.store)
             self.clients[key] = client
             tasks.append(asyncio.create_task(client.start(token), name=key))
+        configured_quota = int(os.getenv("KINGDOM_MAX_CONCURRENT_VOICE_PRESENCES", str(len(self.clients))) or len(self.clients))
+        self.pool = VoiceWorkerPool(
+            [VoiceWorkerState(key=key, guild_id=str(client.config.get("guild_id", ""))) for key, client in self.clients.items()],
+            max_concurrent_voice_presences=configured_quota,
+        )
         if not tasks:
             print("[KingdomVoice] Aucun bot vocal activé avec un token configuré.")
             return
@@ -310,6 +335,30 @@ class VoiceBotManager:
             dispatcher.cancel()
             await asyncio.gather(dispatcher, return_exceptions=True)
             await asyncio.gather(*(client.close() for client in self.clients.values()), return_exceptions=True)
+
+    async def assign_presence(self, presence: VoicePresence, *, guild_id: str = "", channel_id: str = "", building_key: str = "") -> ManagedVoiceBot | None:
+        """Affecte une présence sans rendre le gameplay dépendant de l'audio."""
+        worker = self.pool.allocate(presence, guild_id=guild_id, channel_id=channel_id)
+        if worker is None:
+            print(f"[KingdomVoice] aucune capacité disponible pour la présence {presence.key}; le monde reste jouable sans audio.")
+            return None
+        client = self.clients.get(worker.key)
+        if client is None:
+            self.pool.fail(worker.key, "Client Discord indisponible")
+            return None
+        client.config.update({"guild_id": guild_id or client.config.get("guild_id", ""), "voice_channel_id": channel_id or 0, "building_key": building_key, "presence_key": presence.key})
+        client.current_group_key = presence.scene_key or client.current_group_key
+        await client.apply_presence_identity(presence)
+        await client.ensure_connected()
+        return client
+
+    async def release_presence(self, presence_key: str) -> None:
+        worker = next((item for item in self.pool.workers.values() if item.presence_key == presence_key), None)
+        if not worker: return
+        client = self.clients.get(worker.key)
+        if client:
+            await asyncio.gather(*(voice.disconnect(force=False) for voice in client.voice_clients), return_exceptions=True)
+        self.pool.release(presence_key=presence_key)
 
     def _client_for(self, command: dict[str, Any], audio: dict[str, Any] | None = None) -> ManagedVoiceBot | None:
         building_key = str(command.get("building_key", ""))

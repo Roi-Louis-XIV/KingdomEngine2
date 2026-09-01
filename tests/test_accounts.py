@@ -241,6 +241,9 @@ def test_mobile_shell_keeps_essential_tools_within_thumb_reach():
     assert "height:100dvh" in stylesheet.text
     assert "body:has(.login-screen:not([hidden])) .mobile-dock" in stylesheet.text
     assert "navigateTo(button.dataset.mobileType)" in script.text
+    assert "mobileCreationBlocked" in script.text
+    assert "La création de contenu" in script.text
+    assert '[data-type="building"]' in stylesheet.text
 
 
 def test_tutorial_progress_is_scoped_by_account_and_server(tmp_path, monkeypatch):
@@ -290,3 +293,31 @@ def test_tutorial_progress_api_can_resume_and_reset(tmp_path, monkeypatch):
         assert resumed["tutorials"]["world"]["dismissed"] is True
         assert client.delete("/api/tutorials/progress/world", headers=request_headers).status_code == 200
         assert client.get("/api/tutorials/progress", headers=request_headers).json()["tutorials"] == {}
+
+
+def test_existing_accounts_and_servers_are_migrated_to_product_foundations(tmp_path, monkeypatch):
+    database = tmp_path / "legacy-product.db"
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "owner")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "owner-password")
+    registry = RegistreComptes(database); registry.initialiser()
+    owner = registry.authentifier("owner", "owner-password")
+    foundations = registry.fondations_produit(owner["id"])
+    assert foundations["organizations"][0]["role"] == "owner"
+    assert foundations["worlds"][0]["slug"] == "royaume-principal"
+    assert foundations["worlds"][0]["guild_id"] == ""
+    assert foundations["plans"][0]["plan_key"] == "standard"
+
+
+def test_support_mode_is_scoped_expiring_revocable_and_audited(tmp_path, monkeypatch):
+    database = tmp_path / "support.db"
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "owner")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "owner-password")
+    registry = RegistreComptes(database); registry.initialiser()
+    owner = registry.authentifier("owner", "owner-password")
+    grant = registry.demander_assistance(owner["id"], "royaume-principal", ["diagnostics", "service_health", "secrets"], 30)
+    assert grant["status"] == "active"
+    assert grant["scopes"] == ["diagnostics", "service_health"]
+    assert registry.revoquer_assistance(grant["grant_id"], owner["id"])["status"] == "revoked"
+    with registry.connexion() as database_connection:
+        actions = [row[0] for row in database_connection.execute("SELECT action FROM platform_audit ORDER BY id")]
+    assert actions == ["support.granted", "support.revoked"]

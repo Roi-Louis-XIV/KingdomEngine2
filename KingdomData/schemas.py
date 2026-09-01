@@ -62,6 +62,11 @@ def validate_entity(entity_type: str, payload: dict[str, Any]) -> dict[str, Any]
             raise ValidationError("Les effets de consommation doivent former une liste.")
         for effect in consumption.get("effects", []): _validate_effect(effect)
     if entity_type == "building":
+        if payload.get("entity_kind", "place") not in {"place", "room", "institution", "vehicle", "planet", "zone", "abstract", "custom"}:
+            raise ValidationError("Nature d'entité interactive invalide.")
+        if payload.get("parent_key"): validate_key(str(payload["parent_key"]))
+        if payload.get("tags") is not None and not isinstance(payload.get("tags"), list):
+            raise ValidationError("Les tags de l'entité doivent former une liste.")
         if payload.get("location_key"):
             validate_key(str(payload["location_key"]))
         relations = payload.get("relations", {})

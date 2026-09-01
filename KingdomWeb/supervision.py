@@ -291,6 +291,22 @@ class AdministrationService:
             "database": {"path": str(self.store.path), "size_bytes": self.store.path.stat().st_size if self.store.path.exists() else 0},
         }
 
+    def client_overview(self) -> dict[str, Any]:
+        """Projection métier sans processus, PID, chemins ou journaux globaux."""
+        data = self.overview()
+        technical = {service["key"]: service for service in data["services"]}
+        capabilities = [
+            {"key": "world", "name": "Monde opérationnel", "emoji": "◉", "running": bool(technical.get("core", {}).get("running")), "controllable": False},
+            {"key": "audio", "name": "Audio disponible", "emoji": "◖", "running": bool(technical.get("voice", {}).get("running")), "controllable": False},
+            {"key": "studio", "name": "Synchronisation", "emoji": "↻", "running": True, "controllable": False},
+        ]
+        data["services"] = capabilities
+        data["metrics"]["running_services"] = sum(item["running"] for item in capabilities)
+        data["logs"] = {}
+        data["database"] = {"size_bytes": data["database"]["size_bytes"]}
+        data["client_safe"] = True
+        return data
+
     def _interface_pages(self, payload: dict[str, Any]) -> int:
         if payload.get("interface"):
             return len(payload["interface"].get("pages", []))

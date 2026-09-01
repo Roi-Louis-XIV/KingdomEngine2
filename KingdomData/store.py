@@ -172,6 +172,8 @@ class ContentStore:
         locations = {item["entity_key"] for item in self.list("location")}
         if payload.get("location_key") and str(payload["location_key"]) not in locations:
             raise ValidationError(f"Localisation du bâtiment introuvable : {payload['location_key']}")
+        if payload.get("parent_key") and str(payload["parent_key"]) not in buildings - {entity_key}:
+            raise ValidationError(f"Entité parente introuvable : {payload['parent_key']}")
         audio_module = payload.get("modules", {}).get("audio", {})
         groups = audio_module.get("groups", [])
         group_keys = {str(group.get("key")) for group in groups} | {item["entity_key"] for item in self.list("audio_group")}

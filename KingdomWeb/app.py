@@ -164,7 +164,8 @@ def _autoriser(request: Request, authorization: str | None, royaume_session: str
         compte = comptes.compte_session(royaume_session or "")
         if not compte:
             raise HTTPException(401, "Connectez-vous à KingdomWeb.")
-        serveurs = comptes.lister_serveurs(int(compte["id"]), bool(compte["is_admin"]))
+        est_plateforme = comptes.role_plateforme(int(compte["id"])) == "platform_admin"
+        serveurs = comptes.lister_serveurs(int(compte["id"]), est_plateforme)
     try:
         serveur = next((item for item in serveurs if item["slug"] == x_kingdom_server), None) if x_kingdom_server else (serveurs[0] if serveurs else None)
         if not serveur:
@@ -207,6 +208,10 @@ async def authorize_player_edit(request: Request, authorization: str | None = He
 
 @app.get("/")
 def index(): return FileResponse(STATIC / "index.html")
+
+
+@app.get("/platform-admin")
+def platform_admin_page(): return FileResponse(STATIC / "platform-admin.html")
 
 
 @app.get("/api/health")
@@ -424,7 +429,9 @@ def _bots_disponibles() -> list[dict[str, Any]]:
 @app.get("/api/profile", dependencies=[Depends(authenticate_account)])
 def profil(request: Request, x_kingdom_server: str | None = Header(None)):
     compte = request.state.compte
-    serveurs = comptes.lister_serveurs(int(compte["id"]), bool(compte["is_admin"])) if int(compte["id"]) else comptes.lister_serveurs(0, True)
+    compte = {**compte, "platform_role": comptes.role_plateforme(int(compte["id"])) if int(compte["id"]) else ""}
+    est_plateforme = bool(int(compte["id"]) and compte.get("platform_role") == "platform_admin")
+    serveurs = comptes.lister_serveurs(int(compte["id"]), est_plateforme) if int(compte["id"]) else comptes.lister_serveurs(0, True)
     bots = _bots_disponibles()
     return {
         "account": compte,
@@ -476,12 +483,58 @@ async def _administrateur_global(request: Request, compte: dict[str, Any] = Depe
     return compte
 
 
-@app.get("/api/accounts", dependencies=[Depends(_administrateur_global)])
+async def _administrateur_plateforme(request: Request, compte: dict[str, Any] = Depends(authenticate_account)) -> dict[str, Any]:
+    if int(compte.get("id", 0)) <= 0 or comptes.role_plateforme(int(compte["id"])) != "platform_admin":
+        raise HTTPException(403, "Accès Payen Studio Admin requis.")
+    return compte
+
+
+@app.get("/api/product/foundations", dependencies=[Depends(authenticate_account)])
+def product_foundations(request: Request):
+    return comptes.fondations_produit(int(request.state.compte["id"]))
+
+
+@app.get("/api/support/grants", dependencies=[Depends(authenticate_account)])
+def support_grants(request: Request):
+    return {"grants": comptes.lister_assistances(int(request.state.compte["id"]))}
+
+
+@app.post("/api/support/grants", dependencies=[Depends(authenticate_account)])
+def create_support_grant(request: Request, body: dict[str, Any]):
+    try:
+        return comptes.demander_assistance(int(request.state.compte["id"]), str(body.get("world_slug", "")), list(body.get("scopes") or []), int(body.get("duration_minutes", 60)))
+    except (ValueError, ErreurAutorisation) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.delete("/api/support/grants/{grant_id}", dependencies=[Depends(authenticate_account)])
+def revoke_support_grant(grant_id: str, request: Request):
+    try: return comptes.revoquer_assistance(grant_id, int(request.state.compte["id"]))
+    except ErreurAutorisation as exc: raise HTTPException(404, str(exc)) from exc
+
+
+@app.get("/api/platform/overview", dependencies=[Depends(_administrateur_plateforme)])
+def platform_overview():
+    accounts = comptes.lister_comptes()
+    with comptes.connexion() as base:
+        organizations = int(base.execute("SELECT COUNT(*) FROM organizations").fetchone()[0])
+        worlds = int(base.execute("SELECT COUNT(*) FROM worlds WHERE status='active'").fetchone()[0])
+        active_support = int(base.execute("SELECT COUNT(*) FROM support_grants WHERE status='active' AND expires_at>?", (_maintenant_for_platform(),)).fetchone()[0])
+        audit = [dict(row) for row in base.execute("SELECT action,target_type,target_id,created_at FROM platform_audit ORDER BY id DESC LIMIT 30").fetchall()]
+    return {"accounts": accounts, "metrics": {"users": len(accounts), "organizations": organizations, "worlds": worlds, "active_support": active_support}, "services": ServiceSupervisor().statuses(), "audit": audit}
+
+
+def _maintenant_for_platform() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
+@app.get("/api/accounts", dependencies=[Depends(_administrateur_plateforme)])
 def lister_comptes():
     return {"accounts": comptes.lister_comptes()}
 
 
-@app.post("/api/accounts", dependencies=[Depends(_administrateur_global)])
+@app.post("/api/accounts", dependencies=[Depends(_administrateur_plateforme)])
 def creer_compte(body: dict[str, Any]):
     try:
         compte = comptes.creer_compte(
@@ -495,7 +548,7 @@ def creer_compte(body: dict[str, Any]):
         raise HTTPException(422, str(exc)) from exc
 
 
-@app.post("/api/accounts/{account_id}/access", dependencies=[Depends(_administrateur_global)])
+@app.post("/api/accounts/{account_id}/access", dependencies=[Depends(_administrateur_plateforme)])
 def attribuer_acces_compte(account_id: int, body: dict[str, Any]):
     try:
         comptes.compte(account_id)
@@ -505,7 +558,7 @@ def attribuer_acces_compte(account_id: int, body: dict[str, Any]):
         raise HTTPException(422, str(exc)) from exc
 
 
-@app.delete("/api/accounts/{account_id}/access/{server_slug}", dependencies=[Depends(_administrateur_global)])
+@app.delete("/api/accounts/{account_id}/access/{server_slug}", dependencies=[Depends(_administrateur_plateforme)])
 def retirer_acces_compte(account_id: int, server_slug: str):
     try:
         comptes.retirer_acces(account_id, server_slug)
@@ -833,7 +886,7 @@ def supprimer_serveur_supervise(slug: str, request: Request):
     return {"ok": True, "message": "Le serveur n'est plus supervisé. Sa base KingdomData a été conservée."}
 
 
-@app.post("/api/accounts/{account_id}/password", dependencies=[Depends(_administrateur_global)])
+@app.post("/api/accounts/{account_id}/password", dependencies=[Depends(_administrateur_plateforme)])
 def reinitialiser_mot_de_passe_compte(account_id: int, request: Request, body: dict[str, Any]):
     if account_id == int(request.state.compte["id"]):
         raise HTTPException(422, "Utilisez la section Sécurité du compte pour modifier votre propre mot de passe.")
@@ -847,7 +900,7 @@ def reinitialiser_mot_de_passe_compte(account_id: int, request: Request, body: d
 
 @app.get("/api/admin/overview", dependencies=[Depends(authorize)])
 def administration_overview():
-    return AdministrationService(store).overview()
+    return AdministrationService(store).client_overview()
 
 
 @app.get("/api/admin/items", dependencies=[Depends(authorize_player_view)])
@@ -910,7 +963,7 @@ def reset_player_cooldown(player_id: str, body: dict[str, Any], x_kingdom_admin:
     except (NotFoundError, ValidationError, ValueError, TypeError) as exc: raise _player_error(exc) from exc
 
 
-@app.post("/api/admin/services/{service_key}/{operation}", dependencies=[Depends(authorize)])
+@app.post("/api/admin/services/{service_key}/{operation}", dependencies=[Depends(_administrateur_plateforme)])
 def control_service(service_key: str, operation: str):
     try:
         return ServiceSupervisor().control(service_key, operation)

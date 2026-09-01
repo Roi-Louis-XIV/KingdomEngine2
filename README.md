@@ -17,26 +17,36 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 ## Fonctionnalités disponibles
 
 - studio web responsive avec comptes, profils, collaborateurs, permissions et séparation des serveurs Discord ;
-- mode smartphone simplifié avec navigation complète en tiroir, accès rapides au monde, aux joueurs et aux services, éditeurs plein écran, contrôles tactiles et prise en charge des zones sûres iOS/Android ;
+- mode smartphone orienté supervision : monde en direct, joueurs, événements, alertes, profil et interventions légères ; la création structurelle reste volontairement sur ordinateur ;
 - création de compte avec connexion immédiate, écran d'attente avant attribution d'un royaume, suivi global des inscriptions et réinitialisation administrative des mots de passe ;
 - tableau de bord enrichi : services, joueurs, bâtiments, objets, événements, activités, stocks, alertes et classements ;
 - bâtiments entièrement no-code avec modes Simple et Avancé, pages Discord, boutons, menus, navigation et organigramme ;
-- bâtiment de référence **Atelier-école no-code**, jouable et duplicable, qui montre métier, conditions, activité temporisée, hasard multi-effets, XP et inventaires ;
+- **Atelier-école no-code** isolé dans l’Académie : démonstration non publiable et non modifiable, utilisant les vrais éditeurs sans toucher au serveur Discord ;
 - boutons Discord conditionnels héritant des règles de leur action : rejoindre/quitter un métier et les autres choix incompatibles sont automatiquement masqués ;
 - métiers, zones, niveaux, outils, durabilité, expérience, cooldowns et activités temporisées ;
 - objets, inventaires joueur et bâtiment, recettes, commerce, productions, livraisons et objectifs collectifs ;
 - résultats aléatoires pondérés contenant plusieurs effets génériques ;
 - événements, modificateurs du monde, calendrier autonome, saisons, météo et cycle jour/nuit ;
 - lieux, connexions, voyages, exploration Discord et monde vivant ;
-- bots Discord et bots vocaux indépendants, association aux bâtiments et provisionnement des salons ;
+- bots Discord et pool de workers vocaux : les présences, profils et affectations sont des données génériques, sans identité globale imposée par bâtiment ;
 - banque sonore no-code avec préécoute, ambiances, musiques, voix et SFX déclenchés par les actions ;
 - administration des joueurs avec pseudos, avatars, inventaires, métiers, outils, activités et cooldowns ;
-- supervision des services, journaux consultables, arrêt/redémarrage et état de la base SQLite ;
+- supervision client limitée à la santé du monde et aux alertes utiles, sans PID, chemins locaux, journaux globaux ni architecture serveur ;
 - import idempotent des contenus V1 : Mine, Forêt, Construction, Forge, Taverne, objets et sons historiques ;
 - publication versionnée, contrôle de concurrence, synchronisation live et historique des changements ;
 - Académie interactive avec bulles ancrées sur les vrais contrôles, progression par compte et serveur, reprise, saut d’étape et rejeu à volonté.
 - dotation en écus des nouveaux joueurs configurable dans **Paramètres → Serment**, versée une seule fois lors du serment.
 - bibliothèque visuelle d’emojis avec recherche et catégories pour choisir rapidement l’icône des bâtiments et des objets, tout en conservant la saisie libre.
+
+### Fondations produit et séparation des responsabilités
+
+KingdomEngine conserve les comptes et serveurs existants, puis ajoute par migration idempotente les notions extensibles `Organization`, `World`, `Discord Server`, `Plan`, `Entitlement`, `Quota` et `Usage`. Aucun abonnement commercial n’est codé en dur : le plan technique `standard` sert uniquement de fondation. Un monde appartient à une organisation et peut être relié à un ou plusieurs serveurs Discord.
+
+L’administration interne Payen Studio est une application séparée, disponible à `/platform-admin` uniquement pour le compte défini par `KINGDOM_PLATFORM_ADMIN_USERNAME`. Elle peut voir la santé technique globale ; KingdomWeb client ne révèle ni processus, ni PID, ni chemins de base, ni journaux système globaux, ni autres clients.
+
+Le **Support Mode** se demande depuis le profil. Le client choisit explicitement le monde, les diagnostics autorisés et une durée limitée ; il peut révoquer l’accès à tout moment. Chaque autorisation et révocation est auditée. Les tokens, secrets et conversations privées ne font jamais partie des périmètres proposés.
+
+Les principes d’architecture et la stratégie de migration sont détaillés dans [`docs/ARCHITECTURE_PRINCIPLES.md`](docs/ARCHITECTURE_PRINCIPLES.md) et [`docs/DATA_MIGRATIONS.md`](docs/DATA_MIGRATIONS.md).
 
 ### Aide et tutoriels interactifs
 
@@ -149,6 +159,9 @@ KINGDOM_APPLICATION_ID=id_application_du_bot_principal
 KINGDOM_GUILD_ID=id_du_serveur_discord_principal
 KINGDOM_ADMIN_USERNAME=admin
 KINGDOM_ADMIN_PASSWORD=mot_de_passe_solide
+KINGDOM_PLATFORM_ADMIN_USERNAME=admin
+# Facultatif : plafond de présences vocales, sinon capacité physique du pool.
+KINGDOM_MAX_CONCURRENT_VOICE_PRESENCES=
 ```
 
 Les tokens des bots vocaux sont facultatifs. Ils utilisent les variables `EDGAR_BOT_TOKEN`, `EDOUARD_BOT_TOKEN`, `ROLAND_BOT_TOKEN`, `SYLVAIN_BOT_TOKEN` et `WAGNER_BOT_TOKEN`, avec les Application ID correspondants. Ne jamais envoyer le fichier `.env` sur GitHub.
@@ -521,7 +534,7 @@ L'interface et la mécanique sont réunies dans la même fiche **Bâtiment**. L'
 
 Le bâtiment publié contient directement ce document visuel et il est interprété par Discord : le canvas KingdomWeb et le bot utilisent donc le même contrat, sans vue spécifique codée par bâtiment. Les anciennes entités `interface` sont migrées automatiquement et restent lisibles pour compatibilité.
 
-Le **Tableau de bord** résume services, bâtiments, objets, stocks, joueurs, événements, tâches, alertes, classements et activité récente. **Services & journaux** expose le pilotage des services configurés dans `KingdomWeb/services.json`, leur état visuel, leurs PID, les commandes fiables de démarrage/arrêt/redémarrage, les journaux copiables, les publications, tâches, stocks, joueurs, inventaires et l'activité récente. **Paramètres serveur** centralise le serment, les règles, les rôles, les catégories, les salons, les messages d'entrée et les couleurs. La supervision se rafraîchit automatiquement sans interrompre le Core et suspend son rafraîchissement pendant la lecture des logs.
+Le **Tableau de bord** résume la disponibilité du monde, les bâtiments, objets, stocks, joueurs, événements, tâches, alertes, classements et l’activité récente. **Santé du monde** présente les capacités utiles au client et les alertes fonctionnelles, sans exposer les processus, PID, chemins ou journaux globaux. Ces informations techniques sont réservées à l’administration séparée Payen Studio. **Paramètres serveur** centralise le serment, les règles, les rôles, les catégories, les salons, les messages d’entrée et les couleurs. Les rafraîchissements restent isolés de la navigation active.
 
 Le Studio conserve chaque modification en brouillon. La publication archive la version active précédente. Le contrôle de version empêche deux administrateurs d’écraser silencieusement leurs changements.
 
@@ -531,7 +544,8 @@ Le Studio conserve chaque modification en brouillon. La publication archive la v
 - journal d’action avec identifiant Discord unique contre les doubles clics ;
 - publication atomique d’une seule révision active ;
 - séparation API/runtime : le Studio peut redémarrer sans couper le bot ;
-- jeton Bearer obligatoire sur toutes les routes d’administration ;
+- sessions sécurisées et rôle `platform_admin` obligatoire sur les routes d’administration interne ;
+- accès multi-client filtré par organisation, monde et droits serveur ;
 - bus événementiel remplaçable ultérieurement par Redis/NATS.
 
 ## Limites assumées de cette fondation

@@ -1,4 +1,4 @@
-/* KingdomWeb mobile — une couche finale isolée qui conserve toutes les fonctions. */
+/* KingdomWeb mobile — supervision et interventions légères, création complexe sur ordinateur. */
 .mobile-dock{display:none}
 body:has(.login-screen:not([hidden])){padding-bottom:0}
 body:has(.login-screen:not([hidden])) .mobile-dock{display:none!important}
@@ -23,7 +23,7 @@ body:has(.login-screen:not([hidden])) .mobile-dock{display:none!important}
   .account-button span{margin:0!important}
   .header-actions>#new{grid-column:1/-1;width:100%;min-height:44px;margin:0!important}
 
-  /* Tiroir complet : aucune fonctionnalité de bureau ne disparaît. */
+  /* Tiroir de supervision : les éditeurs complexes restent réservés au bureau. */
   body>.app-sidebar{position:fixed!important;z-index:40;inset:0 auto 0 0;width:min(88vw,340px)!important;height:100dvh!important;padding:18px 14px calc(20px + env(safe-area-inset-bottom))!important;overflow-y:auto;overscroll-behavior:contain;transform:translateX(-105%);transition:transform .22s ease;background:var(--sidebar,#09110c);box-shadow:24px 0 70px #0009}
   body.sidebar-open>.app-sidebar{transform:translateX(0)}
   body.sidebar-open{overflow:hidden}
@@ -33,6 +33,7 @@ body:has(.login-screen:not([hidden])) .mobile-dock{display:none!important}
   .app-sidebar #nav .nav-divider,.app-sidebar #nav .nav-submenu{display:grid!important;grid-column:1!important;grid-template-columns:1fr!important;margin-left:0!important}
   .app-sidebar #nav .nav-divider{display:block!important;margin-top:9px}
   .app-sidebar #nav button{min-height:44px;padding:10px 12px!important}
+  .app-sidebar #nav [data-type="building"],.app-sidebar #nav [data-type="profession"],.app-sidebar #nav [data-type="item"],.app-sidebar #nav [data-type="npc"],.app-sidebar #nav [data-type="location"],.app-sidebar #nav [data-type="audio"],.app-sidebar #nav [data-type="bot"]{display:none!important}
   .app-sidebar footer{display:grid!important}
 
   /* Accès d'urgence toujours à portée du pouce. */
@@ -56,6 +57,8 @@ body:has(.login-screen:not([hidden])) .mobile-dock{display:none!important}
   .card p,.building-card>p{min-height:0!important}
   button,input,select,textarea,summary{touch-action:manipulation}
   button,.primary,.secondary{min-height:42px}
+  .mobile-desktop-required{display:grid;min-height:55vh;padding:28px;place-content:center;text-align:center}
+  .mobile-desktop-required span{font-size:42px}.mobile-desktop-required p{max-width:34ch;color:var(--text-soft)}
 
   /* Les tableaux restent complets mais défilent horizontalement. */
   .admin-table-wrap,.table-scroll{margin-inline:-2px;overflow-x:auto;overscroll-behavior-inline:contain;border-radius:10px;-webkit-overflow-scrolling:touch}

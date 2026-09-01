@@ -1,7 +1,7 @@
 import json
 
 import KingdomWeb.supervision as supervision
-from KingdomWeb.supervision import ServiceSupervisor
+from KingdomWeb.supervision import AdministrationService, ServiceSupervisor
 
 
 def test_restart_waits_for_stop_before_start(monkeypatch):
@@ -49,3 +49,24 @@ def test_stopping_an_already_stopped_service_cleans_stale_entries(tmp_path, monk
     ServiceSupervisor()._stop("voice")
 
     assert json.loads(registry_path.read_text(encoding="utf-8")) == []
+
+
+def test_client_overview_never_exposes_process_logs_or_database_path(monkeypatch):
+    service = object.__new__(AdministrationService)
+    monkeypatch.setattr(service, "overview", lambda: {
+        "services": [
+            {"key": "core", "name": "KingdomCore", "running": True, "pid": 1234},
+            {"key": "voice", "name": "KingdomVoice", "running": False, "pid": 5678},
+        ],
+        "logs": {"core": "secret runtime output"},
+        "database": {"path": "/private/customer.db", "size_bytes": 42},
+        "metrics": {"running_services": 1},
+    })
+
+    result = service.client_overview()
+
+    assert result["client_safe"] is True
+    assert result["logs"] == {}
+    assert result["database"] == {"size_bytes": 42}
+    assert all("pid" not in item for item in result["services"])
+    assert {item["key"] for item in result["services"]} == {"world", "audio", "studio"}
