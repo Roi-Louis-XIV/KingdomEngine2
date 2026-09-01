@@ -188,6 +188,16 @@ cd /opt/KingdomEngine2
 sudo bash ./install-debian.sh
 ```
 
+Pour réparer uniquement les boutons de services sans relancer l’installation complète :
+
+```bash
+cd /opt/KingdomEngine2
+sudo bash ./configure-service-control.sh
+sudo systemctl restart kingdom-web
+```
+
+`update-server.sh` réapplique désormais automatiquement cette règle, y compris lorsqu’aucun nouveau commit n’est à télécharger.
+
 Cette règle ne donne pas un accès administrateur général au processus web : elle autorise uniquement `start`, `stop` et `restart` sur `kingdom-web.service`, `kingdom-core.service` et `kingdom-voice.service`.
 
 Dans KingdomWeb, sélectionner le serveur Discord puis utiliser **Paramètres → Installer le serveur Discord**. Cette opération crée les rôles et les salons initiaux. Ensuite, la publication d'un bâtiment crée ou actualise automatiquement ses salons textuel et vocal.
@@ -401,6 +411,8 @@ Ouvrir `http://127.0.0.1:8000`, puis se connecter avec `KINGDOM_ADMIN_USERNAME` 
 
 L'écran de connexion propose **Créer un compte**. Après l'inscription, le nouveau compte est connecté directement et ne voit que son profil et l'ajout de serveur. Il renseigne le nom et l'identifiant de son serveur Discord, choisit son modèle de départ, devient automatiquement propriétaire de cet espace, puis débloque tous les modules KingdomWeb. Le formulaire **Ajouter un autre serveur** reste disponible ensuite sur chaque profil, y compris le profil administrateur. Un administrateur peut aussi attribuer un serveur existant depuis **Mon profil & serveurs**.
 
+Par défaut, la connexion utilise un cookie de session fermé avec le navigateur. La case **Rester connecté pendant 7 jours** est un choix explicite. Les anciens cookies persistants antérieurs à cette protection ne sont plus acceptés. Sur mobile, **Se déconnecter** reste accessible depuis le tiroir principal et depuis le menu du compte. Le jeton de compatibilité `KINGDOM_ADMIN_TOKEN` n'est actif que si une valeur non vide est explicitement définie dans `.env` ; aucune valeur par défaut ne donne accès à l'administration.
+
 ### Modèles de monde au premier démarrage
 
 Chaque serveur possède une base KingdomData indépendante. Lors de sa création, trois points de départ sont proposés :
@@ -410,6 +422,8 @@ Chaque serveur possède une base KingdomData indépendante. Lors de sa création
 - **Station spatiale** : station orbitale et ses connexions, ingénierie, exploration, ressources, crédits, cycles de mission, phénomènes spatiaux, événement et intelligence Discord.
 
 Ces modèles sont uniquement des données no-code initiales. Tous leurs éléments peuvent être modifiés, supprimés et complétés depuis KingdomWeb. Ils n'ajoutent aucune logique Python propre à un univers. Le modèle est appliqué une seule fois à la création ; installer ensuite KingdomEngine sur Discord provisionne les salons correspondant aux bâtiments publiés.
+
+Un même identifiant de serveur Discord ne peut exister qu’une fois dans la plateforme. Si le serveur est déjà supervisé par un autre compte, KingdomWeb refuse sa duplication et demande qu’un administrateur attribue l’accès existant depuis **Administration globale → Comptes KingdomWeb**. Cette protection empêche qu’un utilisateur revendique le monde d’un autre propriétaire.
 
 Par défaut, un compte peut administrer jusqu'à 10 serveurs. Cette limite peut être adaptée sur une installation hébergée :
 

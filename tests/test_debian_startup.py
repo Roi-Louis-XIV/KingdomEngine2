@@ -26,9 +26,11 @@ def test_debian_installer_creates_autostart_services_and_secures_password():
     assert "reverse_proxy 127.0.0.1" in script
     assert "KINGDOM_SECURE_COOKIES=1" in script
     assert "kingdomengine-update.timer" in script
-    assert "/etc/sudoers.d/kingdomengine-service-control" in script
-    assert "/usr/bin/systemctl %s %s" in script
-    assert "visudo -cf" in script
+    assert "configure-service-control.sh" in script
+    helper = (ROOT / "configure-service-control.sh").read_text(encoding="utf-8")
+    assert "kingdom-core.service" in helper
+    assert "NOPASSWD" in helper
+    assert "visudo -cf" in helper
 
 
 def test_backup_script_includes_the_configured_external_data_directory():
@@ -46,4 +48,5 @@ def test_github_updater_is_safe_and_restarts_services_only_after_fast_forward():
     assert "git merge --ff-only" in script
     assert "backup-server.sh" in script
     assert "systemctl restart kingdom-web kingdom-core kingdom-voice" in script
+    assert "configure-service-control.sh" in script
     assert "kingdomengine-web" not in script

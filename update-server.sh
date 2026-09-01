@@ -28,6 +28,7 @@ sudo -H -u "$SERVICE_USER" git fetch --prune origin "$BRANCH"
 LOCAL_REVISION="$(git rev-parse HEAD)"
 REMOTE_REVISION="$(git rev-parse "origin/$BRANCH")"
 if [[ "$LOCAL_REVISION" == "$REMOTE_REVISION" ]]; then
+  bash "$ROOT/configure-service-control.sh" "$SERVICE_USER"
   echo "KingdomEngine est déjà à jour ($LOCAL_REVISION)."
   exit 0
 fi
@@ -41,5 +42,6 @@ mkdir -p "$BACKUP_DIR"
 bash "$ROOT/backup-server.sh" "$BACKUP_DIR/before-$REMOTE_REVISION-$(date +%F-%H%M).tar.gz"
 sudo -H -u "$SERVICE_USER" git merge --ff-only "origin/$BRANCH"
 sudo -H -u "$SERVICE_USER" "$ROOT/.venv/bin/python" -m pip install -e "$ROOT"
+bash "$ROOT/configure-service-control.sh" "$SERVICE_USER"
 systemctl restart kingdom-web kingdom-core kingdom-voice
 echo "KingdomEngine mis à jour : $LOCAL_REVISION -> $REMOTE_REVISION"

@@ -6,6 +6,7 @@ import os
 import mimetypes
 import json
 import logging
+import secrets
 import subprocess
 import time
 from contextlib import asynccontextmanager
@@ -34,6 +35,7 @@ from seed import DEFINITIONS, REFERENCE_BUILDING
 import discord
 
 logger = logging.getLogger("KingdomWeb")
+SESSION_COOKIE = "royaume_session_v2"
 
 class MagasinsServeurs:
     """Selectionne une base KingdomData independante pour chaque serveur."""
@@ -165,8 +167,9 @@ def _permission_requise(request: Request) -> str:
 
 
 def _autoriser(request: Request, authorization: str | None, royaume_session: str | None, x_kingdom_server: str | None, permission: str | None = None) -> dict[str, Any]:
-    expected = os.getenv("KINGDOM_ADMIN_TOKEN", "change-me")
-    if authorization == f"Bearer {expected}":
+    expected = os.getenv("KINGDOM_ADMIN_TOKEN", "").strip()
+    supplied = authorization.removeprefix("Bearer ").strip() if authorization and authorization.startswith("Bearer ") else ""
+    if expected and supplied and secrets.compare_digest(supplied, expected):
         compte = {"id": 0, "username": "legacy-admin", "display_name": "Administrateur", "is_admin": True}
         serveurs = comptes.lister_serveurs(0, True)
     else:
@@ -190,15 +193,16 @@ def _autoriser(request: Request, authorization: str | None, royaume_session: str
     return compte
 
 
-async def authorize(request: Request, authorization: str | None = Header(None), royaume_session: str | None = Cookie(None), x_kingdom_server: str | None = Header(None)) -> dict[str, Any]:
+async def authorize(request: Request, authorization: str | None = Header(None), royaume_session: str | None = Cookie(None, alias=SESSION_COOKIE), x_kingdom_server: str | None = Header(None)) -> dict[str, Any]:
     return _autoriser(request, authorization, royaume_session, x_kingdom_server)
 
 
-async def authenticate_account(request: Request, authorization: str | None = Header(None), royaume_session: str | None = Cookie(None)) -> dict[str, Any]:
+async def authenticate_account(request: Request, authorization: str | None = Header(None), royaume_session: str | None = Cookie(None, alias=SESSION_COOKIE)) -> dict[str, Any]:
     """Authentifie un compte même si aucun royaume ne lui est encore attribué."""
-    expected = os.getenv("KINGDOM_ADMIN_TOKEN", "change-me")
+    expected = os.getenv("KINGDOM_ADMIN_TOKEN", "").strip()
+    supplied = authorization.removeprefix("Bearer ").strip() if authorization and authorization.startswith("Bearer ") else ""
     compte = ({"id": 0, "username": "legacy-admin", "display_name": "Administrateur", "email": "", "is_admin": True}
-              if authorization == f"Bearer {expected}" else comptes.compte_session(royaume_session or ""))
+              if expected and supplied and secrets.compare_digest(supplied, expected) else comptes.compte_session(royaume_session or ""))
     if not compte:
         raise HTTPException(401, "Connectez-vous à KingdomWeb.")
     request.state.compte = compte
@@ -207,11 +211,11 @@ async def authenticate_account(request: Request, authorization: str | None = Hea
 
 # Deux dépendances distinctes préparent une future permission de consultation
 # sans écriture, tout en conservant le jeton administrateur actuel.
-async def authorize_player_view(request: Request, authorization: str | None = Header(None), royaume_session: str | None = Cookie(None), x_kingdom_server: str | None = Header(None)) -> dict[str, Any]:
+async def authorize_player_view(request: Request, authorization: str | None = Header(None), royaume_session: str | None = Cookie(None, alias=SESSION_COOKIE), x_kingdom_server: str | None = Header(None)) -> dict[str, Any]:
     return _autoriser(request, authorization, royaume_session, x_kingdom_server, "joueurs:voir")
 
 
-async def authorize_player_edit(request: Request, authorization: str | None = Header(None), royaume_session: str | None = Cookie(None), x_kingdom_server: str | None = Header(None)) -> dict[str, Any]:
+async def authorize_player_edit(request: Request, authorization: str | None = Header(None), royaume_session: str | None = Cookie(None, alias=SESSION_COOKIE), x_kingdom_server: str | None = Header(None)) -> dict[str, Any]:
     return _autoriser(request, authorization, royaume_session, x_kingdom_server, "joueurs:modifier")
 
 
@@ -371,10 +375,13 @@ def connexion_compte(body: dict[str, Any], response: Response):
     except (ErreurAuthentification, ValueError) as exc:
         raise HTTPException(401, str(exc)) from exc
     jeton = comptes.ouvrir_session(int(compte["id"]))
-    response.set_cookie(
-        "royaume_session", jeton, httponly=True, samesite="strict", max_age=7 * 24 * 3600,
-        secure=os.getenv("KINGDOM_SECURE_COOKIES", "0") == "1",
-    )
+    options: dict[str, Any] = {
+        "httponly": True, "samesite": "strict",
+        "secure": os.getenv("KINGDOM_SECURE_COOKIES", "0") == "1",
+    }
+    if bool(body.get("remember")):
+        options["max_age"] = 7 * 24 * 3600
+    response.set_cookie(SESSION_COOKIE, jeton, **options)
     return {"ok": True, "account": compte}
 
 
@@ -401,7 +408,7 @@ def inscription_compte(request: Request, response: Response, body: dict[str, Any
         raise HTTPException(422, str(exc)) from exc
     jeton = comptes.ouvrir_session(int(compte["id"]))
     response.set_cookie(
-        "royaume_session", jeton, httponly=True, samesite="strict", max_age=7 * 24 * 3600,
+        SESSION_COOKIE, jeton, httponly=True, samesite="strict",
         secure=os.getenv("KINGDOM_SECURE_COOKIES", "0") == "1",
     )
     return {
@@ -412,8 +419,9 @@ def inscription_compte(request: Request, response: Response, body: dict[str, Any
 
 
 @app.post("/api/auth/logout")
-def deconnexion_compte(response: Response, royaume_session: str | None = Cookie(None)):
+def deconnexion_compte(response: Response, royaume_session: str | None = Cookie(None, alias=SESSION_COOKIE)):
     comptes.fermer_session(royaume_session or "")
+    response.delete_cookie(SESSION_COOKIE)
     response.delete_cookie("royaume_session")
     return {"ok": True}
 
@@ -455,6 +463,7 @@ def modifier_mot_de_passe(request: Request, body: dict[str, Any], response: Resp
         comptes.changer_mot_de_passe(int(compte["id"]), str(body.get("current_password", "")), str(body.get("new_password", "")))
     except (ErreurAuthentification, ValueError) as exc:
         raise HTTPException(422, str(exc)) from exc
+    response.delete_cookie(SESSION_COOKIE)
     response.delete_cookie("royaume_session")
     return {"ok": True, "message": "Mot de passe modifié. Reconnectez-vous."}
 

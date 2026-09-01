@@ -30,6 +30,56 @@ def test_account_sessions_and_server_roles(tmp_path, monkeypatch):
     assert registry.lister_acces(editor["id"]) == []
 
 
+def test_discord_server_cannot_be_duplicated_or_claimed_by_another_account(tmp_path, monkeypatch):
+    database = tmp_path / "unique-discord.db"
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "owner")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "owner-password")
+    registry = RegistreComptes(database)
+    registry.initialiser()
+    owner = registry.authentifier("owner", "owner-password")
+    second = registry.creer_compte("second-owner", "Second", "second-password")
+    created = registry.creer_serveur("Mon serveur", "123456789012345678", owner["id"])
+
+    try:
+        registry.creer_serveur("Copie", "123456789012345678", owner["id"])
+    except ValueError as exc:
+        assert created["name"] in str(exc)
+    else:
+        raise AssertionError("The same owner must not duplicate a Discord server")
+    try:
+        registry.creer_serveur("Prise de contrôle", "123456789012345678", second["id"])
+    except ValueError as exc:
+        assert "déjà supervisé" in str(exc)
+        assert "attribuer" in str(exc)
+    else:
+        raise AssertionError("A Discord server cannot be claimed without an access grant")
+
+
+def test_login_requires_fresh_v2_session_and_remember_is_opt_in(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "secure-session.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "secure-admin")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "secure-password-123")
+    monkeypatch.delenv("KINGDOM_ADMIN_TOKEN", raising=False)
+    monkeypatch.setattr(web, "magasin_principal", primary)
+    monkeypatch.setattr(web, "store", web.MagasinsServeurs(primary))
+    monkeypatch.setattr(web, "comptes", registry)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+
+    with TestClient(web.app) as client:
+        assert client.get("/api/profile", headers={"Authorization": "Bearer change-me"}).status_code == 401
+        client.cookies.set("royaume_session", "obsolete-cookie")
+        assert client.get("/api/profile").status_code == 401
+        login = client.post("/api/auth/login", json={"username": "secure-admin", "password": "secure-password-123"})
+        assert login.status_code == 200
+        assert "royaume_session_v2=" in login.headers["set-cookie"]
+        assert "Max-Age" not in login.headers["set-cookie"]
+        assert client.post("/api/auth/logout").status_code == 200
+        remembered = client.post("/api/auth/login", json={"username": "secure-admin", "password": "secure-password-123", "remember": True})
+        assert "Max-Age=604800" in remembered.headers["set-cookie"]
+
+
 def test_platform_admin_page_and_api_are_server_side_protected(tmp_path, monkeypatch):
     primary = ContentStore(tmp_path / "platform-access.db")
     registry = RegistreComptes(primary.path)
@@ -270,6 +320,10 @@ def test_mobile_shell_keeps_essential_tools_within_thumb_reach():
     assert "env(safe-area-inset-bottom)" in stylesheet.text
     assert "height:100dvh" in stylesheet.text
     assert "body:has(.login-screen:not([hidden])) .mobile-dock" in stylesheet.text
+    assert 'id="sidebar-logout"' in page.text
+    assert "backdrop-filter:none" in stylesheet.text
+    assert '$("#sidebar-logout").onclick=logoutAccount' in script.text
+    assert 'name="remember"' in page.text
     assert "navigateTo(button.dataset.mobileType)" in script.text
     assert "mobileCreationBlocked" in script.text
     assert "La création de contenu" in script.text

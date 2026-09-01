@@ -331,6 +331,21 @@ class RegistreComptes:
         slug_base = _slug_serveur(nom)
         slug = slug_base
         with self.connexion() as base:
+            if guild_id:
+                existant = base.execute(
+                    "SELECT s.slug,s.name,s.active,a.role FROM managed_servers s "
+                    "LEFT JOIN server_access a ON a.server_id=s.id AND a.account_id=? WHERE s.guild_id=?",
+                    (proprietaire_id, guild_id),
+                ).fetchone()
+                if existant:
+                    if existant["role"]:
+                        raise ValueError(
+                            f"Ce serveur Discord est déjà présent dans votre profil sous le nom « {existant['name']} »."
+                        )
+                    raise ValueError(
+                        "Ce serveur Discord est déjà supervisé par KingdomEngine. "
+                        "Demandez à l’administrateur Payen Studio de vous attribuer son accès."
+                    )
             suffixe = 2
             while base.execute("SELECT 1 FROM managed_servers WHERE slug=?", (slug,)).fetchone():
                 slug, suffixe = f"{slug_base[:42]}-{suffixe}", suffixe + 1

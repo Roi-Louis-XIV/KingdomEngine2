@@ -1,8 +1,14 @@
 from fastapi.testclient import TestClient
 from pathlib import Path
+import pytest
 
 import KingdomWeb.app as web
 from KingdomData import ContentStore, default_server_settings
+
+
+@pytest.fixture(autouse=True)
+def configured_legacy_admin_token(monkeypatch):
+    monkeypatch.setenv("KINGDOM_ADMIN_TOKEN", "change-me")
 
 
 def test_building_and_item_editor_exposes_searchable_emoji_library():

@@ -8,6 +8,11 @@ from KingdomData import ContentStore, NotFoundError, ValidationError
 from KingdomWeb.player_admin import PlayerAdministrationService
 
 
+@pytest.fixture(autouse=True)
+def configured_legacy_admin_token(monkeypatch):
+    monkeypatch.setenv("KINGDOM_ADMIN_TOKEN", "change-me")
+
+
 def prepared_store(tmp_path):
     store = ContentStore(tmp_path / "players.db"); store.initialize()
     now = "2026-08-15T10:00:00+00:00"

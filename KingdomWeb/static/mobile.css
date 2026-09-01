@@ -27,14 +27,16 @@ body:has(.login-screen:not([hidden])) .mobile-dock{display:none!important}
   body>.app-sidebar{position:fixed!important;z-index:40;inset:0 auto 0 0;width:min(88vw,340px)!important;height:100dvh!important;padding:18px 14px calc(20px + env(safe-area-inset-bottom))!important;overflow-y:auto;overscroll-behavior:contain;transform:translateX(-105%);transition:transform .22s ease;background:var(--sidebar,#09110c);box-shadow:24px 0 70px #0009}
   body.sidebar-open>.app-sidebar{transform:translateX(0)}
   body.sidebar-open{overflow:hidden}
-  body.sidebar-open>.sidebar-scrim{display:block!important;position:fixed;z-index:39;inset:0;width:100%;height:100%;border:0;background:#020704b8;backdrop-filter:blur(3px)}
+  body.sidebar-open>.sidebar-scrim{display:block!important;position:fixed;z-index:39;inset:0;width:100%;height:100%;border:0;background:#02070473;backdrop-filter:none}
   .app-sidebar #sidebar-collapse{display:none}
   .app-sidebar #nav{display:grid!important;grid-template-columns:1fr!important;gap:4px!important}
   .app-sidebar #nav .nav-divider,.app-sidebar #nav .nav-submenu{display:grid!important;grid-column:1!important;grid-template-columns:1fr!important;margin-left:0!important}
   .app-sidebar #nav .nav-divider{display:block!important;margin-top:9px}
   .app-sidebar #nav button{min-height:44px;padding:10px 12px!important}
   .app-sidebar #nav [data-type="building"],.app-sidebar #nav [data-type="profession"],.app-sidebar #nav [data-type="item"],.app-sidebar #nav [data-type="npc"],.app-sidebar #nav [data-type="location"],.app-sidebar #nav [data-type="audio"],.app-sidebar #nav [data-type="bot"]{display:none!important}
-  .app-sidebar footer{display:grid!important}
+  .app-sidebar footer{position:sticky;bottom:0;display:grid!important;grid-template-columns:auto 1fr auto;gap:7px;padding:12px 5px calc(8px + env(safe-area-inset-bottom));background:var(--sidebar,#09110c)}
+  .app-sidebar footer .sidebar-logout{display:block;grid-column:1/-1;width:100%;min-height:44px;margin-top:7px;border:1px solid #6b3540;color:#ff9aa6;background:#251419}
+  .account-popover{position:fixed!important;z-index:60!important;right:10px!important;top:118px!important;left:10px!important;width:auto!important;max-height:calc(100dvh - 145px);overflow-y:auto}
 
   /* Accès d'urgence toujours à portée du pouce. */
   .mobile-dock{position:fixed;z-index:30;right:8px;bottom:calc(7px + env(safe-area-inset-bottom));left:8px;display:grid;grid-template-columns:repeat(6,1fr);gap:2px;margin:0;padding:6px;border:1px solid color-mix(in srgb,var(--line) 80%,#49d36c);border-radius:17px;background:color-mix(in srgb,var(--surface,#101812) 92%,transparent);box-shadow:0 16px 50px #0009;backdrop-filter:blur(20px)}

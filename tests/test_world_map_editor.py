@@ -1,7 +1,13 @@
 from fastapi.testclient import TestClient
+import pytest
 
 import KingdomWeb.app as web
 from KingdomData import ContentStore, default_server_settings
+
+
+@pytest.fixture(autouse=True)
+def configured_legacy_admin_token(monkeypatch):
+    monkeypatch.setenv("KINGDOM_ADMIN_TOKEN", "change-me")
 
 
 def publish(store, entity_type, key, payload):
