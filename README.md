@@ -74,7 +74,7 @@ Le parcours **Métier et zones** reste entièrement dans le mode Simple : créat
 
 L’**Atelier-école no-code** se trouve uniquement dans cette Académie. Une frise explique d’abord le parcours joueur, puis des chapitres ouvrent directement les vrais onglets Fonctionnement, Discord, Relations, Audio et Avancé en lecture seule. L’exemple n’est rattaché à aucun monde, n’est jamais semé dans `KingdomData` et les API refusent explicitement son enregistrement ou sa publication : il ne peut donc créer ni salon ni interface sur Discord.
 
-Lorsqu’un serveur Discord précédemment supprimé de KingdomEngine est ajouté de nouveau par son ancien propriétaire, sa supervision est réactivée automatiquement. Sa base KingdomData conservée est réutilisée et le serveur peut être réinstallé sans contourner l’unicité de son identifiant Discord. Un autre compte ne peut pas récupérer cette guilde sans attribution explicite d’un accès.
+Lorsqu’un serveur est retiré avec **Supprimer ce serveur**, sa supervision et sa base KingdomData dédiée sont effacées. Le même identifiant Discord peut ensuite être ajouté à nouveau : KingdomEngine crée alors un monde neuf avec le modèle choisi, sans restaurer les anciens paramètres.
 
 Dans **Configuration du monde**, le bloc Installation Discord présente le parcours complet : inviter KingdomCore, installer le serveur, puis publier les bâtiments. Une publication crée ou met à jour automatiquement les salons correspondants. Une suppression de bâtiment demande immédiatement à KingdomCore de retirer ses salons gérés ; aucune synchronisation manuelle supplémentaire n’est nécessaire.
 
@@ -458,7 +458,7 @@ La page **Mon profil & serveurs** affiche les serveurs accessibles au compte, l'
 
 L'administrateur peut créer les profils, ajouter un serveur Discord et attribuer un niveau d'accès : lecture, éditeur, gestionnaire ou propriétaire. Depuis la fiche du serveur, **Installer KingdomEngine sur ce serveur** ouvre l'autorisation Discord de KingdomCore et programme automatiquement la création des rôles, salons généraux et salons de bâtiments. Les bots vocaux sont ensuite ajoutés individuellement, Discord exigeant une autorisation OAuth pour chaque application.
 
-Le bouton **Supprimer ce serveur** demande de recopier son nom avant de lancer la désinstallation. KingdomCore retire dans l'ordre les bots vocaux configurés, les salons et rôles gérés, puis quitte lui-même le serveur Discord. La supervision locale n'est archivée qu'après la réussite de cette opération. Les salons ajoutés manuellement dans une catégorie KingdomEngine sont conservés et signalés. La base KingdomData du royaume reste également sur disque afin d'éviter toute perte irréversible.
+Le bouton **Supprimer ce serveur** demande de recopier son nom avant de lancer la désinstallation. KingdomCore retire dans l'ordre les bots vocaux configurés, les salons et rôles gérés, puis quitte lui-même le serveur Discord. Après cette réussite, KingdomWeb supprime définitivement la supervision, le monde associé, sa progression de tutoriel, sa base KingdomData dédiée et ses médias audio propres. Les salons ajoutés manuellement dans une catégorie KingdomEngine sont conservés et signalés. Réajouter ensuite le même identifiant Discord crée un monde entièrement neuf.
 
 Pour Discord, renseigner `KINGDOM_CORE_TOKEN`, puis :
 

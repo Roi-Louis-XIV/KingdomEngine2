@@ -477,6 +477,21 @@ class RegistreComptes:
             base.execute("UPDATE managed_servers SET active=0,bot_installed=0 WHERE slug=?", (slug,))
         return {**serveur, "active": False, "bot_installed": False}
 
+    def supprimer_serveur(self, slug: str) -> dict[str, Any]:
+        """Oublie définitivement un serveur et ses métadonnées multi-tenant."""
+        serveur = self.serveur(slug)
+        with self.connexion() as base:
+            mondes = [row["id"] for row in base.execute(
+                "SELECT w.id FROM worlds w JOIN world_discord_servers wd ON wd.world_id=w.id "
+                "WHERE wd.managed_server_id=?", (serveur["id"],),
+            ).fetchall()]
+            # Cette progression est indexée par slug, sans clé étrangère.
+            base.execute("DELETE FROM tutorial_progress WHERE server_slug=?", (slug,))
+            for world_id in mondes:
+                base.execute("DELETE FROM worlds WHERE id=?", (world_id,))
+            base.execute("DELETE FROM managed_servers WHERE id=?", (serveur["id"],))
+        return serveur
+
     def progression_tutoriels(self, compte_id: int, serveur_slug: str) -> dict[str, Any]:
         """Retourne la progression pédagogique sans la mélanger aux données du monde."""
         if compte_id <= 0:

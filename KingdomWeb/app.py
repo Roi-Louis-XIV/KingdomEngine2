@@ -7,6 +7,7 @@ import mimetypes
 import json
 import logging
 import secrets
+import shutil
 import subprocess
 import time
 from contextlib import asynccontextmanager
@@ -968,8 +969,25 @@ def supprimer_serveur_supervise(slug: str, request: Request):
         statut = _magasin_serveur(serveur).discord_provision_status()
         if statut.get("scope") != "uninstall" or statut.get("status") != "done":
             raise HTTPException(409, "Désinstallez d'abord KingdomEngine du serveur Discord.")
-    comptes.archiver_serveur(slug)
-    return {"ok": True, "message": "Le serveur n'est plus supervisé. Sa base KingdomData a été conservée."}
+    supprime = comptes.supprimer_serveur(slug)
+    chemin = Path(supprime["database_path"]).resolve()
+    principal = Path(comptes.chemin).resolve()
+    if isinstance(store, MagasinsServeurs):
+        store._magasins.pop(str(chemin), None)
+    # La base principale contient aussi le registre des comptes et ne doit
+    # jamais être effacée. Les mondes ajoutés ont leur propre base.
+    if chemin != principal:
+        for suffixe in ("", "-wal", "-shm"):
+            Path(f"{chemin}{suffixe}").unlink(missing_ok=True)
+    medias = (persistent_data_root() / "assets" / "audio" / "servers" / slug).resolve()
+    racine_medias = (persistent_data_root() / "assets" / "audio" / "servers").resolve()
+    if racine_medias in medias.parents:
+        shutil.rmtree(medias, ignore_errors=True)
+    return {
+        "ok": True,
+        "message": "Le serveur et sa base KingdomData ont été supprimés définitivement.",
+        "database_deleted": chemin != principal,
+    }
 
 
 @app.post("/api/accounts/{account_id}/password", dependencies=[Depends(_administrateur_plateforme)])

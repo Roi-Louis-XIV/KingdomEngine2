@@ -423,7 +423,7 @@ function bindAccountAdministration(){
 
 async function inviteBotForServer(botKey,serverSlug){const popup=window.open('about:blank','_blank');const response=await fetch(`/api/bots/${encodeURIComponent(botKey)}/invite`,{headers:{...headers,"X-Kingdom-Server":serverSlug}}),data=await response.json();if(!response.ok){popup?.close();alert(data.detail);return}if(popup){popup.opener=null;popup.location.href=data.url}else window.location.href=data.url}
 async function installKingdomEngine(slug){const popup=window.open('about:blank','_blank'),status=$(`[data-server-operation="${slug}"]`);status.textContent="Préparation de l’installation…";const response=await fetch(`/api/servers/${encodeURIComponent(slug)}/install`,{method:"POST",headers,body:"{}"}),result=await response.json();if(!response.ok){popup?.close();status.textContent=result.detail;return}status.textContent="Autorisez KingdomCore dans Discord. Les salons seront ensuite créés automatiquement.";if(popup){popup.opener=null;popup.location.href=result.url}else window.location.href=result.url}
-async function removeManagedServer(slug,name){if(prompt(`Cette action va retirer les bots vocaux, les salons et rôles KingdomEngine, puis KingdomCore du serveur Discord.\n\nLa base KingdomData sera conservée.\n\nSaisissez « ${name} » pour confirmer.`)!==name)return;const status=$(`[data-server-operation="${slug}"]`),buttons=$$(`[data-remove-server="${slug}"],[data-install-server="${slug}"]`);buttons.forEach(button=>button.disabled=true);status.textContent="Désinstallation Discord demandée à KingdomCore…";let response=await fetch(`/api/servers/${encodeURIComponent(slug)}/uninstall`,{method:"POST",headers,body:"{}"}),result=await response.json();if(!response.ok){status.textContent=result.detail;buttons.forEach(button=>button.disabled=false);return}if(result.status!=="not_installed"){const started=Date.now();while(Date.now()-started<120000){await new Promise(resolve=>setTimeout(resolve,1500));response=await fetch(`/api/servers/${encodeURIComponent(slug)}/operation`,{headers,cache:"no-store"});result=await response.json();if(!response.ok||result.status==="failed"){status.textContent=result.detail||`Désinstallation interrompue : ${result.error||"erreur Discord"}`;buttons.forEach(button=>button.disabled=false);return}if(result.scope==="uninstall"&&result.status==="done")break;status.textContent="KingdomCore retire les composants Discord…"}if(result.status!=="done"){status.textContent="Délai dépassé. Vérifiez KingdomCore avant de réessayer.";buttons.forEach(button=>button.disabled=false);return}}status.textContent="Discord nettoyé. Retrait de la supervision…";response=await fetch(`/api/servers/${encodeURIComponent(slug)}`,{method:"DELETE",headers});result=await response.json();if(!response.ok){status.textContent=result.detail;buttons.forEach(button=>button.disabled=false);return}if(state.server===slug){state.server="";localStorage.removeItem("kingdomServer");syncServerHeaders()}state.profile=null;await initializeAccount()}
+async function removeManagedServer(slug,name){if(prompt(`Cette action va retirer les bots vocaux, les salons et rôles KingdomEngine, puis KingdomCore du serveur Discord.\n\nLe monde, ses joueurs, ses contenus et sa base KingdomData seront supprimés définitivement. Une nouvelle installation avec ce serveur repartira de zéro.\n\nSaisissez « ${name} » pour confirmer.`)!==name)return;const status=$(`[data-server-operation="${slug}"]`),buttons=$$(`[data-remove-server="${slug}"],[data-install-server="${slug}"]`);buttons.forEach(button=>button.disabled=true);status.textContent="Désinstallation Discord demandée à KingdomCore…";let response=await fetch(`/api/servers/${encodeURIComponent(slug)}/uninstall`,{method:"POST",headers,body:"{}"}),result=await response.json();if(!response.ok){status.textContent=result.detail;buttons.forEach(button=>button.disabled=false);return}if(result.status!=="not_installed"){const started=Date.now();while(Date.now()-started<120000){await new Promise(resolve=>setTimeout(resolve,1500));response=await fetch(`/api/servers/${encodeURIComponent(slug)}/operation`,{headers,cache:"no-store"});result=await response.json();if(!response.ok||result.status==="failed"){status.textContent=result.detail||`Désinstallation interrompue : ${result.error||"erreur Discord"}`;buttons.forEach(button=>button.disabled=false);return}if(result.scope==="uninstall"&&result.status==="done")break;status.textContent="KingdomCore retire les composants Discord…"}if(result.status!=="done"){status.textContent="Délai dépassé. Vérifiez KingdomCore avant de réessayer.";buttons.forEach(button=>button.disabled=false);return}}status.textContent="Discord nettoyé. Suppression définitive des données…";response=await fetch(`/api/servers/${encodeURIComponent(slug)}`,{method:"DELETE",headers});result=await response.json();if(!response.ok){status.textContent=result.detail;buttons.forEach(button=>button.disabled=false);return}if(state.server===slug){state.server="";localStorage.removeItem("kingdomServer");syncServerHeaders()}state.profile=null;await initializeAccount()}
 async function logoutAccount(){
   try{await fetch("/api/auth/logout",{method:"POST",headers})}finally{
     state.profile=null;state.server="";localStorage.removeItem("kingdomServer");document.body.classList.remove("sidebar-open");
@@ -468,6 +468,20 @@ function renderCards() {
         ${["building","item","event"].includes(state.type)?` · <button type="button" class="danger-link" data-delete="${item.entity_key}">Supprimer</button>`:""}
       </span></div>
     </article>`).join("") || `<p class="empty">Aucune définition. Crée la première.</p>`;
+  // Le bouton d'édition possède son propre gestionnaire. Il ne dépend ainsi
+  // ni du clic global de la carte, ni du menu secondaire « ••• ».
+  $$("#cards [data-edit]").forEach(button => button.onclick = async event => {
+    event.preventDefault();
+    event.stopPropagation();
+    const entity = state.items.find(item => item.entity_key === button.dataset.edit);
+    if (!entity) return alert("Ce bâtiment n'est plus présent dans le catalogue. Actualisez la page.");
+    try {
+      await openEditor(entity);
+    } catch (error) {
+      console.error("Ouverture de l'éditeur impossible", error);
+      alert(`Impossible d'ouvrir l'éditeur : ${error.message || "erreur inconnue"}`);
+    }
+  });
 }
 
 async function loadDiscordConnections(){
@@ -1986,7 +2000,10 @@ $("#cards").addEventListener("click", async event => {
   // barre doit continuer à ouvrir l'éditeur.
   if(event.target.closest("details,summary"))return;
   const target = event.target.closest("[data-edit],[data-open]");
-  if (target) { const key=target.dataset.edit||target.dataset.open; const entity=state.items.find(item=>item.entity_key===key); if(entity)openEditor(entity); }
+  if (target) {
+    const key=target.dataset.edit||target.dataset.open,entity=state.items.find(item=>item.entity_key===key);
+    if(entity)try{await openEditor(entity)}catch(error){console.error("Ouverture de l'éditeur impossible",error);alert(`Impossible d'ouvrir l'éditeur : ${error.message||"erreur inconnue"}`)}
+  }
 });
 
 $("#cards").addEventListener("keydown",event=>{if(["Enter"," "].includes(event.key)){const card=event.target.closest("[data-open]");if(card){event.preventDefault();const entity=state.items.find(item=>item.entity_key===card.dataset.open);if(entity)openEditor(entity);}}});

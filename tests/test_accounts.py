@@ -335,8 +335,17 @@ def test_managed_server_install_and_safe_removal_lifecycle(tmp_path, monkeypatch
         target.finish_discord_provision(latest["id"], report="Discord nettoyé")
         removed = client.delete(f'/api/servers/{server["slug"]}')
         assert removed.status_code == 200
-        assert Path(server["database_path"]).exists()
+        assert removed.json()["database_deleted"] is True
+        assert not Path(server["database_path"]).exists()
         assert all(item["slug"] != server["slug"] for item in registry.lister_serveurs(1, True))
+
+        recreated = client.post("/api/servers", json={
+            "name": "Royaume neuf", "guild_id": "987654321012345678", "preset": "blank",
+        })
+        assert recreated.status_code == 200
+        assert recreated.json()["reactivated"] is False
+        fresh = ContentStore(recreated.json()["database_path"])
+        assert fresh.discord_provision_status()["status"] == "never"
 
 
 def test_login_interface_exposes_registration_and_account_statistics():
