@@ -13,6 +13,10 @@ def test_all_v1_buildings_items_and_voice_profiles_are_discovered():
     assert {item["key"] for item in definitions if item["type"] == "bot"} == {
         "voice_edgar", "voice_edouard", "voice_roland", "voice_sylvain", "voice_wagner"
     }
+    voice_bots = sorted((item for item in definitions if item["type"] == "bot"), key=lambda item: item["payload"]["worker_number"])
+    assert [item["payload"]["name"] for item in voice_bots] == [f"Voice Worker {index}" for index in range(1, 6)]
+    assert [item["payload"]["token_env"] for item in voice_bots] == [f"VOICE_WORKER_{index}_TOKEN" for index in range(1, 6)]
+    assert [item["payload"]["application_id_env"] for item in voice_bots] == [f"VOICE_WORKER_{index}_APPLICATION_ID" for index in range(1, 6)]
     assert buildings["mine"]["modules"]["activities"][0]["energy_cost"] == 15
     assert len(buildings["forest"]["modules"]["activities"]) == 6
     forest_outcome = buildings["forest"]["modules"]["activities"][0]["outcomes"][0]

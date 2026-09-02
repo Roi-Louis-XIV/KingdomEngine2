@@ -21,6 +21,15 @@ from KingdomData import (
 from KingdomData.audio_storage import AUDIO_EXTENSIONS, audio_key
 
 
+LEGACY_VOICE_WORKERS = {
+    "voice_edgar": (1, "EDGAR_BOT_TOKEN", "EDGAR_APPLICATION_ID"),
+    "voice_edouard": (2, "EDOUARD_BOT_TOKEN", "EDOUARD_APPLICATION_ID"),
+    "voice_roland": (3, "ROLAND_BOT_TOKEN", "ROLAND_APPLICATION_ID"),
+    "voice_sylvain": (4, "SYLVAIN_BOT_TOKEN", "SYLVAIN_APPLICATION_ID"),
+    "voice_wagner": (5, "WAGNER_BOT_TOKEN", "WAGNER_APPLICATION_ID"),
+}
+
+
 def definitions_from_v1(v1_root: str | Path | None = None) -> list[dict[str, Any]]:
     root = Path(v1_root) if v1_root else Path(__file__).resolve().parent.parent / "KingdomEngine"
     definitions = _building_definitions(root)
@@ -52,15 +61,21 @@ def definitions_from_v1(v1_root: str | Path | None = None) -> list[dict[str, Any
         payload = _read(config)
         key = config.stem
         building = str(payload.get("building", "")).lower()
+        worker_number, legacy_token, legacy_application = LEGACY_VOICE_WORKERS.get(
+            f"voice_{key}", (len([item for item in definitions if item.get("type") == "bot"]) + 1, f"{key.upper()}_BOT_TOKEN", f"{key.upper()}_APPLICATION_ID")
+        )
         normalized = {
             **payload,
-            "name": payload.get("name", key.title()),
+            "name": f"Voice Worker {worker_number}",
             "emoji": "🎙️",
-            "description": f"Bot vocal historique associe a {payload.get('building', 'un batiment')}.",
+            "description": "Capacité vocale générique, attribuable à n’importe quel bâtiment ou présence.",
             "bot_type": "voice",
             "enabled": False,
-            "token_env": f"{key.upper()}_BOT_TOKEN",
-            "application_id_env": f"{key.upper()}_APPLICATION_ID",
+            "token_env": f"VOICE_WORKER_{worker_number}_TOKEN",
+            "application_id_env": f"VOICE_WORKER_{worker_number}_APPLICATION_ID",
+            "legacy_token_env": legacy_token,
+            "legacy_application_id_env": legacy_application,
+            "worker_number": worker_number,
             "building_key": _building_key(building),
             "auto_join": True,
             "source": "KingdomEngine V1",
@@ -93,6 +108,7 @@ def import_v1(store: ContentStore, v1_root: str | Path | None = None) -> int:
             item = {**item, "payload": payload}
         seedable.append(item)
     store.seed(seedable)
+    _migrate_voice_workers(store)
     # Les fichiers V1 livrés avec KingdomEngine2 deviennent aussi des fiches
     # no-code visibles et attribuables depuis la banque « Voix & audio ».
     seed_legacy_audio_catalog(store)
@@ -106,6 +122,33 @@ def import_v1(store: ContentStore, v1_root: str | Path | None = None) -> int:
     ):
         _run_concurrent_migration(store, migration)
     return sum((x["type"], x["key"]) not in before for x in definitions)
+
+
+def _migrate_voice_workers(store: ContentStore) -> None:
+    """Neutralise les identités V1 sans casser leurs références historiques."""
+    for entity in store.list("bot", published=True):
+        worker = LEGACY_VOICE_WORKERS.get(entity["entity_key"])
+        if not worker:
+            continue
+        number, legacy_token, legacy_application = worker
+        payload = dict(entity["payload"])
+        expected = {
+            "name": f"Voice Worker {number}",
+            "description": "Capacité vocale générique, attribuable à n’importe quel bâtiment ou présence.",
+            "token_env": f"VOICE_WORKER_{number}_TOKEN",
+            "application_id_env": f"VOICE_WORKER_{number}_APPLICATION_ID",
+            "legacy_token_env": payload.get("legacy_token_env") or legacy_token,
+            "legacy_application_id_env": payload.get("legacy_application_id_env") or legacy_application,
+            "worker_number": number,
+        }
+        if all(payload.get(key) == value for key, value in expected.items()):
+            continue
+        payload.update(expected)
+        try:
+            draft = store.save("bot", entity["entity_key"], payload, "migration-voice-workers", entity["version"])
+            store.publish("bot", entity["entity_key"], draft["version"], "migration-voice-workers")
+        except ConflictError:
+            pass
 
 
 def _legacy_audio_definitions(assets_root: str | Path | None = None) -> list[dict[str, Any]]:

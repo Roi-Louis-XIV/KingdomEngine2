@@ -380,6 +380,50 @@ def test_discord_status_includes_unpublished_audio_bots(tmp_path, monkeypatch):
     assert draft["enabled"] is False
 
 
+def test_voice_worker_status_accepts_legacy_secret_during_migration(tmp_path, monkeypatch):
+    store = ContentStore(tmp_path / "worker-status.db"); store.initialize()
+    draft = store.save("bot", "voice_worker_test", {
+        "name": "Voice Worker 1", "bot_type": "voice", "voice_channel_id": "42",
+        "token_env": "VOICE_WORKER_1_TOKEN", "application_id_env": "VOICE_WORKER_1_APPLICATION_ID",
+        "legacy_token_env": "EDGAR_BOT_TOKEN", "legacy_application_id_env": "EDGAR_APPLICATION_ID",
+    }); store.publish("bot", "voice_worker_test", draft["version"])
+    monkeypatch.setattr(web, "store", store)
+    monkeypatch.setenv("EDGAR_BOT_TOKEN", "legacy-token")
+    monkeypatch.setenv("EDGAR_APPLICATION_ID", "123456789012345678")
+    with TestClient(web.app) as client:
+        statuses = client.get("/api/bots/status", headers={"Authorization": "Bearer change-me"}).json()
+        status = next(item for item in statuses if item["key"] == "voice_worker_test")
+    assert status["token_configured"] is True
+    assert status["application_id_configured"] is True
+
+
+def test_voice_worker_avatar_is_stored_and_served(tmp_path, monkeypatch):
+    store = ContentStore(tmp_path / "worker-avatar.db"); store.initialize()
+    draft = store.save("bot", "voice_worker_test", {
+        "name": "Voice Worker 1", "bot_type": "voice", "token_env": "VOICE_WORKER_1_TOKEN",
+        "voice_channel_id": "42",
+    }); published = store.publish("bot", "voice_worker_test", draft["version"])
+    monkeypatch.setattr(web, "store", store)
+    monkeypatch.setattr(web, "KINGDOM_DATA_ROOT", tmp_path)
+    monkeypatch.setattr(web, "BOT_AVATAR_ASSETS", tmp_path / "assets" / "bot-avatars")
+    headers = {"Authorization": "Bearer change-me"}
+    with TestClient(web.app) as client:
+        uploaded = client.post("/api/bots/voice_worker_test/avatar", headers=headers, files={"file": ("worker.png", b"fake-png", "image/png")})
+        assert uploaded.status_code == 200
+        payload = {**published["payload"], "avatar_path": uploaded.json()["avatar_path"]}
+        saved = client.post("/api/content/bot/voice_worker_test", headers=headers, json={"payload": payload, "expected_version": published["version"]}).json()
+        client.post(f'/api/content/bot/voice_worker_test/{saved["version"]}/publish', headers=headers, json={})
+        avatar = client.get("/api/bots/voice_worker_test/avatar", headers=headers)
+    assert avatar.status_code == 200
+    assert avatar.content == b"fake-png"
+
+
+def test_voice_worker_identity_fields_are_available_in_kingdomweb():
+    script = (Path(web.__file__).parent / "static" / "app.js").read_text(encoding="utf-8")
+    for marker in ("server_nickname", "server_bio", "bot-avatar-file", "uploadBotAvatar"):
+        assert marker in script
+
+
 def test_secondary_server_receives_missing_voice_bot_templates(tmp_path):
     principal = ContentStore(tmp_path / "principal.db")
     principal.initialize()

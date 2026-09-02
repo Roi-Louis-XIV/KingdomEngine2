@@ -121,6 +121,17 @@ def _application_id_env(config: dict[str, Any]) -> str:
     return ""
 
 
+def _configured_environment(config: dict[str, Any], primary: str, legacy: str) -> tuple[str, str]:
+    """Retourne la première variable configurée, avec secours de migration."""
+    primary_name = str(config.get(primary, "")).strip()
+    legacy_name = str(config.get(legacy, "")).strip()
+    if primary_name and os.getenv(primary_name):
+        return primary_name, str(os.getenv(primary_name))
+    if legacy_name and os.getenv(legacy_name):
+        return legacy_name, str(os.getenv(legacy_name))
+    return primary_name or legacy_name, ""
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     comptes.initialiser()
@@ -133,6 +144,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Kingdom Studio", version="2.0.0", lifespan=lifespan)
 STATIC = Path(__file__).with_name("static")
 KINGDOM_DATA_ROOT = persistent_data_root()
+BOT_AVATAR_ASSETS = KINGDOM_DATA_ROOT / "assets" / "bot-avatars"
 MAP_ASSETS = KINGDOM_DATA_ROOT / "assets" / "maps"
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
@@ -879,6 +891,19 @@ async def upload_world_map_background(request: Request, file: UploadFile = File(
         await file.close()
 
 
+@app.get("/api/bots/{key}/avatar", dependencies=[Depends(authorize)])
+def bot_avatar(key: str):
+    try:
+        source = str(store.get("bot", key)["payload"].get("avatar_path") or "")
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    root = KINGDOM_DATA_ROOT.resolve()
+    path = (root / source).resolve()
+    if not source or root not in path.parents or not path.is_file():
+        raise HTTPException(404, "Ce Voice Worker n’a pas encore de photo de profil.")
+    return FileResponse(path, media_type=mimetypes.guess_type(path.name)[0] or "image/*", headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/api/world/map/background", dependencies=[Depends(authorize)])
 def world_map_background():
     source = str(get_server_settings(store).get("world_map", {}).get("background_path", ""))
@@ -1087,18 +1112,17 @@ def bot_statuses():
     # brouillon doit donc signaler ses variables manquantes avant publication.
     for entity in store.list("bot"):
         config = entity["payload"]
-        token_env = str(config.get("token_env", ""))
+        token_env, token = _configured_environment(config, "token_env", "legacy_token_env")
+        application_env, application_id = _configured_environment(config, "application_id_env", "legacy_application_id_env")
         statuses.append({
             "key": entity["entity_key"],
             "name": config["name"],
             "type": config.get("bot_type", "text"),
-            "application_id_env": _application_id_env(config),
-            "application_id_configured": bool(
-                _application_id_env(config) and os.getenv(_application_id_env(config))
-            ),
+            "application_id_env": application_env or _application_id_env(config),
+            "application_id_configured": bool(application_id),
             "enabled": bool(config.get("enabled")),
             "token_env": token_env,
-            "token_configured": bool(token_env and os.getenv(token_env)),
+            "token_configured": bool(token),
             "channel_configured": bool(config.get("building_key") or config.get("voice_channel_id") or (config.get("voice_channel_env") and os.getenv(str(config["voice_channel_env"])))),
         })
     return statuses
@@ -1111,8 +1135,9 @@ def bot_invite(key: str, request: Request):
     except NotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
     config = entity["payload"]
-    application_id_env = _application_id_env(config)
-    application_id = str(os.getenv(application_id_env, "")).strip()
+    application_id_env, application_id = _configured_environment(config, "application_id_env", "legacy_application_id_env")
+    application_id_env = application_id_env or _application_id_env(config)
+    application_id = application_id or str(os.getenv(application_id_env, "")).strip()
     # Compatibilité avec les fiches créées avant le passage aux variables .env.
     if not application_id:
         application_id = str(config.get("application_id", "")).strip()
@@ -1124,3 +1149,40 @@ def bot_invite(key: str, request: Request):
     options_guilde = {"guild": discord.Object(id=int(guild_id)), "disable_guild_select": True} if guild_id.isdigit() else {}
     url = discord.utils.oauth_url(int(application_id), permissions=permissions, scopes=("bot",), **options_guilde)
     return {"key": key, "name": config["name"], "url": url}
+
+
+@app.post("/api/bots/{key}/avatar", dependencies=[Depends(authorize)])
+async def upload_bot_avatar(key: str, request: Request, file: UploadFile = File(...)):
+    """Stocke un avatar de worker dans le KingdomData du monde courant."""
+    try:
+        entity = store.get("bot", key)
+    except NotFoundError as exc:
+        await file.close()
+        raise HTTPException(404, str(exc)) from exc
+    if entity["payload"].get("bot_type") != "voice":
+        await file.close()
+        raise HTTPException(422, "L’avatar personnalisable est réservé aux Voice Workers.")
+    extension = Path(file.filename or "").suffix.lower()
+    if extension not in {".png", ".jpg", ".jpeg", ".webp"} or (file.content_type and not file.content_type.startswith("image/")):
+        await file.close()
+        raise HTTPException(422, "Choisissez une image PNG, JPG ou WEBP.")
+    slug = str(getattr(request.state, "serveur", {}).get("slug") or "principal")
+    target_dir = (BOT_AVATAR_ASSETS / slug / key).resolve()
+    root = BOT_AVATAR_ASSETS.resolve()
+    if root not in target_dir.parents:
+        await file.close()
+        raise HTTPException(422, "Destination d’avatar invalide.")
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / f"avatar{extension}"
+    total = 0
+    try:
+        with target.open("wb") as output:
+            while chunk := await file.read(1024 * 1024):
+                total += len(chunk)
+                if total > 8 * 1024 * 1024:
+                    output.close(); target.unlink(missing_ok=True)
+                    raise HTTPException(413, "L’avatar ne doit pas dépasser 8 Mo.")
+                output.write(chunk)
+        return {"avatar_path": target.relative_to(KINGDOM_DATA_ROOT).as_posix(), "size_bytes": total}
+    finally:
+        await file.close()

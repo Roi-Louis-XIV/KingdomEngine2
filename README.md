@@ -39,6 +39,7 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 - bots Discord et pool de workers vocaux : les présences, profils et affectations sont des données génériques, sans identité globale imposée par bâtiment ;
 - banque sonore no-code avec préécoute, ambiances, musiques, voix et SFX déclenchés par les actions ;
 - administration des joueurs avec pseudos, avatars, inventaires, métiers, outils, activités et cooldowns ;
+- capacités audio génériques **Voice Worker 1, 2, …**, personnalisables par monde depuis Connexion Discord (pseudonyme, bio et photo de profil) ;
 - supervision client limitée à la santé du monde et aux alertes utiles, sans PID, chemins locaux, journaux globaux ni architecture serveur ;
 - import idempotent des contenus V1 : Mine, Forêt, Construction, Forge, Taverne, objets et sons historiques ;
 - publication versionnée, contrôle de concurrence, synchronisation live et historique des changements ;
@@ -186,7 +187,7 @@ KINGDOM_PLATFORM_ADMIN_USERNAME=admin
 KINGDOM_MAX_CONCURRENT_VOICE_PRESENCES=
 ```
 
-Les tokens des bots vocaux sont facultatifs. Ils utilisent les variables `EDGAR_BOT_TOKEN`, `EDOUARD_BOT_TOKEN`, `ROLAND_BOT_TOKEN`, `SYLVAIN_BOT_TOKEN` et `WAGNER_BOT_TOKEN`, avec les Application ID correspondants. Ne jamais envoyer le fichier `.env` sur GitHub.
+Les tokens des bots vocaux sont facultatifs. Les capacités sont désormais neutres et numérotées : `VOICE_WORKER_1_TOKEN`, `VOICE_WORKER_2_TOKEN`, etc., avec `VOICE_WORKER_1_APPLICATION_ID`, `VOICE_WORKER_2_APPLICATION_ID`, etc. Les anciennes variables nominatives restent lues uniquement comme solution de transition. Ne jamais envoyer le fichier `.env` sur GitHub.
 
 Après une modification de `.env`, redémarrer les services :
 
@@ -472,7 +473,7 @@ Les bots vocaux se configurent dans **Bots Discord**. Le Studio stocke uniquemen
 .venv\Scripts\python run.py voice
 ```
 
-Pour inviter un bot vocal depuis le Studio, renseigner son Application ID dans `.env` (`EDGAR_APPLICATION_ID`, `ROLAND_APPLICATION_ID`, etc.), redémarrer KingdomWeb, puis cliquer sur **Inviter** sur sa carte. Chaque fiche référence uniquement le nom de cette variable. Le lien OAuth est généré automatiquement avec les permissions vocales nécessaires ; aucun token ni identifiant sensible n’est enregistré dans KingdomData.
+Pour inviter un Voice Worker depuis le Studio, renseigner son Application ID dans `.env` (`VOICE_WORKER_1_APPLICATION_ID`, etc.), redémarrer KingdomWeb, puis cliquer sur **Ajouter à Discord** sur sa carte. Son pseudonyme, sa bio et sa photo peuvent ensuite être personnalisés dans **Connexion Discord → Configurer**. L’identité est appliquée au prochain démarrage de KingdomVoice. Chaque fiche référence uniquement le nom de la variable : aucun token sensible n’est enregistré dans KingdomData.
 
 Le lancement manuel reste disponible pour diagnostiquer un module isolé, mais n’est pas nécessaire au quotidien :
 

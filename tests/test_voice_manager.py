@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 
 from KingdomVoice.bot_manager import ManagedVoiceBot, _normalized_name
@@ -32,3 +33,23 @@ def test_legacy_audio_folder_is_resolved_with_or_without_assets_prefix(tmp_path)
     fake = SimpleNamespace(assets_root=tmp_path)
     assert ManagedVoiceBot._tracks(fake, "village/ambience") == [track]
     assert ManagedVoiceBot._tracks(fake, "assets/village/ambience") == [track]
+
+
+def test_voice_worker_applies_configured_server_identity():
+    class FakeMember:
+        def __init__(self):
+            self.edited = None
+
+        async def edit(self, **kwargs):
+            self.edited = kwargs
+
+    member = FakeMember()
+    fake = SimpleNamespace(
+        config={"name": "Voice Worker 1", "server_nickname": "Barde de Valbrume", "server_bio": "Ambiance de la taverne"},
+        guilds=[SimpleNamespace(me=member)],
+    )
+
+    asyncio.run(ManagedVoiceBot.apply_configured_identity(fake))
+
+    assert member.edited["nick"] == "Barde de Valbrume"
+    assert member.edited["bio"] == "Ambiance de la taverne"

@@ -59,9 +59,30 @@ class ManagedVoiceBot(discord.Client):
     async def on_ready(self) -> None:
         presence = self.config.get("presence") or f"dans {self.config.get('building', 'le Royaume')}"
         await self.change_presence(activity=discord.Game(str(presence)))
+        await self.apply_configured_identity()
         print(f"[KingdomVoice] {self.key} connecté : {self.user}")
         if self.config.get("auto_join", True):
             await self.ensure_connected()
+
+    async def apply_configured_identity(self) -> None:
+        """Applique l'identité personnalisée propre à ce monde Discord."""
+        nickname = str(self.config.get("server_nickname") or self.config.get("name") or "")[:32]
+        bio = str(self.config.get("server_bio") or self.config.get("description") or "")[:190]
+        avatar: bytes | None = None
+        avatar_path = str(self.config.get("avatar_path") or "")
+        if avatar_path:
+            root = persistent_data_root().resolve()
+            candidate = (root / avatar_path).resolve()
+            if root in candidate.parents and candidate.is_file():
+                avatar = candidate.read_bytes()
+        for guild in self.guilds:
+            member = guild.me
+            if not member:
+                continue
+            try:
+                await member.edit(nick=nickname or None, avatar=avatar if avatar is not None else ..., bio=bio or None, reason="Identité Voice Worker KingdomEngine")
+            except (discord.Forbidden, discord.HTTPException, TypeError) as exc:
+                print(f"[KingdomVoice] identité personnalisée non appliquée pour {self.key} : {exc}")
 
     async def apply_presence_identity(self, presence: VoicePresence) -> None:
         """Applique au plus une fois le surnom de serveur d'une présence.
@@ -314,7 +335,7 @@ class VoiceBotManager:
             if not config.get("enabled", False):
                 print(f"[KingdomVoice] {key} désactivé, ignoré.")
                 continue
-            token = os.getenv(str(config.get("token_env", "")))
+            token = os.getenv(str(config.get("token_env", ""))) or os.getenv(str(config.get("legacy_token_env", "")))
             if not token:
                 print(f"[KingdomVoice] {key} ignoré : variable {config.get('token_env')} absente.")
                 continue
