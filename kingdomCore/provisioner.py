@@ -128,7 +128,24 @@ class DiscordProvisioner:
         report = ProvisionReport([], [])
         role_names = self.settings["roles"]
         master = await self._ensure_role(role_names["game_master"], discord.Colour.gold(), game_master_permissions(), report)
-        player = await self._ensure_role(role_names["player"], discord.Colour.dark_red(), player_permissions(), report)
+        player = find_player_role(self.guild, role_names["player"])
+        if player is None:
+            player = await self._ensure_role(
+                role_names["player"], discord.Colour.dark_red(), player_permissions(), report
+            )
+        else:
+            if player >= me.top_role:
+                raise PermissionError(
+                    f"Le rôle `{player.name}` doit être placé sous le rôle principal du bot."
+                )
+            # Conserve le nom choisi sur un serveur historique, notamment
+            # « Habitant du Royaume », tout en synchronisant ses permissions.
+            await player.edit(
+                colour=discord.Colour.dark_red(),
+                permissions=player_permissions(),
+                hoist=True,
+                reason=AUDIT_REASON,
+            )
         bot_role = await self._ensure_role(role_names["bot"], discord.Colour.green(), managed_bot_permissions(), report)
 
         general_overwrites = self._general_overwrites(master, player, bot_role, me)
@@ -225,8 +242,12 @@ class DiscordProvisioner:
         template = self.settings["discord"]["building_category_template"]
         category_name = template.format(name=payload["name"], key=building_key, emoji=payload.get("emoji", "🏰")).strip()[:100]
         category = discord.utils.get(self.guild.categories, name=category_name)
-        building_role = discord.utils.get(self.guild.roles, name=building_role_name(self.settings, building_key, payload))
-        if building_role is not None and self.guild.me is not None and building_role < self.guild.me.top_role:
+        building_role = discord.utils.get(
+            getattr(self.guild, "roles", []),
+            name=building_role_name(self.settings, building_key, payload),
+        )
+        guild_member = getattr(self.guild, "me", None)
+        if building_role is not None and guild_member is not None and building_role < guild_member.top_role:
             await building_role.delete(reason=f"Suppression du bâtiment KingdomEngine : {building_key}")
         if category is None:
             with self.store.connection() as db:

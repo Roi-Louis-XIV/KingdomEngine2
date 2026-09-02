@@ -27,6 +27,7 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 - bâtiments entièrement no-code avec modes Simple et Avancé, pages Discord, boutons, menus, navigation et organigramme ;
 - **Atelier-école no-code** isolé dans l’Académie : démonstration non publiable et non modifiable, utilisant les vrais éditeurs sans toucher au serveur Discord. Sa visite par chapitres couvre deux métiers, zones et niveaux, outils et durabilité, cooldowns, résultats pondérés multi-effets, recettes, commerce, livraison, réparation, amélioration, inventaires, pages Discord, boutons conditionnels, relations et audio ;
 - boutons Discord conditionnels héritant des règles de leur action : rejoindre/quitter un métier et les autres choix incompatibles sont automatiquement masqués ;
+- le rôle d'arrivée médiéval historique **Habitant du Royaume** est reconnu lors du serment ; chaque bâtiment possède un rôle d'accès temporaire attribué à l'entrée dans son vocal puis retiré à la sortie, afin de masquer son salon textuel hors présence ;
 - Builder de bâtiments en plein écran responsive : navigation latérale entre bâtiments, éditeur central large par onglets, inspecteur contextuel, avertissements et barre de sauvegarde toujours accessible ;
 - éditeur d’objets en plein écran avec formulaire élargi et fiche métier permettant la suppression directe des définitions autonomes ;
 - métiers, zones, niveaux, outils, durabilité, expérience, cooldowns et activités temporisées ;
@@ -49,6 +50,13 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 - Académie interactive avec bulles ancrées sur les vrais contrôles, progression par compte et serveur, reprise, saut d’étape et rejeu à volonté.
 - dotation en écus des nouveaux joueurs configurable dans **Paramètres → Serment**, versée une seule fois lors du serment.
 - bibliothèque visuelle d’emojis avec recherche et catégories pour choisir rapidement l’icône des bâtiments et des objets, tout en conservant la saisie libre.
+
+### Organisation du frontend KingdomWeb
+
+- `KingdomWeb/static/index.html` contient uniquement la structure durable de l’application et les points de montage des écrans ;
+- `KingdomWeb/static/app.js` est balisé par domaines fonctionnels (shell/navigation, monde, comptes, éditeurs, audio, formulaires et builder Discord) ;
+- les comportements spécialisés restent séparés dans `tutorial-engine.js`, `tutorial-content.js`, `building-presets.js` et `platform-admin.js` ;
+- les styles sont répartis par composant ou page (`accounts.css`, `audio.css`, `players.css`, `world-map-editor.css`, `premium-builder.css`, `mobile.css`, etc.) et conservés sous une forme non minifiée, indentée et directement modifiable dans VS Code.
 
 ### Fondations produit et séparation des responsabilités
 
@@ -191,6 +199,10 @@ KINGDOM_MAX_CONCURRENT_VOICE_PRESENCES=
 ```
 
 Les tokens des bots vocaux sont facultatifs. Les capacités sont désormais neutres et numérotées : `VOICE_WORKER_1_TOKEN`, `VOICE_WORKER_2_TOKEN`, etc., avec `VOICE_WORKER_1_APPLICATION_ID`, `VOICE_WORKER_2_APPLICATION_ID`, etc. Les anciennes variables nominatives restent lues uniquement comme solution de transition. Ne jamais envoyer le fichier `.env` sur GitHub.
+
+Au démarrage, KingdomVoice détecte automatiquement chaque token réellement configuré. Les installations historiques utilisant `EDGAR_BOT_TOKEN`, `EDOUARD_BOT_TOKEN`, `ROLAND_BOT_TOKEN`, `SYLVAIN_BOT_TOKEN` ou `WAGNER_BOT_TOKEN` sont reconnues sans recopier le secret en base. Ces capacités sont enregistrées comme **Platform Workers** : elles sont activées automatiquement, visibles sans secret dans l’administration Payen Studio et ne peuvent pas être supprimées depuis l’API client. Les variables `VOICE_WORKER_n_TOKEN` restent prioritaires lorsqu’elles sont définies.
+
+Une présence vocale publiée en mode **automatique** est affectée par KingdomVoice à un worker disponible. Si elle cible un lieu contenant un seul bâtiment, le salon vocal provisionné de ce bâtiment est résolu automatiquement. Les diagnostics distinguent désormais serveur introuvable, salon absent ou obsolète, permissions Discord `Connect`/`Speak` manquantes et capacité indisponible. Discord autorise un surnom propre au serveur pour représenter la présence ; l’avatar et la description d’un bot restent globaux à son application et ne sont donc pas modifiés à chaque affectation.
 
 Après une modification de `.env`, redémarrer les services :
 

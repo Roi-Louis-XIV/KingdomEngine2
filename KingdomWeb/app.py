@@ -31,6 +31,7 @@ from KingdomWeb.item_catalog import ItemCatalogService
 from KingdomWeb.discord_channels import DiscordChannelAdministrationService, DiscordChannelError
 from KingdomWeb.world_creator import WorldCreatorService
 from kingdomCore.world import WorldEngine, WorldError
+from KingdomVoice.configuration import discover_platform_workers
 from KingdomWeb.accounts import ErreurAuthentification, ErreurAutorisation, RegistreComptes
 from seed import DEFINITIONS, REFERENCE_BUILDING
 import discord
@@ -563,7 +564,20 @@ def platform_overview():
             voice_worlds.append({"world_slug": server["slug"], "world_name": server["name"], "guild_id": server["guild_id"], "capacity": len(voice_bots), "active": sum(item["payload"].get("current_state") == "active" for item in presences), "presences": [{"key": item["entity_key"], "name": item["payload"].get("name", item["entity_key"]), "type": item["payload"].get("presence_type", "custom"), "state": item["payload"].get("current_state", "ready"), "location_key": item["payload"].get("location_key", "")} for item in presences]})
         except Exception as exc:
             voice_worlds.append({"world_slug": server["slug"], "world_name": server["name"], "guild_id": server["guild_id"], "capacity": 0, "active": 0, "presences": [], "error": type(exc).__name__})
-    return {"accounts": accounts, "metrics": {"users": len(accounts), "organizations": organizations, "worlds": worlds, "active_support": active_support}, "services": ServiceSupervisor().statuses(), "voice_worlds": voice_worlds, "support": support, "audit": audit, "deployment": _deployment_summary()}
+    platform_workers = [
+        {
+            "key": worker["key"],
+            "name": worker["name"],
+            "kind": "platform",
+            "token_env": worker["token_env"],
+            "application_id_configured": bool(
+                worker["application_id_env"]
+                and os.getenv(worker["application_id_env"])
+            ),
+        }
+        for worker in discover_platform_workers()
+    ]
+    return {"accounts": accounts, "metrics": {"users": len(accounts), "organizations": organizations, "worlds": worlds, "active_support": active_support}, "services": ServiceSupervisor().statuses(), "voice_worlds": voice_worlds, "platform_workers": platform_workers, "support": support, "audit": audit, "deployment": _deployment_summary()}
 
 
 def _deployment_summary() -> dict[str, Any]:
@@ -720,6 +734,15 @@ def save_content(entity_type: str, key: str, body: dict[str, Any]):
     payload = body.get("payload", {})
     if entity_type == "building" and (key == "nocode_academy" or payload.get("is_reference")):
         raise HTTPException(422, "Les démonstrations de l'Académie sont isolées et ne peuvent pas être enregistrées dans un royaume.")
+    if entity_type == "bot":
+        try:
+            existing = store.get("bot", key)
+        except NotFoundError:
+            existing = None
+        if existing and existing["payload"].get("worker_kind") == "platform":
+            protected = {"token_env", "application_id_env", "legacy_token_env", "legacy_application_id_env", "worker_number", "worker_kind"}
+            if any(payload.get(field) != existing["payload"].get(field) for field in protected):
+                raise HTTPException(403, "La configuration système d’un Voice Worker plateforme est protégée.")
     try: return store.save(entity_type, key, payload, body.get("author", "studio"), body.get("expected_version"))
     except (ValidationError, KeyError) as exc: raise HTTPException(422, str(exc)) from exc
     except ConflictError as exc: raise HTTPException(409, str(exc)) from exc
@@ -728,6 +751,8 @@ def save_content(entity_type: str, key: str, body: dict[str, Any]):
 @app.delete("/api/content/{entity_type}/{key}", dependencies=[Depends(authorize)])
 def delete_content(entity_type: str, key: str):
     try:
+        if entity_type == "bot" and store.get("bot", key)["payload"].get("worker_kind") == "platform":
+            raise HTTPException(403, "Un Voice Worker fourni par la plateforme ne peut pas être supprimé.")
         result = store.delete(entity_type, key, "studio")
         if entity_type == "building":
             request_id = store.request_discord_provision("building", key, "building-deletion")
@@ -1134,6 +1159,23 @@ def bot_statuses():
             "token_env": token_env,
             "token_configured": bool(token),
             "channel_configured": bool(config.get("building_key") or config.get("voice_channel_id") or (config.get("voice_channel_env") and os.getenv(str(config["voice_channel_env"])))),
+            "worker_kind": config.get("worker_kind", "custom"),
+        })
+    known = {status["key"] for status in statuses}
+    for worker in discover_platform_workers():
+        if worker["key"] in known:
+            continue
+        statuses.append({
+            "key": worker["key"],
+            "name": worker["name"],
+            "type": "voice",
+            "application_id_env": worker["application_id_env"],
+            "application_id_configured": bool(worker["application_id_env"] and os.getenv(worker["application_id_env"])),
+            "enabled": True,
+            "token_env": worker["token_env"],
+            "token_configured": True,
+            "channel_configured": False,
+            "worker_kind": "platform",
         })
     return statuses
 

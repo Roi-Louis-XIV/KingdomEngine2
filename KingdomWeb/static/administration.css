@@ -1,2 +1,240 @@
-.admin-grid{display:grid;gap:16px}.admin-metrics{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:12px}.admin-metric,.admin-section{background:linear-gradient(145deg,#15131b,#100f15);border:1px solid var(--line);border-radius:12px}.admin-metric{padding:17px}.admin-metric span{display:block;color:#797380;font-size:11px}.admin-metric strong{display:block;font-size:25px;margin-top:7px}.admin-section{overflow:hidden}.admin-section-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}.admin-section-head h2{font-size:16px;margin:0}.admin-section-head small{color:#77717d}.service-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;padding:14px}.service-card{border:1px solid #302b35;border-radius:10px;padding:14px;background:#121016}.service-title{display:flex;justify-content:space-between;align-items:center}.status-pill{font-size:10px;padding:4px 8px;border-radius:20px;background:#382128;color:#fb7185}.status-pill.running,.status-pill.published{background:#173027;color:#5ee4a0}.service-meta{color:#77717d;font-size:11px;margin:9px 0}.service-actions{display:flex;gap:7px}.service-actions button{border:1px solid #443947;border-radius:7px;padding:7px 9px;color:#c7bdca}.service-actions button:hover{border-color:#b9924c;color:#e6d19c}.admin-table-wrap{overflow:auto}.admin-table{width:100%;border-collapse:collapse;font-size:12px}.admin-table th{text-align:left;color:#7f7985;font-weight:500;padding:10px 13px;background:#0e0d12}.admin-table td{padding:11px 13px;border-top:1px solid #242129;vertical-align:top}.admin-table tr:hover td{background:#151219}.inventory-chips{display:flex;flex-wrap:wrap;gap:4px;max-width:360px}.inventory-chip{padding:3px 6px;border-radius:5px;background:#252029;color:#bbb2bf;font-size:10px}.admin-split{display:grid;grid-template-columns:1.3fr .7fr;gap:16px}.empty-admin{padding:24px;color:#756f79}.refresh-spin{display:inline-block;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:1050px){.admin-metrics{grid-template-columns:repeat(2,1fr)}.admin-split{grid-template-columns:1fr}}@media(max-width:650px){.admin-metrics{grid-template-columns:1fr}}
-.settings-hero-actions{position:relative;z-index:1;display:grid;justify-items:end;gap:9px;min-width:min(480px,48%)}.settings-hero-actions>span{color:var(--text-muted);font-size:10px;text-align:right}.settings-hero-actions>div{display:flex;justify-content:flex-end;gap:9px}.settings-hero-actions .secondary{border-color:#3d7750;color:#7be093;background:#102419}@media(max-width:850px){.settings-hero-actions{width:100%;min-width:0;justify-items:stretch}.settings-hero-actions>span{text-align:left}.settings-hero-actions>div{justify-content:stretch;flex-wrap:wrap}.settings-hero-actions button{flex:1}}
+.admin-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.admin-metric,
+.admin-section {
+  background: linear-gradient(145deg, #15131b, #100f15);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.admin-metric {
+  padding: 17px;
+}
+
+.admin-metric span {
+  display: block;
+  color: #797380;
+  font-size: 11px;
+}
+
+.admin-metric strong {
+  display: block;
+  font-size: 25px;
+  margin-top: 7px;
+}
+
+.admin-section {
+  overflow: hidden;
+}
+
+.admin-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-section-head h2 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.admin-section-head small {
+  color: #77717d;
+}
+
+.service-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 10px;
+  padding: 14px;
+}
+
+.service-card {
+  border: 1px solid #302b35;
+  border-radius: 10px;
+  padding: 14px;
+  background: #121016;
+}
+
+.service-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.status-pill {
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 20px;
+  background: #382128;
+  color: #fb7185;
+}
+
+.status-pill.running,
+.status-pill.published {
+  background: #173027;
+  color: #5ee4a0;
+}
+
+.service-meta {
+  color: #77717d;
+  font-size: 11px;
+  margin: 9px 0;
+}
+
+.service-actions {
+  display: flex;
+  gap: 7px;
+}
+
+.service-actions button {
+  border: 1px solid #443947;
+  border-radius: 7px;
+  padding: 7px 9px;
+  color: #c7bdca;
+}
+
+.service-actions button:hover {
+  border-color: #b9924c;
+  color: #e6d19c;
+}
+
+.admin-table-wrap {
+  overflow: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.admin-table th {
+  text-align: left;
+  color: #7f7985;
+  font-weight: 500;
+  padding: 10px 13px;
+  background: #0e0d12;
+}
+
+.admin-table td {
+  padding: 11px 13px;
+  border-top: 1px solid #242129;
+  vertical-align: top;
+}
+
+.admin-table tr:hover td {
+  background: #151219;
+}
+
+.inventory-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 360px;
+}
+
+.inventory-chip {
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: #252029;
+  color: #bbb2bf;
+  font-size: 10px;
+}
+
+.admin-split {
+  display: grid;
+  grid-template-columns: 1.3fr 0.7fr;
+  gap: 16px;
+}
+
+.empty-admin {
+  padding: 24px;
+  color: #756f79;
+}
+
+.refresh-spin {
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1050px) {
+  .admin-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .admin-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .admin-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+.settings-hero-actions {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: end;
+  gap: 9px;
+  min-width: min(480px, 48%);
+}
+
+.settings-hero-actions > span {
+  color: var(--text-muted);
+  font-size: 10px;
+  text-align: right;
+}
+
+.settings-hero-actions > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.settings-hero-actions .secondary {
+  border-color: #3d7750;
+  color: #7be093;
+  background: #102419;
+}
+
+@media (max-width: 850px) {
+  .settings-hero-actions {
+    width: 100%;
+    min-width: 0;
+    justify-items: stretch;
+  }
+
+  .settings-hero-actions > span {
+    text-align: left;
+  }
+
+  .settings-hero-actions > div {
+    justify-content: stretch;
+    flex-wrap: wrap;
+  }
+
+  .settings-hero-actions button {
+    flex: 1;
+  }
+}

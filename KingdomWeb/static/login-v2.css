@@ -1,13 +1,394 @@
 /* Écran d'accueil KingdomWeb — isolé du layout de l'application connectée. */
-.login-screen{place-items:stretch!important;grid-template-columns:minmax(620px,1.65fr) minmax(450px,.92fr)!important;gap:34px;min-height:100dvh;padding:26px!important;overflow:auto;background:#02070a!important}
-.login-screen:before{z-index:0;inset:0!important;opacity:1;mask-image:none!important;background:linear-gradient(90deg,rgba(2,7,10,.12) 0,rgba(2,7,10,.16) 48%,#02070a 74%),linear-gradient(0deg,#02070af0 0,transparent 38%),linear-gradient(180deg,#02070a38,transparent 30%),url("/static/login-kingdom-panorama-v2.png") center/cover no-repeat!important}
-.login-screen:after{content:"SÉCURISÉ  ·  MODULAIRE  ·  PERFORMANT  ·  FIABLE  ·  COMMUNAUTÉ";position:absolute;z-index:2;right:32px;bottom:12px;color:#688076;font-size:8px;letter-spacing:.16em}
-.login-showcase{min-height:calc(100dvh - 52px);padding:0 10px!important}
-.login-payen{align-self:flex-start;gap:13px;padding-top:0;font-size:25px!important;line-height:1}.login-payen .payen-mark{width:64px!important;height:58px!important}.login-payen b{font-family:Arial,sans-serif;font-weight:800;letter-spacing:.11em}.login-payen small{margin-top:6px;font-size:10px!important}.login-payen:after{content:"CRÉONS. INNOVONS. DONNONS VIE.";position:absolute;top:72px;left:10px;padding-top:10px;border-top:1px solid #2f9d3b;color:#54e448;font-size:9px;letter-spacing:.18em}
-.login-engine{margin:auto 0 24px!important;text-shadow:0 3px 24px #000}.login-engine-mark{display:grid!important;place-items:center;width:190px!important;height:190px!important;border-radius:0!important;filter:drop-shadow(0 16px 24px #000) drop-shadow(0 0 22px #e8a92d55)!important}.login-engine-mark img{width:100%!important;height:100%!important;object-fit:contain!important;transform:none!important}.login-engine h2{margin-top:12px!important;font-size:clamp(42px,4.2vw,68px)!important;letter-spacing:.015em!important}.login-engine>p{margin:7px 0 22px!important;font-size:17px;letter-spacing:.48em!important}.login-engine>i{position:relative;width:360px!important;background:linear-gradient(90deg,transparent,#e7b43a 20% 80%,transparent)!important}.login-engine>i:after{content:"◇";position:absolute;left:50%;top:50%;color:#f3bd37;transform:translate(-50%,-51%);background:#071015;padding:0 8px;font-style:normal}.login-engine>strong{margin-top:30px!important;font-size:13px!important;text-shadow:0 2px 9px #000}
-.login-mobile-logo{display:none;width:86px;height:86px;margin:0 auto 18px;object-fit:contain;filter:drop-shadow(0 10px 16px #000) drop-shadow(0 0 14px #e8a92d44)}
-.module-ribbon{min-height:196px;border-color:#34413c!important;border-radius:12px!important;background:#030a0eea!important;box-shadow:0 22px 60px #0008}.module-ribbon article{align-content:start;gap:8px;padding:22px 12px 14px!important}.module-ribbon article>b{font-size:34px!important}.module-ribbon article span{font-size:13px!important}.module-ribbon article small{font-size:8px!important}.module-ribbon article:after{max-width:150px;margin-top:13px;color:#aeb9b3;font-size:10px;line-height:1.55}.module-ribbon [data-module=core]:after{content:"Le cœur du moteur. Logique de jeu, règles et interactions."}.module-ribbon [data-module=web]:after{content:"Interface de création et d’administration no-code."}.module-ribbon [data-module=voice]:after{content:"Ambiances, effets sonores et immersion audio."}.module-ribbon [data-module=data]:after{content:"Joueurs, inventaires et sauvegardes du royaume."}.module-ribbon [data-module=event]:after{content:"Événements, quêtes, déclencheurs et scénarios."}.login-version{margin:17px 4px 0!important;color:#8c9690!important;font-size:9px!important}
-.login-access{align-self:stretch;min-height:calc(100dvh - 52px);padding:clamp(34px,4.2vw,76px)!important;border-color:#48534e!important;border-radius:15px!important;background:linear-gradient(145deg,#030a0ee8,#050c10f2)!important;box-shadow:0 32px 110px #000b,inset 0 0 50px #13271b22!important}.login-card{align-self:center;width:min(520px,100%)!important;gap:19px!important}.login-card-head small{font-size:17px!important;letter-spacing:.1em!important}.login-card-head h1{margin:14px 0 9px!important;font-size:clamp(42px,3.5vw,58px)!important}.login-card-head p{font-size:15px}.login-separator{margin:20px 0 24px!important}.login-card>label{gap:10px!important;font-size:13px!important}.login-input{min-height:59px;border-color:#3d4944!important;border-radius:9px!important;background:#030a0fbb!important}.login-input>span{font-size:19px}.login-input input{padding:17px 15px!important;font-size:15px}.login-card #login-error{font-size:12px}.login-submit,.login-register-button{min-height:57px;font-size:14px;font-weight:700;letter-spacing:.02em}.login-submit{align-items:center;padding:16px 21px!important;background:linear-gradient(135deg,#35b73e,#177128)!important;box-shadow:0 8px 28px #1f9f3233}.login-register-button{border-color:#35443d!important;color:#eaf3ec!important;background:#071015aa!important}.login-register-button:hover{border-color:#4fd65a!important;color:#66e76f!important}.login-trust{margin-top:6px;padding-top:23px!important;font-size:8px!important;letter-spacing:.04em}
-@media(max-width:1450px){.login-screen{grid-template-columns:minmax(540px,1.5fr) minmax(420px,.82fr)!important;gap:24px}.module-ribbon{min-height:150px}.module-ribbon article{padding:15px 7px 11px!important}.module-ribbon article:after{display:none}.login-engine-mark{width:150px!important;height:150px!important}.login-engine h2{font-size:46px!important}.login-access{padding:38px!important}}
-@media(max-width:960px){.login-screen{display:grid!important;grid-template-columns:1fr!important;padding:16px!important}.login-showcase{display:none!important}.login-access{min-height:calc(100dvh - 32px);padding:clamp(28px,8vw,58px)!important}.login-screen:before{background:linear-gradient(#02070acc,#02070af2),url("/static/login-kingdom-panorama-v2.png") center/cover no-repeat!important}.login-screen:after{display:none}.login-mobile-logo{display:block}}
-@media(max-width:620px){.login-screen{padding:0!important}.login-access{min-height:100dvh;padding:30px 22px!important;border:0!important;border-radius:0!important}.login-card-head h1{font-size:38px!important}.login-card-head small{font-size:13px!important}.login-trust{flex-direction:row!important;flex-wrap:wrap;justify-content:center!important}}
+.login-screen {
+  place-items: stretch !important;
+  grid-template-columns: minmax(620px, 1.65fr) minmax(450px, 0.92fr) !important;
+  gap: 34px;
+  min-height: 100dvh;
+  padding: 26px !important;
+  overflow: auto;
+  background: #02070a !important;
+}
+
+.login-screen:before {
+  z-index: 0;
+  inset: 0 !important;
+  opacity: 1;
+  mask-image: none !important;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(2, 7, 10, 0.12) 0,
+      rgba(2, 7, 10, 0.16) 48%,
+      #02070a 74%
+    ),
+    linear-gradient(0deg, #02070af0 0, transparent 38%),
+    linear-gradient(180deg, #02070a38, transparent 30%),
+    url("/static/login-kingdom-panorama-v2.png") center/cover no-repeat !important;
+}
+
+.login-screen:after {
+  content: "SÉCURISÉ  ·  MODULAIRE  ·  PERFORMANT  ·  FIABLE  ·  COMMUNAUTÉ";
+  position: absolute;
+  z-index: 2;
+  right: 32px;
+  bottom: 12px;
+  color: #688076;
+  font-size: 8px;
+  letter-spacing: 0.16em;
+}
+
+.login-showcase {
+  min-height: calc(100dvh - 52px);
+  padding: 0 10px !important;
+}
+
+.login-payen {
+  align-self: flex-start;
+  gap: 13px;
+  padding-top: 0;
+  font-size: 25px !important;
+  line-height: 1;
+}
+
+.login-payen .payen-mark {
+  width: 64px !important;
+  height: 58px !important;
+}
+
+.login-payen b {
+  font-family: Arial, sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+}
+
+.login-payen small {
+  margin-top: 6px;
+  font-size: 10px !important;
+}
+
+.login-payen:after {
+  content: "CRÉONS. INNOVONS. DONNONS VIE.";
+  position: absolute;
+  top: 72px;
+  left: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #2f9d3b;
+  color: #54e448;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+}
+
+.login-engine {
+  margin: auto 0 24px !important;
+  text-shadow: 0 3px 24px #000;
+}
+
+.login-engine-mark {
+  display: grid !important;
+  place-items: center;
+  width: 190px !important;
+  height: 190px !important;
+  border-radius: 0 !important;
+  filter: drop-shadow(0 16px 24px #000) drop-shadow(0 0 22px #e8a92d55) !important;
+}
+
+.login-engine-mark img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  transform: none !important;
+}
+
+.login-engine h2 {
+  margin-top: 12px !important;
+  font-size: clamp(42px, 4.2vw, 68px) !important;
+  letter-spacing: 0.015em !important;
+}
+
+.login-engine > p {
+  margin: 7px 0 22px !important;
+  font-size: 17px;
+  letter-spacing: 0.48em !important;
+}
+
+.login-engine > i {
+  position: relative;
+  width: 360px !important;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #e7b43a 20% 80%,
+    transparent
+  ) !important;
+}
+
+.login-engine > i:after {
+  content: "◇";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  color: #f3bd37;
+  transform: translate(-50%, -51%);
+  background: #071015;
+  padding: 0 8px;
+  font-style: normal;
+}
+
+.login-engine > strong {
+  margin-top: 30px !important;
+  font-size: 13px !important;
+  text-shadow: 0 2px 9px #000;
+}
+
+.login-mobile-logo {
+  display: none;
+  width: 86px;
+  height: 86px;
+  margin: 0 auto 18px;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 16px #000) drop-shadow(0 0 14px #e8a92d44);
+}
+
+.module-ribbon {
+  min-height: 196px;
+  border-color: #34413c !important;
+  border-radius: 12px !important;
+  background: #030a0eea !important;
+  box-shadow: 0 22px 60px #0008;
+}
+
+.module-ribbon article {
+  align-content: start;
+  gap: 8px;
+  padding: 22px 12px 14px !important;
+}
+
+.module-ribbon article > b {
+  font-size: 34px !important;
+}
+
+.module-ribbon article span {
+  font-size: 13px !important;
+}
+
+.module-ribbon article small {
+  font-size: 8px !important;
+}
+
+.module-ribbon article:after {
+  max-width: 150px;
+  margin-top: 13px;
+  color: #aeb9b3;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.module-ribbon [data-module="core"]:after {
+  content: "Le cœur du moteur. Logique de jeu, règles et interactions.";
+}
+
+.module-ribbon [data-module="web"]:after {
+  content: "Interface de création et d’administration no-code.";
+}
+
+.module-ribbon [data-module="voice"]:after {
+  content: "Ambiances, effets sonores et immersion audio.";
+}
+
+.module-ribbon [data-module="data"]:after {
+  content: "Joueurs, inventaires et sauvegardes du royaume.";
+}
+
+.module-ribbon [data-module="event"]:after {
+  content: "Événements, quêtes, déclencheurs et scénarios.";
+}
+
+.login-version {
+  margin: 17px 4px 0 !important;
+  color: #8c9690 !important;
+  font-size: 9px !important;
+}
+
+.login-access {
+  align-self: stretch;
+  min-height: calc(100dvh - 52px);
+  padding: clamp(34px, 4.2vw, 76px) !important;
+  border-color: #48534e !important;
+  border-radius: 15px !important;
+  background: linear-gradient(145deg, #030a0ee8, #050c10f2) !important;
+  box-shadow:
+    0 32px 110px #000b,
+    inset 0 0 50px #13271b22 !important;
+}
+
+.login-card {
+  align-self: center;
+  width: min(520px, 100%) !important;
+  gap: 19px !important;
+}
+
+.login-card-head small {
+  font-size: 17px !important;
+  letter-spacing: 0.1em !important;
+}
+
+.login-card-head h1 {
+  margin: 14px 0 9px !important;
+  font-size: clamp(42px, 3.5vw, 58px) !important;
+}
+
+.login-card-head p {
+  font-size: 15px;
+}
+
+.login-separator {
+  margin: 20px 0 24px !important;
+}
+
+.login-card > label {
+  gap: 10px !important;
+  font-size: 13px !important;
+}
+
+.login-input {
+  min-height: 59px;
+  border-color: #3d4944 !important;
+  border-radius: 9px !important;
+  background: #030a0fbb !important;
+}
+
+.login-input > span {
+  font-size: 19px;
+}
+
+.login-input input {
+  padding: 17px 15px !important;
+  font-size: 15px;
+}
+
+.login-card #login-error {
+  font-size: 12px;
+}
+
+.login-submit,
+.login-register-button {
+  min-height: 57px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.login-submit {
+  align-items: center;
+  padding: 16px 21px !important;
+  background: linear-gradient(135deg, #35b73e, #177128) !important;
+  box-shadow: 0 8px 28px #1f9f3233;
+}
+
+.login-register-button {
+  border-color: #35443d !important;
+  color: #eaf3ec !important;
+  background: #071015aa !important;
+}
+
+.login-register-button:hover {
+  border-color: #4fd65a !important;
+  color: #66e76f !important;
+}
+
+.login-trust {
+  margin-top: 6px;
+  padding-top: 23px !important;
+  font-size: 8px !important;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 1450px) {
+  .login-screen {
+    grid-template-columns: minmax(540px, 1.5fr) minmax(420px, 0.82fr) !important;
+    gap: 24px;
+  }
+
+  .module-ribbon {
+    min-height: 150px;
+  }
+
+  .module-ribbon article {
+    padding: 15px 7px 11px !important;
+  }
+
+  .module-ribbon article:after {
+    display: none;
+  }
+
+  .login-engine-mark {
+    width: 150px !important;
+    height: 150px !important;
+  }
+
+  .login-engine h2 {
+    font-size: 46px !important;
+  }
+
+  .login-access {
+    padding: 38px !important;
+  }
+}
+
+@media (max-width: 960px) {
+  .login-screen {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    padding: 16px !important;
+  }
+
+  .login-showcase {
+    display: none !important;
+  }
+
+  .login-access {
+    min-height: calc(100dvh - 32px);
+    padding: clamp(28px, 8vw, 58px) !important;
+  }
+
+  .login-screen:before {
+    background:
+      linear-gradient(#02070acc, #02070af2),
+      url("/static/login-kingdom-panorama-v2.png") center/cover no-repeat !important;
+  }
+
+  .login-screen:after {
+    display: none;
+  }
+
+  .login-mobile-logo {
+    display: block;
+  }
+}
+
+@media (max-width: 620px) {
+  .login-screen {
+    padding: 0 !important;
+  }
+
+  .login-access {
+    min-height: 100dvh;
+    padding: 30px 22px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .login-card-head h1 {
+    font-size: 38px !important;
+  }
+
+  .login-card-head small {
+    font-size: 13px !important;
+  }
+
+  .login-trust {
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    justify-content: center !important;
+  }
+}

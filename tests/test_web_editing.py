@@ -6,6 +6,13 @@ import KingdomWeb.app as web
 from KingdomData import ContentStore, default_server_settings
 
 
+class SourceText(str):
+    """Recherche stable même lorsque Prettier ajoute des espaces ou retours ligne."""
+
+    def __contains__(self, value):
+        return super().__contains__(value) or "".join(str(value).split()) in "".join(self.split())
+
+
 @pytest.fixture(autouse=True)
 def configured_legacy_admin_token(monkeypatch):
     monkeypatch.setenv("KINGDOM_ADMIN_TOKEN", "change-me")
@@ -17,7 +24,7 @@ def test_building_and_item_editor_exposes_searchable_emoji_library():
     javascript = (static_root / "app.js").read_text(encoding="utf-8")
     assert 'id="open-emoji-library"' in html
     assert 'id="emoji-search"' in html
-    assert '["building","item"].includes(state.type)' in javascript
+    assert '["building","item"].includes(state.type)' in "".join(javascript.split())
     assert 'data-emoji-choice' in javascript
 
 
@@ -29,8 +36,8 @@ def test_tutorial_keeps_profession_and_zone_creation_in_simple_mode():
     assert '#add-simple-mechanic' in tutorial
     assert '[data-add-simple-zone]' in tutorial
     assert '#simple-profession-dialog' in tutorial
-    assert 'id="add-simple-action"' in javascript
-    assert 'backdrop-filter:none!important' in styles
+    assert 'id="add-simple-action"' in "".join(javascript.split())
+    assert 'backdrop-filter:none!important' in "".join(styles.split())
 
 
 def test_content_deletion_keeps_history_but_hides_definition(tmp_path):
@@ -152,7 +159,8 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
     with TestClient(web.app) as client:
         html = client.get("/").text
         presets = client.get("/static/building-presets.js").text
-        script = client.get("/static/app.js").text
+        script = SourceText(client.get("/static/app.js").text)
+    compact_script = "".join(script.split())
 
     assert 'id="preset-step"' in html
     assert 'id="context-help"' in html
@@ -164,17 +172,17 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
         assert f'key: "{preset}"' in presets
     assert 'data-duplicate=' in script
     assert 'data-delete=' in script
-    assert 'openEditor(entity,true)' in script
-    assert 'response.status===409' in script
-    assert 'expected_version:latest.version' in script
+    assert 'openEditor(entity,true)' in "".join(script.split())
+    assert 'response.status===409' in "".join(script.split())
+    assert 'expected_version:latest.version' in "".join(script.split())
     assert 'id="audio-preview-player" controls' in script
     assert 'function closeAudioPreview()' in script
     assert 'function itemMenuPicker(component)' in script
     assert 'data-item-menu-search' in script
     assert 'data-item-menu-category' in script
     assert 'data-item-menu-sort' in script
-    assert 'interaction:{type:"purchase",item_key:key}' in script
-    assert 'function catalogOptions(type, currentValue="")' in script
+    assert 'interaction:{type:"purchase",item_key:key}' in "".join(script.split())
+    assert 'functioncatalogOptions(type,currentValue="")' in compact_script
     assert 'Choisir une ressource…' in script
     assert 'id="profession-modules"' in script
     assert 'id="activity-modules"' in script
@@ -191,11 +199,11 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
     assert 'module_activity_min_durability' in script
     assert 'module_hook_claim' in script
     assert 'action_hook_failure' in script
-    assert 'catalogOptions("building"' in script
-    assert '["player","Toutes mes activités"]' in script
-    assert '["player_building","Dans ce bâtiment"]' in script
-    assert '["player_action","Pour cette action"]' in script
-    assert '["stock_reward","Ajouter au stock d’un bâtiment"]' in script
+    assert 'catalogOptions("building"' in compact_script
+    assert '["player","Toutesmesactivités"]' in compact_script
+    assert '["player_building","Danscebâtiment"]' in compact_script
+    assert '["player_action","Pourcetteaction"]' in compact_script
+    assert '["stock_reward","Ajouteraustockd’unbâtiment"]' in compact_script
     assert 'data-field="modules_json"' in script
     assert 'id="product-modules"' in script
     assert 'id="recipe-modules"' in script
@@ -287,7 +295,7 @@ def test_building_editor_exposes_beginner_wizard_and_presets():
     assert 'function simpleDiscordMarkup' in script
     assert 'function openSimplePageEditor' in script
     assert 'function openSimpleComponentEditor' in script
-    assert 'className=\'grouped-deliveries\'' in script
+    assert "grouped-deliveries" in script
     assert 'outcome_effect_min' in script
     assert 'outcome_effect_max' in script
     assert 'id="dissociate-building-bot"' in script
@@ -509,27 +517,30 @@ def test_interactive_tutorial_supports_real_actions_and_stable_building_targets(
     assert 'tutorial-mode-blocked' in script
     assert 'tutorial-mode-target' in script
     assert 'tutorial-mode-free' in script
-    assert 'function notify(event,value=null)' in script
-    assert 'function observeRealInteraction(event)' in script
+    compact_script = "".join(script.split())
+    compact_content = "".join(content.split())
+    compact_app_script = "".join(app_script.split())
+    assert 'functionnotify(event,value=null)' in compact_script
+    assert 'functionobserveRealInteraction(event)' in compact_script
     assert 'new MutationObserver' in script
     assert 'data-tutorial-skip>Passer cette étape' in script
     assert 'data-tutorial-stop>Quitter' in script
-    assert 'completion:{event:"building_editor_opened"}' in content
-    assert 'completion:{event:"building_tab_changed",value:"relations"}' in content
-    assert 'id:"actions"' in content
-    assert 'id:"discord_interface"' in content
-    assert 'id:"weather"' in content
-    assert 'id:"events"' in content
-    assert 'selector:"#add-simple-action"' in content
-    assert 'selector:"#add-weather-option"' in content
-    assert 'selector:"#add-event-audio-layer"' in content
+    assert 'completion:{event:"building_editor_opened"}' in compact_content
+    assert 'completion:{event:"building_tab_changed",value:"relations"}' in compact_content
+    assert 'id:"actions"' in compact_content
+    assert 'id:"discord_interface"' in compact_content
+    assert 'id:"weather"' in compact_content
+    assert 'id:"events"' in compact_content
+    assert 'selector:"#add-simple-action"' in compact_content
+    assert 'selector:"#add-weather-option"' in compact_content
+    assert 'selector:"#add-event-audio-layer"' in compact_content
     assert 'data-tutorial="building-open"' in app_script
     assert 'data-tutorial="building-tab-relations"' in app_script
-    assert 'KingdomTutorials.notify("building_editor_opened"' in app_script
-    assert 'KingdomTutorials.notify("building_tab_changed"' in app_script
-    assert 'KingdomTutorials.notify("content_saved"' in app_script
+    assert 'KingdomTutorials.notify("building_editor_opened"' in compact_app_script
+    assert 'KingdomTutorials.notify("building_tab_changed"' in compact_app_script
+    assert 'KingdomTutorials.notify("content_saved"' in compact_app_script
     assert '.tutorial-mode-target .tutorial-target' in styles
-    assert 'pointer-events:auto!important' in styles
+    assert 'pointer-events:auto!important' in "".join(styles.split())
 
 
 def test_reference_building_is_an_isolated_rich_academy_demo():
@@ -552,7 +563,7 @@ def test_reference_building_is_an_isolated_rich_academy_demo():
     script = (static / "app.js").read_text(encoding="utf-8")
     assert "/api/tutorials/reference-building" in script
     assert "installReferenceAcademyCard" in script
-    assert '$("#save").hidden=true' in script
+    assert '$("#save").hidden=true' in "".join(script.split())
 
 
 def test_reference_building_cannot_be_saved_or_published_through_world_api(tmp_path, monkeypatch):
@@ -597,13 +608,32 @@ def test_voice_presence_has_a_real_client_ui_and_hides_worker_details():
     assert "Aucune présence vocale" in script
     assert "worker_01" not in script
     assert ".voice-presence-grid" in styles
-    assert "@media(max-width:760px)" in styles
+    assert "@media(max-width:760px)" in "".join(styles.split())
 
 
 def test_navigation_uses_generic_world_editor_vocabulary():
     static = Path(web.__file__).with_name("static")
     page = (static / "index.html").read_text(encoding="utf-8")
     assert "Entités & lieux" in page
+
+
+def test_frontend_sources_keep_human_readable_sections_and_unminified_css():
+    static = Path(web.__file__).with_name("static")
+    script = (static / "app.js").read_text(encoding="utf-8")
+    styles = (static / "brand-system.css").read_text(encoding="utf-8")
+    for section in (
+        "ÉTAT GLOBAL ET CONFIGURATION",
+        "SHELL, SIDEBAR ET TOPBAR",
+        "NAVIGATION ET CHARGEMENT",
+        "CARTE, LIEUX ET MONDE EN DIRECT",
+        "ÉDITEUR NO-CODE GÉNÉRIQUE",
+        "KINGDOMVOICE ET AUDIO",
+        "FORMULAIRES PAR TYPE D’ENTITÉ",
+        "BUILDER D’INTERFACE DISCORD",
+    ):
+        assert section in script
+    assert len(styles.splitlines()) > 500
+    assert "\n  " in styles
 
 
 def test_login_uses_branded_logo_and_responsive_kingdom_background():
@@ -614,10 +644,11 @@ def test_login_uses_branded_logo_and_responsive_kingdom_background():
     assert page.count("/static/kingdomengine-logo-premium.png") >= 3
     assert 'class="login-mobile-logo"' in page
     assert "/static/login-kingdom-panorama-v2.png" in styles
-    assert ".login-mobile-logo{display:none" in styles
-    assert ".login-mobile-logo{display:block}" in styles
+    compact_styles = "".join(styles.split())
+    assert ".login-mobile-logo{display:none" in compact_styles
+    assert ".login-mobile-logo{display:block" in compact_styles
     assert "translateY(-37px)" not in styles
-    assert "object-fit:contain" in brand_styles
+    assert "object-fit:contain" in "".join(brand_styles.split())
     assert (static / "kingdomengine-logo-premium.png").stat().st_size > 10_000
     assert (static / "login-kingdom-panorama-v2.png").stat().st_size > 100_000
 
@@ -629,11 +660,12 @@ def test_navigation_and_dark_theme_remain_available_in_desktop_and_mobile_shells
     styles = (static / "generation-v3.css").read_text(encoding="utf-8")
     assert 'id="sidebar-theme"' in page
     assert '$('# + '"nav"' + ').addEventListener("click"' in script
-    assert 'applyTheme(current==="dark"?"light":"dark",true)' in script
+    assert 'applyTheme(current==="dark"?"light":"dark",true)' in "".join(script.split())
     assert ':root[data-theme="dark"]' in styles
-    assert '--accent:#24945f' in styles
-    assert '--violet:#7667d8' in styles
-    assert '[hidden]{display:none!important}' in styles
+    compact_styles = "".join(styles.split())
+    assert '--accent:#24945f' in compact_styles
+    assert '--violet:#7667d8' in compact_styles
+    assert '[hidden]{display:none!important' in compact_styles
     assert "Espaces interactifs" in page
     assert "Objets & ressources" in page
     assert "Temps & calendrier" in page
@@ -648,11 +680,12 @@ def test_building_and_item_editors_keep_full_size_workspaces_and_profession_dele
     assert "data-workbench-building" in script
     assert "data-delete-profession" in script
     assert ".wizard-panel.building-mode .editor-layout" in styles
-    assert "grid-template-columns:260px minmax(640px,1fr) 330px" in styles
+    compact_styles = "".join(styles.split())
+    assert "grid-template-columns:260pxminmax(640px,1fr)330px" in compact_styles
     assert ".wizard-panel.item-mode" in styles
-    assert ".building-workbench-nav header{display:grid" in styles
-    assert "word-break:normal" in styles
-    assert ".wizard-panel.item-mode .emoji-input-row{grid-template-columns:72px minmax(145px,1fr)" in styles
+    assert ".building-workbench-navheader{display:grid" in compact_styles
+    assert "word-break:normal" in compact_styles
+    assert ".wizard-panel.item-mode.emoji-input-row{grid-template-columns:72pxminmax(145px,1fr)" in compact_styles
 
 
 def test_profession_delete_detaches_its_building_mechanics(tmp_path, monkeypatch):

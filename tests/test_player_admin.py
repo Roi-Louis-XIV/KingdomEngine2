@@ -136,8 +136,8 @@ def test_player_cards_keep_v1_ergonomics_and_live_refresh():
     styles=(root/"KingdomWeb"/"static"/"players.css").read_text(encoding="utf-8")
     for marker in ("live-player-grid","live-player-card","Modifier ce joueur","unifiedInventory","document.hidden","5000"):
         assert marker in script
-    assert "grid-template-columns:repeat(2" in styles
-    assert "@media(max-width:1100px)" in styles
+    assert "grid-template-columns:repeat(2" in "".join(styles.split())
+    assert "@media(max-width:1100px)" in "".join(styles.split())
 
 
 def test_oath_grants_configured_coins_once_and_saves_discord_identity(tmp_path):

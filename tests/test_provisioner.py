@@ -3,8 +3,16 @@ import asyncio
 from types import SimpleNamespace
 
 from KingdomData import ContentStore
-from kingdomCore.discord_bot import building_for_voice
-from kingdomCore.provisioner import DiscordProvisioner, OATH_CUSTOM_ID, channel_slug, message_is_oath, required_bot_permissions
+from kingdomCore.discord_bot import building_for_voice, set_text_access
+from kingdomCore.provisioner import (
+    DiscordProvisioner,
+    OATH_CUSTOM_ID,
+    building_role_name,
+    channel_slug,
+    find_player_role,
+    message_is_oath,
+    required_bot_permissions,
+)
 
 
 def test_channel_slug_is_discord_safe():
@@ -42,6 +50,60 @@ def test_invited_bot_gets_only_required_management_permissions():
     assert not permissions.use_application_commands
     assert not permissions.administrator
     assert not permissions.manage_webhooks
+
+
+def test_historic_kingdom_resident_role_is_reused_for_oath():
+    resident = SimpleNamespace(name="Habitant du Royaume")
+    guild = SimpleNamespace(roles=[SimpleNamespace(name="@everyone"), resident])
+    assert find_player_role(guild, "⚔️ Habitants") is resident
+
+
+def test_building_access_role_name_is_data_driven():
+    settings = {"discord": {"building_role_template": "🔑 {name} · {key}"}}
+    assert building_role_name(settings, "forge", {"name": "Forge Dorée", "emoji": "⚒️"}) == "🔑 Forge Dorée · forge"
+
+
+def test_voice_presence_grants_then_removes_building_role():
+    role = SimpleNamespace(name="🏠 Accès · Forge Dorée")
+    overwrites = []
+
+    class TextChannel:
+        name = "forge-doree"
+
+        async def set_permissions(self, member, overwrite=None, reason=None):
+            overwrites.append(overwrite)
+
+    category = SimpleNamespace(name="🏰 Forge Dorée", text_channels=[TextChannel()])
+
+    class Member:
+        def __init__(self):
+            self.roles = []
+            self.guild = SimpleNamespace(roles=[role], categories=[category])
+
+        async def add_roles(self, selected, reason=None):
+            self.roles.append(selected)
+
+        async def remove_roles(self, selected, reason=None):
+            self.roles.remove(selected)
+
+    member = Member()
+    settings = {
+        "discord": {
+            "building_role_template": "🏠 Accès · {name}",
+            "building_category_template": "🏰 {name}",
+            "building_text_channel": "{name}",
+            "temporary_text_access": True,
+        }
+    }
+    entity = {"entity_key": "forge", "payload": {"name": "Forge Dorée", "emoji": "⚒️", "access": {}}}
+
+    asyncio.run(set_text_access(member, entity, settings, True, category))
+    assert member.roles == [role]
+    assert overwrites[-1] is None
+
+    asyncio.run(set_text_access(member, entity, settings, False, category))
+    assert member.roles == []
+    assert overwrites[-1] is None
 
 
 def test_legacy_voice_channel_is_linked_by_name_even_outside_building_category(tmp_path):

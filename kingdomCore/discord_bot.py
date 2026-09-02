@@ -846,10 +846,20 @@ async def set_text_access(
     role_name = building_role_name(settings, entity["entity_key"], entity["payload"])
     building_role = discord.utils.get(member.guild.roles, name=role_name)
     if building_role is not None:
+        bot_member = getattr(member.guild, "me", None)
+        if bot_member is not None and building_role >= bot_member.top_role:
+            raise PermissionError(
+                f"Le rôle bâtiment `{building_role.name}` doit être placé sous le rôle de KingdomCore."
+            )
         if allowed and building_role not in member.roles:
             await member.add_roles(building_role, reason="Présence dans le bâtiment KingdomEngine")
         elif not allowed and building_role in member.roles:
             await member.remove_roles(building_role, reason="Sortie du bâtiment KingdomEngine")
+    else:
+        logger.warning(
+            "Rôle bâtiment absent pour %s (%s) : lancez la synchronisation Discord.",
+            entity["entity_key"], role_name,
+        )
     category_name = settings["discord"]["building_category_template"].format(
         name=entity["payload"]["name"], key=entity["entity_key"], emoji=entity["payload"].get("emoji", "🏰")
     ).strip()[:100]
@@ -1027,7 +1037,7 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
                         await set_text_access(member, entity, settings, True, voice_categories.get(key))
                         if settings["discord"].get("entry_message_enabled", True):
                             await send_building_entry(store, engine, member, entity, settings, voice_categories.get(key))
-                    except discord.DiscordException:
+                    except (discord.DiscordException, PermissionError, RuntimeError):
                         logger.exception("Réconciliation impossible pour %s dans %s.", member.id, key)
                 logger.info("Accès réconcilié pour %s : %s joueur(s) présent(s).", key, len(present))
 
@@ -1162,7 +1172,7 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
                 logger.info("Position logique non modifiée pour %s : bâtiment non localisé.", member.id)
             try:
                 await update_building_access(store, engine, member, before, after)
-            except discord.DiscordException:
+            except (discord.DiscordException, PermissionError, RuntimeError):
                 logger.exception("Impossible de mettre à jour l'accès bâtiment de %s.", member.id)
 
     @bot.event

@@ -368,9 +368,10 @@ def test_login_interface_uses_the_immersive_brand_assets():
     assert "/static/kingdomengine-logo-premium.png" in page.text
     assert "PAYEN" in page.text
     assert stylesheet.status_code == 200
-    assert "place-items:stretch" in stylesheet.text
+    compact_styles = "".join(stylesheet.text.split())
+    assert "place-items:stretch" in compact_styles
     assert 'url("/static/login-kingdom-panorama-v2.png")' in stylesheet.text
-    assert "@media(max-width:960px)" in stylesheet.text
+    assert "@media(max-width:960px)" in compact_styles
     assert panorama.status_code == 200
     assert panorama.headers["content-type"] == "image/png"
 
@@ -387,21 +388,24 @@ def test_mobile_shell_keeps_essential_tools_within_thumb_reach():
     for target in ("dashboard", "live_world", "players", "supervision"):
         assert f'data-mobile-type="{target}"' in page.text
     assert stylesheet.status_code == 200
-    assert "@media(max-width:760px)" in stylesheet.text
+    compact_styles = "".join(stylesheet.text.split())
+    compact_script = "".join(script.text.split())
+    assert "@media(max-width:760px)" in compact_styles
     assert "env(safe-area-inset-bottom)" in stylesheet.text
-    assert "height:100dvh" in stylesheet.text
+    assert "height:100dvh" in compact_styles
     assert "body:has(.login-screen:not([hidden])) .mobile-dock" in stylesheet.text
     assert 'id="sidebar-logout"' in page.text
-    assert "backdrop-filter:none" in stylesheet.text
-    assert '$("#sidebar-logout").onclick=logoutAccount' in script.text
+    assert "backdrop-filter:none" in compact_styles
+    assert '$("#sidebar-logout").onclick=logoutAccount' in compact_script
     assert 'name="remember"' in page.text
-    assert "navigateTo(button.dataset.mobileType)" in script.text
+    assert "navigateTo(button.dataset.mobileType)" in compact_script
     assert "mobileCreationBlocked" in script.text
     assert "La création de contenu" in script.text
     assert '[data-type="building"]' in stylesheet.text
     tablet = client.get("/static/tablet.css")
-    assert "min-width:761px" in tablet.text
-    assert "max-width:1024px" in tablet.text
+    compact_tablet = "".join(tablet.text.split())
+    assert "min-width:761px" in compact_tablet
+    assert "max-width:1024px" in compact_tablet
 
 
 def test_tutorial_progress_is_scoped_by_account_and_server(tmp_path, monkeypatch):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -140,6 +141,11 @@ def _migrate_voice_workers(store: ContentStore) -> None:
             "legacy_token_env": payload.get("legacy_token_env") or legacy_token,
             "legacy_application_id_env": payload.get("legacy_application_id_env") or legacy_application,
             "worker_number": number,
+            "worker_kind": "platform",
+            "enabled": bool(
+                os.getenv(f"VOICE_WORKER_{number}_TOKEN")
+                or os.getenv(payload.get("legacy_token_env") or legacy_token)
+            ),
         }
         if all(payload.get(key) == value for key, value in expected.items()):
             continue

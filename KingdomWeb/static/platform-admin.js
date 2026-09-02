@@ -1,45 +1,177 @@
-const root=document.querySelector('#platform-root');
-const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const panel=(title,content,subtitle='',className='')=>`<section class="ops-panel ${className}"><header><div><h2>${title}</h2>${subtitle?`<small>${subtitle}</small>`:''}</div></header>${content}</section>`;
-const stateLabel={running:'Opérationnel',stopped:'Arrêté',starting:'Démarrage',restarting:'Redémarrage',degraded:'Dégradé',unknown:'Inconnu'};
-const stateIcon={running:'✓',stopped:'■',starting:'↗',restarting:'↻',degraded:'!',unknown:'?'};
-const relative=value=>{if(!value)return'Non disponible';const elapsed=Date.now()-new Date(value).getTime(),minutes=Math.max(0,Math.round(elapsed/60000));return minutes<1?'À l’instant':minutes<60?`Il y a ${minutes} min`:`Il y a ${Math.round(minutes/60)} h`};
+const root = document.querySelector("#platform-root");
+const esc = (value) =>
+  String(value ?? "").replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ],
+  );
+const panel = (title, content, subtitle = "", className = "") =>
+  `<section class="ops-panel ${className}"><header><div><h2>${title}</h2>${subtitle ? `<small>${subtitle}</small>` : ""}</div></header>${content}</section>`;
+const stateLabel = {
+  running: "Opérationnel",
+  stopped: "Arrêté",
+  starting: "Démarrage",
+  restarting: "Redémarrage",
+  degraded: "Dégradé",
+  unknown: "Inconnu",
+};
+const stateIcon = {
+  running: "✓",
+  stopped: "■",
+  starting: "↗",
+  restarting: "↻",
+  degraded: "!",
+  unknown: "?",
+};
+const relative = (value) => {
+  if (!value) return "Non disponible";
+  const elapsed = Date.now() - new Date(value).getTime(),
+    minutes = Math.max(0, Math.round(elapsed / 60000));
+  return minutes < 1
+    ? "À l’instant"
+    : minutes < 60
+      ? `Il y a ${minutes} min`
+      : `Il y a ${Math.round(minutes / 60)} h`;
+};
 
-function serviceCard(service){
-  const status=service.status||(service.running?'running':'stopped');
-  const active=service.running||['starting','restarting'].includes(status);
-  const actions=service.controllable?`<div class="ops-service-actions"><button type="button" data-platform-service="${esc(service.key)}" data-platform-operation="start" ${active?'disabled':''}>▶ Démarrer</button><button type="button" data-platform-service="${esc(service.key)}" data-platform-operation="restart">↻ Redémarrer</button><button type="button" class="danger" data-platform-service="${esc(service.key)}" data-platform-operation="stop" ${status==='stopped'?'disabled':''}>■ Arrêter</button></div>`:'';
-  return `<article class="ops-service" data-status="${esc(status)}"><div class="ops-service-icon">${stateIcon[status]||'?'}</div><div><small>${esc(service.key.toUpperCase())}</small><h3>${esc(service.name)}</h3><p>${esc(stateLabel[status]||status)} · vérifié ${relative(service.checked_at)}</p></div><span class="ops-state">${esc(stateLabel[status]||status)}</span><dl><div><dt>Source</dt><dd>${service.provider==='systemd'?'Service Debian':'Processus local'}</dd></div><div><dt>Depuis</dt><dd>${esc(service.started_at||'—')}</dd></div><div><dt>Redémarrages</dt><dd>${service.restart_count??'—'}</dd></div></dl>${service.last_error?`<p class="ops-error">${esc(service.last_error)}</p>`:''}${actions}<small class="ops-service-feedback" data-platform-feedback="${esc(service.key)}"></small></article>`;
+function serviceCard(service) {
+  const status = service.status || (service.running ? "running" : "stopped");
+  const active = service.running || ["starting", "restarting"].includes(status);
+  const actions = service.controllable
+    ? `<div class="ops-service-actions"><button type="button" data-platform-service="${esc(service.key)}" data-platform-operation="start" ${active ? "disabled" : ""}>▶ Démarrer</button><button type="button" data-platform-service="${esc(service.key)}" data-platform-operation="restart">↻ Redémarrer</button><button type="button" class="danger" data-platform-service="${esc(service.key)}" data-platform-operation="stop" ${status === "stopped" ? "disabled" : ""}>■ Arrêter</button></div>`
+    : "";
+  return `<article class="ops-service" data-status="${esc(status)}"><div class="ops-service-icon">${stateIcon[status] || "?"}</div><div><small>${esc(service.key.toUpperCase())}</small><h3>${esc(service.name)}</h3><p>${esc(stateLabel[status] || status)} · vérifié ${relative(service.checked_at)}</p></div><span class="ops-state">${esc(stateLabel[status] || status)}</span><dl><div><dt>Source</dt><dd>${service.provider === "systemd" ? "Service Debian" : "Processus local"}</dd></div><div><dt>Depuis</dt><dd>${esc(service.started_at || "—")}</dd></div><div><dt>Redémarrages</dt><dd>${service.restart_count ?? "—"}</dd></div></dl>${service.last_error ? `<p class="ops-error">${esc(service.last_error)}</p>` : ""}${actions}<small class="ops-service-feedback" data-platform-feedback="${esc(service.key)}"></small></article>`;
 }
 
-async function controlService(button){
-  const service=button.dataset.platformService,operation=button.dataset.platformOperation;
-  const warning=service==='web'&&operation==='stop'?'Arrêter KingdomWeb coupera immédiatement cette interface. Le redémarrage devra être effectué par SSH. Continuer ?':`${operation==='restart'?'Redémarrer':operation==='stop'?'Arrêter':'Démarrer'} ${service} ?`;
-  if(!confirm(warning))return;
-  const feedback=document.querySelector(`[data-platform-feedback="${service}"]`),buttons=[...document.querySelectorAll(`[data-platform-service="${service}"]`)];
-  buttons.forEach(item=>item.disabled=true);feedback.className='ops-service-feedback busy';feedback.textContent='Commande en cours…';
-  try{
-    const response=await fetch(`/api/admin/services/${encodeURIComponent(service)}/${encodeURIComponent(operation)}`,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:'{}'});
-    const result=await response.json().catch(()=>({detail:'Réponse interrompue pendant le redémarrage.'}));
-    if(!response.ok)throw new Error(result.detail||'Commande refusée.');
-    feedback.className='ops-service-feedback success';feedback.textContent=result.message||'Commande systemd acceptée.';
-    if(service==='web'&&operation!=='start'){setTimeout(()=>location.reload(),5000);return}
-    setTimeout(load,900);
-  }catch(error){feedback.className='ops-service-feedback error';feedback.textContent=error.message;buttons.forEach(item=>item.disabled=false)}
+async function controlService(button) {
+  const service = button.dataset.platformService,
+    operation = button.dataset.platformOperation;
+  const warning =
+    service === "web" && operation === "stop"
+      ? "Arrêter KingdomWeb coupera immédiatement cette interface. Le redémarrage devra être effectué par SSH. Continuer ?"
+      : `${operation === "restart" ? "Redémarrer" : operation === "stop" ? "Arrêter" : "Démarrer"} ${service} ?`;
+  if (!confirm(warning)) return;
+  const feedback = document.querySelector(
+      `[data-platform-feedback="${service}"]`,
+    ),
+    buttons = [
+      ...document.querySelectorAll(`[data-platform-service="${service}"]`),
+    ];
+  buttons.forEach((item) => (item.disabled = true));
+  feedback.className = "ops-service-feedback busy";
+  feedback.textContent = "Commande en cours…";
+  try {
+    const response = await fetch(
+      `/api/admin/services/${encodeURIComponent(service)}/${encodeURIComponent(operation)}`,
+      {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      },
+    );
+    const result = await response
+      .json()
+      .catch(() => ({ detail: "Réponse interrompue pendant le redémarrage." }));
+    if (!response.ok) throw new Error(result.detail || "Commande refusée.");
+    feedback.className = "ops-service-feedback success";
+    feedback.textContent = result.message || "Commande systemd acceptée.";
+    if (service === "web" && operation !== "start") {
+      setTimeout(() => location.reload(), 5000);
+      return;
+    }
+    setTimeout(load, 900);
+  } catch (error) {
+    feedback.className = "ops-service-feedback error";
+    feedback.textContent = error.message;
+    buttons.forEach((item) => (item.disabled = false));
+  }
 }
 
-async function load(){
-  const response=await fetch('/api/platform/overview',{credentials:'same-origin',cache:'no-store'});
-  if(!response.ok){root.innerHTML='<section class="access-denied"><span>◇</span><h2>Administration protégée</h2><p>Cette interface est exclusivement réservée aux administrateurs Payen Studio.</p><a href="/">Retour à KingdomWeb</a></section>';return}
-  const data=await response.json(),m=data.metrics,services=data.services||[],deployment=data.deployment||{};
-  const healthy=services.filter(service=>(service.status||(service.running?'running':'stopped'))==='running').length,incidents=services.length-healthy;
-  const accounts=data.accounts.map(account=>`<article class="ops-row"><div class="ops-avatar">${esc((account.display_name||account.username||'?')[0].toUpperCase())}</div><div><b>${esc(account.display_name)}</b><small>@${esc(account.username)}</small></div><span>${account.administered_server_count} monde(s)</span><i>${account.is_admin?'ADMIN CLIENT':'CLIENT'}</i>${account.is_admin?'':`<button type="button" class="ops-account-delete" data-delete-account="${account.id}" data-account-username="${esc(account.username)}">Supprimer</button>`}</article>`).join('')||'<p class="ops-empty">Aucun compte.</p>';
-  const voice=(data.voice_worlds||[]).map(world=>`<article class="ops-world"><header><div><b>${esc(world.world_name)}</b><small>${esc(world.world_slug)} · ${esc(world.guild_id||'Discord non relié')}</small></div><strong>${world.active} / ${world.capacity}</strong></header><div class="capacity-track"><i style="width:${world.capacity?Math.min(100,world.active*100/world.capacity):0}%"></i></div>${world.error?`<p class="ops-error">Diagnostic indisponible · ${esc(world.error)}</p>`:(world.presences||[]).map(presence=>`<div class="ops-presence"><span>${presence.type==='npc'?'♙':presence.type==='ambience'?'◖':'◉'}</span><div><b>${esc(presence.name)}</b><small>${esc(presence.location_key||'Affectation dynamique')}</small></div><i>${esc(presence.state)}</i></div>`).join('')||'<p class="ops-empty">Aucune présence configurée.</p>'}</article>`).join('')||'<p class="ops-empty">Aucun monde actif.</p>';
-  const support=(data.support||[]).map(item=>`<article class="ops-row"><div><b>${esc(item.world_slug)}</b><small>Expire ${esc(item.expires_at)}</small></div><span>${esc(JSON.parse(item.scopes_json||'[]').join(', '))}</span><i>${esc(item.status)}</i></article>`).join('')||'<p class="ops-empty">Aucun accès temporaire actif.</p>';
-  const audit=data.audit.map(item=>`<article class="ops-timeline"><i></i><div><b>${esc(item.action)}</b><small>${esc(item.target_type)} · ${esc(item.target_id)}</small></div><time>${relative(item.created_at)}</time></article>`).join('')||'<p class="ops-empty">Aucune opération auditée.</p>';
-  root.innerHTML=`<section class="ops-hero"><div><small>CENTRE D’EXPLOITATION</small><h2>${incidents?'Attention requise':'Plateforme opérationnelle'}</h2><p>${healthy}/${services.length} services disponibles · dernière vérification à l’instant</p></div><span class="ops-global ${incidents?'warning':'healthy'}"><i></i>${incidents?`${incidents} incident(s)`:'Tous les systèmes sont stables'}</span></section><section class="ops-metrics"><article><span>♙</span><small>UTILISATEURS</small><strong>${m.users}</strong><p>${m.organizations} organisation(s)</p></article><article><span>◇</span><small>MONDES ACTIFS</small><strong>${m.worlds}</strong><p>Environnements clients</p></article><article><span>◖</span><small>CAPACITÉ VOCALE</small><strong>${(data.voice_worlds||[]).reduce((sum,w)=>sum+w.active,0)} / ${(data.voice_worlds||[]).reduce((sum,w)=>sum+w.capacity,0)}</strong><p>Allocations actives</p></article><article><span>⌁</span><small>SUPPORT ACTIF</small><strong>${m.active_support}</strong><p>Accès consentis</p></article></section><section class="ops-services"><div class="ops-title"><div><small>SANTÉ PLATEFORME</small><h2>Services de production</h2></div><button type="button" id="refresh-platform">↻ Rafraîchir</button></div><div>${services.map(serviceCard).join('')}</div></section><div class="ops-grid">${panel('Clients et mondes',accounts,'Comptes autorisés sur la plateforme.','clients')}${panel('Capacité Voice',voice,'Allocations et présences par monde.','voice')}${panel('Support Mode',support,'Consentements temporaires et périmètres.','support')}${panel('Déploiement',`<article class="deployment-card"><span>${deployment.status==='success'?'✓':'◇'}</span><div><small>${esc(deployment.environment||'Production')}</small><h3>${esc(deployment.commit||'inconnu')}</h3><p>${esc(deployment.message||'Aucun rapport disponible.')}</p></div><time>${relative(deployment.deployed_at)}</time></article>`,'Version actuellement déployée.','deployment')}${panel('Journal d’exploitation',audit,'Actions administratives récentes.','audit')}</div>`;
-  document.querySelector('#refresh-platform').onclick=load;
-  document.querySelectorAll('[data-platform-service]').forEach(button=>button.onclick=()=>controlService(button));
-  document.querySelectorAll('[data-delete-account]').forEach(button=>button.onclick=async()=>{const username=button.dataset.accountUsername;if(prompt(`Supprimer définitivement @${username} ?\n\nLes bases de ses anciens mondes resteront conservées et réinstallables.\n\nSaisissez « ${username} » pour confirmer.`)!==username)return;button.disabled=true;const deletion=await fetch(`/api/accounts/${button.dataset.deleteAccount}`,{method:'DELETE',credentials:'same-origin'}),result=await deletion.json();if(!deletion.ok){alert(result.detail);button.disabled=false;return}await load()});
+async function load() {
+  const response = await fetch("/api/platform/overview", {
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    root.innerHTML =
+      '<section class="access-denied"><span>◇</span><h2>Administration protégée</h2><p>Cette interface est exclusivement réservée aux administrateurs Payen Studio.</p><a href="/">Retour à KingdomWeb</a></section>';
+    return;
+  }
+  const data = await response.json(),
+    m = data.metrics,
+    services = data.services || [],
+    deployment = data.deployment || {};
+  const healthy = services.filter(
+      (service) =>
+        (service.status || (service.running ? "running" : "stopped")) ===
+        "running",
+    ).length,
+    incidents = services.length - healthy;
+  const accounts =
+    data.accounts
+      .map(
+        (account) =>
+          `<article class="ops-row"><div class="ops-avatar">${esc((account.display_name || account.username || "?")[0].toUpperCase())}</div><div><b>${esc(account.display_name)}</b><small>@${esc(account.username)}</small></div><span>${account.administered_server_count} monde(s)</span><i>${account.is_admin ? "ADMIN CLIENT" : "CLIENT"}</i>${account.is_admin ? "" : `<button type="button" class="ops-account-delete" data-delete-account="${account.id}" data-account-username="${esc(account.username)}">Supprimer</button>`}</article>`,
+      )
+      .join("") || '<p class="ops-empty">Aucun compte.</p>';
+  const voice =
+    `<div class="ops-platform-workers">${(data.platform_workers || [])
+      .map(
+        (worker) =>
+          `<article class="ops-presence"><span>●</span><div><b>${esc(worker.name)}</b><small>${esc(worker.key)} · capacité plateforme</small></div><i>${worker.application_id_configured ? "Configuré" : "Application ID absent"}</i></article>`,
+      )
+      .join("") || '<p class="ops-empty">Aucun worker plateforme détecté.</p>'}</div>` +
+    ((data.voice_worlds || [])
+      .map(
+        (world) =>
+          `<article class="ops-world"><header><div><b>${esc(world.world_name)}</b><small>${esc(world.world_slug)} · ${esc(world.guild_id || "Discord non relié")}</small></div><strong>${world.active} / ${world.capacity}</strong></header><div class="capacity-track"><i style="width:${world.capacity ? Math.min(100, (world.active * 100) / world.capacity) : 0}%"></i></div>${world.error ? `<p class="ops-error">Diagnostic indisponible · ${esc(world.error)}</p>` : (world.presences || []).map((presence) => `<div class="ops-presence"><span>${presence.type === "npc" ? "♙" : presence.type === "ambience" ? "◖" : "◉"}</span><div><b>${esc(presence.name)}</b><small>${esc(presence.location_key || "Affectation dynamique")}</small></div><i>${esc(presence.state)}</i></div>`).join("") || '<p class="ops-empty">Aucune présence configurée.</p>'}</article>`,
+      )
+      .join("") || '<p class="ops-empty">Aucun monde actif.</p>');
+  const support =
+    (data.support || [])
+      .map(
+        (item) =>
+          `<article class="ops-row"><div><b>${esc(item.world_slug)}</b><small>Expire ${esc(item.expires_at)}</small></div><span>${esc(JSON.parse(item.scopes_json || "[]").join(", "))}</span><i>${esc(item.status)}</i></article>`,
+      )
+      .join("") || '<p class="ops-empty">Aucun accès temporaire actif.</p>';
+  const audit =
+    data.audit
+      .map(
+        (item) =>
+          `<article class="ops-timeline"><i></i><div><b>${esc(item.action)}</b><small>${esc(item.target_type)} · ${esc(item.target_id)}</small></div><time>${relative(item.created_at)}</time></article>`,
+      )
+      .join("") || '<p class="ops-empty">Aucune opération auditée.</p>';
+  root.innerHTML = `<section class="ops-hero"><div><small>CENTRE D’EXPLOITATION</small><h2>${incidents ? "Attention requise" : "Plateforme opérationnelle"}</h2><p>${healthy}/${services.length} services disponibles · dernière vérification à l’instant</p></div><span class="ops-global ${incidents ? "warning" : "healthy"}"><i></i>${incidents ? `${incidents} incident(s)` : "Tous les systèmes sont stables"}</span></section><section class="ops-metrics"><article><span>♙</span><small>UTILISATEURS</small><strong>${m.users}</strong><p>${m.organizations} organisation(s)</p></article><article><span>◇</span><small>MONDES ACTIFS</small><strong>${m.worlds}</strong><p>Environnements clients</p></article><article><span>◖</span><small>CAPACITÉ VOCALE</small><strong>${(data.voice_worlds || []).reduce((sum, w) => sum + w.active, 0)} / ${(data.voice_worlds || []).reduce((sum, w) => sum + w.capacity, 0)}</strong><p>Allocations actives</p></article><article><span>⌁</span><small>SUPPORT ACTIF</small><strong>${m.active_support}</strong><p>Accès consentis</p></article></section><section class="ops-services"><div class="ops-title"><div><small>SANTÉ PLATEFORME</small><h2>Services de production</h2></div><button type="button" id="refresh-platform">↻ Rafraîchir</button></div><div>${services.map(serviceCard).join("")}</div></section><div class="ops-grid">${panel("Clients et mondes", accounts, "Comptes autorisés sur la plateforme.", "clients")}${panel("Capacité Voice", voice, "Allocations et présences par monde.", "voice")}${panel("Support Mode", support, "Consentements temporaires et périmètres.", "support")}${panel("Déploiement", `<article class="deployment-card"><span>${deployment.status === "success" ? "✓" : "◇"}</span><div><small>${esc(deployment.environment || "Production")}</small><h3>${esc(deployment.commit || "inconnu")}</h3><p>${esc(deployment.message || "Aucun rapport disponible.")}</p></div><time>${relative(deployment.deployed_at)}</time></article>`, "Version actuellement déployée.", "deployment")}${panel("Journal d’exploitation", audit, "Actions administratives récentes.", "audit")}</div>`;
+  document.querySelector("#refresh-platform").onclick = load;
+  document
+    .querySelectorAll("[data-platform-service]")
+    .forEach((button) => (button.onclick = () => controlService(button)));
+  document.querySelectorAll("[data-delete-account]").forEach(
+    (button) =>
+      (button.onclick = async () => {
+        const username = button.dataset.accountUsername;
+        if (
+          prompt(
+            `Supprimer définitivement @${username} ?\n\nLes bases de ses anciens mondes resteront conservées et réinstallables.\n\nSaisissez « ${username} » pour confirmer.`,
+          ) !== username
+        )
+          return;
+        button.disabled = true;
+        const deletion = await fetch(
+            `/api/accounts/${button.dataset.deleteAccount}`,
+            { method: "DELETE", credentials: "same-origin" },
+          ),
+          result = await deletion.json();
+        if (!deletion.ok) {
+          alert(result.detail);
+          button.disabled = false;
+          return;
+        }
+        await load();
+      }),
+  );
 }
 load();

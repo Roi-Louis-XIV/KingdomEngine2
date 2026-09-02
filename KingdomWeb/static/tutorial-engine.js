@@ -1,44 +1,466 @@
 /* Moteur de walkthrough natif, sans dépendance ni sélecteur DOM structurel fragile. */
 window.KingdomTutorials = (() => {
-  const content=window.KingdomTutorialContent;
-  let progress={tutorials:{},onboarding_seen:true},active=null,stepIndex=0,temporarySteps=null;
-  const layer=()=>document.getElementById("tutorial-layer");
-  const tutorial=id=>content.tutorials.find(item=>item.id===id);
-  const saved=id=>progress.tutorials[id]||{completed_steps:[],completed:false,dismissed:false};
-  const realRules=()=>{
-    const buildings=state.catalogs.building||[],locations=state.catalogs.location||[],events=state.catalogs.event||[],items=state.catalogs.item||[];
-    const payloads=buildings.map(item=>item.payload||{}),modules=payloads.map(item=>item.modules||{});
+  const content = window.KingdomTutorialContent;
+  let progress = { tutorials: {}, onboarding_seen: true },
+    active = null,
+    stepIndex = 0,
+    temporarySteps = null;
+  const layer = () => document.getElementById("tutorial-layer");
+  const tutorial = (id) => content.tutorials.find((item) => item.id === id);
+  const saved = (id) =>
+    progress.tutorials[id] || {
+      completed_steps: [],
+      completed: false,
+      dismissed: false,
+    };
+  const realRules = () => {
+    const buildings = state.catalogs.building || [],
+      locations = state.catalogs.location || [],
+      events = state.catalogs.event || [],
+      items = state.catalogs.item || [];
+    const payloads = buildings.map((item) => item.payload || {}),
+      modules = payloads.map((item) => item.modules || {});
     return {
-      has_building:buildings.length>0,has_published_building:buildings.some(item=>item.status==="published"),has_item:items.length>0,
-      has_profession:modules.some(item=>(item.professions||[]).length),has_activity:modules.some(item=>(item.activities||[]).length),
-      has_ambience:payloads.some(item=>Boolean(item.relations?.ambience_audio_key)||Boolean(item.modules?.audio?.default_group_key))||(state.catalogs.audio_group||[]).length>0,
-      has_sfx:payloads.some(item=>(item.actions||[]).some(action=>(action.effects||[]).some(effect=>effect.type==="play_audio"))),
-      has_discord_page:payloads.some(item=>((item.interface||{}).pages||[]).length),has_location:locations.length>0,
-      has_route:locations.some(item=>((item.payload||{}).connections||[]).length),has_event:events.length>0
+      has_building: buildings.length > 0,
+      has_published_building: buildings.some(
+        (item) => item.status === "published",
+      ),
+      has_item: items.length > 0,
+      has_profession: modules.some((item) => (item.professions || []).length),
+      has_activity: modules.some((item) => (item.activities || []).length),
+      has_ambience:
+        payloads.some(
+          (item) =>
+            Boolean(item.relations?.ambience_audio_key) ||
+            Boolean(item.modules?.audio?.default_group_key),
+        ) || (state.catalogs.audio_group || []).length > 0,
+      has_sfx: payloads.some((item) =>
+        (item.actions || []).some((action) =>
+          (action.effects || []).some((effect) => effect.type === "play_audio"),
+        ),
+      ),
+      has_discord_page: payloads.some(
+        (item) => ((item.interface || {}).pages || []).length,
+      ),
+      has_location: locations.length > 0,
+      has_route: locations.some(
+        (item) => ((item.payload || {}).connections || []).length,
+      ),
+      has_event: events.length > 0,
     };
   };
-  function combinedSteps(item){return (temporarySteps||item.steps).map(step=>({...step,done:step.rule?Boolean(realRules()[step.rule]):saved(item.id).completed_steps.includes(step.id)}));}
-  async function save(id,patch){const current=saved(id),body={completed_steps:patch.completed_steps??current.completed_steps,completed:patch.completed??current.completed,dismissed:patch.dismissed??current.dismissed};progress.tutorials[id]=body;await fetch(`/api/tutorials/progress/${encodeURIComponent(id)}`,{method:"PUT",headers,body:JSON.stringify(body)});}
-  function markCurrent(){if(!active||temporarySteps)return;const item=tutorial(active),step=combinedSteps(item)[stepIndex];if(!step||step.rule)return;const completed=[...new Set([...saved(active).completed_steps,step.id])];save(active,{completed_steps:completed,completed:stepIndex>=item.steps.length-1,dismissed:false});}
-  function clearMode(){document.body.classList.remove("tutorial-active","tutorial-mode-blocked","tutorial-mode-target","tutorial-mode-free");document.querySelectorAll(".tutorial-target").forEach(el=>el.classList.remove("tutorial-target"));}
-  function close({dismiss=false}={}){const id=active;if(dismiss&&id&&!temporarySteps)save(id,{dismissed:true});active=null;temporarySteps=null;layer().hidden=true;layer().innerHTML="";clearMode();}
-  function positionCard(card,target,preferred){const margin=16,rect=target?.getBoundingClientRect();if(!rect){card.classList.add("tutorial-centered");return}target.classList.add("tutorial-target");target.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'});requestAnimationFrame(()=>{const r=target.getBoundingClientRect(),w=Math.min(390,innerWidth-24),h=card.offsetHeight||230;const candidates={right:{left:r.right+margin,top:r.top},left:{left:r.left-w-margin,top:r.top},bottom:{left:r.left,top:r.bottom+margin},top:{left:r.left,top:r.top-h-margin}};const fits=position=>position.left>=margin&&position.top>=margin&&position.left+w<=innerWidth-margin&&position.top+h<=innerHeight-margin;let position=candidates[preferred]||Object.values(candidates).find(fits)||{left:margin,top:Math.max(margin,innerHeight-h-margin)};position.left=Math.max(margin,Math.min(position.left,innerWidth-w-margin));position.top=Math.max(margin,Math.min(position.top,innerHeight-h-margin));card.style.cssText=`--tutorial-left:${position.left}px;--tutorial-top:${position.top}px;--tutorial-width:${w}px`;});}
-  function installTargetBlockers(target){if(!target)return;requestAnimationFrame(()=>{const r=target.getBoundingClientRect(),padding=40,left=Math.max(0,r.left-padding),top=Math.max(0,r.top-padding),right=Math.min(innerWidth,r.right+padding),bottom=Math.min(innerHeight,r.bottom+padding),boxes=[[0,0,innerWidth,top],[0,top,left,bottom-top],[right,top,innerWidth-right,bottom-top],[0,bottom,innerWidth,innerHeight-bottom]];layer().querySelectorAll('.tutorial-blocker').forEach((element,index)=>{const [x,y,width,height]=boxes[index];element.style.cssText=`left:${x}px;top:${y}px;width:${width}px;height:${height}px`})})}
-  function render(){const item=tutorial(active)||{id:"screen",title:"Expliquer cet écran",steps:temporarySteps||[]},steps=combinedSteps(item),step=steps[stepIndex];if(!step){close();return}clearMode();const mode=step.interaction||"blocked",target=document.querySelector(step.target),actionExpected=Boolean(step.completion),percent=Math.round((stepIndex/Math.max(1,steps.length))*100);layer().hidden=false;const trail=steps.map((entry,index)=>`<i class="${index<stepIndex?'done':index===stepIndex?'current':''}" title="${escapeHtml(entry.title)}">${index<stepIndex?'✓':index===stepIndex?'●':'○'}</i>`).join("");layer().innerHTML=`<div class="tutorial-shade" aria-hidden="true"></div>${mode==='target'?'<div class="tutorial-blocker"></div>'.repeat(4):''}<section class="tutorial-popover ${mode==='blocked'?'':'tutorial-compact'} ${target?'has-target':'without-target'}" role="dialog" aria-modal="${mode==='blocked'}" aria-labelledby="tutorial-title" tabindex="-1"><div class="tutorial-progress-line"><i style="width:${percent}%"></i></div><div class="tutorial-popover-head"><small>ÉTAPE ${stepIndex+1} / ${steps.length}</small><span class="tutorial-trail">${trail}</span><button type="button" data-tutorial-close aria-label="Quitter le tutoriel">×</button></div><h2 id="tutorial-title">${escapeHtml(step.title)}</h2><p>${escapeHtml(step.content)}</p>${actionExpected?'<strong class="tutorial-instruction">CLIQUEZ SUR LA ZONE MISE EN LUMIÈRE →</strong>':''}${!target?'<small class="tutorial-wait">⏳ La zone apparaîtra dès que l’écran précédent aura terminé de s’ouvrir.</small>':''}<div class="tutorial-actions"><button type="button" data-tutorial-skip>Passer cette étape</button><button type="button" class="tutorial-stop" data-tutorial-stop>Quitter</button><span></span>${stepIndex?'<button type="button" data-tutorial-prev>Précédent</button>':''}${actionExpected?'':`<button type="button" class="primary" data-tutorial-next>${stepIndex===steps.length-1?'Terminer':'Suivant'}</button>`}</div></section>`;document.body.classList.add("tutorial-active",`tutorial-mode-${mode}`);const card=layer().querySelector(".tutorial-popover");positionCard(card,target,step.position);if(mode==="target")installTargetBlockers(target);if(mode==="blocked")card.focus();}
-  function handleLayerClick(event){const button=event.target.closest('button');if(!button||!active)return;event.preventDefault();event.stopPropagation();const item=tutorial(active)||{steps:temporarySteps||[]},steps=combinedSteps(item);if(button.matches('[data-tutorial-close],[data-tutorial-stop]')){close({dismiss:true});return}if(button.matches('[data-tutorial-prev]')){stepIndex=Math.max(0,stepIndex-1);render();return}if(button.matches('[data-tutorial-skip],[data-tutorial-next]')){markCurrent();if(stepIndex>=steps.length-1){close();if(state.type==="academy")renderAcademy();return}stepIndex++;const next=steps[stepIndex];if(next.page&&next.page!==state.type)navigate(next.page);else render()}}
-  function navigate(page){const button=document.querySelector(`#nav [data-type='${page}']`);if(button)button.click();else render()}
-  function completeActionStep(){if(!active||temporarySteps)return;const item=tutorial(active),step=item.steps[stepIndex],completed=[...new Set([...saved(active).completed_steps,step.id])];save(active,{completed_steps:completed,completed:stepIndex>=item.steps.length-1,dismissed:false});if(stepIndex>=item.steps.length-1){close();return}stepIndex++;const next=item.steps[stepIndex];if(next?.page&&next.page!==state.type)navigate(next.page);else requestAnimationFrame(render);}
-  function notify(event,value=null){if(!active||temporarySteps)return;const step=tutorial(active)?.steps[stepIndex],completion=step?.completion;if(!completion||completion.event!==event)return;if(completion.value!==undefined&&completion.value!==value)return;completeActionStep();}
-  function observeRealInteraction(event){if(!active||temporarySteps||layer().contains(event.target))return;const step=tutorial(active)?.steps[stepIndex],completion=step?.completion;if(completion?.event!=="dom_click"||!completion.selector)return;const matched=event.target.closest?.(completion.selector);if(matched)notify("dom_click",completion.selector)}
-  function start(id,{restart=false}={}){const item=tutorial(id);if(!item)return;if(restart)save(id,{completed_steps:[],completed:false,dismissed:false});active=id;temporarySteps=null;const steps=combinedSteps(item),first=restart?0:Math.max(0,steps.findIndex(step=>!step.done));stepIndex=first<0?0:first;if(item.steps[stepIndex].page!==state.type)navigate(item.steps[stepIndex].page);else render()}
-  function explain(){const steps=content.screenTours[state.type]||[{target:".app-main",title:labels[state.type]||"Cet écran",content:pageDescriptions[state.type]||"Gérez ce module depuis cet espace."}];active="screen";temporarySteps=steps;stepIndex=0;render()}
-  function guide(steps){active="screen";temporarySteps=steps;stepIndex=0;render()}
-  async function initialize(){const response=await fetch('/api/tutorials/progress',{headers,cache:'no-store'});if(response.ok)progress=await response.json();document.getElementById('explain-screen').onclick=explain;layer().onclick=handleLayerClick;if(!document.body.dataset.tutorialTracking){document.body.dataset.tutorialTracking="1";document.addEventListener('click',observeRealInteraction,true);new MutationObserver(()=>{if(!active||layer().hidden)return;const step=(temporarySteps||tutorial(active)?.steps||[])[stepIndex];if(step?.target&&!document.querySelector('.tutorial-target')&&document.querySelector(step.target))requestAnimationFrame(render)}).observe(document.body,{childList:true,subtree:true})}const hasExisting=(state.catalogs.building||[]).length+(state.catalogs.item||[]).length+(state.catalogs.event||[]).length>0;if(!progress.onboarding_seen){if(hasExisting){showNotice()}else showWelcome()}}
-  function showWelcome(){const host=layer();host.hidden=false;host.innerHTML=`<div class="tutorial-shade"></div><section class="tutorial-welcome" role="dialog" aria-modal="true" aria-labelledby="welcome-title"><small>BIENVENUE DANS</small><h2 id="welcome-title">KINGDOM<span>ENGINE</span></h2><p>Créez, gérez et donnez vie à votre serveur Discord sans programmer chaque mécanique.</p><div><button type="button" data-free>Explorer librement</button><button type="button" class="primary" data-start>Commencer le tutoriel</button></div></section>`;host.querySelector('[data-free]').onclick=()=>{save('welcome',{completed_steps:[],completed:true,dismissed:true});close()};host.querySelector('[data-start]').onclick=()=>{save('welcome',{completed_steps:['introduced'],completed:true,dismissed:false});close();start('first_realm',{restart:true})}}
-  function showNotice(){const notice=document.createElement('aside');notice.className='tutorial-notice';notice.innerHTML=`<button aria-label="Fermer">×</button><b>La nouvelle Académie est disponible.</b><p>Découvrez les tutoriels quand vous le souhaitez.</p><div><button data-later>Plus tard</button><button class="primary" data-discover>Découvrir</button></div>`;document.body.append(notice);const done=()=>{save('welcome',{completed_steps:[],completed:true,dismissed:true});notice.remove()};notice.querySelector('button[aria-label]').onclick=done;notice.querySelector('[data-later]').onclick=done;notice.querySelector('[data-discover]').onclick=()=>{done();document.querySelector("[data-type='academy']").click()}}
-  async function renderAcademy(){clearInterval(state.adminTimer);document.getElementById('content-stats').hidden=true;document.getElementById('content-workspace').hidden=true;const view=document.getElementById('admin-view');view.hidden=false;const rules=realRules();const checklist=[['has_building','Créer un bâtiment'],['has_profession','Associer un métier'],['has_activity','Configurer une activité'],['has_ambience','Ajouter une ambiance'],['has_location','Créer un lieu'],['has_route','Relier deux lieux'],['has_event','Créer un événement'],['has_published_building','Publier sur Discord']],done=checklist.filter(([rule])=>rules[rule]).length,tutorialSteps=content.tutorials.flatMap(item=>combinedSteps(item)),learned=tutorialSteps.filter(step=>step.done).length,learningPercent=Math.round(learned/Math.max(1,tutorialSteps.length)*100);view.innerHTML=`<div class="academy"><section class="academy-hero"><div><small>ACADÉMIE KINGDOMENGINE</small><h2>Apprenez en créant, clic après clic</h2><p>Les bulles montrent la vraie zone à utiliser. Quittez, reprenez ou rejouez librement.</p></div><div class="academy-progress"><strong>${learningPercent} %</strong><span><i style="width:${learningPercent}%"></i></span><small>${learned} étape(s) guidée(s) sur ${tutorialSteps.length}</small></div></section><div class="academy-grid"><section class="academy-checklist"><h3>État réel du royaume</h3>${checklist.map(([rule,label])=>`<p class="${rules[rule]?'done':''}"><span>${rules[rule]?'✓':'○'}</span>${escapeHtml(label)}</p>`).join('')}<button class="primary" data-continue>Continuer le parcours complet</button></section><section class="academy-catalog"><h3>Parcours guidés</h3>${content.tutorials.map(item=>{const stored=saved(item.id),steps=combinedSteps(item),completed=steps.filter(step=>step.done).length,percent=Math.round(completed/steps.length*100);return `<article><span>${item.icon}</span><div><b>${escapeHtml(item.title)}</b><p>${escapeHtml(item.description)}</p><span class="academy-tour-progress"><i style="width:${percent}%"></i></span><small>${stored.completed?'Terminé':percent?`${completed}/${steps.length} étapes · ${percent} %`:'Non commencé'}</small></div><button data-tutorial-start="${item.id}">${stored.completed?'Rejouer':percent?'Continuer':'Commencer'}</button></article>`}).join('')}</section></div></div>`;view.querySelector('[data-continue]').onclick=()=>start('first_realm');view.querySelectorAll('[data-tutorial-start]').forEach(button=>button.onclick=()=>start(button.dataset.tutorialStart,{restart:saved(button.dataset.tutorialStart).completed}))}
-  function pauseForNavigation(page){if(active&&!temporarySteps){const step=tutorial(active)?.steps[stepIndex];if(step&&step.page!==page){layer().hidden=true;document.querySelectorAll('.tutorial-target').forEach(el=>el.classList.remove('tutorial-target'))}}}
-  function resumeForPage(page){if(active){const step=(temporarySteps||tutorial(active)?.steps||[])[stepIndex];if(!step?.page||step.page===page)render()}}
-  addEventListener('keydown',event=>{if(event.key==='Escape'&&active)close({dismiss:false})});addEventListener('resize',()=>{if(active&&!layer().hidden)render()});
-  return {initialize,renderAcademy,start,explain,guide,pauseForNavigation,resumeForPage,notify};
+  function combinedSteps(item) {
+    return (temporarySteps || item.steps).map((step) => ({
+      ...step,
+      done: step.rule
+        ? Boolean(realRules()[step.rule])
+        : saved(item.id).completed_steps.includes(step.id),
+    }));
+  }
+  async function save(id, patch) {
+    const current = saved(id),
+      body = {
+        completed_steps: patch.completed_steps ?? current.completed_steps,
+        completed: patch.completed ?? current.completed,
+        dismissed: patch.dismissed ?? current.dismissed,
+      };
+    progress.tutorials[id] = body;
+    await fetch(`/api/tutorials/progress/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify(body),
+    });
+  }
+  function markCurrent() {
+    if (!active || temporarySteps) return;
+    const item = tutorial(active),
+      step = combinedSteps(item)[stepIndex];
+    if (!step || step.rule) return;
+    const completed = [...new Set([...saved(active).completed_steps, step.id])];
+    save(active, {
+      completed_steps: completed,
+      completed: stepIndex >= item.steps.length - 1,
+      dismissed: false,
+    });
+  }
+  function clearMode() {
+    document.body.classList.remove(
+      "tutorial-active",
+      "tutorial-mode-blocked",
+      "tutorial-mode-target",
+      "tutorial-mode-free",
+    );
+    document
+      .querySelectorAll(".tutorial-target")
+      .forEach((el) => el.classList.remove("tutorial-target"));
+  }
+  function close({ dismiss = false } = {}) {
+    const id = active;
+    if (dismiss && id && !temporarySteps) save(id, { dismissed: true });
+    active = null;
+    temporarySteps = null;
+    layer().hidden = true;
+    layer().innerHTML = "";
+    clearMode();
+  }
+  function positionCard(card, target, preferred) {
+    const margin = 16,
+      rect = target?.getBoundingClientRect();
+    if (!rect) {
+      card.classList.add("tutorial-centered");
+      return;
+    }
+    target.classList.add("tutorial-target");
+    target.scrollIntoView({
+      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+      block: "center",
+    });
+    requestAnimationFrame(() => {
+      const r = target.getBoundingClientRect(),
+        w = Math.min(390, innerWidth - 24),
+        h = card.offsetHeight || 230;
+      const candidates = {
+        right: { left: r.right + margin, top: r.top },
+        left: { left: r.left - w - margin, top: r.top },
+        bottom: { left: r.left, top: r.bottom + margin },
+        top: { left: r.left, top: r.top - h - margin },
+      };
+      const fits = (position) =>
+        position.left >= margin &&
+        position.top >= margin &&
+        position.left + w <= innerWidth - margin &&
+        position.top + h <= innerHeight - margin;
+      let position = candidates[preferred] ||
+        Object.values(candidates).find(fits) || {
+          left: margin,
+          top: Math.max(margin, innerHeight - h - margin),
+        };
+      position.left = Math.max(
+        margin,
+        Math.min(position.left, innerWidth - w - margin),
+      );
+      position.top = Math.max(
+        margin,
+        Math.min(position.top, innerHeight - h - margin),
+      );
+      card.style.cssText = `--tutorial-left:${position.left}px;--tutorial-top:${position.top}px;--tutorial-width:${w}px`;
+    });
+  }
+  function installTargetBlockers(target) {
+    if (!target) return;
+    requestAnimationFrame(() => {
+      const r = target.getBoundingClientRect(),
+        padding = 40,
+        left = Math.max(0, r.left - padding),
+        top = Math.max(0, r.top - padding),
+        right = Math.min(innerWidth, r.right + padding),
+        bottom = Math.min(innerHeight, r.bottom + padding),
+        boxes = [
+          [0, 0, innerWidth, top],
+          [0, top, left, bottom - top],
+          [right, top, innerWidth - right, bottom - top],
+          [0, bottom, innerWidth, innerHeight - bottom],
+        ];
+      layer()
+        .querySelectorAll(".tutorial-blocker")
+        .forEach((element, index) => {
+          const [x, y, width, height] = boxes[index];
+          element.style.cssText = `left:${x}px;top:${y}px;width:${width}px;height:${height}px`;
+        });
+    });
+  }
+  function render() {
+    const item = tutorial(active) || {
+        id: "screen",
+        title: "Expliquer cet écran",
+        steps: temporarySteps || [],
+      },
+      steps = combinedSteps(item),
+      step = steps[stepIndex];
+    if (!step) {
+      close();
+      return;
+    }
+    clearMode();
+    const mode = step.interaction || "blocked",
+      target = document.querySelector(step.target),
+      actionExpected = Boolean(step.completion),
+      percent = Math.round((stepIndex / Math.max(1, steps.length)) * 100);
+    layer().hidden = false;
+    const trail = steps
+      .map(
+        (entry, index) =>
+          `<i class="${index < stepIndex ? "done" : index === stepIndex ? "current" : ""}" title="${escapeHtml(entry.title)}">${index < stepIndex ? "✓" : index === stepIndex ? "●" : "○"}</i>`,
+      )
+      .join("");
+    layer().innerHTML = `<div class="tutorial-shade" aria-hidden="true"></div>${mode === "target" ? '<div class="tutorial-blocker"></div>'.repeat(4) : ""}<section class="tutorial-popover ${mode === "blocked" ? "" : "tutorial-compact"} ${target ? "has-target" : "without-target"}" role="dialog" aria-modal="${mode === "blocked"}" aria-labelledby="tutorial-title" tabindex="-1"><div class="tutorial-progress-line"><i style="width:${percent}%"></i></div><div class="tutorial-popover-head"><small>ÉTAPE ${stepIndex + 1} / ${steps.length}</small><span class="tutorial-trail">${trail}</span><button type="button" data-tutorial-close aria-label="Quitter le tutoriel">×</button></div><h2 id="tutorial-title">${escapeHtml(step.title)}</h2><p>${escapeHtml(step.content)}</p>${actionExpected ? '<strong class="tutorial-instruction">CLIQUEZ SUR LA ZONE MISE EN LUMIÈRE →</strong>' : ""}${!target ? '<small class="tutorial-wait">⏳ La zone apparaîtra dès que l’écran précédent aura terminé de s’ouvrir.</small>' : ""}<div class="tutorial-actions"><button type="button" data-tutorial-skip>Passer cette étape</button><button type="button" class="tutorial-stop" data-tutorial-stop>Quitter</button><span></span>${stepIndex ? '<button type="button" data-tutorial-prev>Précédent</button>' : ""}${actionExpected ? "" : `<button type="button" class="primary" data-tutorial-next>${stepIndex === steps.length - 1 ? "Terminer" : "Suivant"}</button>`}</div></section>`;
+    document.body.classList.add("tutorial-active", `tutorial-mode-${mode}`);
+    const card = layer().querySelector(".tutorial-popover");
+    positionCard(card, target, step.position);
+    if (mode === "target") installTargetBlockers(target);
+    if (mode === "blocked") card.focus();
+  }
+  function handleLayerClick(event) {
+    const button = event.target.closest("button");
+    if (!button || !active) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const item = tutorial(active) || { steps: temporarySteps || [] },
+      steps = combinedSteps(item);
+    if (button.matches("[data-tutorial-close],[data-tutorial-stop]")) {
+      close({ dismiss: true });
+      return;
+    }
+    if (button.matches("[data-tutorial-prev]")) {
+      stepIndex = Math.max(0, stepIndex - 1);
+      render();
+      return;
+    }
+    if (button.matches("[data-tutorial-skip],[data-tutorial-next]")) {
+      markCurrent();
+      if (stepIndex >= steps.length - 1) {
+        close();
+        if (state.type === "academy") renderAcademy();
+        return;
+      }
+      stepIndex++;
+      const next = steps[stepIndex];
+      if (next.page && next.page !== state.type) navigate(next.page);
+      else render();
+    }
+  }
+  function navigate(page) {
+    const button = document.querySelector(`#nav [data-type='${page}']`);
+    if (button) button.click();
+    else render();
+  }
+  function completeActionStep() {
+    if (!active || temporarySteps) return;
+    const item = tutorial(active),
+      step = item.steps[stepIndex],
+      completed = [...new Set([...saved(active).completed_steps, step.id])];
+    save(active, {
+      completed_steps: completed,
+      completed: stepIndex >= item.steps.length - 1,
+      dismissed: false,
+    });
+    if (stepIndex >= item.steps.length - 1) {
+      close();
+      return;
+    }
+    stepIndex++;
+    const next = item.steps[stepIndex];
+    if (next?.page && next.page !== state.type) navigate(next.page);
+    else requestAnimationFrame(render);
+  }
+  function notify(event, value = null) {
+    if (!active || temporarySteps) return;
+    const step = tutorial(active)?.steps[stepIndex],
+      completion = step?.completion;
+    if (!completion || completion.event !== event) return;
+    if (completion.value !== undefined && completion.value !== value) return;
+    completeActionStep();
+  }
+  function observeRealInteraction(event) {
+    if (!active || temporarySteps || layer().contains(event.target)) return;
+    const step = tutorial(active)?.steps[stepIndex],
+      completion = step?.completion;
+    if (completion?.event !== "dom_click" || !completion.selector) return;
+    const matched = event.target.closest?.(completion.selector);
+    if (matched) notify("dom_click", completion.selector);
+  }
+  function start(id, { restart = false } = {}) {
+    const item = tutorial(id);
+    if (!item) return;
+    if (restart)
+      save(id, { completed_steps: [], completed: false, dismissed: false });
+    active = id;
+    temporarySteps = null;
+    const steps = combinedSteps(item),
+      first = restart
+        ? 0
+        : Math.max(
+            0,
+            steps.findIndex((step) => !step.done),
+          );
+    stepIndex = first < 0 ? 0 : first;
+    if (item.steps[stepIndex].page !== state.type)
+      navigate(item.steps[stepIndex].page);
+    else render();
+  }
+  function explain() {
+    const steps = content.screenTours[state.type] || [
+      {
+        target: ".app-main",
+        title: labels[state.type] || "Cet écran",
+        content:
+          pageDescriptions[state.type] || "Gérez ce module depuis cet espace.",
+      },
+    ];
+    active = "screen";
+    temporarySteps = steps;
+    stepIndex = 0;
+    render();
+  }
+  function guide(steps) {
+    active = "screen";
+    temporarySteps = steps;
+    stepIndex = 0;
+    render();
+  }
+  async function initialize() {
+    const response = await fetch("/api/tutorials/progress", {
+      headers,
+      cache: "no-store",
+    });
+    if (response.ok) progress = await response.json();
+    document.getElementById("explain-screen").onclick = explain;
+    layer().onclick = handleLayerClick;
+    if (!document.body.dataset.tutorialTracking) {
+      document.body.dataset.tutorialTracking = "1";
+      document.addEventListener("click", observeRealInteraction, true);
+      new MutationObserver(() => {
+        if (!active || layer().hidden) return;
+        const step = (temporarySteps || tutorial(active)?.steps || [])[
+          stepIndex
+        ];
+        if (
+          step?.target &&
+          !document.querySelector(".tutorial-target") &&
+          document.querySelector(step.target)
+        )
+          requestAnimationFrame(render);
+      }).observe(document.body, { childList: true, subtree: true });
+    }
+    const hasExisting =
+      (state.catalogs.building || []).length +
+        (state.catalogs.item || []).length +
+        (state.catalogs.event || []).length >
+      0;
+    if (!progress.onboarding_seen) {
+      if (hasExisting) {
+        showNotice();
+      } else showWelcome();
+    }
+  }
+  function showWelcome() {
+    const host = layer();
+    host.hidden = false;
+    host.innerHTML = `<div class="tutorial-shade"></div><section class="tutorial-welcome" role="dialog" aria-modal="true" aria-labelledby="welcome-title"><small>BIENVENUE DANS</small><h2 id="welcome-title">KINGDOM<span>ENGINE</span></h2><p>Créez, gérez et donnez vie à votre serveur Discord sans programmer chaque mécanique.</p><div><button type="button" data-free>Explorer librement</button><button type="button" class="primary" data-start>Commencer le tutoriel</button></div></section>`;
+    host.querySelector("[data-free]").onclick = () => {
+      save("welcome", {
+        completed_steps: [],
+        completed: true,
+        dismissed: true,
+      });
+      close();
+    };
+    host.querySelector("[data-start]").onclick = () => {
+      save("welcome", {
+        completed_steps: ["introduced"],
+        completed: true,
+        dismissed: false,
+      });
+      close();
+      start("first_realm", { restart: true });
+    };
+  }
+  function showNotice() {
+    const notice = document.createElement("aside");
+    notice.className = "tutorial-notice";
+    notice.innerHTML = `<button aria-label="Fermer">×</button><b>La nouvelle Académie est disponible.</b><p>Découvrez les tutoriels quand vous le souhaitez.</p><div><button data-later>Plus tard</button><button class="primary" data-discover>Découvrir</button></div>`;
+    document.body.append(notice);
+    const done = () => {
+      save("welcome", {
+        completed_steps: [],
+        completed: true,
+        dismissed: true,
+      });
+      notice.remove();
+    };
+    notice.querySelector("button[aria-label]").onclick = done;
+    notice.querySelector("[data-later]").onclick = done;
+    notice.querySelector("[data-discover]").onclick = () => {
+      done();
+      document.querySelector("[data-type='academy']").click();
+    };
+  }
+  async function renderAcademy() {
+    clearInterval(state.adminTimer);
+    document.getElementById("content-stats").hidden = true;
+    document.getElementById("content-workspace").hidden = true;
+    const view = document.getElementById("admin-view");
+    view.hidden = false;
+    const rules = realRules();
+    const checklist = [
+        ["has_building", "Créer un bâtiment"],
+        ["has_profession", "Associer un métier"],
+        ["has_activity", "Configurer une activité"],
+        ["has_ambience", "Ajouter une ambiance"],
+        ["has_location", "Créer un lieu"],
+        ["has_route", "Relier deux lieux"],
+        ["has_event", "Créer un événement"],
+        ["has_published_building", "Publier sur Discord"],
+      ],
+      done = checklist.filter(([rule]) => rules[rule]).length,
+      tutorialSteps = content.tutorials.flatMap((item) => combinedSteps(item)),
+      learned = tutorialSteps.filter((step) => step.done).length,
+      learningPercent = Math.round(
+        (learned / Math.max(1, tutorialSteps.length)) * 100,
+      );
+    view.innerHTML = `<div class="academy"><section class="academy-hero"><div><small>ACADÉMIE KINGDOMENGINE</small><h2>Apprenez en créant, clic après clic</h2><p>Les bulles montrent la vraie zone à utiliser. Quittez, reprenez ou rejouez librement.</p></div><div class="academy-progress"><strong>${learningPercent} %</strong><span><i style="width:${learningPercent}%"></i></span><small>${learned} étape(s) guidée(s) sur ${tutorialSteps.length}</small></div></section><div class="academy-grid"><section class="academy-checklist"><h3>État réel du royaume</h3>${checklist.map(([rule, label]) => `<p class="${rules[rule] ? "done" : ""}"><span>${rules[rule] ? "✓" : "○"}</span>${escapeHtml(label)}</p>`).join("")}<button class="primary" data-continue>Continuer le parcours complet</button></section><section class="academy-catalog"><h3>Parcours guidés</h3>${content.tutorials
+      .map((item) => {
+        const stored = saved(item.id),
+          steps = combinedSteps(item),
+          completed = steps.filter((step) => step.done).length,
+          percent = Math.round((completed / steps.length) * 100);
+        return `<article><span>${item.icon}</span><div><b>${escapeHtml(item.title)}</b><p>${escapeHtml(item.description)}</p><span class="academy-tour-progress"><i style="width:${percent}%"></i></span><small>${stored.completed ? "Terminé" : percent ? `${completed}/${steps.length} étapes · ${percent} %` : "Non commencé"}</small></div><button data-tutorial-start="${item.id}">${stored.completed ? "Rejouer" : percent ? "Continuer" : "Commencer"}</button></article>`;
+      })
+      .join("")}</section></div></div>`;
+    view.querySelector("[data-continue]").onclick = () => start("first_realm");
+    view
+      .querySelectorAll("[data-tutorial-start]")
+      .forEach(
+        (button) =>
+          (button.onclick = () =>
+            start(button.dataset.tutorialStart, {
+              restart: saved(button.dataset.tutorialStart).completed,
+            })),
+      );
+  }
+  function pauseForNavigation(page) {
+    if (active && !temporarySteps) {
+      const step = tutorial(active)?.steps[stepIndex];
+      if (step && step.page !== page) {
+        layer().hidden = true;
+        document
+          .querySelectorAll(".tutorial-target")
+          .forEach((el) => el.classList.remove("tutorial-target"));
+      }
+    }
+  }
+  function resumeForPage(page) {
+    if (active) {
+      const step = (temporarySteps || tutorial(active)?.steps || [])[stepIndex];
+      if (!step?.page || step.page === page) render();
+    }
+  }
+  addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && active) close({ dismiss: false });
+  });
+  addEventListener("resize", () => {
+    if (active && !layer().hidden) render();
+  });
+  return {
+    initialize,
+    renderAcademy,
+    start,
+    explain,
+    guide,
+    pauseForNavigation,
+    resumeForPage,
+    notify,
+  };
 })();
