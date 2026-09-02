@@ -2,7 +2,12 @@ import asyncio
 
 from KingdomData import ContentStore, ValidationError
 from kingdomCore import GameEngine
-from kingdomCore.discord_bot import PrivateInterfaceLauncher, building_entry_menu
+from kingdomCore.discord_bot import (
+    PrivateInterfaceLauncher,
+    building_entry_menu,
+    delete_building_entry,
+    send_building_entry,
+)
 from kingdomEvent import EventBus
 
 
@@ -44,6 +49,63 @@ def test_voice_entry_displays_the_building_menu_without_an_intermediate_click():
     assert content.startswith("🏰 <@42> — **Forge Dorée**")
     assert menu.page_key == "counter"
     assert menu.owner_id == 42
+
+
+def test_building_menu_is_sent_privately_and_deleted_on_voice_exit(tmp_path):
+    store = ContentStore(tmp_path / "private-entry.db")
+    store.initialize()
+    sent = []
+    deleted = []
+
+    class Message:
+        id = 99
+
+        async def delete(self):
+            deleted.append(self.id)
+
+    class DirectChannel:
+        id = 77
+
+        async def send(self, **kwargs):
+            sent.append(kwargs)
+            return Message()
+
+        async def fetch_message(self, message_id):
+            assert message_id == 99
+            return Message()
+
+    direct = DirectChannel()
+    member = type("Member", (), {
+        "id": 42,
+        "dm_channel": direct,
+        "guild": type("Guild", (), {"categories": [], "roles": []})(),
+    })()
+    definition = {
+        "name": "Forge",
+        "target_building_key": "forge",
+        "start_page": "home",
+        "pages": [{"key": "home", "name": "Accueil", "components": []}],
+    }
+    entity = {
+        "entity_key": "forge",
+        "payload": {"name": "Forge", "emoji": "⚒️", "interface": definition},
+    }
+    settings = {
+        "discord": {
+            "building_category_template": "{name}",
+            "building_text_channel": "{name}",
+        },
+    }
+
+    message = asyncio.run(send_building_entry(store, None, member, entity, settings))
+
+    assert message.id == 99
+    assert len(sent) == 1
+    assert store.building_entry_message("42", "forge")["message_id"] == "99"
+
+    assert asyncio.run(delete_building_entry(store, member, "forge")) is True
+    assert deleted == [99]
+    assert store.building_entry_message("42", "forge") == {}
 
 
 def test_action_is_atomic_and_idempotent(tmp_path):

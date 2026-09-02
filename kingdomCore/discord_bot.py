@@ -860,6 +860,7 @@ async def update_building_access(store: ContentStore, engine: GameEngine, member
     settings = get_server_settings(store)
     if previous:
         previous_category = before.channel.category if isinstance(before.channel, discord.VoiceChannel) else None
+        await delete_building_entry(store, member, previous["entity_key"])
         await set_text_access(member, previous, settings, False, previous_category)
     if not current:
         return
@@ -930,66 +931,71 @@ async def set_text_access(
 async def send_building_entry(
     store: ContentStore, engine: GameEngine, member: discord.Member, entity: dict[str, Any],
     settings: dict[str, Any], voice_category: discord.CategoryChannel | None = None,
-) -> None:
+) -> discord.Message | None:
     payload = entity["payload"]
+    building_key = entity["entity_key"]
+
+    # Nettoie le message public produit par les versions antérieures afin que
+    # les autres occupants du bâtiment ne puissent plus voir le menu du joueur.
     category_name = settings["discord"]["building_category_template"].format(
-        name=payload["name"], key=entity["entity_key"], emoji=payload.get("emoji", "🏰")
+        name=payload["name"], key=building_key, emoji=payload.get("emoji", "🏰")
     ).strip()[:100]
     category = next((item for item in member.guild.categories if item.name.strip() == category_name), None) or voice_category
-    if category is None:
-        logger.warning("Entrée non envoyée pour %s : catégorie %s introuvable.", entity["entity_key"], category_name)
-        return
-    text_name = channel_slug(settings["discord"]["building_text_channel"].format(name=payload["name"], key=entity["entity_key"]))
-    channel = discord.utils.get(category.text_channels, name=text_name)
-    if channel is None:
-        legacy_channel = next((item for item in category.text_channels if channel_slug(item.name) == "entree"), None)
-        if legacy_channel is not None:
-            legacy_name = legacy_channel.name
-            channel = await legacy_channel.edit(
-                name=text_name, topic=payload.get("description"),
-                reason="Migration du salon d'entrée KingdomEngine",
-            )
-            logger.warning("Salon #%s renommé en #%s dans %s.", legacy_name, text_name, category.name)
-        else:
-            channel = await member.guild.create_text_channel(
-                text_name, category=category, topic=payload.get("description"),
-                reason="Réparation automatique de l'entrée KingdomEngine",
-            )
-            logger.warning("Salon #%s créé automatiquement dans %s pour %s.", text_name, category.name, entity["entity_key"])
-    role_name = building_role_name(settings, entity["entity_key"], payload)
-    if discord.utils.get(member.guild.roles, name=role_name) is None:
-        # Compatibilité avec les serveurs pas encore resynchronisés : leur
-        # ancien accès individuel reste fonctionnel jusqu'au prochain provisionnement.
-        await channel.set_permissions(
-            member,
-            overwrite=discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
-            reason="Présence dans le bâtiment KingdomEngine",
-        )
+    marker = f"🏰 <@{member.id}> — **{payload['name']}**"
+    if category is not None:
+        text_name = channel_slug(settings["discord"]["building_text_channel"].format(name=payload["name"], key=building_key))
+        channel = discord.utils.get(category.text_channels, name=text_name)
+        if channel is not None:
+            try:
+                async for old_message in channel.history(limit=30):
+                    if old_message.author.id == member.guild.me.id and old_message.content.startswith(marker):
+                        await old_message.delete()
+            except discord.HTTPException:
+                logger.warning("Ancien menu public impossible à nettoyer dans #%s.", channel.name)
+
+    await delete_building_entry(store, member, building_key)
     definition = interface_for_building(store, payload) or interface_from_building(
-        entity["entity_key"], payload, payload.get("actions", [])
+        building_key, payload, payload.get("actions", [])
     )
     content, menu = building_entry_menu(engine, definition, member.id, payload["name"])
-    marker = f"🏰 <@{member.id}> — **{payload['name']}**"
-
-    # Les anciens serveurs peuvent encore contenir le portail générique. On
-    # le laisse utilisable, mais l'entrée vocale affiche désormais directement
-    # le menu personnel du joueur, sans lui imposer un second clic.
     try:
-        async for old_message in channel.history(limit=30):
-            if old_message.author.id == member.guild.me.id and old_message.content.startswith(marker):
-                await old_message.edit(content=content, embed=menu.embed(), view=menu)
-                logger.info("Menu de %s actualisé pour %s dans #%s.", entity["entity_key"], member.id, channel.name)
-                return
-    except discord.HTTPException:
-        logger.warning("Recherche de l'ancien menu impossible dans #%s.", channel.name)
-    await channel.send(
-        content=content,
-        embed=menu.embed(),
-        view=menu,
-        silent=True,
-        allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
-    )
-    logger.info("Menu de %s envoyé à %s dans #%s.", entity["entity_key"], member.id, channel.name)
+        private_channel = member.dm_channel or await member.create_dm()
+        message = await private_channel.send(
+            content=content,
+            embed=menu.embed(),
+            view=menu,
+            silent=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+    except (discord.Forbidden, discord.HTTPException):
+        logger.warning(
+            "Menu privé de %s non envoyé à %s : messages directs Discord fermés.",
+            building_key, member.id,
+        )
+        return None
+    store.save_building_entry_message(str(member.id), building_key, str(private_channel.id), str(message.id))
+    logger.info("Menu privé de %s envoyé à %s.", building_key, member.id)
+    return message
+
+
+async def delete_building_entry(store: ContentStore, member: discord.Member, building_key: str) -> bool:
+    """Supprime le menu privé mémorisé lorsque le joueur quitte le lieu."""
+    record = store.building_entry_message(str(member.id), building_key)
+    if not record:
+        return False
+    try:
+        private_channel = member.dm_channel or await member.create_dm()
+        message = await private_channel.fetch_message(int(record["message_id"]))
+        await message.delete()
+    except discord.NotFound:
+        pass
+    except (discord.Forbidden, discord.HTTPException, ValueError):
+        logger.warning("Menu privé de %s impossible à supprimer pour %s.", building_key, member.id)
+        return False
+    finally:
+        store.delete_building_entry_message(str(member.id), building_key)
+    logger.info("Menu privé de %s supprimé pour %s.", building_key, member.id)
+    return True
 
 
 def create_bot(store: ContentStore | None = None) -> commands.Bot:

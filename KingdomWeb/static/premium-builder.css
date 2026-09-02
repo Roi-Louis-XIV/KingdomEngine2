@@ -737,3 +737,340 @@
     grid-template-columns: 80px minmax(0, 1fr);
   }
 }
+
+/* ==============================
+   ÉDITEUR BÂTIMENT — ESPACE DE TRAVAIL AÉRÉ
+   ============================== */
+
+.modal:has(.building-mode) {
+  padding: 0;
+}
+
+.wizard-panel.building-mode {
+  width: 100vw !important;
+  max-width: none !important;
+  height: 100dvh !important;
+  max-height: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+.wizard-panel.building-mode .dialog-head {
+  min-height: 78px;
+  padding: 16px clamp(20px, 2.4vw, 42px) !important;
+}
+
+.wizard-panel.building-mode .dialog-head h2 {
+  font-size: clamp(20px, 1.7vw, 28px) !important;
+}
+
+.wizard-panel.building-mode .editor-layout {
+  grid-template-columns: 240px minmax(680px, 1fr) 340px !important;
+}
+
+.wizard-panel.building-mode .editor-main {
+  padding: 0 !important;
+  background:
+    radial-gradient(circle at 50% 0, color-mix(in srgb, var(--accent) 5%, transparent), transparent 38%),
+    var(--background);
+}
+
+.building-mode #definition-step {
+  width: min(1160px, 100%);
+  margin-inline: auto;
+  padding: 30px clamp(26px, 3vw, 58px) 72px;
+}
+
+.building-mode [data-building-panel] {
+  gap: 22px;
+}
+
+.building-mode .building-sheet-hero {
+  margin-bottom: 22px;
+  padding: 24px 28px;
+  border-radius: 18px;
+}
+
+.building-mode .building-sheet-hero h3 {
+  margin-block: 5px !important;
+  font-size: clamp(22px, 2vw, 30px) !important;
+}
+
+.building-mode .building-sheet-hero p {
+  max-width: 720px;
+  font-size: 13px !important;
+  line-height: 1.6;
+}
+
+.building-mode .building-editor-tabs {
+  top: -30px;
+  gap: 7px;
+  margin-bottom: 26px !important;
+  padding: 8px !important;
+  border-radius: 15px !important;
+}
+
+.building-mode .building-editor-tabs button {
+  min-height: 44px;
+  padding: 11px 17px !important;
+  font-size: 12px !important;
+}
+
+.building-mode .form-section,
+.building-mode .common-fields.form-section {
+  padding: clamp(22px, 2.5vw, 34px) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 14px 40px rgb(0 0 0 / 8%);
+}
+
+.building-mode .section-copy {
+  align-items: flex-start !important;
+  gap: 16px !important;
+  margin-bottom: 22px;
+}
+
+.building-mode .section-copy h3,
+.building-mode .section-head h3 {
+  font-size: 18px !important;
+  line-height: 1.3;
+}
+
+.building-mode .section-copy p,
+.building-mode .section-head p {
+  max-width: 760px;
+  font-size: 12px !important;
+  line-height: 1.65;
+}
+
+.building-mode .step-dot {
+  width: 36px !important;
+  height: 36px !important;
+  flex: 0 0 36px;
+  font-size: 13px !important;
+}
+
+.building-mode .form-grid,
+.building-mode .cols {
+  gap: 18px 22px !important;
+}
+
+.building-mode label {
+  margin-top: 18px !important;
+  font-size: 12px !important;
+  line-height: 1.45;
+}
+
+.building-mode label input,
+.building-mode label textarea,
+.building-mode select {
+  min-height: 46px !important;
+  margin-top: 8px !important;
+  padding: 11px 13px !important;
+  font-size: 13px !important;
+}
+
+.building-mode label textarea {
+  min-height: 105px !important;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.building-mode .field-note {
+  margin-top: 7px;
+  font-size: 11px !important;
+  line-height: 1.55;
+}
+
+.building-mode .section-head {
+  gap: 18px;
+  margin-top: 28px !important;
+  padding-top: 6px;
+}
+
+.building-mode .secondary,
+.building-mode .section-head button {
+  min-height: 38px;
+  padding: 9px 14px !important;
+  font-size: 11px !important;
+}
+
+.building-mode #profession-modules,
+.building-mode #activity-modules,
+.building-mode #actions,
+.building-mode #product-modules,
+.building-mode #recipe-modules,
+.building-mode #delivery-modules {
+  display: grid;
+  gap: 12px !important;
+  margin-top: 14px !important;
+}
+
+.building-mode .module-card,
+.building-mode .action-builder,
+.building-mode .simple-mechanic-card,
+.building-mode .simple-exchange-card {
+  border-radius: 14px !important;
+}
+
+.building-mode .module-card > summary,
+.building-mode .action-builder > summary {
+  min-height: 58px;
+  padding: 15px 18px !important;
+}
+
+.building-mode .module-content,
+.building-mode .action-configuration {
+  padding: 8px 20px 24px !important;
+}
+
+.building-mode .mechanics-guide {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border)) !important;
+  background: linear-gradient(135deg, var(--accent-soft), var(--surface) 62%) !important;
+}
+
+.building-mode .mechanics-guide ol {
+  display: grid;
+  gap: 9px;
+  margin: 12px 0 16px 52px;
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.building-mode .building-overview {
+  gap: 20px;
+}
+
+.building-mode .building-overview-grid {
+  gap: 14px;
+}
+
+.building-mode .building-overview-grid article {
+  min-height: 92px;
+  padding: 20px;
+  border-radius: 14px;
+}
+
+.building-mode .building-overview-actions {
+  gap: 12px;
+}
+
+.building-mode .building-overview-actions button {
+  min-height: 56px;
+  padding: 16px !important;
+}
+
+.building-mode .simple-gameplay {
+  gap: 24px;
+}
+
+.building-mode .simple-mechanic-grid,
+.building-mode .simple-exchange-grid {
+  gap: 14px;
+}
+
+.building-mode .simple-mechanic-card {
+  padding: 19px;
+}
+
+.building-workbench-nav header {
+  padding: 28px 20px 20px;
+}
+
+.building-workbench-nav h3 {
+  font-size: 17px;
+}
+
+.building-workbench-list {
+  gap: 8px;
+  padding: 14px 12px;
+}
+
+.building-workbench-list > button {
+  padding: 12px;
+}
+
+.building-mode .building-inspector-summary,
+.building-mode .building-contextual-help {
+  padding: 26px 22px;
+}
+
+.building-mode .building-contextual-help p,
+.building-mode .building-contextual-help li {
+  font-size: 12px !important;
+  line-height: 1.6;
+}
+
+.building-mode .actions {
+  min-height: 64px;
+  padding: 12px clamp(20px, 2.4vw, 42px) !important;
+}
+
+@media (max-width: 1500px) {
+  .wizard-panel.building-mode .editor-layout {
+    grid-template-columns: 220px minmax(620px, 1fr) 300px !important;
+  }
+}
+
+@media (max-width: 1260px) {
+  .wizard-panel.building-mode .editor-layout {
+    grid-template-columns: 220px minmax(0, 1fr) !important;
+  }
+
+  .wizard-panel.building-mode .context-help {
+    display: none !important;
+  }
+
+  .building-mode #building-inspector-toggle {
+    display: none;
+  }
+}
+
+@media (max-width: 1040px) {
+  .wizard-panel.building-mode .editor-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .building-mode #definition-step {
+    padding-inline: clamp(18px, 4vw, 38px);
+  }
+}
+
+@media (max-width: 760px) {
+  .wizard-panel.building-mode .dialog-head {
+    min-height: 64px;
+    padding: 10px 12px !important;
+  }
+
+  .building-mode #definition-step {
+    padding: 16px 12px 40px;
+  }
+
+  .building-mode .building-editor-tabs {
+    top: -16px;
+    margin-inline: -4px !important;
+  }
+
+  .building-mode .building-editor-tabs button {
+    min-height: 40px;
+    padding: 9px 12px !important;
+  }
+
+  .building-mode .form-section,
+  .building-mode .common-fields.form-section {
+    padding: 19px 16px !important;
+    border-radius: 14px !important;
+  }
+
+  .building-mode .building-overview-grid,
+  .building-mode .building-overview-actions,
+  .building-mode .simple-mechanic-grid,
+  .building-mode .simple-exchange-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .building-mode .mechanics-guide ol {
+    margin-left: 22px;
+  }
+}

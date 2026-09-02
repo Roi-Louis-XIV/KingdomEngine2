@@ -357,6 +357,32 @@ class ContentStore:
             row = db.execute("SELECT * FROM building_discord_channels WHERE building_key=?", (building_key,)).fetchone()
         return dict(row) if row else {}
 
+    def save_building_entry_message(
+        self, discord_id: str, building_key: str, channel_id: str, message_id: str,
+    ) -> None:
+        with self.connection() as db:
+            db.execute(
+                "INSERT INTO building_entry_messages(discord_id,building_key,channel_id,message_id,updated_at) "
+                "VALUES(?,?,?,?,?) ON CONFLICT(discord_id,building_key) DO UPDATE SET "
+                "channel_id=excluded.channel_id,message_id=excluded.message_id,updated_at=excluded.updated_at",
+                (str(discord_id), str(building_key), str(channel_id), str(message_id), _now()),
+            )
+
+    def building_entry_message(self, discord_id: str, building_key: str) -> dict[str, str]:
+        with self.connection() as db:
+            row = db.execute(
+                "SELECT * FROM building_entry_messages WHERE discord_id=? AND building_key=?",
+                (str(discord_id), str(building_key)),
+            ).fetchone()
+        return dict(row) if row else {}
+
+    def delete_building_entry_message(self, discord_id: str, building_key: str) -> None:
+        with self.connection() as db:
+            db.execute(
+                "DELETE FROM building_entry_messages WHERE discord_id=? AND building_key=?",
+                (str(discord_id), str(building_key)),
+            )
+
     def request_discord_provision(self, scope: str = "server", building_key: str = "", requested_by: str = "web") -> int:
         if scope not in {"server", "building", "uninstall"}:
             raise ValidationError("Portée de synchronisation Discord inconnue.")
@@ -416,6 +442,7 @@ CREATE TABLE IF NOT EXISTS outbox(id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT
 CREATE TABLE IF NOT EXISTS audio_queue(id INTEGER PRIMARY KEY AUTOINCREMENT,command TEXT NOT NULL,building_key TEXT NOT NULL DEFAULT '',bot_key TEXT NOT NULL DEFAULT '',audio_key TEXT NOT NULL DEFAULT '',group_key TEXT NOT NULL DEFAULT '',context_json TEXT NOT NULL DEFAULT '{}',status TEXT NOT NULL DEFAULT 'pending',attempts INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,processed_at TEXT,error TEXT NOT NULL DEFAULT '');
 CREATE INDEX IF NOT EXISTS audio_queue_pending ON audio_queue(status,id);
 CREATE TABLE IF NOT EXISTS building_discord_channels(building_key TEXT PRIMARY KEY,category_id TEXT NOT NULL DEFAULT '',text_channel_id TEXT NOT NULL DEFAULT '',voice_channel_id TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS building_entry_messages(discord_id TEXT NOT NULL,building_key TEXT NOT NULL,channel_id TEXT NOT NULL,message_id TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(discord_id,building_key));
 CREATE TABLE IF NOT EXISTS discord_provision_queue(id INTEGER PRIMARY KEY AUTOINCREMENT,scope TEXT NOT NULL DEFAULT 'server',building_key TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'pending',requested_by TEXT NOT NULL DEFAULT 'web',attempts INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,processed_at TEXT,error TEXT NOT NULL DEFAULT '',report TEXT NOT NULL DEFAULT '');
 CREATE INDEX IF NOT EXISTS discord_provision_pending ON discord_provision_queue(status,id);
 CREATE TABLE IF NOT EXISTS players(discord_id TEXT PRIMARY KEY,money INTEGER NOT NULL DEFAULT 0,energy INTEGER NOT NULL DEFAULT 100,updated_at TEXT NOT NULL,display_name TEXT NOT NULL DEFAULT '',avatar_url TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL DEFAULT '');

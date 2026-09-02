@@ -212,11 +212,13 @@ Pour vérifier un worker sur un serveur de test sans afficher son token, l’out
 .venv\Scripts\python.exe scripts\voice-diagnostic.py --token-env EDGAR_BOT_TOKEN --channel 123456789 --channel 987654321 --audio KingdomData\assets\audio\coup_de_pioche\source.mp3
 ```
 
-Lorsqu’un joueur rejoint le vocal d’un bâtiment, KingdomCore lui donne l’accès temporaire au salon textuel correspondant et y affiche immédiatement son menu personnel. Il n’est plus nécessaire de cliquer sur un portail intermédiaire. Si le salon ou le rôle du bâtiment manque, relancer la synchronisation Discord depuis KingdomWeb.
+Lorsqu’un joueur rejoint le vocal d’un bâtiment, KingdomCore lui donne l’accès temporaire au salon textuel correspondant et lui envoie immédiatement le menu interactif par message direct Discord. Ce menu est ainsi invisible pour les autres joueurs et il est supprimé automatiquement lorsque son propriétaire quitte le vocal ou change de bâtiment. Les messages directs provenant des membres du serveur doivent être autorisés dans les préférences Discord du joueur. Si le salon ou le rôle du bâtiment manque, relancer la synchronisation Discord depuis KingdomWeb.
 
 Chaque événement vocal est routé vers la base KingdomData du serveur Discord concerné. L’association au bâtiment utilise en priorité l’identifiant du salon enregistré lors du provisionnement : renommer manuellement un vocal n’empêche donc plus l’attribution du rôle temporaire. Les journaux KingdomCore indiquent explicitement l’attribution et le retrait du rôle. Le rôle principal de KingdomCore doit rester placé au-dessus des rôles `Accès · Bâtiment` dans la hiérarchie Discord.
 
 Dans l’éditeur de bâtiment, le bouton **Inspecteur** permet désormais de libérer toute la largeur centrale. La navigation entre bâtiments et les actions **Fermer**, **Annuler** et **Enregistrer** restent accessibles indépendamment du défilement ; le builder Discord adapte également sa hauteur au viewport.
+
+L’atelier Bâtiment utilise tout l’écran et privilégie une lecture par blocs : fiche et onglets visibles, formulaires plus espacés, champs plus hauts, cartes de mécaniques mieux séparées et aide contextuelle conservée sur les grands écrans. Sous 1260 px, l’inspecteur se masque pour préserver le formulaire ; sous 1040 px, la liste des bâtiments devient un panneau accessible par le bouton **Bâtiments**.
 
 Après une modification de `.env`, redémarrer les services :
 
