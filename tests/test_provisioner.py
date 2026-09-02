@@ -4,13 +4,29 @@ from types import SimpleNamespace
 
 from KingdomData import ContentStore
 from kingdomCore.discord_bot import building_for_voice
-from kingdomCore.provisioner import DiscordProvisioner, channel_slug, required_bot_permissions
+from kingdomCore.provisioner import DiscordProvisioner, OATH_CUSTOM_ID, channel_slug, message_is_oath, required_bot_permissions
 
 
 def test_channel_slug_is_discord_safe():
     assert channel_slug("Forêt Royale") == "foret-royale"
     assert channel_slug("  La Forge Dorée ! ") == "la-forge-doree"
     assert channel_slug("🏰") == "royaume"
+
+
+def test_legacy_oath_message_is_recognized_for_automatic_button_repair():
+    onboarding = {"title": "Bienvenue dans la station", "button_label": "Rejoindre l'équipage"}
+    legacy = SimpleNamespace(
+        embeds=[SimpleNamespace(title="Bienvenue dans la station")],
+        components=[SimpleNamespace(children=[SimpleNamespace(custom_id="ancien-id", label="Rejoindre l'équipage")])],
+    )
+    current = SimpleNamespace(
+        embeds=[],
+        components=[SimpleNamespace(children=[SimpleNamespace(custom_id=OATH_CUSTOM_ID, label="Continuer")])],
+    )
+    unrelated = SimpleNamespace(embeds=[], components=[])
+    assert message_is_oath(legacy, onboarding)
+    assert message_is_oath(current, onboarding)
+    assert not message_is_oath(unrelated, onboarding)
 
 
 def test_invited_bot_gets_only_required_management_permissions():

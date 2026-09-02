@@ -34,6 +34,7 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 - **Connexion Discord** regroupe KingdomCore et tous les bots audio KingdomVoice, y compris les connexions désactivées ou incomplètes. Elles sont toutes incluses actuellement ; l'affichage est prêt à accueillir de futurs droits d'abonnement ;
 - Payen Studio Admin peut supprimer un compte client inactif après confirmation. Ses sessions et accès sont retirés, mais les bases de ses mondes sont conservées ; un serveur Discord archivé et devenu sans propriétaire peut ensuite être repris et réinstallé avec le même identifiant ;
 - le parcours d'arrivée Discord est propre à chaque monde : serment médiéval, accréditation d'équipage ou accueil générique. Son titre, son salon, son bouton, sa confirmation, sa dotation et le nom de sa monnaie restent modifiables dans **Configuration du monde → Arrivée des joueurs** ;
+- les anciens messages d'arrivée sont reconnus et leur bouton est automatiquement remis au format persistant actuel au redémarrage de KingdomCore ;
 - résultats aléatoires pondérés contenant plusieurs effets génériques ;
 - événements, modificateurs du monde, calendrier autonome, saisons, météo et cycle jour/nuit ;
 - lieux, connexions, voyages, exploration Discord et monde vivant ;

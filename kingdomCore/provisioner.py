@@ -19,6 +19,15 @@ AUDIT_REASON = "Installation automatique de KingdomEngine 2"
 OATH_CUSTOM_ID = "ke2:oath"
 
 
+def message_is_oath(message: discord.Message, onboarding: dict[str, Any]) -> bool:
+    """Reconnaît aussi les anciens messages dont le bouton avait un ID aléatoire."""
+    return (
+        any(getattr(child, "custom_id", None) == OATH_CUSTOM_ID for row in message.components for child in row.children)
+        or any(getattr(embed, "title", None) == onboarding["title"] for embed in message.embeds)
+        or any(getattr(child, "label", None) == onboarding["button_label"] for row in message.components for child in row.children)
+    )
+
+
 @dataclass(slots=True)
 class ProvisionReport:
     created_roles: list[str]
@@ -263,7 +272,7 @@ class DiscordProvisioner:
         oath_message: discord.Message | None = None
         try:
             async for message in channel.history(limit=50):
-                if any(getattr(child, "custom_id", None) == OATH_CUSTOM_ID for row in message.components for child in row.children):
+                if message_is_oath(message, onboarding):
                     oath_message = message
                     break
         except discord.HTTPException:

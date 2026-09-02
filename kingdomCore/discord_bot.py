@@ -20,7 +20,7 @@ from import_v1 import import_v1
 from seed import DEFINITIONS
 from .engine import GameEngine
 from .world import WorldEngine, WorldError
-from .provisioner import DiscordProvisioner, OATH_CUSTOM_ID, channel_slug
+from .provisioner import DiscordProvisioner, OATH_CUSTOM_ID, channel_slug, message_is_oath
 
 
 logger = logging.getLogger(__name__)
@@ -667,9 +667,10 @@ class PrivateInterfaceLauncher(discord.ui.View):
 class OathView(discord.ui.View):
     """Vue persistante : le clic au serment accorde le rôle configuré."""
 
-    def __init__(self, store: ContentStore):
+    def __init__(self, store: ContentStore, handled_interactions: set[int] | None = None):
         super().__init__(timeout=None)
         self.store = store
+        self.handled_interactions = handled_interactions if handled_interactions is not None else set()
         settings = get_server_settings(store)
         onboarding = settings["onboarding"]
         button = discord.ui.Button(
@@ -680,7 +681,15 @@ class OathView(discord.ui.View):
         self.add_item(button)
 
     async def accept_oath(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=True, thinking=True)
+        # Une vue liée au message et la vue persistante globale peuvent toutes
+        # deux recevoir le même clic lors d'une reprise après migration. Le
+        # marquage intervient avant le premier await pour garantir une seule
+        # attribution et une seule réponse Discord.
+        if interaction.id in self.handled_interactions:
+            return
+        self.handled_interactions.add(interaction.id)
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=True, thinking=True)
         settings = get_server_settings(self.store)
         action_name = str(settings["onboarding"].get("action_name", "validation d'arrivée"))
         if not isinstance(interaction.user, discord.Member):
@@ -922,7 +931,8 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
     # Le moteur est piloté par composants Discord et non par commandes préfixées.
     # when_mentioned évite donc de demander l'intent privilégié message_content.
     bot = commands.Bot(command_prefix=commands.when_mentioned, intents=intents)
-    oath_view = OathView(store)
+    handled_oath_interactions: set[int] = set()
+    oath_view = OathView(store, handled_oath_interactions)
     bot.add_view(oath_view)
     registered_oath_messages: set[int] = set()
     access_reconciled = False
@@ -937,7 +947,8 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
 
     async def bind_oath_messages() -> None:
         """Lie aussi la vue au message exact pour fiabiliser les anciens messages."""
-        channel_name = get_server_settings(store)["onboarding"]["channel_name"]
+        onboarding = get_server_settings(store)["onboarding"]
+        channel_name = onboarding["channel_name"]
         configured_guild_id = int(os.getenv("KINGDOM_GUILD_ID", "0") or 0)
         guilds = [guild for guild in bot.guilds if not configured_guild_id or guild.id == configured_guild_id]
         if not guilds:
@@ -958,16 +969,19 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
                 continue
             try:
                 async for message in channel.history(limit=50):
-                    has_oath = any(
+                    has_current_oath = any(
                         getattr(child, "custom_id", None) == OATH_CUSTOM_ID
                         for row in message.components for child in row.children
                     )
-                    if not has_oath or message.id in registered_oath_messages:
+                    if not message_is_oath(message, onboarding) or message.id in registered_oath_messages:
                         continue
-                    bot.add_view(OathView(store), message_id=message.id)
+                    bound_view = OathView(store, handled_oath_interactions)
+                    if not has_current_oath:
+                        await message.edit(view=bound_view)
+                        logger.warning("Ancien bouton du serment réparé sur le message %s.", message.id)
+                    bot.add_view(bound_view, message_id=message.id)
                     registered_oath_messages.add(message.id)
                     logger.warning("Vue du serment liée au message %s sur %s dans #%s.", message.id, guild.name, channel.name)
-                    break
             except discord.HTTPException:
                 logger.exception("Impossible de rechercher le message du serment dans #%s.", channel.name)
 
@@ -1147,6 +1161,14 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
             "Interaction reçue : type=%s custom_id=%s utilisateur=%s.",
             interaction.type, component_id, interaction.user.id,
         )
+        # Filet de sécurité pour une vue restaurée tardivement : la vue
+        # persistante normale répond presque instantanément. Si elle ne l'a pas
+        # fait, on prend en charge le serment avant l'expiration Discord.
+        if component_id == OATH_CUSTOM_ID:
+            await asyncio.sleep(0.15)
+            if not interaction.response.is_done():
+                logger.warning("Prise en charge de secours du serment pour l'interaction %s.", interaction.id)
+                await oath_view.accept_oath(interaction)
 
     @bot.event
     async def on_ready():
