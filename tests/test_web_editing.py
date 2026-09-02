@@ -634,6 +634,9 @@ def test_building_and_item_editors_keep_full_size_workspaces_and_profession_dele
     assert ".wizard-panel.building-mode .editor-layout" in styles
     assert "grid-template-columns:260px minmax(640px,1fr) 330px" in styles
     assert ".wizard-panel.item-mode" in styles
+    assert ".building-workbench-nav header{display:grid" in styles
+    assert "word-break:normal" in styles
+    assert ".wizard-panel.item-mode .emoji-input-row{grid-template-columns:72px minmax(145px,1fr)" in styles
 
 
 def test_profession_delete_detaches_its_building_mechanics(tmp_path, monkeypatch):
