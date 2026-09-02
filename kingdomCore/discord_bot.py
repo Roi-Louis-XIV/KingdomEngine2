@@ -850,7 +850,6 @@ async def set_text_access(
             await member.add_roles(building_role, reason="Présence dans le bâtiment KingdomEngine")
         elif not allowed and building_role in member.roles:
             await member.remove_roles(building_role, reason="Sortie du bâtiment KingdomEngine")
-        return
     category_name = settings["discord"]["building_category_template"].format(
         name=entity["payload"]["name"], key=entity["entity_key"], emoji=entity["payload"].get("emoji", "🏰")
     ).strip()[:100]
@@ -863,7 +862,9 @@ async def set_text_access(
     ))
     channel = discord.utils.get(category.text_channels, name=text_name)
     if channel is not None:
-        overwrite = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True) if allowed else None
+        overwrite = None if building_role is not None else (
+            discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True) if allowed else None
+        )
         await channel.set_permissions(member, overwrite=overwrite, reason="Présence dans le bâtiment KingdomEngine")
     else:
         logger.warning("Accès bâtiment impossible pour %s : #%s absent de %s.", entity["entity_key"], text_name, category.name)
@@ -898,11 +899,15 @@ async def send_building_entry(
                 reason="Réparation automatique de l'entrée KingdomEngine",
             )
             logger.warning("Salon #%s créé automatiquement dans %s pour %s.", text_name, category.name, entity["entity_key"])
-    await channel.set_permissions(
-        member,
-        overwrite=discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
-        reason="Présence dans le bâtiment KingdomEngine",
-    )
+    role_name = building_role_name(settings, entity["entity_key"], payload)
+    if discord.utils.get(member.guild.roles, name=role_name) is None:
+        # Compatibilité avec les serveurs pas encore resynchronisés : leur
+        # ancien accès individuel reste fonctionnel jusqu'au prochain provisionnement.
+        await channel.set_permissions(
+            member,
+            overwrite=discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
+            reason="Présence dans le bâtiment KingdomEngine",
+        )
     definition = interface_for_building(store, payload) or interface_from_building(
         entity["entity_key"], payload, payload.get("actions", [])
     )

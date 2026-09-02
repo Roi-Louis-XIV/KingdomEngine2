@@ -32,6 +32,13 @@ def find_player_role(guild: discord.Guild, configured_name: str) -> discord.Role
     exact = discord.utils.get(guild.roles, name=configured_name)
     if exact is not None:
         return exact
+    def normalized(value: str) -> str:
+        ascii_value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode().casefold()
+        return " ".join(re.findall(r"[a-z0-9]+", ascii_value))
+    configured_normalized = normalized(configured_name)
+    equivalent = next((role for role in guild.roles if normalized(role.name) == configured_normalized), None)
+    if equivalent is not None:
+        return equivalent
     for name in (
         "Habitant du Royaume", "Habitants du Royaume", "Habitant", "Habitants",
         "⚔️ Habitant du Royaume", "⚔️ Habitants du Royaume", "⚔️ Habitants",
@@ -218,6 +225,9 @@ class DiscordProvisioner:
         template = self.settings["discord"]["building_category_template"]
         category_name = template.format(name=payload["name"], key=building_key, emoji=payload.get("emoji", "🏰")).strip()[:100]
         category = discord.utils.get(self.guild.categories, name=category_name)
+        building_role = discord.utils.get(self.guild.roles, name=building_role_name(self.settings, building_key, payload))
+        if building_role is not None and self.guild.me is not None and building_role < self.guild.me.top_role:
+            await building_role.delete(reason=f"Suppression du bâtiment KingdomEngine : {building_key}")
         if category is None:
             with self.store.connection() as db:
                 db.execute("DELETE FROM building_discord_channels WHERE building_key=?", (building_key,))
