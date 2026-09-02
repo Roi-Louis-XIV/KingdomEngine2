@@ -1,0 +1,494 @@
+import os
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from KingdomData import ContentStore, NotFoundError
+from KingdomWeb import app as web
+from KingdomWeb.accounts import RegistreComptes
+
+
+def test_account_sessions_and_server_roles(tmp_path, monkeypatch):
+    database = tmp_path / "principal.db"
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "root")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "mot-de-passe-solide")
+    registry = RegistreComptes(database)
+    registry.initialiser()
+
+    admin = registry.authentifier("root", "mot-de-passe-solide")
+    token = registry.ouvrir_session(admin["id"])
+    assert registry.compte_session(token)["username"] == "root"
+
+    editor = registry.creer_compte("alice", "Alice", "mot-de-passe-alice")
+    server = registry.lister_serveurs(admin["id"], True)[0]
+    registry.attribuer_acces(editor["id"], server["slug"], "editeur")
+    granted = registry.serveur_autorise(editor, server["slug"])
+    assert registry.autorise(editor, granted, "contenu:modifier") is True
+    assert registry.autorise(editor, granted, "serveur:parametrer") is False
+    assert registry.lister_comptes()[1]["access"][0]["role"] == "editeur"
+    registry.retirer_acces(editor["id"], server["slug"])
+    assert registry.lister_acces(editor["id"]) == []
+
+
+def test_discord_server_cannot_be_duplicated_or_claimed_by_another_account(tmp_path, monkeypatch):
+    database = tmp_path / "unique-discord.db"
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "owner")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "owner-password")
+    registry = RegistreComptes(database)
+    registry.initialiser()
+    owner = registry.authentifier("owner", "owner-password")
+    second = registry.creer_compte("second-owner", "Second", "second-password")
+    created = registry.creer_serveur("Mon serveur", "123456789012345678", owner["id"])
+
+    try:
+        registry.creer_serveur("Copie", "123456789012345678", owner["id"])
+    except ValueError as exc:
+        assert created["name"] in str(exc)
+    else:
+        raise AssertionError("The same owner must not duplicate a Discord server")
+    try:
+        registry.creer_serveur("Prise de contrôle", "123456789012345678", second["id"])
+    except ValueError as exc:
+        assert "déjà supervisé" in str(exc)
+        assert "attribuer" in str(exc)
+    else:
+        raise AssertionError("A Discord server cannot be claimed without an access grant")
+
+
+def test_archived_discord_server_can_be_reactivated_by_its_previous_owner(tmp_path, monkeypatch):
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "restore-owner")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "restore-password")
+    registry = RegistreComptes(tmp_path / "restore-server.db")
+    registry.initialiser()
+    owner = registry.authentifier("restore-owner", "restore-password")
+    created = registry.creer_serveur("Premier nom", "123456789012345679", owner["id"])
+    registry.archiver_serveur(created["slug"])
+
+    restored = registry.creer_serveur("Serveur restauré", "123456789012345679", owner["id"])
+
+    assert restored["slug"] == created["slug"]
+    assert restored["database_path"] == created["database_path"]
+    assert restored["name"] == "Serveur restauré"
+    assert restored["active"] is True
+    assert restored["bot_installed"] is False
+    assert restored["reactivated"] is True
+    matching = [item for item in registry.lister_serveurs(owner["id"]) if item["guild_id"] == "123456789012345679"]
+    assert len(matching) == 1
+
+
+def test_deleted_account_releases_archived_server_for_a_new_installation(tmp_path, monkeypatch):
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "platform-owner")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "platform-password")
+    registry = RegistreComptes(tmp_path / "released-server.db")
+    registry.initialiser()
+    administrator = registry.authentifier("platform-owner", "platform-password")
+    former_owner = registry.creer_compte("former-owner", "Ancien propriétaire", "former-password")
+    replacement = registry.creer_compte("new-owner", "Nouveau propriétaire", "replacement-password")
+    created = registry.creer_serveur("Monde de test", "123456789012345680", former_owner["id"])
+    registry.archiver_serveur(created["slug"])
+
+    deletion = registry.supprimer_compte(former_owner["id"], administrator["id"])
+    restored = registry.creer_serveur("Monde réinstallé", "123456789012345680", replacement["id"])
+
+    assert deletion["username"] == "former-owner"
+    assert deletion["preserved_servers"][0]["slug"] == created["slug"]
+    assert restored["slug"] == created["slug"]
+    assert restored["database_path"] == created["database_path"]
+    assert restored["reactivated"] is True
+    assert registry.lister_acces(replacement["id"])[0]["role"] == "proprietaire"
+
+
+def test_account_deletion_protects_administrators_and_current_operator(tmp_path, monkeypatch):
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "protected-admin")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "protected-password")
+    registry = RegistreComptes(tmp_path / "protected-accounts.db")
+    registry.initialiser()
+    administrator = registry.authentifier("protected-admin", "protected-password")
+    customer = registry.creer_compte("customer", "Client", "customer-password")
+
+    for target in (administrator["id"],):
+        try:
+            registry.supprimer_compte(target, administrator["id"])
+        except ValueError as exc:
+            assert "propre compte" in str(exc)
+        else:
+            raise AssertionError("The current administrator must remain protected")
+    registry.supprimer_compte(customer["id"], administrator["id"])
+    assert all(account["id"] != customer["id"] for account in registry.lister_comptes())
+
+
+def test_login_requires_fresh_v2_session_and_remember_is_opt_in(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "secure-session.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "secure-admin")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "secure-password-123")
+    monkeypatch.delenv("KINGDOM_ADMIN_TOKEN", raising=False)
+    monkeypatch.setattr(web, "magasin_principal", primary)
+    monkeypatch.setattr(web, "store", web.MagasinsServeurs(primary))
+    monkeypatch.setattr(web, "comptes", registry)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+
+    with TestClient(web.app) as client:
+        assert client.get("/api/profile", headers={"Authorization": "Bearer change-me"}).status_code == 401
+        client.cookies.set("royaume_session", "obsolete-cookie")
+        assert client.get("/api/profile").status_code == 401
+        login = client.post("/api/auth/login", json={"username": "secure-admin", "password": "secure-password-123"})
+        assert login.status_code == 200
+        assert "royaume_session_v2=" in login.headers["set-cookie"]
+        assert "Max-Age" not in login.headers["set-cookie"]
+        assert client.post("/api/auth/logout").status_code == 200
+        remembered = client.post("/api/auth/login", json={"username": "secure-admin", "password": "secure-password-123", "remember": True})
+        assert "Max-Age=604800" in remembered.headers["set-cookie"]
+
+
+def test_platform_admin_page_and_api_are_server_side_protected(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "platform-access.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "platform-owner")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "platform-password-123")
+    monkeypatch.setenv("KINGDOM_PLATFORM_ADMIN_USERNAME", "platform-owner")
+    monkeypatch.setenv("KINGDOM_ALLOW_REGISTRATION", "1")
+    monkeypatch.setattr(web, "magasin_principal", primary)
+    monkeypatch.setattr(web, "store", web.MagasinsServeurs(primary))
+    monkeypatch.setattr(web, "comptes", registry)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+    monkeypatch.setattr(
+        web.ServiceSupervisor,
+        "synchronize_with_github",
+        lambda _self: {"accepted": True, "status": "starting"},
+    )
+
+    with TestClient(web.app) as client:
+        normal = client.post("/api/auth/register", json={"username": "client-normal", "display_name": "Client", "email": "", "password": "client-password-123", "password_confirmation": "client-password-123"})
+        assert normal.status_code == 200
+        assert client.get("/platform-admin").status_code == 403
+        assert client.get("/api/platform/overview").status_code == 403
+        assert client.post("/api/platform/deployment/synchronize").status_code == 403
+        client.post("/api/auth/logout")
+        assert client.post("/api/auth/login", json={"username": "platform-owner", "password": "platform-password-123"}).status_code == 200
+        assert client.get("/platform-admin").status_code == 200
+        assert client.get("/api/platform/overview").status_code == 200
+        update = client.post("/api/platform/deployment/synchronize")
+        assert update.status_code == 200
+        assert update.json()["accepted"] is True
+
+
+def test_web_accounts_and_servers_are_isolated(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "kingdom.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "admin-test")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "password-test-123")
+    monkeypatch.setattr(web, "magasin_principal", primary)
+    monkeypatch.setattr(web, "store", web.MagasinsServeurs(primary))
+    monkeypatch.setattr(web, "comptes", registry)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+
+    with TestClient(web.app) as client:
+        refused = client.post("/api/auth/login", json={"username": "admin-test", "password": "incorrect-password"})
+        assert refused.status_code == 401
+        assert "incorrect" in refused.json()["detail"]
+        login = client.post("/api/auth/login", json={"username": "admin-test", "password": "password-test-123"})
+        assert login.status_code == 200
+        profile = client.get("/api/profile").json()
+        primary_slug = profile["current_server"]
+
+        created = client.post("/api/servers", headers={"X-Kingdom-Server": primary_slug}, json={"name": "Second Royaume", "guild_id": "987654321"})
+        assert created.status_code == 200
+        second_slug = created.json()["slug"]
+
+        payload = {"name": "Tour du premier royaume", "actions": []}
+        first = client.post("/api/content/building/tour_premiere", headers={"X-Kingdom-Server": primary_slug}, json={"payload": payload})
+        assert first.status_code == 200
+        missing = client.get("/api/content/building/tour_premiere", headers={"X-Kingdom-Server": second_slug})
+        assert missing.status_code == 404
+
+        account = client.post("/api/accounts", headers={"X-Kingdom-Server": primary_slug}, json={
+            "username": "editeur-test", "display_name": "Editeur", "password": "password-editor-123",
+            "access": [{"server_slug": second_slug, "role": "lecture"}],
+        })
+        assert account.status_code == 200
+
+    assert os.path.isfile(created.json()["database_path"])
+
+
+def test_public_registration_creates_an_unassigned_account_visible_to_admin(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "registration.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "registration-admin")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "registration-password")
+    monkeypatch.setenv("KINGDOM_ALLOW_REGISTRATION", "1")
+    monkeypatch.setattr(web, "magasin_principal", primary)
+    monkeypatch.setattr(web, "store", web.MagasinsServeurs(primary))
+    monkeypatch.setattr(web, "comptes", registry)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+    web._inscriptions_recentes.clear()
+
+    with TestClient(web.app) as client:
+        mismatch = client.post("/api/auth/register", json={
+            "username": "atilla", "display_name": "Atilla", "email": "atilla@example.test",
+            "password": "password-atilla", "password_confirmation": "different-password",
+        })
+        assert mismatch.status_code == 422
+        created = client.post("/api/auth/register", json={
+            "username": "atilla", "display_name": "Atilla", "email": "atilla@example.test",
+            "password": "password-atilla", "password_confirmation": "password-atilla",
+        })
+        assert created.status_code == 200
+        assert "administrateur" in created.json()["message"]
+        assert registry.lister_acces(created.json()["account"]["id"]) == []
+        unassigned_profile = client.get("/api/profile")
+        assert unassigned_profile.status_code == 200
+        assert unassigned_profile.json()["account"]["username"] == "atilla"
+        assert unassigned_profile.json()["servers"] == []
+        assert unassigned_profile.json()["current_server"] == ""
+
+        assert client.post("/api/auth/login", json={
+            "username": "registration-admin", "password": "registration-password",
+        }).status_code == 200
+        accounts = client.get("/api/accounts").json()["accounts"]
+        registered = next(account for account in accounts if account["username"] == "atilla")
+        assert registered["server_count"] == 0
+        assert registered["administered_server_count"] == 0
+        administrator = next(account for account in accounts if account["is_admin"])
+        assert administrator["administered_server_count"] == 1
+
+        reset = client.post(f'/api/accounts/{registered["id"]}/password', json={"new_password": "nouveau-password-atilla"})
+        assert reset.status_code == 200
+        assert registry.authentifier("atilla", "nouveau-password-atilla")["id"] == registered["id"]
+
+
+def test_public_registration_can_be_disabled(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "registration-disabled.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ALLOW_REGISTRATION", "0")
+    monkeypatch.setattr(web, "comptes", registry)
+    with TestClient(web.app) as client:
+        response = client.post("/api/auth/register", json={})
+    assert response.status_code == 403
+
+
+def test_unassigned_account_can_create_its_first_server_and_becomes_owner(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "self-service-server.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "self-service-admin")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "self-service-password")
+    monkeypatch.setenv("KINGDOM_ALLOW_REGISTRATION", "1")
+    monkeypatch.setattr(web, "magasin_principal", primary)
+    monkeypatch.setattr(web, "store", web.MagasinsServeurs(primary))
+    monkeypatch.setattr(web, "comptes", registry)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+    web._inscriptions_recentes.clear()
+
+    with TestClient(web.app) as client:
+        registration = client.post("/api/auth/register", json={
+            "username": "nouveau-roi", "display_name": "Nouveau Roi",
+            "password": "royaume-password", "password_confirmation": "royaume-password",
+        })
+        assert registration.status_code == 200
+        assert client.get("/api/profile").json()["servers"] == []
+
+        created = client.post("/api/servers", json={
+            "name": "Station autonome", "guild_id": "123456789012345678", "preset": "space_station",
+        })
+        assert created.status_code == 200
+        assert created.json()["preset"] == "space_station"
+        assert created.json()["seeded_entities"] > 1
+        profile = client.get("/api/profile").json()
+        assert profile["current_server"] == created.json()["slug"]
+        assert profile["servers"][0]["role"] == "proprietaire"
+        assert profile["servers"][0]["guild_id"] == "123456789012345678"
+        world = ContentStore(created.json()["database_path"])
+        assert world.get("building", "command_deck")["payload"]["name"] == "Pont de commandement"
+        with __import__("pytest").raises(NotFoundError):
+            world.get("building", "market_square")
+
+
+def test_managed_server_install_and_safe_removal_lifecycle(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "server-lifecycle.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "lifecycle-admin")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "lifecycle-password")
+    monkeypatch.setenv("KINGDOM_APPLICATION_ID", "123456789012345678")
+    monkeypatch.setattr(web, "magasin_principal", primary)
+    monkeypatch.setattr(web, "store", web.MagasinsServeurs(primary))
+    monkeypatch.setattr(web, "comptes", registry)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+
+    with TestClient(web.app) as client:
+        assert client.post("/api/auth/login", json={
+            "username": "lifecycle-admin", "password": "lifecycle-password",
+        }).status_code == 200
+        created = client.post("/api/servers", json={"name": "Royaume à retirer", "guild_id": "987654321012345678"})
+        assert created.status_code == 200
+        server = created.json()
+
+        install = client.post(f'/api/servers/{server["slug"]}/install', json={})
+        assert install.status_code == 200
+        assert "discord.com" in install.json()["url"]
+        target = ContentStore(server["database_path"])
+        assert target.discord_provision_status()["scope"] == "server"
+
+        with primary.connection() as database:
+            database.execute("UPDATE managed_servers SET bot_installed=1 WHERE slug=?", (server["slug"],))
+        uninstall = client.post(f'/api/servers/{server["slug"]}/uninstall', json={})
+        assert uninstall.status_code == 200
+        latest = target.discord_provision_status()
+        assert latest["scope"] == "uninstall"
+        assert client.delete(f'/api/servers/{server["slug"]}').status_code == 409
+        target.finish_discord_provision(latest["id"], report="Discord nettoyé")
+        removed = client.delete(f'/api/servers/{server["slug"]}')
+        assert removed.status_code == 200
+        assert removed.json()["database_deleted"] is True
+        assert not Path(server["database_path"]).exists()
+        assert all(item["slug"] != server["slug"] for item in registry.lister_serveurs(1, True))
+
+        recreated = client.post("/api/servers", json={
+            "name": "Royaume neuf", "guild_id": "987654321012345678", "preset": "blank",
+        })
+        assert recreated.status_code == 200
+        assert recreated.json()["reactivated"] is False
+        fresh = ContentStore(recreated.json()["database_path"])
+        assert fresh.discord_provision_status()["status"] == "never"
+
+
+def test_login_interface_exposes_registration_and_account_statistics():
+    with TestClient(web.app) as client:
+        script = client.get("/static/app.js").text
+    assert "CRÉER UN COMPTE" in script
+    assert "/api/auth/register" in script
+    assert "COMPTES CRÉÉS" in script
+    assert "administered_server_count" in script
+
+
+def test_login_interface_uses_the_immersive_brand_assets():
+    with TestClient(web.app) as client:
+        page = client.get("/")
+        stylesheet = client.get("/static/login-v2.css")
+        panorama = client.get("/static/login-kingdom-panorama-v2.png")
+
+    assert page.status_code == 200
+    assert "/static/login-v2.css" in page.text
+    assert "/static/kingdomengine-logo-premium.png" in page.text
+    assert "PAYEN" in page.text
+    assert stylesheet.status_code == 200
+    compact_styles = "".join(stylesheet.text.split())
+    assert "place-items:stretch" in compact_styles
+    assert 'url("/static/login-kingdom-panorama-v2.png")' in stylesheet.text
+    assert "@media(max-width:960px)" in compact_styles
+    assert panorama.status_code == 200
+    assert panorama.headers["content-type"] == "image/png"
+
+
+def test_mobile_shell_keeps_essential_tools_within_thumb_reach():
+    with TestClient(web.app) as client:
+        page = client.get("/")
+        stylesheet = client.get("/static/mobile.css")
+        script = client.get("/static/app.js")
+
+    assert page.status_code == 200
+    assert "/static/mobile.css" in page.text
+    assert 'id="mobile-dock"' in page.text
+    for target in ("dashboard", "live_world", "players", "supervision"):
+        assert f'data-mobile-type="{target}"' in page.text
+    assert stylesheet.status_code == 200
+    compact_styles = "".join(stylesheet.text.split())
+    compact_script = "".join(script.text.split())
+    assert "@media(max-width:760px)" in compact_styles
+    assert "env(safe-area-inset-bottom)" in stylesheet.text
+    assert "height:100dvh" in compact_styles
+    assert "body:has(.login-screen:not([hidden])) .mobile-dock" in stylesheet.text
+    assert 'id="sidebar-logout"' in page.text
+    assert "backdrop-filter:none" in compact_styles
+    assert '$("#sidebar-logout").onclick=logoutAccount' in compact_script
+    assert 'name="remember"' in page.text
+    assert "navigateTo(button.dataset.mobileType)" in compact_script
+    assert "mobileCreationBlocked" in script.text
+    assert "La création de contenu" in script.text
+    assert '[data-type="building"]' in stylesheet.text
+    tablet = client.get("/static/tablet.css")
+    compact_tablet = "".join(tablet.text.split())
+    assert "min-width:761px" in compact_tablet
+    assert "max-width:1024px" in compact_tablet
+
+
+def test_tutorial_progress_is_scoped_by_account_and_server(tmp_path, monkeypatch):
+    database = tmp_path / "tutorials.db"
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "guide")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "mot-de-passe-guide")
+    registry = RegistreComptes(database)
+    registry.initialiser()
+    account = registry.authentifier("guide", "mot-de-passe-guide")
+
+    assert registry.progression_tutoriels(account["id"], "royaume-a") == {
+        "tutorials": {}, "onboarding_seen": False,
+    }
+    saved = registry.enregistrer_progression_tutoriel(
+        account["id"], "royaume-a", "building", ["create", "create", "name"], dismissed=True,
+    )
+    assert saved["completed_steps"] == ["create", "name"]
+    progress = registry.progression_tutoriels(account["id"], "royaume-a")
+    assert progress["tutorials"]["building"]["dismissed"] is True
+    assert registry.progression_tutoriels(account["id"], "royaume-b")["tutorials"] == {}
+
+    registry.reinitialiser_tutoriel(account["id"], "royaume-a", "building")
+    assert registry.progression_tutoriels(account["id"], "royaume-a")["tutorials"] == {}
+
+
+def test_tutorial_progress_api_can_resume_and_reset(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "tutorial-api.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "tutorial-admin")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "tutorial-password")
+    monkeypatch.setattr(web, "magasin_principal", primary)
+    monkeypatch.setattr(web, "store", web.MagasinsServeurs(primary))
+    monkeypatch.setattr(web, "comptes", registry)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+
+    with TestClient(web.app) as client:
+        client.post("/api/auth/login", json={"username": "tutorial-admin", "password": "tutorial-password"})
+        profile = client.get("/api/profile").json()
+        request_headers = {"X-Kingdom-Server": profile["current_server"]}
+        saved = client.put("/api/tutorials/progress/world", headers=request_headers, json={
+            "completed_steps": ["map", "route"], "completed": False, "dismissed": True,
+        })
+        assert saved.status_code == 200
+        resumed = client.get("/api/tutorials/progress", headers=request_headers).json()
+        assert resumed["tutorials"]["world"]["completed_steps"] == ["map", "route"]
+        assert resumed["tutorials"]["world"]["dismissed"] is True
+        assert client.delete("/api/tutorials/progress/world", headers=request_headers).status_code == 200
+        assert client.get("/api/tutorials/progress", headers=request_headers).json()["tutorials"] == {}
+
+
+def test_existing_accounts_and_servers_are_migrated_to_product_foundations(tmp_path, monkeypatch):
+    database = tmp_path / "legacy-product.db"
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "owner")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "owner-password")
+    registry = RegistreComptes(database); registry.initialiser()
+    owner = registry.authentifier("owner", "owner-password")
+    foundations = registry.fondations_produit(owner["id"])
+    assert foundations["organizations"][0]["role"] == "owner"
+    assert foundations["worlds"][0]["slug"] == "royaume-principal"
+    assert foundations["worlds"][0]["guild_id"] == ""
+    assert foundations["plans"][0]["plan_key"] == "standard"
+
+
+def test_support_mode_is_scoped_expiring_revocable_and_audited(tmp_path, monkeypatch):
+    database = tmp_path / "support.db"
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "owner")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "owner-password")
+    registry = RegistreComptes(database); registry.initialiser()
+    owner = registry.authentifier("owner", "owner-password")
+    grant = registry.demander_assistance(owner["id"], "royaume-principal", ["diagnostics", "service_health", "secrets"], 30)
+    assert grant["status"] == "active"
+    assert grant["scopes"] == ["diagnostics", "service_health"]
+    assert registry.revoquer_assistance(grant["grant_id"], owner["id"])["status"] == "revoked"
+    with registry.connexion() as database_connection:
+        actions = [row[0] for row in database_connection.execute("SELECT action FROM platform_audit ORDER BY id")]
+    assert actions == ["support.granted", "support.revoked"]

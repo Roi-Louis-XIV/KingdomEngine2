@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kingdom-engine-2"
+version = "2.0.0"
+description = "Moteur de jeu no-code, modulaire et orienté Discord"
+requires-python = ">=3.11"
+dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "discord.py[voice]>=2.4,<3", "python-dotenv>=1,<2", "python-multipart>=0.0.9,<1"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9", "httpx>=0.27,<1"]
+
+[tool.setuptools]
+py-modules = ["seed", "import_v1"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["kingdomCore*", "KingdomData*", "kingdomEvent*", "KingdomVoice*", "KingdomWeb*"]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+KingdomWeb = ["static/*", "services.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
