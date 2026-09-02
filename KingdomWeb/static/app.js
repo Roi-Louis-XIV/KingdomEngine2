@@ -511,6 +511,10 @@ function showModal() {
 }
 
 function resetEditor() {
+  const definitionStep = $("#definition-step"), typeFields = $("#type-fields");
+  [definitionStep?.querySelector(".common-fields.form-section"), definitionStep?.querySelector("details.common-fields")].filter(Boolean).forEach(element => definitionStep.insertBefore(element, typeFields));
+  $(".building-workbench-nav")?.remove();
+  $("#building-list-toggle")?.remove();
   state.editing = null; state.duplicate = false; state.selectedPreset = null; state.keyTouched = false; state.buildingBase = null; state.editorDirty=false;
   state.interfaceDraft = null; state.selectedPage = null; state.selectedComponent = null;
   $(".wizard-panel").classList.remove("visual-mode","building-mode","event-mode"); $("#context-help").hidden = false;
@@ -1411,6 +1415,27 @@ function renderBuildingFields(payload, preset=null) {
   bindVisualStudio();renderVisualStudio();
   setupSimpleGameplay(root);
   $$('[data-building-tab]').forEach(button=>button.onclick=()=>{$$('[data-building-tab]').forEach(item=>item.classList.toggle("active",item===button));$$('[data-building-panel]').forEach(panel=>panel.hidden=panel.dataset.buildingPanel!==button.dataset.buildingTab);if(button.dataset.buildingTab==="visual")renderVisualStudio();KingdomTutorials.notify("building_tab_changed",button.dataset.buildingTab);});
+  installBuildingWorkbench(payload, buildingKey, modules);
+}
+
+function installBuildingWorkbench(payload, buildingKey, modules){
+  const layout=$("#editor .editor-layout"),main=layout?.querySelector(".editor-main"),help=$("#context-help"),overview=$('[data-building-panel="overview"]'),advanced=$('[data-building-panel="advanced"]');
+  if(!layout||!main||!help||!overview||!advanced)return;
+  layout.querySelector(".building-workbench-nav")?.remove();
+  const navigator=document.createElement("aside");navigator.className="building-workbench-nav";navigator.setAttribute("aria-label","Bâtiments du monde");
+  const buildings=(state.catalogs.building||[]).slice().sort((a,b)=>String(a.payload.name||a.entity_key).localeCompare(String(b.payload.name||b.entity_key),"fr"));
+  navigator.innerHTML=`<header><small>ESPACES INTERACTIFS</small><h3>Bâtiments du monde</h3><p>Passez d'un lieu à l'autre sans quitter l'atelier.</p></header><div class="building-workbench-list">${buildings.map(entity=>`<button type="button" class="${entity.entity_key===buildingKey?'active':''}" data-workbench-building="${escapeHtml(entity.entity_key)}"><span>${escapeHtml(entity.payload.emoji||'🏰')}</span><b>${escapeHtml(entity.payload.name||entity.entity_key)}</b><small>${entity.status==='published'?'Publié':'Brouillon'}</small></button>`).join('')||'<p class="empty">Ce sera le premier bâtiment de ce monde.</p>'}</div><button type="button" class="secondary building-workbench-new">＋ Nouveau bâtiment</button>`;
+  layout.insertBefore(navigator,main);
+  const commonSection=$("#definition-step > .common-fields.form-section"),technical=$("#definition-step > details.common-fields");
+  if(commonSection)overview.insertBefore(commonSection,overview.firstChild);
+  if(technical)advanced.append(technical);
+  const actionCount=(payload.actions||[]).length,professionCount=(modules.professions||[]).length,activityCount=(modules.activities||[]).length,pageCount=(state.interfaceDraft?.pages||[]).length;
+  const warnings=[];if(!payload.location_key)warnings.push("Aucun lieu n'est associé.");if(!professionCount)warnings.push("Aucun métier configuré.");if(!pageCount)warnings.push("Aucune page Discord.");
+  help.hidden=false;help.innerHTML=`<section class="building-inspector-summary"><small>INSPECTEUR</small><div class="building-inspector-title"><span>${escapeHtml(payload.emoji||'🏰')}</span><div><h3>${escapeHtml(payload.name||'Nouveau bâtiment')}</h3><p>${state.editing?.status==='published'?'Publié sur Discord':'Brouillon de travail'}</p></div></div><dl><div><dt>Actions</dt><dd>${actionCount}</dd></div><div><dt>Métiers</dt><dd>${professionCount}</dd></div><div><dt>Activités</dt><dd>${activityCount}</dd></div><div><dt>Pages</dt><dd>${pageCount}</dd></div></dl>${warnings.length?`<div class="building-inspector-warnings"><b>À vérifier</b>${warnings.map(text=>`<span>◇ ${escapeHtml(text)}</span>`).join('')}</div>`:'<div class="building-inspector-ready">✓ Prêt à être configuré et publié</div>'}</section><section class="building-contextual-help"><span class="help-icon">?</span><small>AIDE CONTEXTUELLE</small><h3 id="help-title">Comprendre ce réglage</h3><p id="help-text">Survolez ou sélectionnez un réglage pour afficher son explication.</p><ul id="help-list"></ul></section>`;
+  const head=$("#editor .dialog-head");head?.querySelector("#building-list-toggle")?.remove();head?.insertAdjacentHTML("beforeend",'<button type="button" id="building-list-toggle" class="secondary" aria-expanded="false">☷ Bâtiments</button>');
+  $("#building-list-toggle").onclick=()=>{const open=navigator.classList.toggle("open");$("#building-list-toggle").setAttribute("aria-expanded",String(open));};
+  navigator.querySelectorAll("[data-workbench-building]").forEach(button=>button.onclick=async()=>{if(button.classList.contains("active"))return;if(state.editorDirty&&!confirm("Des modifications ne sont pas enregistrées. Changer de bâtiment ?"))return;const entity=state.catalogs.building.find(item=>item.entity_key===button.dataset.workbenchBuilding);if(entity)await openEditor(entity);});
+  navigator.querySelector(".building-workbench-new").onclick=()=>{if(state.editorDirty&&!confirm("Des modifications ne sont pas enregistrées. Créer un autre bâtiment ?"))return;closeEditor(true);startCreate();};
 }
 
 function itemMatchesFilter(entity, filter="any"){
@@ -1957,7 +1982,9 @@ $("#cards").addEventListener("click", async event => {
     if(state.type==="building"&&deletion.discord_sync?.requested)alert("Bâtiment supprimé du Studio. KingdomCore va retirer automatiquement ses salons Discord. Suivez l'opération dans Configuration du monde.");
     await loadCatalogs(); await load(); return;
   }
-  if(event.target.closest("details,summary,.building-card-actions"))return;
+  // Le menu « ••• » reste isolé, mais le bouton Modifier placé dans la même
+  // barre doit continuer à ouvrir l'éditeur.
+  if(event.target.closest("details,summary"))return;
   const target = event.target.closest("[data-edit],[data-open]");
   if (target) { const key=target.dataset.edit||target.dataset.open; const entity=state.items.find(item=>item.entity_key===key); if(entity)openEditor(entity); }
 });

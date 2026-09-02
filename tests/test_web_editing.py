@@ -121,7 +121,8 @@ def test_web_queues_server_install_and_building_publication(tmp_path, monkeypatc
 def test_building_secondary_menu_does_not_open_the_editor():
     javascript = (Path(web.__file__).parent / "static" / "app.js").read_text(encoding="utf-8")
     assert 'event.target.closest(".building-card-actions details")' in javascript
-    assert 'event.target.closest("details,summary,.building-card-actions")' in javascript
+    assert 'event.target.closest("details,summary")' in javascript
+    assert 'event.target.closest("details,summary,.building-card-actions")' not in javascript
 
 
 def test_discord_connections_show_every_audio_bot_and_future_access_marker():
