@@ -98,7 +98,7 @@ def managed_bot_permissions() -> discord.Permissions:
     return discord.Permissions(
         view_channel=True, send_messages=True, read_message_history=True, embed_links=True,
         attach_files=True, manage_messages=True, use_application_commands=False, connect=True,
-        speak=True, use_voice_activation=True,
+        speak=True, use_voice_activation=True, change_nickname=True,
     )
 
 

@@ -2,7 +2,7 @@ import asyncio
 
 from KingdomData import ContentStore, ValidationError
 from kingdomCore import GameEngine
-from kingdomCore.discord_bot import PrivateInterfaceLauncher
+from kingdomCore.discord_bot import PrivateInterfaceLauncher, building_entry_menu
 from kingdomEvent import EventBus
 
 
@@ -25,6 +25,25 @@ def test_building_launcher_is_a_direct_entrance():
     }, 42)
     assert launcher.children[0].label == "Entrer dans la Forêt"
     assert "interface privée" not in launcher.children[0].label.lower()
+
+
+def test_voice_entry_displays_the_building_menu_without_an_intermediate_click():
+    definition = {
+        "name": "Interface - Forge",
+        "target_building_key": "forge",
+        "start_page": "home",
+        "entry_page": "counter",
+        "pages": [
+            {"key": "home", "name": "Accueil", "components": []},
+            {"key": "counter", "name": "Comptoir", "components": []},
+        ],
+    }
+
+    content, menu = building_entry_menu(None, definition, 42, "Forge Dorée")
+
+    assert content.startswith("🏰 <@42> — **Forge Dorée**")
+    assert menu.page_key == "counter"
+    assert menu.owner_id == 42
 
 
 def test_action_is_atomic_and_idempotent(tmp_path):

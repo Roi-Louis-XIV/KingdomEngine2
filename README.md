@@ -204,6 +204,18 @@ Au démarrage, KingdomVoice détecte automatiquement chaque token réellement co
 
 Une présence vocale publiée en mode **automatique** est affectée par KingdomVoice à un worker disponible. Si elle cible un lieu contenant un seul bâtiment, le salon vocal provisionné de ce bâtiment est résolu automatiquement. Les diagnostics distinguent désormais serveur introuvable, salon absent ou obsolète, permissions Discord `Connect`/`Speak` manquantes et capacité indisponible. Discord autorise un surnom propre au serveur pour représenter la présence ; l’avatar et la description d’un bot restent globaux à son application et ne sont donc pas modifiés à chaque affectation.
 
+La synchronisation Discord accorde aussi aux Voice Workers la permission **Changer de pseudo**, nécessaire pour afficher le nom d’une présence. Sur un serveur installé avant cette correction, relancez **Installer / synchroniser le serveur Discord** ; si le bot a été invité sans cette permission, ouvrez de nouveau son lien d’invitation depuis **Connexion Discord**.
+
+Pour vérifier un worker sur un serveur de test sans afficher son token, l’outil `scripts/voice-diagnostic.py` accepte le nom de sa variable, un ou plusieurs salons et un court fichier audio. Chaque salon est rejoint, testé puis quitté avant la réallocation suivante :
+
+```powershell
+.venv\Scripts\python.exe scripts\voice-diagnostic.py --token-env EDGAR_BOT_TOKEN --channel 123456789 --channel 987654321 --audio KingdomData\assets\audio\coup_de_pioche\source.mp3
+```
+
+Lorsqu’un joueur rejoint le vocal d’un bâtiment, KingdomCore lui donne l’accès temporaire au salon textuel correspondant et y affiche immédiatement son menu personnel. Il n’est plus nécessaire de cliquer sur un portail intermédiaire. Si le salon ou le rôle du bâtiment manque, relancer la synchronisation Discord depuis KingdomWeb.
+
+Dans l’éditeur de bâtiment, le bouton **Inspecteur** permet désormais de libérer toute la largeur centrale. La navigation entre bâtiments et les actions **Fermer**, **Annuler** et **Enregistrer** restent accessibles indépendamment du défilement ; le builder Discord adapte également sa hauteur au viewport.
+
 Après une modification de `.env`, redémarrer les services :
 
 ```bash

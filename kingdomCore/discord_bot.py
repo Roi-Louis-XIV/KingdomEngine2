@@ -747,6 +747,19 @@ def interface_for_building(store: ContentStore, payload: dict[str, Any]) -> dict
     return None
 
 
+def building_entry_menu(
+    engine: GameEngine,
+    definition: dict[str, Any],
+    member_id: int,
+    building_name: str,
+) -> tuple[str, "InterfaceView"]:
+    """Construit le menu personnel affiché dès l'entrée dans le vocal."""
+    page_key = definition.get("entry_page") or definition.get("start_page")
+    menu = InterfaceView(engine, definition, page_key=page_key, owner_id=member_id)
+    marker = f"🏰 <@{member_id}> — **{building_name}**"
+    return f"{marker}\nLe menu du bâtiment est prêt.", menu
+
+
 def building_for_voice(store: ContentStore, channel: discord.VoiceChannel | None) -> dict[str, Any] | None:
     if channel is None:
         return None
@@ -921,25 +934,28 @@ async def send_building_entry(
     definition = interface_for_building(store, payload) or interface_from_building(
         entity["entity_key"], payload, payload.get("actions", [])
     )
-    launcher = PrivateInterfaceLauncher(engine, definition, member.id)
-    content = f"🏰 **{payload['name']}** — utilise le bouton pour entrer dans le bâtiment."
-    # Répare le portail déjà publié : un portail est commun au bâtiment, puis
-    # chaque clic ouvre une interface éphémère appartenant au joueur.
+    content, menu = building_entry_menu(engine, definition, member.id, payload["name"])
+    marker = f"🏰 <@{member.id}> — **{payload['name']}**"
+
+    # Les anciens serveurs peuvent encore contenir le portail générique. On
+    # le laisse utilisable, mais l'entrée vocale affiche désormais directement
+    # le menu personnel du joueur, sans lui imposer un second clic.
     try:
         async for old_message in channel.history(limit=30):
-            if old_message.author.id == member.guild.me.id and (old_message.content.startswith("🚪 Une entrée privée vers") or old_message.content.startswith("🏰 **")):
-                await old_message.edit(content=content, view=launcher)
-                logger.info("Entrée de %s réparée dans #%s.", entity["entity_key"], channel.name)
+            if old_message.author.id == member.guild.me.id and old_message.content.startswith(marker):
+                await old_message.edit(content=content, embed=menu.embed(), view=menu)
+                logger.info("Menu de %s actualisé pour %s dans #%s.", entity["entity_key"], member.id, channel.name)
                 return
     except discord.HTTPException:
-        logger.warning("Nettoyage des anciennes entrées impossible dans #%s.", channel.name)
+        logger.warning("Recherche de l'ancien menu impossible dans #%s.", channel.name)
     await channel.send(
         content=content,
-        view=launcher,
+        embed=menu.embed(),
+        view=menu,
         silent=True,
-        allowed_mentions=discord.AllowedMentions.none(),
+        allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
     )
-    logger.info("Entrée de %s envoyée à %s dans #%s.", entity["entity_key"], member.id, channel.name)
+    logger.info("Menu de %s envoyé à %s dans #%s.", entity["entity_key"], member.id, channel.name)
 
 
 def create_bot(store: ContentStore | None = None) -> commands.Bot:

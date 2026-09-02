@@ -593,6 +593,14 @@
   grid-template-columns: 260px minmax(640px, 1fr) 330px !important;
 }
 
+.wizard-panel.building-mode .editor-layout.inspector-collapsed {
+  grid-template-columns: 260px minmax(0, 1fr) !important;
+}
+
+.wizard-panel.building-mode .editor-layout.inspector-collapsed .context-help {
+  display: none !important;
+}
+
 .wizard-panel.building-mode .editor-main {
   padding: 12px clamp(20px, 2.4vw, 46px) 32px !important;
 }
@@ -697,6 +705,26 @@
 
   .wizard-panel.item-mode .context-help {
     display: none;
+  }
+}
+
+/* Le builder Discord se dimensionne sur l'espace réellement disponible. */
+.building-mode .visual-studio {
+  min-height: min(610px, calc(100dvh - 285px));
+}
+
+.building-mode .builder-canvas {
+  min-height: min(540px, calc(100dvh - 355px));
+}
+
+@media (max-width: 760px) {
+  .building-mode #building-inspector-toggle {
+    display: none;
+  }
+
+  .building-mode .visual-studio,
+  .building-mode .builder-canvas {
+    min-height: 360px;
   }
 }
 
