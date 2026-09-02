@@ -42,9 +42,6 @@ def test_invited_bot_gets_only_required_management_permissions():
     assert permissions.manage_roles
     assert permissions.manage_channels
     assert permissions.manage_messages
-    assert permissions.create_private_threads
-    assert permissions.send_messages_in_threads
-    assert permissions.manage_threads
     assert permissions.embed_links and permissions.attach_files
     assert permissions.kick_members
     assert not permissions.ban_members

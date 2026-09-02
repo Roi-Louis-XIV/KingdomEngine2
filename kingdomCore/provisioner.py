@@ -97,9 +97,8 @@ def player_permissions() -> discord.Permissions:
 def managed_bot_permissions() -> discord.Permissions:
     return discord.Permissions(
         view_channel=True, send_messages=True, read_message_history=True, embed_links=True,
-        attach_files=True, manage_messages=True, create_private_threads=True,
-        send_messages_in_threads=True, manage_threads=True, use_application_commands=False,
-        connect=True, speak=True, use_voice_activation=True, change_nickname=True,
+        attach_files=True, manage_messages=True, use_application_commands=False, connect=True,
+        speak=True, use_voice_activation=True, change_nickname=True,
     )
 
 
@@ -310,14 +309,8 @@ class DiscordProvisioner:
                 view_channel=True, send_messages=True, connect=True, speak=True,
                 use_application_commands=False,
             ),
-            bot_role: discord.PermissionOverwrite(
-                view_channel=True, send_messages=True, create_private_threads=True,
-                send_messages_in_threads=True, manage_threads=True, connect=True, speak=True,
-            ),
-            me: discord.PermissionOverwrite(
-                view_channel=True, send_messages=True, create_private_threads=True,
-                send_messages_in_threads=True, manage_threads=True, connect=True, speak=True,
-            ),
+            bot_role: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True, speak=True),
+            me: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True, speak=True),
         }
 
     async def _provision_oath(self, category: discord.CategoryChannel, master: discord.Role, player: discord.Role, bot_role: discord.Role, me: discord.Member, report: ProvisionReport) -> None:
@@ -371,14 +364,8 @@ class DiscordProvisioner:
                 view_channel=base_access, connect=base_access, speak=base_access,
                 use_application_commands=False,
             ),
-            bot_role: discord.PermissionOverwrite(
-                view_channel=True, send_messages=True, create_private_threads=True,
-                send_messages_in_threads=True, manage_threads=True, connect=True, speak=True,
-            ),
-            me: discord.PermissionOverwrite(
-                view_channel=True, send_messages=True, create_private_threads=True,
-                send_messages_in_threads=True, manage_threads=True, connect=True, speak=True,
-            ),
+            bot_role: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True, speak=True),
+            me: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True, speak=True),
             building_role: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True),
         }
         for role in allowed_roles:

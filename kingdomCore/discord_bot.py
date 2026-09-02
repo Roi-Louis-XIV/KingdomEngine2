@@ -659,6 +659,19 @@ class PrivateInterfaceLauncher(discord.ui.View):
         self.add_item(button)
 
     async def open(self, interaction: discord.Interaction) -> None:
+        member = interaction.user if isinstance(interaction.user, discord.Member) else None
+        current_voice = member.voice.channel if member and member.voice else None
+        building_key = str(self.definition.get("target_building_key") or "")
+        current_building = building_for_voice(
+            self.engine.store,
+            current_voice if isinstance(current_voice, discord.VoiceChannel) else None,
+        )
+        if current_building is None or current_building["entity_key"] != building_key:
+            await interaction.response.send_message(
+                "❌ Rejoins d’abord le salon vocal de ce bâtiment.",
+                ephemeral=True,
+            )
+            return
         entry_page = str(self.definition.get("entry_page") or self.definition.get("start_page", "home"))
         view = InterfaceView(self.engine, self.definition, page_key=entry_page, owner_id=interaction.user.id)
         await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
@@ -932,6 +945,7 @@ async def send_building_entry(
     store: ContentStore, engine: GameEngine, member: discord.Member, entity: dict[str, Any],
     settings: dict[str, Any], voice_category: discord.CategoryChannel | None = None,
 ) -> discord.Message | None:
+    """Maintient le panneau commun qui ouvre une interface réellement éphémère."""
     payload = entity["payload"]
     building_key = entity["entity_key"]
 
@@ -941,14 +955,15 @@ async def send_building_entry(
         name=payload["name"], key=building_key, emoji=payload.get("emoji", "🏰")
     ).strip()[:100]
     category = next((item for item in member.guild.categories if item.name.strip() == category_name), None) or voice_category
-    marker = f"🏰 <@{member.id}> — **{payload['name']}**"
+    legacy_marker = f"🏰 <@{member.id}> — **{payload['name']}**"
+    channel = None
     if category is not None:
         text_name = channel_slug(settings["discord"]["building_text_channel"].format(name=payload["name"], key=building_key))
         channel = discord.utils.get(category.text_channels, name=text_name)
         if channel is not None:
             try:
                 async for old_message in channel.history(limit=30):
-                    if old_message.author.id == member.guild.me.id and old_message.content.startswith(marker):
+                    if old_message.author.id == member.guild.me.id and old_message.content.startswith(legacy_marker):
                         await old_message.delete()
             except discord.HTTPException:
                 logger.warning("Ancien menu public impossible à nettoyer dans #%s.", channel.name)
@@ -960,45 +975,51 @@ async def send_building_entry(
         )
         return None
 
+    # Nettoie une ancienne interface individuelle (DM ou fil privé) issue des
+    # versions intermédiaires. Le nouveau parcours n'en crée plus.
     await delete_building_entry(store, member, building_key)
     definition = interface_for_building(store, payload) or interface_from_building(
         building_key, payload, payload.get("actions", [])
     )
-    content, menu = building_entry_menu(engine, definition, member.id, payload["name"])
-    private_thread = None
+    launcher = PrivateInterfaceLauncher(engine, definition, member.id)
+    marker = f"KingdomEngine · bâtiment:{building_key}"
+    panels: list[discord.Message] = []
     try:
-        private_thread = await channel.create_thread(
-            name=f"interface-{member.display_name}"[:100],
-            type=discord.ChannelType.private_thread,
-            invitable=False,
-            auto_archive_duration=60,
-            reason="Interface privée KingdomEngine",
+        async for old_message in channel.history(limit=100):
+            footer = (
+                old_message.embeds[0].footer.text
+                if old_message.embeds and old_message.embeds[0].footer
+                else ""
+            )
+            if old_message.author.id == member.guild.me.id and footer == marker:
+                panels.append(old_message)
+
+        embed = discord.Embed(
+            title=f"{payload.get('emoji', '🏰')} {payload['name']}",
+            description=(
+                str(payload.get("description") or "Bienvenue dans ce bâtiment.")
+                + "\n\nEntre dans le salon vocal, puis utilise le bouton ci-dessous "
+                "pour afficher ton interface personnelle."
+            ),
+            color=0x2F9E64,
         )
-        await private_thread.add_user(member)
-        message = await private_thread.send(
-            content=content,
-            embed=menu.embed(),
-            view=menu,
-            silent=True,
-            allowed_mentions=discord.AllowedMentions.none(),
-        )
+        embed.set_footer(text=marker)
+        if panels:
+            message = panels[0]
+            await message.edit(content=None, embed=embed, view=launcher)
+            for duplicate in panels[1:]:
+                await duplicate.delete()
+        else:
+            message = await channel.send(embed=embed, view=launcher)
     except (discord.Forbidden, discord.HTTPException):
-        if private_thread is not None:
-            try:
-                await private_thread.delete(reason="Création incomplète de l’interface KingdomEngine")
-            except (discord.Forbidden, discord.HTTPException):
-                pass
         logger.warning(
-            "Interface privée de %s impossible à créer dans #%s pour %s.",
+            "Panneau d'entrée de %s impossible à synchroniser dans #%s.",
             building_key, channel.name,
-            member.id,
         )
         return None
-    store.save_building_entry_message(str(member.id), building_key, str(private_thread.id), str(message.id))
     logger.info(
-        "Interface privée de %s créée dans #%s pour %s.",
+        "Panneau d'entrée de %s synchronisé dans #%s.",
         building_key, channel.name,
-        member.id,
     )
     return message
 

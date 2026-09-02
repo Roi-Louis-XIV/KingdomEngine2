@@ -2,6 +2,7 @@ import asyncio
 
 from KingdomData import ContentStore, ValidationError
 from kingdomCore import GameEngine
+import kingdomCore.discord_bot as discord_bot_module
 from kingdomCore.discord_bot import (
     PrivateInterfaceLauncher,
     building_entry_menu,
@@ -51,32 +52,13 @@ def test_voice_entry_displays_the_building_menu_without_an_intermediate_click():
     assert menu.owner_id == 42
 
 
-def test_building_menu_uses_a_private_channel_thread_and_is_deleted_on_voice_exit(tmp_path):
-    store = ContentStore(tmp_path / "private-entry.db")
+def test_building_entry_uses_a_public_launcher_for_an_ephemeral_interface(tmp_path):
+    store = ContentStore(tmp_path / "ephemeral-entry.db")
     store.initialize()
     sent = []
-    deleted = []
-
-    added = []
-    created = []
 
     class Message:
         id = 99
-
-    class PrivateThread:
-        id = 77
-
-        async def add_user(self, selected):
-            added.append(selected.id)
-
-        async def send(self, **kwargs):
-            sent.append(kwargs)
-            return Message()
-
-        async def delete(self, reason=None):
-            deleted.append((self.id, reason))
-
-    private_thread = PrivateThread()
 
     class TextChannel:
         name = "forge"
@@ -85,9 +67,9 @@ def test_building_menu_uses_a_private_channel_thread_and_is_deleted_on_voice_exi
             if False:
                 yield None
 
-        async def create_thread(self, **kwargs):
-            created.append(kwargs)
-            return private_thread
+        async def send(self, **kwargs):
+            sent.append(kwargs)
+            return Message()
 
     category = type("Category", (), {"name": "Forge", "text_channels": [TextChannel()]})()
 
@@ -95,9 +77,6 @@ def test_building_menu_uses_a_private_channel_thread_and_is_deleted_on_voice_exi
         categories = [category]
         roles = []
         me = type("BotMember", (), {"id": 1})()
-
-        def get_thread(self, thread_id):
-            return private_thread if thread_id == 77 else None
 
     member = type("Member", (), {
         "id": 42,
@@ -125,14 +104,51 @@ def test_building_menu_uses_a_private_channel_thread_and_is_deleted_on_voice_exi
 
     assert message.id == 99
     assert len(sent) == 1
-    assert created[0]["type"] is __import__("discord").ChannelType.private_thread
-    assert created[0]["invitable"] is False
-    assert added == [42]
-    assert store.building_entry_message("42", "forge")["message_id"] == "99"
-
-    assert asyncio.run(delete_building_entry(store, member, "forge")) is True
-    assert deleted == [(77, "Sortie du bâtiment KingdomEngine")]
+    assert isinstance(sent[0]["view"], PrivateInterfaceLauncher)
+    assert sent[0]["embed"].footer.text == "KingdomEngine · bâtiment:forge"
+    assert "interface personnelle" in sent[0]["embed"].description
     assert store.building_entry_message("42", "forge") == {}
+    assert asyncio.run(delete_building_entry(store, member, "forge")) is False
+
+
+def test_building_launcher_opens_a_truly_ephemeral_menu_from_the_right_voice(tmp_path, monkeypatch):
+    store = ContentStore(tmp_path / "launcher-ephemeral.db")
+    store.initialize()
+    draft = store.save("building", "forge", {"name": "Forge", "actions": []})
+    store.publish("building", "forge", draft["version"])
+    with store.connection() as database:
+        database.execute(
+            "INSERT INTO building_discord_channels VALUES('forge','10','11','42',datetime('now'))"
+        )
+
+    class VoiceChannel:
+        id = 42
+
+    class Member:
+        id = 7
+        voice = type("Voice", (), {"channel": VoiceChannel()})()
+
+    responses = []
+
+    class Response:
+        async def send_message(self, **kwargs):
+            responses.append(kwargs)
+
+    monkeypatch.setattr(discord_bot_module.discord, "VoiceChannel", VoiceChannel)
+    monkeypatch.setattr(discord_bot_module.discord, "Member", Member)
+    definition = {
+        "name": "Interface - Forge",
+        "target_building_key": "forge",
+        "start_page": "home",
+        "pages": [{"key": "home", "name": "Accueil", "components": []}],
+    }
+    launcher = PrivateInterfaceLauncher(GameEngine(store), definition, 7)
+    interaction = type("Interaction", (), {"user": Member(), "response": Response()})()
+
+    asyncio.run(launcher.open(interaction))
+
+    assert responses[0]["ephemeral"] is True
+    assert isinstance(responses[0]["view"], discord_bot_module.InterfaceView)
 
 
 def test_action_is_atomic_and_idempotent(tmp_path):
