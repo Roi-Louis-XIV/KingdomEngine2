@@ -18,6 +18,7 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 
 - studio web responsive avec comptes, profils, collaborateurs, permissions et séparation des serveurs Discord ;
 - interface KingdomWeb Generation 3 : shell SaaS, surfaces de création hiérarchisées et thèmes **Clair**, **Sombre** ou **Système**, appliqués sans rechargement et mémorisés dans le navigateur ;
+- écran de connexion immersif avec panorama de royaume, logo KingdomEngine officiel détouré et composition responsive conservant l'identité visuelle sur mobile ;
 - navigation principale robuste par délégation de clic, avec bascule clair/sombre immédiate dans l’en-tête et directement dans le menu mobile ;
 - palette KingdomWeb dominée par le vert Payen/Kingdom, avec quelques accents violets réservés à la voix et aux éléments pédagogiques ;
 - mode smartphone orienté supervision : monde en direct, joueurs, événements, alertes, profil et interventions légères ; la création structurelle reste volontairement sur ordinateur ;

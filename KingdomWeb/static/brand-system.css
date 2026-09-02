@@ -47,11 +47,11 @@ main.app-main{width:100%;max-width:none}.workspace{width:100%}.cards{grid-templa
 
 /* Le logo officiel KingdomEngine vit dans l'identité du moteur et sur la connexion. */
 .engine-brand .kingdom-logo-small{display:block;width:42px;height:42px;flex:0 0 42px;overflow:hidden;padding:0;border:0;border-radius:9px;background:transparent;clip-path:none;box-shadow:none}
-.engine-brand .kingdom-logo-small img{display:block;width:100%;height:auto;transform:translateY(-8px)}
+.engine-brand .kingdom-logo-small img{display:block;width:100%;height:100%;object-fit:contain;transform:none}
 .login-engine-mark{display:block;width:160px;height:160px;overflow:hidden;border:0;border-radius:26px;background:transparent;clip-path:none;filter:drop-shadow(0 12px 28px #0009) drop-shadow(0 0 18px #f0a71e44)}
 .login-engine-mark img{display:block;width:100%;height:auto;transform:translateY(-31px)}
 .dashboard-welcome-copy{max-width:900px}
-@media(max-width:520px){.engine-brand .kingdom-logo-small{width:38px;height:38px;flex-basis:38px}.login-engine-mark{width:125px;height:125px}.login-engine-mark img{transform:translateY(-24px)}}
+@media(max-width:520px){.engine-brand .kingdom-logo-small{width:38px;height:38px;flex-basis:38px}.login-engine-mark{width:125px;height:125px}}
 
 /* La hiérarchie visuelle reste distincte des chemins praticables. */
 .world-map .world-hierarchy-link line{stroke:#d3a936;stroke-width:2.5;stroke-dasharray:none;opacity:.9}

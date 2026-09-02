@@ -47,6 +47,7 @@ DEFAULT_SERVER_SETTINGS: dict[str, Any] = {
         "administration_channel": "administration-royaume",
         "building_text_channel": "{name}",
         "building_voice_channel_template": "🔊 {name}",
+        "building_role_template": "🏠 Accès · {name}",
         "temporary_text_access": True,
         "entry_message_enabled": True,
         "entry_message": "{player} entre dans **{building}**. Que souhaites-tu faire ?",

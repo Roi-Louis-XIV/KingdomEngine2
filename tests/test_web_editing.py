@@ -606,6 +606,22 @@ def test_navigation_uses_generic_world_editor_vocabulary():
     assert "Entités & lieux" in page
 
 
+def test_login_uses_branded_logo_and_responsive_kingdom_background():
+    static = Path(web.__file__).with_name("static")
+    page = (static / "index.html").read_text(encoding="utf-8")
+    styles = (static / "login-v2.css").read_text(encoding="utf-8")
+    brand_styles = (static / "brand-system.css").read_text(encoding="utf-8")
+    assert page.count("/static/kingdomengine-logo-premium.png") >= 3
+    assert 'class="login-mobile-logo"' in page
+    assert "/static/login-kingdom-panorama-v2.png" in styles
+    assert ".login-mobile-logo{display:none" in styles
+    assert ".login-mobile-logo{display:block}" in styles
+    assert "translateY(-37px)" not in styles
+    assert "object-fit:contain" in brand_styles
+    assert (static / "kingdomengine-logo-premium.png").stat().st_size > 10_000
+    assert (static / "login-kingdom-panorama-v2.png").stat().st_size > 100_000
+
+
 def test_navigation_and_dark_theme_remain_available_in_desktop_and_mobile_shells():
     static = Path(web.__file__).with_name("static")
     page = (static / "index.html").read_text(encoding="utf-8")

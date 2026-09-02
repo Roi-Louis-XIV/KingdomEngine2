@@ -361,15 +361,15 @@ def test_login_interface_uses_the_immersive_brand_assets():
     with TestClient(web.app) as client:
         page = client.get("/")
         stylesheet = client.get("/static/login-v2.css")
-        panorama = client.get("/static/login-kingdom-panorama.png")
+        panorama = client.get("/static/login-kingdom-panorama-v2.png")
 
     assert page.status_code == 200
     assert "/static/login-v2.css" in page.text
-    assert "/static/kingdomengine-logo-transparent.png" in page.text
+    assert "/static/kingdomengine-logo-premium.png" in page.text
     assert "PAYEN" in page.text
     assert stylesheet.status_code == 200
     assert "place-items:stretch" in stylesheet.text
-    assert 'url("/static/login-kingdom-panorama.png")' in stylesheet.text
+    assert 'url("/static/login-kingdom-panorama-v2.png")' in stylesheet.text
     assert "@media(max-width:960px)" in stylesheet.text
     assert panorama.status_code == 200
     assert panorama.headers["content-type"] == "image/png"

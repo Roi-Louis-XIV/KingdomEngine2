@@ -19,6 +19,29 @@ AUDIT_REASON = "Installation automatique de KingdomEngine 2"
 OATH_CUSTOM_ID = "ke2:oath"
 
 
+def building_role_name(settings: dict[str, Any], building_key: str, payload: dict[str, Any]) -> str:
+    """Nom déterministe du rôle temporaire donnant accès au texte d'un bâtiment."""
+    template = settings["discord"].get("building_role_template", "🏠 Accès · {name}")
+    return str(template).format(
+        name=payload["name"], key=building_key, emoji=payload.get("emoji", "🏰")
+    ).strip()[:100]
+
+
+def find_player_role(guild: discord.Guild, configured_name: str) -> discord.Role | None:
+    """Retrouve le rôle joueur configuré ou son équivalent médiéval historique."""
+    exact = discord.utils.get(guild.roles, name=configured_name)
+    if exact is not None:
+        return exact
+    for name in (
+        "Habitant du Royaume", "Habitants du Royaume", "Habitant", "Habitants",
+        "⚔️ Habitant du Royaume", "⚔️ Habitants du Royaume", "⚔️ Habitants",
+    ):
+        role = discord.utils.get(guild.roles, name=name)
+        if role is not None:
+            return role
+    return None
+
+
 def message_is_oath(message: discord.Message, onboarding: dict[str, Any]) -> bool:
     """Reconnaît aussi les anciens messages dont le bouton avait un ID aléatoire."""
     return (
@@ -298,6 +321,10 @@ class DiscordProvisioner:
             return
         required_roles = [str(name).strip() for name in access.get("required_roles", []) if str(name).strip()]
         allowed_roles = [role for name in required_roles if (role := discord.utils.get(self.guild.roles, name=name))]
+        building_role = await self._ensure_role(
+            building_role_name(self.settings, entity["entity_key"], payload),
+            discord.Colour.dark_green(), discord.Permissions.none(), report, hoist=False,
+        )
         base_access = not required_roles
         category_overwrites: dict[Any, discord.PermissionOverwrite] = {
             self.guild.default_role: discord.PermissionOverwrite(view_channel=False),
@@ -308,6 +335,7 @@ class DiscordProvisioner:
             ),
             bot_role: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True, speak=True),
             me: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True, speak=True),
+            building_role: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True),
         }
         for role in allowed_roles:
             category_overwrites[role] = discord.PermissionOverwrite(view_channel=True, connect=True, speak=True)
@@ -323,6 +351,10 @@ class DiscordProvisioner:
             view_channel=base_access and not temporary_text,
             send_messages=base_access and not temporary_text,
             read_message_history=base_access and not temporary_text,
+            use_application_commands=False,
+        )
+        text_overwrites[building_role] = discord.PermissionOverwrite(
+            view_channel=True, send_messages=True, read_message_history=True,
             use_application_commands=False,
         )
         for role in allowed_roles:
@@ -343,15 +375,15 @@ class DiscordProvisioner:
                 (entity["entity_key"], str(category.id), str(text_channel.id), str(voice_channel.id)),
             )
 
-    async def _ensure_role(self, name: str, colour: discord.Colour, permissions: discord.Permissions, report: ProvisionReport) -> discord.Role:
+    async def _ensure_role(self, name: str, colour: discord.Colour, permissions: discord.Permissions, report: ProvisionReport, *, hoist: bool = True) -> discord.Role:
         role = discord.utils.get(self.guild.roles, name=name)
         if role is None:
-            role = await self.guild.create_role(name=name, colour=colour, permissions=permissions, hoist=True, reason=AUDIT_REASON)
+            role = await self.guild.create_role(name=name, colour=colour, permissions=permissions, hoist=hoist, reason=AUDIT_REASON)
             report.created_roles.append(name)
         else:
             if role >= self.guild.me.top_role:
                 raise PermissionError(f"Le rôle `{name}` doit être placé sous le rôle principal du bot.")
-            await role.edit(colour=colour, permissions=permissions, hoist=True, reason=AUDIT_REASON)
+            await role.edit(colour=colour, permissions=permissions, hoist=hoist, reason=AUDIT_REASON)
         return role
 
     async def _ensure_category(self, name: str, overwrites: dict[Any, discord.PermissionOverwrite], report: ProvisionReport) -> discord.CategoryChannel:

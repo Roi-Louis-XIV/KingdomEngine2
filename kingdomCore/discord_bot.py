@@ -20,7 +20,7 @@ from import_v1 import import_v1
 from seed import DEFINITIONS
 from .engine import GameEngine
 from .world import WorldEngine, WorldError
-from .provisioner import DiscordProvisioner, OATH_CUSTOM_ID, channel_slug, message_is_oath
+from .provisioner import DiscordProvisioner, OATH_CUSTOM_ID, building_role_name, channel_slug, find_player_role, message_is_oath
 
 
 logger = logging.getLogger(__name__)
@@ -696,7 +696,7 @@ class OathView(discord.ui.View):
             await interaction.followup.send(f"Cette {action_name} doit être effectuée depuis le serveur.", ephemeral=True)
             return
         try:
-            role = discord.utils.get(interaction.user.guild.roles, name=settings["roles"]["player"])
+            role = find_player_role(interaction.user.guild, settings["roles"]["player"])
             if role is None:
                 await interaction.followup.send("Le rôle d'accès au monde n'existe pas encore. Relancez la synchronisation Discord.", ephemeral=True)
                 return
@@ -842,6 +842,14 @@ async def set_text_access(
         "temporary_text", settings["discord"].get("temporary_text_access", True)
     )
     if not temporary:
+        return
+    role_name = building_role_name(settings, entity["entity_key"], entity["payload"])
+    building_role = discord.utils.get(member.guild.roles, name=role_name)
+    if building_role is not None:
+        if allowed and building_role not in member.roles:
+            await member.add_roles(building_role, reason="Présence dans le bâtiment KingdomEngine")
+        elif not allowed and building_role in member.roles:
+            await member.remove_roles(building_role, reason="Sortie du bâtiment KingdomEngine")
         return
     category_name = settings["discord"]["building_category_template"].format(
         name=entity["payload"]["name"], key=entity["entity_key"], emoji=entity["payload"].get("emoji", "🏰")
