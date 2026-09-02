@@ -51,34 +51,58 @@ def test_voice_entry_displays_the_building_menu_without_an_intermediate_click():
     assert menu.owner_id == 42
 
 
-def test_building_menu_is_sent_privately_and_deleted_on_voice_exit(tmp_path):
+def test_building_menu_uses_a_private_channel_thread_and_is_deleted_on_voice_exit(tmp_path):
     store = ContentStore(tmp_path / "private-entry.db")
     store.initialize()
     sent = []
     deleted = []
 
+    added = []
+    created = []
+
     class Message:
         id = 99
 
-        async def delete(self):
-            deleted.append(self.id)
-
-    class DirectChannel:
+    class PrivateThread:
         id = 77
+
+        async def add_user(self, selected):
+            added.append(selected.id)
 
         async def send(self, **kwargs):
             sent.append(kwargs)
             return Message()
 
-        async def fetch_message(self, message_id):
-            assert message_id == 99
-            return Message()
+        async def delete(self, reason=None):
+            deleted.append((self.id, reason))
 
-    direct = DirectChannel()
+    private_thread = PrivateThread()
+
+    class TextChannel:
+        name = "forge"
+
+        async def history(self, limit):
+            if False:
+                yield None
+
+        async def create_thread(self, **kwargs):
+            created.append(kwargs)
+            return private_thread
+
+    category = type("Category", (), {"name": "Forge", "text_channels": [TextChannel()]})()
+
+    class Guild:
+        categories = [category]
+        roles = []
+        me = type("BotMember", (), {"id": 1})()
+
+        def get_thread(self, thread_id):
+            return private_thread if thread_id == 77 else None
+
     member = type("Member", (), {
         "id": 42,
-        "dm_channel": direct,
-        "guild": type("Guild", (), {"categories": [], "roles": []})(),
+        "display_name": "Louis",
+        "guild": Guild(),
     })()
     definition = {
         "name": "Forge",
@@ -101,10 +125,13 @@ def test_building_menu_is_sent_privately_and_deleted_on_voice_exit(tmp_path):
 
     assert message.id == 99
     assert len(sent) == 1
+    assert created[0]["type"] is __import__("discord").ChannelType.private_thread
+    assert created[0]["invitable"] is False
+    assert added == [42]
     assert store.building_entry_message("42", "forge")["message_id"] == "99"
 
     assert asyncio.run(delete_building_entry(store, member, "forge")) is True
-    assert deleted == [99]
+    assert deleted == [(77, "Sortie du bâtiment KingdomEngine")]
     assert store.building_entry_message("42", "forge") == {}
 
 

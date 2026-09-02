@@ -953,14 +953,29 @@ async def send_building_entry(
             except discord.HTTPException:
                 logger.warning("Ancien menu public impossible à nettoyer dans #%s.", channel.name)
 
+    if channel is None:
+        logger.warning(
+            "Interface privée de %s impossible à créer pour %s : salon textuel du bâtiment absent.",
+            building_key, member.id,
+        )
+        return None
+
     await delete_building_entry(store, member, building_key)
     definition = interface_for_building(store, payload) or interface_from_building(
         building_key, payload, payload.get("actions", [])
     )
     content, menu = building_entry_menu(engine, definition, member.id, payload["name"])
+    private_thread = None
     try:
-        private_channel = member.dm_channel or await member.create_dm()
-        message = await private_channel.send(
+        private_thread = await channel.create_thread(
+            name=f"interface-{member.display_name}"[:100],
+            type=discord.ChannelType.private_thread,
+            invitable=False,
+            auto_archive_duration=60,
+            reason="Interface privée KingdomEngine",
+        )
+        await private_thread.add_user(member)
+        message = await private_thread.send(
             content=content,
             embed=menu.embed(),
             view=menu,
@@ -968,33 +983,58 @@ async def send_building_entry(
             allowed_mentions=discord.AllowedMentions.none(),
         )
     except (discord.Forbidden, discord.HTTPException):
+        if private_thread is not None:
+            try:
+                await private_thread.delete(reason="Création incomplète de l’interface KingdomEngine")
+            except (discord.Forbidden, discord.HTTPException):
+                pass
         logger.warning(
-            "Menu privé de %s non envoyé à %s : messages directs Discord fermés.",
-            building_key, member.id,
+            "Interface privée de %s impossible à créer dans #%s pour %s.",
+            building_key, channel.name,
+            member.id,
         )
         return None
-    store.save_building_entry_message(str(member.id), building_key, str(private_channel.id), str(message.id))
-    logger.info("Menu privé de %s envoyé à %s.", building_key, member.id)
+    store.save_building_entry_message(str(member.id), building_key, str(private_thread.id), str(message.id))
+    logger.info(
+        "Interface privée de %s créée dans #%s pour %s.",
+        building_key, channel.name,
+        member.id,
+    )
     return message
 
 
 async def delete_building_entry(store: ContentStore, member: discord.Member, building_key: str) -> bool:
-    """Supprime le menu privé mémorisé lorsque le joueur quitte le lieu."""
+    """Supprime le fil privé du bâtiment lorsque le joueur quitte le lieu."""
     record = store.building_entry_message(str(member.id), building_key)
     if not record:
         return False
+
+    private_thread = None
     try:
-        private_channel = member.dm_channel or await member.create_dm()
-        message = await private_channel.fetch_message(int(record["message_id"]))
-        await message.delete()
+        thread_id = int(record["channel_id"])
+        # Compatibilité de nettoyage avec les menus envoyés en DM par une
+        # version antérieure. Aucun nouveau message privé n'est créé.
+        legacy_dm = getattr(member, "dm_channel", None)
+        if legacy_dm is not None and legacy_dm.id == thread_id:
+            message = await legacy_dm.fetch_message(int(record["message_id"]))
+            await message.delete()
+            store.delete_building_entry_message(str(member.id), building_key)
+            return True
+        get_thread = getattr(member.guild, "get_thread", None)
+        private_thread = get_thread(thread_id) if get_thread else member.guild.get_channel(thread_id)
+        if private_thread is None:
+            private_thread = await member.guild.fetch_channel(thread_id)
+        await private_thread.delete(reason="Sortie du bâtiment KingdomEngine")
     except discord.NotFound:
         pass
     except (discord.Forbidden, discord.HTTPException, ValueError):
-        logger.warning("Menu privé de %s impossible à supprimer pour %s.", building_key, member.id)
+        logger.warning(
+            "Fil privé de %s impossible à supprimer pour %s.",
+            building_key, member.id,
+        )
         return False
-    finally:
-        store.delete_building_entry_message(str(member.id), building_key)
-    logger.info("Menu privé de %s supprimé pour %s.", building_key, member.id)
+    store.delete_building_entry_message(str(member.id), building_key)
+    logger.info("Fil privé de %s supprimé pour %s.", building_key, member.id)
     return True
 
 

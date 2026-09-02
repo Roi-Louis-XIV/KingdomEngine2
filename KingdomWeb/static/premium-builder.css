@@ -1074,3 +1074,40 @@
     margin-left: 22px;
   }
 }
+
+/* ==============================
+   GRANDS ÉCRANS — UTILISATION DE TOUT L'ESPACE
+   ============================== */
+
+@media (min-width: 1501px) {
+  .wizard-panel.building-mode .editor-layout {
+    grid-template-columns:
+      clamp(260px, 15vw, 340px)
+      minmax(0, 1fr)
+      clamp(360px, 20vw, 460px) !important;
+  }
+
+  .wizard-panel.building-mode .editor-layout.inspector-collapsed {
+    grid-template-columns: clamp(260px, 15vw, 340px) minmax(0, 1fr) !important;
+  }
+
+  .building-mode #definition-step {
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+    margin-inline: 0;
+    padding-inline: clamp(34px, 3vw, 72px);
+  }
+
+  .building-mode .visual-studio,
+  .building-mode .builder-canvas,
+  .building-mode [data-building-panel] {
+    width: 100%;
+    max-width: none;
+  }
+
+  .building-mode .form-grid,
+  .building-mode .cols {
+    column-gap: clamp(22px, 2vw, 38px) !important;
+  }
+}
