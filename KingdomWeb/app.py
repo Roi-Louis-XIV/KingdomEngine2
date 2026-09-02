@@ -699,6 +699,16 @@ def reference_building():
     }
 
 
+@app.delete("/api/world/professions/{key}", dependencies=[Depends(authorize)])
+def delete_world_profession(key: str):
+    try:
+        return WorldCreatorService(store).delete_profession(key)
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except (ValidationError, ConflictError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
 @app.get("/api/content/{entity_type}/{key}", dependencies=[Depends(authorize)])
 def get_content(entity_type: str, key: str):
     try: return store.get(entity_type, key)

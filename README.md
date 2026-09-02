@@ -26,7 +26,8 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 - bâtiments entièrement no-code avec modes Simple et Avancé, pages Discord, boutons, menus, navigation et organigramme ;
 - **Atelier-école no-code** isolé dans l’Académie : démonstration non publiable et non modifiable, utilisant les vrais éditeurs sans toucher au serveur Discord. Sa visite par chapitres couvre deux métiers, zones et niveaux, outils et durabilité, cooldowns, résultats pondérés multi-effets, recettes, commerce, livraison, réparation, amélioration, inventaires, pages Discord, boutons conditionnels, relations et audio ;
 - boutons Discord conditionnels héritant des règles de leur action : rejoindre/quitter un métier et les autres choix incompatibles sont automatiquement masqués ;
-- Builder de bâtiments en espace de travail responsive : liste des bâtiments, éditeur central par onglets, inspecteur contextuel, avertissements et barre de sauvegarde toujours accessible ;
+- Builder de bâtiments en plein écran responsive : navigation latérale entre bâtiments, éditeur central large par onglets, inspecteur contextuel, avertissements et barre de sauvegarde toujours accessible ;
+- éditeur d’objets en plein écran avec formulaire élargi et fiche métier permettant la suppression directe des définitions autonomes ;
 - métiers, zones, niveaux, outils, durabilité, expérience, cooldowns et activités temporisées ;
 - objets, inventaires joueur et bâtiment, recettes, commerce, productions, livraisons et objectifs collectifs ;
 - modèles de départ jouables : **Royaume médiéval** et **Station spatiale** fournissent chacun 5 bâtiments avec pages Discord, métiers reliés, outils, actions, inventaires et chaînes de production, ainsi que leurs objets, événements, géographie, environnement et bot principal entièrement modifiables ;

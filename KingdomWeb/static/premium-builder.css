@@ -17,3 +17,24 @@
 @media(max-width:1040px){.building-mode #building-list-toggle{display:inline-flex}.building-mode .editor-layout{grid-template-columns:minmax(0,1fr)}.building-workbench-nav{position:absolute;z-index:30;inset:72px auto 58px 0;width:min(300px,86vw);box-shadow:25px 0 60px #0006;transform:translateX(-105%);transition:transform .2s}.building-workbench-nav.open{transform:none}.building-mode #definition-step{padding-inline:18px}}
 @media(max-width:760px){.wizard-panel.building-mode{inset:0;width:100vw!important;height:100dvh;max-height:100dvh;border-radius:0!important}.building-mode .dialog-head{min-height:62px}.building-mode #definition-step{padding:14px 12px 34px}.building-mode .building-editor-tabs{top:-14px}.building-mode .cols,.building-mode .form-grid,.building-mode .friendly-effect{grid-template-columns:1fr!important}.building-mode .actions:before{display:none}.building-mode .actions{display:grid;grid-template-columns:1fr 1fr}.building-mode .actions .primary{grid-column:1/-1;grid-row:1}.building-mode .building-sheet-hero{padding:15px}.building-mode .form-section,.building-mode .common-fields.form-section{padding:16px!important}}
 @media(max-height:720px){.wizard-panel.building-mode{height:calc(100dvh - 12px);max-height:calc(100dvh - 12px)}.building-mode .dialog-head{min-height:58px;padding-block:9px!important}.building-workbench-nav{inset-block-start:58px}.building-mode .actions{padding-block:8px!important}}
+
+/* L'atelier bâtiment possède trois véritables colonnes. La règle plus
+   spécifique évite qu'un ancien layout 2 colonnes transforme le navigateur
+   en immense zone vide et écrase le formulaire sur la droite. */
+.wizard-panel.building-mode .editor-layout{grid-template-columns:260px minmax(640px,1fr) 330px!important}
+.wizard-panel.building-mode .editor-main{padding:12px clamp(20px,2.4vw,46px) 32px!important}
+.wizard-panel.building-mode .building-workbench-list{align-content:start}
+
+/* Les objets utilisent eux aussi tout l'écran : le formulaire reste central
+   et l'aide conserve une largeur confortable sans comprimer les champs. */
+.modal:has(.item-mode){padding:0}
+.wizard-panel.item-mode{width:100vw;max-width:none;height:100dvh;max-height:none;border:0;border-radius:0}
+.wizard-panel.item-mode form{display:flex;height:100%;flex-direction:column;overflow:hidden}
+.wizard-panel.item-mode .editor-layout{grid-template-columns:minmax(620px,1fr) 360px;flex:1;min-height:0;overflow:hidden}
+.wizard-panel.item-mode .editor-main{max-height:none;padding:20px clamp(26px,5vw,92px) 36px;overflow:auto}
+.wizard-panel.item-mode .context-help{display:block;overflow:auto}
+.wizard-panel.item-mode .actions{flex:0 0 auto;margin:0}
+.profession-detail-dialog .actions{position:sticky;bottom:0;margin:0;border-top:1px solid var(--border);background:var(--surface-elevated)}
+
+@media(max-width:1500px){.wizard-panel.building-mode .editor-layout{grid-template-columns:230px minmax(560px,1fr)!important}.wizard-panel.building-mode .context-help{display:none!important}}
+@media(max-width:1050px){.wizard-panel.building-mode .editor-layout{grid-template-columns:minmax(0,1fr)!important}.wizard-panel.item-mode .editor-layout{grid-template-columns:minmax(0,1fr)}.wizard-panel.item-mode .context-help{display:none}}

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
+from KingdomData import NotFoundError
 from kingdomEvent.modifiers import ModifierEngine, explain
 from kingdomEvent.runtime import WorldClock, event_is_active
 from kingdomEvent.lifecycle import EventLifecycle
@@ -34,6 +36,64 @@ class WorldCreatorService:
         for standalone in self.store.list("profession"):
             rows.setdefault(standalone["entity_key"], {**standalone["payload"], "key": standalone["entity_key"], "buildings": [], "activities": [], "produced_items": []})
         return sorted(rows.values(), key=lambda row: row.get("name", row["key"]))
+
+    def delete_profession(self, profession_key: str) -> dict[str, Any]:
+        """Supprime une fiche métier et détache ses mécaniques des bâtiments.
+
+        Les métiers historiques peuvent être embarqués dans un bâtiment alors
+        que les modèles récents possèdent aussi une fiche autonome. Cette
+        opération traite les deux représentations sans laisser de boutons ou
+        d'activités pointant vers une définition supprimée.
+        """
+        updated_buildings: list[str] = []
+        for entity in self.store.list("building"):
+            payload = copy.deepcopy(entity["payload"])
+            modules = payload.setdefault("modules", {})
+            professions = modules.get("professions", [])
+            activities = modules.get("activities", [])
+            removed_activities = {str(row.get("key", "")) for row in activities if str(row.get("profession", "")) == profession_key}
+            uses_profession = any(str(row.get("key", "")) == profession_key for row in professions)
+            uses_profession = uses_profession or bool(removed_activities) or payload.get("relations", {}).get("primary_profession_key") == profession_key
+            if not uses_profession:
+                continue
+            modules["professions"] = [row for row in professions if str(row.get("key", "")) != profession_key]
+            modules["activities"] = [row for row in activities if str(row.get("profession", "")) != profession_key]
+            relations = payload.setdefault("relations", {})
+            if relations.get("primary_profession_key") == profession_key:
+                relations["primary_profession_key"] = modules["professions"][0].get("key", "") if modules["professions"] else ""
+
+            def references_profession(value: Any) -> bool:
+                if isinstance(value, dict):
+                    return value.get("profession") == profession_key or any(references_profession(item) for item in value.values())
+                if isinstance(value, list):
+                    return any(references_profession(item) for item in value)
+                return False
+
+            removed_actions = {f"join_{profession_key}", f"leave_{profession_key}"}
+            removed_actions.update(removed_activities)
+            removed_actions.update(f"claim_{key}" for key in removed_activities)
+            payload["actions"] = [action for action in payload.get("actions", []) if str(action.get("key", "")) not in removed_actions and not references_profession(action)]
+            interface = payload.get("interface", {})
+            for page in interface.get("pages", []):
+                page["components"] = [component for component in page.get("components", []) if not references_profession(component) and str(component.get("interaction", {}).get("action", "")) not in removed_actions]
+            interface.get("profession_labels", {}).pop(profession_key, None)
+            draft = self.store.save("building", entity["entity_key"], payload, "profession-deletion", entity["version"])
+            if entity["status"] == "published":
+                self.store.publish("building", entity["entity_key"], draft["version"], "profession-deletion")
+                self.store.request_discord_provision("building", entity["entity_key"], "profession-deletion")
+            updated_buildings.append(entity["entity_key"])
+
+        standalone_deleted = False
+        try:
+            self.store.delete("profession", profession_key, "profession-deletion")
+            standalone_deleted = True
+        except NotFoundError:
+            pass
+        if not standalone_deleted and not updated_buildings:
+            raise NotFoundError(f"profession/{profession_key} introuvable.")
+        with self.store.connection() as db:
+            db.execute("UPDATE player_professions SET active=0 WHERE profession_key=?", (profession_key,))
+        return {"deleted": True, "profession_key": profession_key, "updated_buildings": updated_buildings, "standalone_deleted": standalone_deleted}
 
     def item_usage(self, item_key: str) -> dict[str, Any]:
         result = {"item_key": item_key, "tools": [], "produced": [], "consumed": [], "deliveries": []}

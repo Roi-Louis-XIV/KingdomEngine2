@@ -622,3 +622,44 @@ def test_navigation_and_dark_theme_remain_available_in_desktop_and_mobile_shells
     assert "Objets & ressources" in page
     assert "Temps & calendrier" in page
     assert "Présences vocales" in page
+
+
+def test_building_and_item_editors_keep_full_size_workspaces_and_profession_delete():
+    static = Path(web.__file__).with_name("static")
+    script = (static / "app.js").read_text(encoding="utf-8")
+    styles = (static / "premium-builder.css").read_text(encoding="utf-8")
+    assert 'classList.add("item-mode")' in script
+    assert "data-workbench-building" in script
+    assert "data-delete-profession" in script
+    assert ".wizard-panel.building-mode .editor-layout" in styles
+    assert "grid-template-columns:260px minmax(640px,1fr) 330px" in styles
+    assert ".wizard-panel.item-mode" in styles
+
+
+def test_profession_delete_detaches_its_building_mechanics(tmp_path, monkeypatch):
+    store = ContentStore(tmp_path / "profession-delete.db"); store.initialize()
+    profession = store.save("profession", "woodcutter", {"name": "Bûcheron", "emoji": "🪓"})
+    store.publish("profession", "woodcutter", profession["version"])
+    building = store.save("building", "forest", {
+        "name": "Forêt", "relations": {"primary_profession_key": "woodcutter"},
+        "modules": {
+            "professions": [{"key": "woodcutter", "name": "Bûcheron"}],
+            "activities": [{"key": "chop", "name": "Couper du bois", "profession": "woodcutter", "outcomes": []}],
+        },
+        "actions": [
+            {"key": "join_woodcutter", "name": "Devenir bûcheron", "effects": [{"type": "profession_join", "profession": "woodcutter"}]},
+            {"key": "look", "name": "Observer", "effects": [{"type": "message", "text": "Silence."}]},
+        ],
+    })
+    store.publish("building", "forest", building["version"])
+    monkeypatch.setattr(web, "store", store)
+    with TestClient(web.app) as client:
+        response = client.delete("/api/world/professions/woodcutter", headers={"Authorization": "Bearer change-me"})
+    assert response.status_code == 200
+    result = response.json()
+    assert result["updated_buildings"] == ["forest"]
+    updated = store.get("building", "forest", published=True)["payload"]
+    assert updated["modules"]["professions"] == []
+    assert updated["modules"]["activities"] == []
+    assert [action["key"] for action in updated["actions"]] == ["look"]
+    assert updated["relations"]["primary_profession_key"] == ""
