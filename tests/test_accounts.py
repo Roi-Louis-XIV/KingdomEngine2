@@ -154,16 +154,25 @@ def test_platform_admin_page_and_api_are_server_side_protected(tmp_path, monkeyp
     monkeypatch.setattr(web, "comptes", registry)
     monkeypatch.setattr(web, "DEFINITIONS", [])
     monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+    monkeypatch.setattr(
+        web.ServiceSupervisor,
+        "synchronize_with_github",
+        lambda _self: {"accepted": True, "status": "starting"},
+    )
 
     with TestClient(web.app) as client:
         normal = client.post("/api/auth/register", json={"username": "client-normal", "display_name": "Client", "email": "", "password": "client-password-123", "password_confirmation": "client-password-123"})
         assert normal.status_code == 200
         assert client.get("/platform-admin").status_code == 403
         assert client.get("/api/platform/overview").status_code == 403
+        assert client.post("/api/platform/deployment/synchronize").status_code == 403
         client.post("/api/auth/logout")
         assert client.post("/api/auth/login", json={"username": "platform-owner", "password": "platform-password-123"}).status_code == 200
         assert client.get("/platform-admin").status_code == 200
         assert client.get("/api/platform/overview").status_code == 200
+        update = client.post("/api/platform/deployment/synchronize")
+        assert update.status_code == 200
+        assert update.json()["accepted"] is True
 
 
 def test_web_accounts_and_servers_are_isolated(tmp_path, monkeypatch):

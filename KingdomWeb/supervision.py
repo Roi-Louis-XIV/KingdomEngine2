@@ -26,6 +26,7 @@ LOGS_DIR = ROOT / "var" / "logs"
 class ServiceSupervisor:
     _control_lock = threading.RLock()
     SYSTEMD_UNITS = {"web": "kingdom-web.service", "core": "kingdom-core.service", "voice": "kingdom-voice.service"}
+    UPDATE_UNIT = "kingdomengine-update.service"
 
     def definitions(self) -> list[dict[str, Any]]:
         return json.loads(SERVICES_CONFIG.read_text(encoding="utf-8"))["services"]
@@ -103,6 +104,32 @@ class ServiceSupervisor:
             if operation in {"start", "restart"}:
                 self._start(definition)
             return next(item for item in self.statuses() if item["key"] == service_key)
+
+    def synchronize_with_github(self) -> dict[str, Any]:
+        """Déclenche l'unité de mise à jour Debian sans exposer de shell libre."""
+        if sys.platform == "win32" or not Path("/run/systemd/system").exists():
+            raise ValueError("La synchronisation GitHub est disponible sur le serveur Debian installé avec systemd.")
+        active = subprocess.run(
+            ["/usr/bin/systemctl", "is-active", self.UPDATE_UNIT],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=3,
+        )
+        if active.stdout.strip() == "active":
+            return {"accepted": True, "status": "running", "message": "Une synchronisation GitHub est déjà en cours."}
+        command = ["/usr/bin/systemctl", "--no-block", "start", self.UPDATE_UNIT]
+        if hasattr(os, "geteuid") and os.geteuid() != 0:
+            command = ["/usr/bin/sudo", "-n", *command]
+        result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=10)
+        if result.returncode:
+            detail = (result.stderr or result.stdout or "Autorisation de mise à jour refusée.").strip()
+            raise ValueError(f"Synchronisation GitHub impossible : {detail[:300]}")
+        return {
+            "accepted": True,
+            "status": "starting",
+            "message": "Synchronisation GitHub lancée. Les services redémarreront si une mise à jour est disponible.",
+        }
 
     def _control_systemd(self, service_key: str, operation: str, current: dict[str, Any]) -> dict[str, Any]:
         """Pilote uniquement les trois unités KingdomEngine autorisées."""

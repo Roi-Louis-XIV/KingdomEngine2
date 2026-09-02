@@ -90,6 +90,36 @@ async function controlService(button) {
   }
 }
 
+async function synchronizeWithGithub(button) {
+  if (
+    !confirm(
+      "Vérifier GitHub et déployer la dernière version disponible ? Les services KingdomEngine redémarreront uniquement si le code change.",
+    )
+  )
+    return;
+  const feedback = document.querySelector("#deployment-feedback");
+  button.disabled = true;
+  feedback.className = "deployment-feedback busy";
+  feedback.textContent = "Synchronisation en cours de lancement…";
+  try {
+    const response = await fetch("/api/platform/deployment/synchronize", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "Synchronisation refusée.");
+    feedback.className = "deployment-feedback success";
+    feedback.textContent = result.message;
+    setTimeout(load, 6000);
+  } catch (error) {
+    feedback.className = "deployment-feedback error";
+    feedback.textContent = error.message;
+    button.disabled = false;
+  }
+}
+
 async function load() {
   const response = await fetch("/api/platform/overview", {
     credentials: "same-origin",
@@ -144,8 +174,10 @@ async function load() {
           `<article class="ops-timeline"><i></i><div><b>${esc(item.action)}</b><small>${esc(item.target_type)} · ${esc(item.target_id)}</small></div><time>${relative(item.created_at)}</time></article>`,
       )
       .join("") || '<p class="ops-empty">Aucune opération auditée.</p>';
-  root.innerHTML = `<section class="ops-hero"><div><small>CENTRE D’EXPLOITATION</small><h2>${incidents ? "Attention requise" : "Plateforme opérationnelle"}</h2><p>${healthy}/${services.length} services disponibles · dernière vérification à l’instant</p></div><span class="ops-global ${incidents ? "warning" : "healthy"}"><i></i>${incidents ? `${incidents} incident(s)` : "Tous les systèmes sont stables"}</span></section><section class="ops-metrics"><article><span>♙</span><small>UTILISATEURS</small><strong>${m.users}</strong><p>${m.organizations} organisation(s)</p></article><article><span>◇</span><small>MONDES ACTIFS</small><strong>${m.worlds}</strong><p>Environnements clients</p></article><article><span>◖</span><small>CAPACITÉ VOCALE</small><strong>${(data.voice_worlds || []).reduce((sum, w) => sum + w.active, 0)} / ${(data.voice_worlds || []).reduce((sum, w) => sum + w.capacity, 0)}</strong><p>Allocations actives</p></article><article><span>⌁</span><small>SUPPORT ACTIF</small><strong>${m.active_support}</strong><p>Accès consentis</p></article></section><section class="ops-services"><div class="ops-title"><div><small>SANTÉ PLATEFORME</small><h2>Services de production</h2></div><button type="button" id="refresh-platform">↻ Rafraîchir</button></div><div>${services.map(serviceCard).join("")}</div></section><div class="ops-grid">${panel("Clients et mondes", accounts, "Comptes autorisés sur la plateforme.", "clients")}${panel("Capacité Voice", voice, "Allocations et présences par monde.", "voice")}${panel("Support Mode", support, "Consentements temporaires et périmètres.", "support")}${panel("Déploiement", `<article class="deployment-card"><span>${deployment.status === "success" ? "✓" : "◇"}</span><div><small>${esc(deployment.environment || "Production")}</small><h3>${esc(deployment.commit || "inconnu")}</h3><p>${esc(deployment.message || "Aucun rapport disponible.")}</p></div><time>${relative(deployment.deployed_at)}</time></article>`, "Version actuellement déployée.", "deployment")}${panel("Journal d’exploitation", audit, "Actions administratives récentes.", "audit")}</div>`;
+  root.innerHTML = `<section class="ops-hero"><div><small>CENTRE D’EXPLOITATION</small><h2>${incidents ? "Attention requise" : "Plateforme opérationnelle"}</h2><p>${healthy}/${services.length} services disponibles · dernière vérification à l’instant</p></div><span class="ops-global ${incidents ? "warning" : "healthy"}"><i></i>${incidents ? `${incidents} incident(s)` : "Tous les systèmes sont stables"}</span></section><section class="ops-metrics"><article><span>♙</span><small>UTILISATEURS</small><strong>${m.users}</strong><p>${m.organizations} organisation(s)</p></article><article><span>◇</span><small>MONDES ACTIFS</small><strong>${m.worlds}</strong><p>Environnements clients</p></article><article><span>◖</span><small>CAPACITÉ VOCALE</small><strong>${(data.voice_worlds || []).reduce((sum, w) => sum + w.active, 0)} / ${(data.voice_worlds || []).reduce((sum, w) => sum + w.capacity, 0)}</strong><p>Allocations actives</p></article><article><span>⌁</span><small>SUPPORT ACTIF</small><strong>${m.active_support}</strong><p>Accès consentis</p></article></section><section class="ops-services"><div class="ops-title"><div><small>SANTÉ PLATEFORME</small><h2>Services de production</h2></div><button type="button" id="refresh-platform">↻ Rafraîchir</button></div><div>${services.map(serviceCard).join("")}</div></section><div class="ops-grid">${panel("Clients et mondes", accounts, "Comptes autorisés sur la plateforme.", "clients")}${panel("Capacité Voice", voice, "Allocations et présences par monde.", "voice")}${panel("Support Mode", support, "Consentements temporaires et périmètres.", "support")}${panel("Déploiement", `<article class="deployment-card"><span>${deployment.status === "success" ? "✓" : "◇"}</span><div><small>${esc(deployment.environment || "Production")}</small><h3>${esc(deployment.commit || "inconnu")}</h3><p>${esc(deployment.message || "Aucun rapport disponible.")}</p><div class="deployment-actions"><button type="button" id="sync-github">↻ Synchroniser avec GitHub</button><small id="deployment-feedback" class="deployment-feedback"></small></div></div><time>${relative(deployment.deployed_at)}</time></article>`, "Version actuellement déployée.", "deployment")}${panel("Journal d’exploitation", audit, "Actions administratives récentes.", "audit")}</div>`;
   document.querySelector("#refresh-platform").onclick = load;
+  document.querySelector("#sync-github").onclick = (event) =>
+    synchronizeWithGithub(event.currentTarget);
   document
     .querySelectorAll("[data-platform-service]")
     .forEach((button) => (button.onclick = () => controlService(button)));

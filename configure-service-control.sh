@@ -10,7 +10,7 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE_USER="${1:-$(stat -c '%U' "$ROOT")}"
 CONTROL_RULE="/etc/sudoers.d/kingdomengine-service-control"
 
-# Aucun shell ni wildcard : uniquement neuf commandes systemctl exactes.
+# Aucun shell ni wildcard : uniquement les commandes systemctl exactes.
 {
   printf '%s ALL=(root) NOPASSWD: ' "$SERVICE_USER"
   first=1
@@ -21,6 +21,7 @@ CONTROL_RULE="/etc/sudoers.d/kingdomengine-service-control"
       first=0
     done
   done
+  printf ', /usr/bin/systemctl --no-block start kingdomengine-update.service'
   printf '\n'
 } >"$CONTROL_RULE"
 chmod 0440 "$CONTROL_RULE"

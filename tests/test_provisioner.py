@@ -3,7 +3,7 @@ import asyncio
 from types import SimpleNamespace
 
 from KingdomData import ContentStore
-from kingdomCore.discord_bot import building_for_voice, set_text_access
+from kingdomCore.discord_bot import building_for_voice, managed_store_for_guild, set_text_access
 from kingdomCore.provisioner import (
     DiscordProvisioner,
     OATH_CUSTOM_ID,
@@ -117,6 +117,46 @@ def test_legacy_voice_channel_is_linked_by_name_even_outside_building_category(t
     )
 
     assert building_for_voice(store, legacy_channel)["entity_key"] == "forest_camp"
+
+
+def test_provisioned_voice_channel_is_linked_by_persisted_id_after_rename(tmp_path):
+    store = ContentStore(tmp_path / "mapped-voice.db")
+    store.initialize()
+    draft = store.save("building", "forge", {"name": "Forge", "emoji": "⚒️", "actions": []})
+    store.publish("building", "forge", draft["version"])
+    with store.connection() as database:
+        database.execute(
+            "INSERT INTO building_discord_channels VALUES('forge','10','11','42',datetime('now'))"
+        )
+    renamed_channel = SimpleNamespace(
+        id=42,
+        name="atelier-renomme-manuellement",
+        category=SimpleNamespace(name="Catégorie personnalisée"),
+    )
+
+    assert building_for_voice(store, renamed_channel)["entity_key"] == "forge"
+
+
+def test_discord_event_uses_the_database_owned_by_its_guild(tmp_path):
+    primary = ContentStore(tmp_path / "kingdom.db")
+    world = ContentStore(tmp_path / "servers" / "second-world.db")
+    primary.initialize()
+    world.initialize()
+    with primary.connection() as database:
+        database.execute(
+            "CREATE TABLE managed_servers(slug TEXT,name TEXT,guild_id TEXT,database_path TEXT,"
+            "bot_installed INTEGER,active INTEGER,created_at TEXT)"
+        )
+        database.execute(
+            "INSERT INTO managed_servers(slug,name,guild_id,database_path,bot_installed,active,created_at) "
+            "VALUES(?,?,?,?,1,1,datetime('now'))",
+            ("second-world", "Second World", "9876", str(world.path)),
+        )
+
+    selected = managed_store_for_guild(primary, 9876)
+
+    assert selected.path.resolve() == world.path.resolve()
+    assert managed_store_for_guild(primary, 1234) is primary
 
 
 def test_deleted_building_removes_only_its_managed_discord_channels(tmp_path):

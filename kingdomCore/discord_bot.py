@@ -763,6 +763,14 @@ def building_entry_menu(
 def building_for_voice(store: ContentStore, channel: discord.VoiceChannel | None) -> dict[str, Any] | None:
     if channel is None:
         return None
+    # L'identifiant persisté lors du provisionnement reste fiable même si un
+    # administrateur renomme ensuite le salon ou sa catégorie dans Discord.
+    for entity in store.list("building", published=True):
+        if entity["payload"].get("is_reference"):
+            continue
+        mapping = store.building_channels(entity["entity_key"])
+        if str(mapping.get("voice_channel_id", "")) and str(mapping["voice_channel_id"]) == str(getattr(channel, "id", "")):
+            return entity
     settings = get_server_settings(store)["discord"]
     category_template = settings["building_category_template"]
     voice_template = settings["building_voice_channel_template"]
@@ -781,6 +789,24 @@ def building_for_voice(store: ContentStore, channel: discord.VoiceChannel | None
         ):
             return entity
     return None
+
+
+def managed_store_for_guild(primary_store: ContentStore, guild_id: int) -> ContentStore:
+    """Retourne la base du monde associé au serveur Discord courant."""
+    with primary_store.connection() as db:
+        tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        row = db.execute(
+            "SELECT database_path FROM managed_servers WHERE active=1 AND guild_id=? LIMIT 1",
+            (str(guild_id),),
+        ).fetchone() if "managed_servers" in tables else None
+    if not row:
+        return primary_store
+    path = Path(str(row[0])).resolve()
+    if path == primary_store.path.resolve():
+        return primary_store
+    target = ContentStore(path)
+    target.initialize()
+    return target
 
 
 def persist_player_presence(store: ContentStore, member: discord.Member, channel: discord.VoiceChannel | None) -> None:
@@ -866,8 +892,16 @@ async def set_text_access(
             )
         if allowed and building_role not in member.roles:
             await member.add_roles(building_role, reason="Présence dans le bâtiment KingdomEngine")
+            logger.info(
+                "Rôle bâtiment %s attribué à %s sur %s.",
+                building_role.name, getattr(member, "id", "inconnu"), getattr(member.guild, "name", "serveur"),
+            )
         elif not allowed and building_role in member.roles:
             await member.remove_roles(building_role, reason="Sortie du bâtiment KingdomEngine")
+            logger.info(
+                "Rôle bâtiment %s retiré à %s sur %s.",
+                building_role.name, getattr(member, "id", "inconnu"), getattr(member.guild, "name", "serveur"),
+            )
     else:
         logger.warning(
             "Rôle bâtiment absent pour %s (%s) : lancez la synchronisation Discord.",
@@ -1026,33 +1060,35 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
 
     async def reconcile_building_access() -> None:
         """Restaure les accès temporaires après chaque démarrage complet du Core."""
-        configured_guild_id = int(os.getenv("KINGDOM_GUILD_ID", "0") or 0)
-        guilds = [guild for guild in bot.guilds if not configured_guild_id or guild.id == configured_guild_id]
-        for guild in guilds:
+        # Le Core est multi-serveur : KINGDOM_GUILD_ID reste un repli historique,
+        # mais ne doit pas empêcher la réconciliation des mondes administrés.
+        for guild in bot.guilds:
+            guild_store = managed_store_for_guild(store, guild.id)
+            guild_engine = GameEngine(guild_store, EventBus())
             occupants: dict[str, dict[int, discord.Member]] = {}
             entities: dict[str, dict[str, Any]] = {}
             voice_categories: dict[str, discord.CategoryChannel | None] = {}
             for voice_channel in guild.voice_channels:
-                entity = building_for_voice(store, voice_channel)
+                entity = building_for_voice(guild_store, voice_channel)
                 if entity is None:
                     continue
                 key = entity["entity_key"]
                 entities[key] = entity
                 voice_categories[key] = voice_channel.category
                 occupants.setdefault(key, {}).update({member.id: member for member in voice_channel.members if not member.bot})
-            settings = get_server_settings(store)
+            settings = get_server_settings(guild_store)
             for key, entity in entities.items():
                 present = occupants.get(key, {})
                 payload = entity["payload"]
                 required_roles = set(payload.get("access", {}).get("required_roles", []))
                 for member in present.values():
-                    persist_player_presence(store, member, member.voice.channel if member.voice and isinstance(member.voice.channel, discord.VoiceChannel) else None)
+                    persist_player_presence(guild_store, member, member.voice.channel if member.voice and isinstance(member.voice.channel, discord.VoiceChannel) else None)
                     if required_roles and not required_roles.intersection(role.name for role in member.roles):
                         continue
                     try:
                         await set_text_access(member, entity, settings, True, voice_categories.get(key))
                         if settings["discord"].get("entry_message_enabled", True):
-                            await send_building_entry(store, engine, member, entity, settings, voice_categories.get(key))
+                            await send_building_entry(guild_store, guild_engine, member, entity, settings, voice_categories.get(key))
                     except (discord.DiscordException, PermissionError, RuntimeError):
                         logger.exception("Réconciliation impossible pour %s dans %s.", member.id, key)
                 logger.info("Accès réconcilié pour %s : %s joueur(s) présent(s).", key, len(present))
@@ -1167,7 +1203,8 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
         """Les humains doivent prêter serment ; seuls les bots sont autorisés immédiatement."""
         if not member.bot:
             return
-        role_name = get_server_settings(store)["roles"]["bot"]
+        guild_store = managed_store_for_guild(store, member.guild.id)
+        role_name = get_server_settings(guild_store)["roles"]["bot"]
         role = discord.utils.get(member.guild.roles, name=role_name)
         if role is not None and member.guild.me is not None and role < member.guild.me.top_role:
             await member.add_roles(role, reason="Accès bot KingdomEngine 2")
@@ -1175,10 +1212,12 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
     @bot.event
     async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
         if not member.bot:
-            persist_player_presence(store, member, after.channel if isinstance(after.channel, discord.VoiceChannel) else None)
-            world = WorldEngine(store)
-            before_building = building_for_voice(store, before.channel) if isinstance(before.channel, discord.VoiceChannel) else None
-            after_building = building_for_voice(store, after.channel) if isinstance(after.channel, discord.VoiceChannel) else None
+            guild_store = managed_store_for_guild(store, member.guild.id)
+            guild_engine = GameEngine(guild_store, EventBus())
+            persist_player_presence(guild_store, member, after.channel if isinstance(after.channel, discord.VoiceChannel) else None)
+            world = WorldEngine(guild_store)
+            before_building = building_for_voice(guild_store, before.channel) if isinstance(before.channel, discord.VoiceChannel) else None
+            after_building = building_for_voice(guild_store, after.channel) if isinstance(after.channel, discord.VoiceChannel) else None
             try:
                 if after_building and after_building["payload"].get("location_key"):
                     world.enter_building(str(member.id), after_building["entity_key"])
@@ -1187,7 +1226,7 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
             except WorldError:
                 logger.info("Position logique non modifiée pour %s : bâtiment non localisé.", member.id)
             try:
-                await update_building_access(store, engine, member, before, after)
+                await update_building_access(guild_store, guild_engine, member, before, after)
             except (discord.DiscordException, PermissionError, RuntimeError):
                 logger.exception("Impossible de mettre à jour l'accès bâtiment de %s.", member.id)
 

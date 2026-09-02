@@ -1135,6 +1135,14 @@ def control_service(service_key: str, operation: str):
         raise HTTPException(422, str(exc)) from exc
 
 
+@app.post("/api/platform/deployment/synchronize", dependencies=[Depends(_administrateur_plateforme)])
+def synchronize_platform_with_github():
+    try:
+        return ServiceSupervisor().synchronize_with_github()
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
 @app.post("/api/import/v1", dependencies=[Depends(authorize)])
 def import_legacy_content():
     return {"ok": True, "imported": import_v1(store), "message": "Import V1 terminé sans écraser les définitions existantes."}

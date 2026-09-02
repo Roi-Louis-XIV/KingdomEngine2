@@ -117,3 +117,26 @@ def test_systemd_states_are_not_reduced_to_a_boolean():
     assert normalise("failed", "failed") == "degraded"
     assert normalise("inactive", "dead") == "stopped"
     assert normalise("mystery", "mystery") == "unknown"
+
+
+def test_platform_update_triggers_only_the_declared_systemd_unit(monkeypatch):
+    calls = []
+    monkeypatch.setattr(supervision.sys, "platform", "linux")
+    monkeypatch.setattr(supervision.Path, "exists", lambda self: self.as_posix() == "/run/systemd/system")
+    monkeypatch.setattr(supervision.os, "geteuid", lambda: 0, raising=False)
+
+    def run(command, **kwargs):
+        calls.append(command)
+        if "is-active" in command:
+            return SimpleNamespace(returncode=3, stdout="inactive\n", stderr="")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(supervision.subprocess, "run", run)
+
+    result = ServiceSupervisor().synchronize_with_github()
+
+    assert calls[-1] == [
+        "/usr/bin/systemctl", "--no-block", "start", "kingdomengine-update.service",
+    ]
+    assert result["accepted"] is True
+    assert result["status"] == "starting"

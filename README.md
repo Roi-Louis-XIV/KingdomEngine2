@@ -214,6 +214,8 @@ Pour vérifier un worker sur un serveur de test sans afficher son token, l’out
 
 Lorsqu’un joueur rejoint le vocal d’un bâtiment, KingdomCore lui donne l’accès temporaire au salon textuel correspondant et y affiche immédiatement son menu personnel. Il n’est plus nécessaire de cliquer sur un portail intermédiaire. Si le salon ou le rôle du bâtiment manque, relancer la synchronisation Discord depuis KingdomWeb.
 
+Chaque événement vocal est routé vers la base KingdomData du serveur Discord concerné. L’association au bâtiment utilise en priorité l’identifiant du salon enregistré lors du provisionnement : renommer manuellement un vocal n’empêche donc plus l’attribution du rôle temporaire. Les journaux KingdomCore indiquent explicitement l’attribution et le retrait du rôle. Le rôle principal de KingdomCore doit rester placé au-dessus des rôles `Accès · Bâtiment` dans la hiérarchie Discord.
+
 Dans l’éditeur de bâtiment, le bouton **Inspecteur** permet désormais de libérer toute la largeur centrale. La navigation entre bâtiments et les actions **Fermer**, **Annuler** et **Enregistrer** restent accessibles indépendamment du défilement ; le builder Discord adapte également sa hauteur au viewport.
 
 Après une modification de `.env`, redémarrer les services :
@@ -238,6 +240,8 @@ sudo systemctl restart kingdom-web
 ```
 
 `update-server.sh` réapplique désormais automatiquement cette règle, y compris lorsqu’aucun nouveau commit n’est à télécharger.
+
+Les administrateurs internes peuvent aussi ouvrir **Payen Studio Admin → Déploiement** puis cliquer sur **Synchroniser avec GitHub**. Le bouton déclenche uniquement l’unité systemd verrouillée `kingdomengine-update.service` : elle vérifie la branche configurée, conserve les protections contre les fichiers locaux modifiés et les mises à jour non fast-forward, effectue la sauvegarde, puis redémarre `kingdom-web`, `kingdom-core` et `kingdom-voice` seulement si un nouveau commit est installé. Le statut du dernier passage est affiché dans la même carte.
 
 Cette règle ne donne pas un accès administrateur général au processus web : elle autorise uniquement `start`, `stop` et `restart` sur `kingdom-web.service`, `kingdom-core.service` et `kingdom-voice.service`.
 

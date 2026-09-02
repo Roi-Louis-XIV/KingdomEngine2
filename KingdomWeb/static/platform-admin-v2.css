@@ -378,6 +378,30 @@ body > main {
   margin: 0;
 }
 
+.deployment-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.deployment-actions button {
+  border-color: color-mix(in srgb, var(--ops-accent) 55%, var(--ops-line));
+  color: var(--ops-accent);
+}
+
+.deployment-feedback {
+  color: var(--ops-muted);
+}
+
+.deployment-feedback.success {
+  color: var(--ops-accent);
+}
+
+.deployment-feedback.error {
+  color: var(--ops-danger);
+}
+
 .ops-timeline {
   display: grid;
   grid-template-columns: auto 1fr auto;

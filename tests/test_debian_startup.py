@@ -31,6 +31,7 @@ def test_debian_installer_creates_autostart_services_and_secures_password():
     assert "kingdom-core.service" in helper
     assert "NOPASSWD" in helper
     assert "visudo -cf" in helper
+    assert "/usr/bin/systemctl --no-block start kingdomengine-update.service" in helper
 
 
 def test_backup_script_includes_the_configured_external_data_directory():
@@ -49,4 +50,6 @@ def test_github_updater_is_safe_and_restarts_services_only_after_fast_forward():
     assert "backup-server.sh" in script
     assert "systemctl restart kingdom-web kingdom-core kingdom-voice" in script
     assert "configure-service-control.sh" in script
+    assert "deployment-status.json" in script
+    assert 'write_report "running"' in script
     assert "kingdomengine-web" not in script
