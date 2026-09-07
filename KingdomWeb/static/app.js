@@ -79,23 +79,54 @@ syncServerHeaders();
 const labels = {
   dashboard: "Vue d’ensemble",
   live_world: "Monde en direct",
-  calendar: "Temps & calendrier",
+  calendar: "Calendrier",
   players: "Joueurs",
-  building: "Espaces interactifs",
-  profession: "Activités & métiers",
-  item: "Objets & ressources",
+  building: "Bâtiments",
+  profession: "Métiers & activités",
+  item: "Objets",
   npc: "Personnages",
   event: "Événements",
-  environment: "Environnement",
-  location: "Entités & lieux",
-  bot: "Connexion Discord",
-  voice_presence: "Présences vocales",
-  audio: "Bibliothèque audio",
+  environment: "Météo & environnement",
+  location: "Carte & lieux",
+  bot: "Bots Discord",
+  voice_presence: "Voix & présences",
+  audio: "Sons & musiques",
   supervision: "Alertes & activité",
-  settings: "Configuration du monde",
-  profile: "Mon profil & serveurs",
+  settings: "Paramètres du monde",
+  profile: "Compte & serveurs",
   academy: "Aide & tutoriels",
 };
+const creationLabels = {
+  building: "Créer un bâtiment",
+  profession: "Créer un métier",
+  item: "Créer un objet",
+  npc: "Créer un personnage",
+  event: "Créer un événement",
+  environment: "Créer une météo",
+  location: "Créer un lieu",
+  bot: "Ajouter un bot Discord",
+  voice_presence: "Créer une présence vocale",
+  audio: "Ajouter un son",
+  interface: "Créer une interface Discord",
+};
+const entityNames = {
+  building: "bâtiment",
+  profession: "métier",
+  item: "objet",
+  npc: "personnage",
+  event: "événement",
+  environment: "météo",
+  location: "lieu",
+  bot: "bot Discord",
+  voice_presence: "présence vocale",
+  audio: "son",
+  interface: "interface Discord",
+};
+function updatePrimaryActionLabel() {
+  const button = $("#new");
+  if (button)
+    button.textContent = `＋ ${creationLabels[state.type] || "Créer un contenu"}`;
+}
 const icons = {
   dashboard: "◈",
   live_world: "🌍",
@@ -147,7 +178,7 @@ const pageDescriptions = {
   academy: "Apprenez en créant réellement votre royaume, à votre rythme.",
 };
 
-function setSaveState(kind = "saved", text = "Synchronisé") {
+function setSaveState(kind = "saved", text = "À jour") {
   const indicator = $("#save-state");
   if (!indicator) return;
   indicator.dataset.state = kind;
@@ -606,6 +637,7 @@ async function load() {
   $("#content-workspace").hidden = false;
   $("#admin-view").hidden = true;
   $("#new").hidden = false;
+  updatePrimaryActionLabel();
   if (state.type === "item") {
     await loadItemCatalog();
     return;
@@ -1089,7 +1121,7 @@ async function loadLocationWorld() {
   );
   $("#cards").className = "world-layout interactive-world-layout";
   $("#cards").innerHTML =
-    `<section class="world-map-panel interactive-map-panel"><div class="map-editor-head"><div><small>ÉDITEUR VISUEL DU MONDE</small><h2>Composez votre carte</h2><p>Faites glisser les lieux sur le paysage. Déposez ensuite un bâtiment sur le lieu auquel il appartient.</p></div><div id="map-editor-status" class="map-editor-status">Toutes les positions sont enregistrées au relâchement.</div></div><div class="map-toolbar"><label class="map-background-button">▧ Choisir un paysage<input id="map-background-input" type="file" accept="image/png,image/jpeg,image/webp" hidden></label><button type="button" id="remove-map-background" ${mapSettings.background_path ? "" : "disabled"}>Retirer le fond</button><span class="map-toolbar-separator"></span><button type="button" id="map-zoom-out" aria-label="Dézoomer">−</button><b id="map-zoom-label">${Math.round(state.worldMapZoom * 100)} %</b><button type="button" id="map-zoom-in" aria-label="Zoomer">＋</button><button type="button" id="map-zoom-fit">Ajuster</button><button type="button" id="map-zoom-reset">100 %</button><details class="map-size-settings"><summary>Taille de la carte</summary><label>Largeur<input id="map-width" type="number" min="800" max="4000" value="${Number(mapSettings.width) || 1600}"></label><label>Hauteur<input id="map-height" type="number" min="500" max="2500" value="${Number(mapSettings.height) || 900}"></label><button type="button" id="save-map-size">Appliquer</button></details></div><div class="world-map-scroll interactive-map-viewport">${worldMapMarkup(geography, { interactive: true, settings: mapSettings })}</div><footer class="map-editor-help"><span>↔ Glisser un lieu pour le déplacer</span><span>🏰 Glisser un bâtiment sur un lieu pour l’ancrer</span><span>Ctrl + molette pour zoomer</span></footer></section><aside class="world-map-side"><section class="world-location-list"><div class="map-side-title"><div><small>LIEUX DU MONDE</small><h2>${state.items.length} lieux</h2></div><button type="button" id="map-create-location">＋</button></div>${state.items.map((item) => `<article><button type="button" data-open="${escapeHtml(item.entity_key)}"><span>${escapeHtml(item.payload.emoji || "📍")}</span><b>${escapeHtml(item.payload.name)}</b><small>${escapeHtml(item.payload.location_type || "place")} · ${item.status}</small></button><div>${item.status === "draft" ? `<button type="button" class="primary" data-publish-location="${escapeHtml(item.entity_key)}" data-version="${item.version}">Publier</button>` : ""}<button type="button" class="danger-link" data-delete-location="${escapeHtml(item.entity_key)}">Supprimer</button></div></article>`).join("") || '<p class="simple-empty">Créez le premier lieu du monde.</p>'}</section><section class="map-building-tray"><div class="map-side-title"><div><small>BÂTIMENTS À ANCRER</small><h2>Glisser-déposer</h2></div></div><p>Faites glisser une carte sur sa destination.</p>${state.catalogs.building.map((building) => `<article draggable="true" data-map-building="${escapeHtml(building.entity_key)}"><span>${escapeHtml(building.payload.emoji || "🏰")}</span><div><b>${escapeHtml(building.payload.name)}</b><small>${building.payload.location_key ? `Ancré à ${escapeHtml(locationNames.get(building.payload.location_key) || building.payload.location_key)}` : "Non ancré"}</small></div><i>⠿</i></article>`).join("") || '<p class="simple-empty">Aucun bâtiment disponible.</p>'}</section></aside>`;
+    `<section class="world-map-panel interactive-map-panel"><div class="map-editor-head"><div><small>ÉDITEUR VISUEL DU MONDE</small><h2>Composez votre carte</h2><p>Faites glisser les lieux sur le paysage. Déposez ensuite un bâtiment sur le lieu auquel il appartient.</p></div><div id="map-editor-status" class="map-editor-status">Toutes les positions sont enregistrées au relâchement.</div></div><div class="map-toolbar"><label class="map-background-button">▧ Choisir un paysage<input id="map-background-input" type="file" accept="image/png,image/jpeg,image/webp" hidden></label><button type="button" id="remove-map-background" ${mapSettings.background_path ? "" : "disabled"}>Retirer le fond</button><span class="map-toolbar-separator"></span><button type="button" id="map-zoom-out" aria-label="Dézoomer">−</button><b id="map-zoom-label">${Math.round(state.worldMapZoom * 100)} %</b><button type="button" id="map-zoom-in" aria-label="Zoomer">＋</button><button type="button" id="map-zoom-fit">Ajuster</button><button type="button" id="map-zoom-reset">100 %</button><details class="map-size-settings"><summary>Taille de la carte</summary><label>Largeur<input id="map-width" type="number" min="800" max="4000" value="${Number(mapSettings.width) || 1600}"></label><label>Hauteur<input id="map-height" type="number" min="500" max="2500" value="${Number(mapSettings.height) || 900}"></label><button type="button" id="save-map-size">Appliquer</button></details></div><div class="world-map-scroll interactive-map-viewport">${worldMapMarkup(geography, { interactive: true, settings: mapSettings })}</div><footer class="map-editor-help"><span>↔ Glisser un lieu pour le déplacer</span><span>🏰 Glisser un bâtiment sur un lieu pour l’ancrer</span><span>Ctrl + molette pour zoomer</span></footer></section><aside class="world-map-side"><section class="world-location-list"><div class="map-side-title"><div><small>LIEUX DU MONDE</small><h2>${state.items.length} lieux</h2></div><button type="button" id="map-create-location">＋</button></div>${state.items.map((item) => `<article><button type="button" data-open="${escapeHtml(item.entity_key)}"><span>${escapeHtml(item.payload.emoji || "📍")}</span><b>${escapeHtml(item.payload.name)}</b><small>${escapeHtml(item.payload.location_type || "place")} · ${item.status}</small></button><div>${item.status === "draft" ? `<button type="button" class="primary" data-publish-location="${escapeHtml(item.entity_key)}" data-version="${item.version}">Publier sur Discord</button>` : ""}<button type="button" class="danger-link" data-delete-location="${escapeHtml(item.entity_key)}">Supprimer</button></div></article>`).join("") || '<p class="simple-empty">Créez le premier lieu du monde.</p>'}</section><section class="map-building-tray"><div class="map-side-title"><div><small>BÂTIMENTS À ANCRER</small><h2>Glisser-déposer</h2></div></div><p>Faites glisser une carte sur sa destination.</p>${state.catalogs.building.map((building) => `<article draggable="true" data-map-building="${escapeHtml(building.entity_key)}"><span>${escapeHtml(building.payload.emoji || "🏰")}</span><div><b>${escapeHtml(building.payload.name)}</b><small>${building.payload.location_key ? `Ancré à ${escapeHtml(locationNames.get(building.payload.location_key) || building.payload.location_key)}` : "Non ancré"}</small></div><i>⠿</i></article>`).join("") || '<p class="simple-empty">Aucun bâtiment disponible.</p>'}</section></aside>`;
   $$("[data-open]").forEach(
     (button) =>
       (button.onclick = () => {
@@ -1228,7 +1260,7 @@ async function loadLiveWorld(background = false) {
         (sum, item) => sum + item.players,
         0,
       ),
-    )}</section><div class="dashboard-columns"><section class="royal-panel"><div class="royal-panel-title"><small>ÉVÉNEMENTS ACTIFS ET À VENIR</small></div>${(world.active_events || []).map((event) => `<article class="dashboard-event"><span>${escapeHtml(event.emoji)}</span><div><b>${escapeHtml(event.name)}</b><small>${event.ends_at ? `Jusqu’au ${formatDate(event.ends_at)}` : "Actif"}</small></div></article>`).join("")}${(world.upcoming_events || []).map((event) => `<article class="dashboard-event"><span>${escapeHtml(event.emoji)}</span><div><b>${escapeHtml(event.name)}</b><small>Débute ${formatDate(event.starts_at)}</small></div></article>`).join("") || (!(world.active_events || []).length ? '<p class="empty-admin">Aucun événement actif ou imminent.</p>' : "")}</section><section class="royal-panel"><div class="royal-panel-title"><small>VOYAGES EN COURS</small></div>${(world.travels || []).map((travel) => `<p><b>${escapeHtml(travel.display_name || travel.discord_id)}</b><br>${escapeHtml(geography.nodes.find((node) => node.key === travel.origin_key)?.name || travel.origin_key)} → ${escapeHtml(geography.nodes.find((node) => node.key === travel.destination_key)?.name || travel.destination_key)} · ${travel.remaining_seconds} s</p>`).join("") || '<p class="empty-admin">Aucun voyage en cours.</p>'}</section></div><section class="royal-panel world-impacts"><div class="royal-panel-title"><small>IMPACTS ACTUELS</small><span>${impactData.impacts.length} valeur(s) modifiée(s)</span></div>${impactData.impacts.map((impact) => `<article class="impact-row"><div><b>${escapeHtml(impact.building_name)} · ${escapeHtml(impact.subject_name)}</b><small>${escapeHtml(impact.label)}</small></div><span>Base ${impact.base} → <strong>${impact.effective}</strong></span><small>${impact.modifiers.map((modifier) => `${escapeHtml(modifier.source)} ${escapeHtml(modifier.operator)} ${modifier.value}`).join(" · ")}</small></article>`).join("") || '<p class="empty-admin">Aucune valeur gameplay n’est actuellement modifiée.</p>'}</section><section class="world-map-panel"><div class="royal-panel-title"><small>CARTE DU MONDE</small><button data-go="location">Modifier</button></div><div class="world-map-scroll">${worldMapMarkup(geography, { settings: mapSettings })}</div></section></div>`;
+    )}</section><div class="dashboard-columns"><section class="royal-panel"><div class="royal-panel-title"><small>ÉVÉNEMENTS ACTIFS ET À VENIR</small></div>${(world.active_events || []).map((event) => `<article class="dashboard-event"><span>${escapeHtml(event.emoji)}</span><div><b>${escapeHtml(event.name)}</b><small>${event.ends_at ? `Jusqu’au ${formatDate(event.ends_at)}` : "Actif"}</small></div></article>`).join("")}${(world.upcoming_events || []).map((event) => `<article class="dashboard-event"><span>${escapeHtml(event.emoji)}</span><div><b>${escapeHtml(event.name)}</b><small>Débute ${formatDate(event.starts_at)}</small></div></article>`).join("") || (!(world.active_events || []).length ? '<p class="empty-admin">Aucun événement actif ou imminent.</p>' : "")}</section><section class="royal-panel"><div class="royal-panel-title"><small>VOYAGES EN COURS</small></div>${(world.travels || []).map((travel) => `<p><b>${escapeHtml(travel.display_name || travel.discord_id)}</b><br>${escapeHtml(geography.nodes.find((node) => node.key === travel.origin_key)?.name || travel.origin_key)} → ${escapeHtml(geography.nodes.find((node) => node.key === travel.destination_key)?.name || travel.destination_key)} · ${travel.remaining_seconds} s</p>`).join("") || '<p class="empty-admin">Aucun voyage en cours.</p>'}</section></div><section class="royal-panel world-impacts"><div class="royal-panel-title"><small>IMPACTS ACTUELS</small><span>${impactData.impacts.length} valeur(s) modifiée(s)</span></div>${impactData.impacts.map((impact) => `<article class="impact-row"><div><b>${escapeHtml(impact.building_name)} · ${escapeHtml(impact.subject_name)}</b><small>${escapeHtml(impact.label)}</small></div><span>Base ${impact.base} → <strong>${impact.effective}</strong></span><small>${impact.modifiers.map((modifier) => `${escapeHtml(modifier.source)} ${escapeHtml(modifier.operator)} ${modifier.value}`).join(" · ")}</small></article>`).join("") || '<p class="empty-admin">Aucune valeur gameplay n’est actuellement modifiée.</p>'}</section><section class="world-map-panel"><div class="royal-panel-title"><small>CARTE DU MONDE</small><button data-go="location">Modifier la carte</button></div><div class="world-map-scroll">${worldMapMarkup(geography, { settings: mapSettings })}</div></section></div>`;
   bindNavigationShortcuts();
   applyWorldMapBackground(mapSettings, ".live-world .world-map").catch(
     (error) => console.warn("Paysage du monde indisponible", error),
@@ -1550,7 +1582,7 @@ function renderAccountShell() {
   if (profileNavigation)
     profileNavigation.textContent = unassigned
       ? "Ajouter mon serveur"
-      : "Mon profil & serveurs";
+      : "Compte & serveurs";
   $("#account-name").textContent = account.display_name || account.username;
   $("#account-avatar").textContent = (
     account.display_name ||
@@ -1720,7 +1752,7 @@ async function loadProfile() {
 function supportModeMarkup(worlds, grants) {
   return `<section class="accounts-panel support-mode-panel"><div class="accounts-title"><div><small>ASSISTANCE RESPECTUEUSE DE VOS DONNÉES</small><h3>Support Mode</h3><p>Autorisez temporairement Payen Studio à consulter uniquement les diagnostics choisis. Aucun token, conversation privée ou secret n'est inclus.</p></div></div><form id="support-mode-form" class="support-mode-form"><label>Monde<select name="world_slug">${worlds.map((world) => `<option value="${escapeHtml(world.slug)}">${escapeHtml(world.name)}</option>`).join("")}</select></label><label>Durée<select name="duration_minutes"><option value="30">30 minutes</option><option value="60" selected>1 heure</option><option value="240">4 heures</option><option value="1440">24 heures</option></select></label><fieldset><legend>Diagnostics autorisés</legend>${[
     ["diagnostics", "Diagnostic technique"],
-    ["configuration", "Configuration du monde"],
+    ["configuration", "Paramètres du monde"],
     ["content_metadata", "Métadonnées du contenu"],
     ["service_health", "État de disponibilité"],
     ["recent_errors", "Erreurs récentes"],
@@ -2127,8 +2159,8 @@ function renderCards() {
       <div class="meta"><span>${item.entity_key} · v${item.version}</span><span>
         ${state.type === "building" ? `<button type="button" data-duplicate="${item.entity_key}">Dupliquer</button> · ` : ""}
         ${state.type === "bot" ? `<button type="button" data-invite="${item.entity_key}">Inviter</button> · ` : ""}
-        <button type="button" data-edit="${item.entity_key}">Modifier</button>
-        ${item.status === "draft" ? ` · <button type="button" data-publish="${item.entity_key}" data-version="${item.version}">Publier</button>` : ""}
+        <button type="button" data-edit="${item.entity_key}">Ouvrir</button>
+        ${item.status === "draft" ? ` · <button type="button" data-publish="${item.entity_key}" data-version="${item.version}">Publier sur Discord</button>` : ""}
         ${["building", "item", "event"].includes(state.type) ? ` · <button type="button" class="danger-link" data-delete="${item.entity_key}">Supprimer</button>` : ""}
       </span></div>
     </article>`,
@@ -2191,7 +2223,7 @@ function discordConnectionCard(entity) {
       : !applicationReady
         ? "Application ID manquant"
         : "Token manquant";
-  return `<article class="discord-connection-card ${voice ? "audio-connection" : "core-connection"}" data-open="${escapeHtml(entity.entity_key)}" data-access-tier="included" tabindex="0"><div class="discord-connection-icon">${escapeHtml(payload.emoji || (voice ? "🎙️" : "🛡️"))}</div><div class="discord-connection-copy"><small>${voice ? "BOT AUDIO DISCORD" : "CONNEXION PRINCIPALE"}</small><h3>${escapeHtml(payload.name || entity.entity_key)}</h3><p>${escapeHtml(payload.description || (voice ? "Diffuse les ambiances, voix et scènes de KingdomVoice." : "Pilote les interfaces textuelles du monde."))}</p><div class="discord-connection-meta"><span class="${applicationReady ? "ready" : "missing"}">${applicationReady ? "✓ Application configurée" : "⚠ Application ID à renseigner"}</span><span class="${tokenReady ? "ready" : "missing"}">${tokenReady ? "✓ Token configuré" : "⚠ Token à renseigner"}</span>${voice ? `<span>${payload.building_key ? `🏰 ${escapeHtml(state.catalogs.building.find((item) => item.entity_key === payload.building_key)?.payload.name || payload.building_key)}` : "◇ Aucun bâtiment attribué"}</span>` : ""}</div></div><div class="discord-connection-actions"><span class="connection-readiness ${applicationReady && tokenReady ? "ready" : "missing"}">${readiness}</span><button type="button" class="primary" data-invite="${escapeHtml(entity.entity_key)}" ${applicationReady ? "" : "disabled"}>${voice ? "Ajouter à Discord" : "Installer"}</button><button type="button" data-edit="${escapeHtml(entity.entity_key)}">Configurer</button>${entity.status === "draft" ? `<button type="button" data-publish="${escapeHtml(entity.entity_key)}" data-version="${entity.version}">Publier</button>` : ""}</div></article>`;
+  return `<article class="discord-connection-card ${voice ? "audio-connection" : "core-connection"}" data-open="${escapeHtml(entity.entity_key)}" data-access-tier="included" tabindex="0"><div class="discord-connection-icon">${escapeHtml(payload.emoji || (voice ? "🎙️" : "🛡️"))}</div><div class="discord-connection-copy"><small>${voice ? "BOT AUDIO DISCORD" : "CONNEXION PRINCIPALE"}</small><h3>${escapeHtml(payload.name || entity.entity_key)}</h3><p>${escapeHtml(payload.description || (voice ? "Diffuse les ambiances, voix et scènes de KingdomVoice." : "Pilote les interfaces textuelles du monde."))}</p><div class="discord-connection-meta"><span class="${applicationReady ? "ready" : "missing"}">${applicationReady ? "✓ Application configurée" : "⚠ Application ID à renseigner"}</span><span class="${tokenReady ? "ready" : "missing"}">${tokenReady ? "✓ Token configuré" : "⚠ Token à renseigner"}</span>${voice ? `<span>${payload.building_key ? `🏰 ${escapeHtml(state.catalogs.building.find((item) => item.entity_key === payload.building_key)?.payload.name || payload.building_key)}` : "◇ Aucun bâtiment attribué"}</span>` : ""}</div></div><div class="discord-connection-actions"><span class="connection-readiness ${applicationReady && tokenReady ? "ready" : "missing"}">${readiness}</span><button type="button" class="primary" data-invite="${escapeHtml(entity.entity_key)}" ${applicationReady ? "" : "disabled"}>${voice ? "Ajouter à Discord" : "Installer sur Discord"}</button><button type="button" data-edit="${escapeHtml(entity.entity_key)}">Configurer le bot</button>${entity.status === "draft" ? `<button type="button" data-publish="${escapeHtml(entity.entity_key)}" data-version="${entity.version}">Publier sur Discord</button>` : ""}</div></article>`;
 }
 
 function renderDiscordConnections() {
@@ -2297,7 +2329,7 @@ function buildingCardMarkup(item) {
     ),
     productionCount =
       (modules.products || []).length + (modules.recipes || []).length;
-  return `<article class="card building-card" data-open="${escapeHtml(item.entity_key)}" tabindex="0"><div class="card-head"><span class="emoji">${escapeHtml(item.payload.emoji || "🏰")}</span><span class="badge ${item.status}">${item.status === "published" ? "PUBLIÉ" : "BROUILLON"}</span></div><h3>${escapeHtml(item.payload.name)}</h3><p>${escapeHtml(item.payload.description || "Aucune description")}</p><div class="building-card-relations"><span>🛠️ ${escapeHtml(professions[0]?.name || "Aucun métier")}</span><span>🤖 ${escapeHtml(bot?.payload.name || "Aucun bot")}</span><span>📦 ${productionCount} production(s)</span></div><div class="building-card-actions"><button type="button" class="primary" data-edit="${escapeHtml(item.entity_key)}" data-tutorial="building-open">Modifier</button>${item.status === "draft" ? `<button type="button" data-publish="${escapeHtml(item.entity_key)}" data-version="${item.version}">Publier</button>` : ""}<details><summary aria-label="Actions secondaires">•••</summary><div><button type="button" data-duplicate="${escapeHtml(item.entity_key)}">Dupliquer</button><button type="button" class="danger-link" data-delete="${escapeHtml(item.entity_key)}">Supprimer</button></div></details></div><small class="building-card-version">Version ${item.version}</small></article>`;
+  return `<article class="card building-card" data-open="${escapeHtml(item.entity_key)}" tabindex="0"><div class="card-head"><span class="emoji">${escapeHtml(item.payload.emoji || "🏰")}</span><span class="badge ${item.status}">${item.status === "published" ? "PUBLIÉ" : "BROUILLON"}</span></div><h3>${escapeHtml(item.payload.name)}</h3><p>${escapeHtml(item.payload.description || "Aucune description")}</p><div class="building-card-relations"><span>🛠️ ${escapeHtml(professions[0]?.name || "Aucun métier")}</span><span>🤖 ${escapeHtml(bot?.payload.name || "Aucun bot")}</span><span>📦 ${productionCount} production(s)</span></div><div class="building-card-actions"><button type="button" class="primary" data-edit="${escapeHtml(item.entity_key)}" data-tutorial="building-open">Ouvrir le bâtiment</button>${item.status === "draft" ? `<button type="button" data-publish="${escapeHtml(item.entity_key)}" data-version="${item.version}">Publier sur Discord</button>` : ""}<details><summary aria-label="Actions secondaires">•••</summary><div><button type="button" data-duplicate="${escapeHtml(item.entity_key)}">Dupliquer</button><button type="button" class="danger-link" data-delete="${escapeHtml(item.entity_key)}">Supprimer</button></div></details></div><small class="building-card-version">Version ${item.version}</small></article>`;
 }
 
 function showModal() {
@@ -2340,6 +2372,7 @@ function resetEditor() {
   configureCommonFields();
   $(".reference-demo-banner")?.remove();
   $("#save").hidden = false;
+  $("#save-publish").hidden = false;
   $("#cancel-editor").textContent = "Annuler";
 }
 
@@ -2446,6 +2479,7 @@ async function openReferenceBuilding() {
       }),
   );
   $("#save").hidden = true;
+  $("#save-publish").hidden = true;
   $("#cancel-editor").textContent = "Fermer la démonstration";
   setHelp("building_mechanics");
   showModal();
@@ -2468,7 +2502,7 @@ function configureCommonFields() {
     ? "Ex. Interface de la Taverne"
     : state.type === "building"
       ? "Ex. Ferme du Royaume"
-      : "Ex. Nouvelle définition";
+      : `Ex. Mon ${entityNames[state.type] || "contenu"}`;
   bindEmojiLibrary();
 }
 
@@ -2489,7 +2523,8 @@ function startCreate() {
     setHelp("preset");
   } else {
     $("#editor-kicker").textContent = "ÉDITEUR NO-CODE";
-    $("#editor-title").textContent = `Nouvelle définition`;
+    $("#editor-title").textContent =
+      creationLabels[state.type] || "Créer un contenu";
     renderFields({});
   }
   showModal();
@@ -2729,7 +2764,7 @@ async function loadAudioBank() {
             bot = state.catalogs.bot.find(
               (x) => x.entity_key === p.speaker_bot_key,
             );
-          return `<article class="card audio-card" data-open="${escapeHtml(entity.entity_key)}"><div class="card-head"><span class="emoji">${{ voice: "🗣️", music: "🎵", ambience: "🌲", sfx: "💥" }[type] || "🔊"}</span><span class="badge ${entity.status}">${type.toUpperCase()}</span></div><h3>${escapeHtml(p.name)}</h3><p>${escapeHtml(p.description || p.file_name || "Fichier audio")}</p><div class="item-tags">${(p.tags || []).map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}${bot ? `<span>🤖 ${escapeHtml(bot.payload.name)}</span>` : ""}</div><div class="meta"><span>${Math.round(Number(p.size_bytes || 0) / 1024)} Ko · v${entity.version}</span><span><button data-audio-preview="${escapeHtml(entity.entity_key)}">▶ Écouter</button> · <button data-edit="${escapeHtml(entity.entity_key)}">Modifier</button> · <button class="danger-link" data-delete="${escapeHtml(entity.entity_key)}">Supprimer</button></span></div></article>`;
+          return `<article class="card audio-card" data-open="${escapeHtml(entity.entity_key)}"><div class="card-head"><span class="emoji">${{ voice: "🗣️", music: "🎵", ambience: "🌲", sfx: "💥" }[type] || "🔊"}</span><span class="badge ${entity.status}">${type.toUpperCase()}</span></div><h3>${escapeHtml(p.name)}</h3><p>${escapeHtml(p.description || p.file_name || "Fichier audio")}</p><div class="item-tags">${(p.tags || []).map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}${bot ? `<span>🤖 ${escapeHtml(bot.payload.name)}</span>` : ""}</div><div class="meta"><span>${Math.round(Number(p.size_bytes || 0) / 1024)} Ko · v${entity.version}</span><span><button data-audio-preview="${escapeHtml(entity.entity_key)}">▶ Écouter</button> · <button data-edit="${escapeHtml(entity.entity_key)}">Ouvrir</button> · <button class="danger-link" data-delete="${escapeHtml(entity.entity_key)}">Supprimer</button></span></div></article>`;
         })
         .join("") ||
       '<p class="empty">Aucun son ne correspond à ces filtres.</p>'
@@ -2825,7 +2860,7 @@ function renderAudioComposer(mode) {
 function audioCompositionCard(entity, mode) {
   const p = entity.payload,
     count = (mode === "groups" ? p.layers : p.steps) || [];
-  return `<article class="card audio-composition-card"><div class="card-head"><span class="emoji">${mode === "groups" ? "🌲" : "📖"}</span><span class="badge ${entity.status}">${entity.status}</span></div><h3>${escapeHtml(p.name)}</h3><p>${escapeHtml(p.description || (mode === "groups" ? "Ambiance réutilisable" : "Histoire auditive"))}</p><div class="audio-composition-summary"><b>${count.length}</b><span>${mode === "groups" ? "couche(s) sonore(s)" : "étape(s)"}</span></div>${mode === "groups" ? `<div class="item-tags">${(p.building_keys || []).map((key) => `<span>🏰 ${escapeHtml(state.catalogs.building.find((x) => x.entity_key === key)?.payload.name || key)}</span>`).join("")}</div>` : ""}<div class="meta"><span>v${entity.version}</span><span><button data-edit-audio-composition="${escapeHtml(entity.entity_key)}">Modifier</button> · <button class="danger-link" data-delete-audio-composition="${escapeHtml(entity.entity_key)}">Supprimer</button></span></div></article>`;
+  return `<article class="card audio-composition-card"><div class="card-head"><span class="emoji">${mode === "groups" ? "🌲" : "📖"}</span><span class="badge ${entity.status}">${entity.status}</span></div><h3>${escapeHtml(p.name)}</h3><p>${escapeHtml(p.description || (mode === "groups" ? "Ambiance réutilisable" : "Histoire auditive"))}</p><div class="audio-composition-summary"><b>${count.length}</b><span>${mode === "groups" ? "couche(s) sonore(s)" : "étape(s)"}</span></div>${mode === "groups" ? `<div class="item-tags">${(p.building_keys || []).map((key) => `<span>🏰 ${escapeHtml(state.catalogs.building.find((x) => x.entity_key === key)?.payload.name || key)}</span>`).join("")}</div>` : ""}<div class="meta"><span>v${entity.version}</span><span><button data-edit-audio-composition="${escapeHtml(entity.entity_key)}">Ouvrir</button> · <button class="danger-link" data-delete-audio-composition="${escapeHtml(entity.entity_key)}">Supprimer</button></span></div></article>`;
 }
 
 function audioSelectMarkup(name, current = "", type = "") {
@@ -2898,7 +2933,7 @@ function openAudioComposition(mode, entity = null) {
   }
   const p = clone(entity?.payload || {}),
     isGroup = mode === "groups";
-  dialog.innerHTML = `<form><div class="dialog-head"><div><small>${isGroup ? "GROUPE D’AMBIANCE" : "HISTOIRE AUDITIVE"}</small><h2>${entity ? "Modifier" : "Créer"} ${isGroup ? "une atmosphère" : "un récit audio"}</h2></div><button type="button" data-close>×</button></div><div class="audio-composition-form"><div class="form-grid"><label>Nom visible<input name="title" value="${escapeHtml(p.name || "")}" required></label><label>Identifiant technique<input name="key" value="${escapeHtml(entity?.entity_key || "")}" ${entity ? "readonly" : ""} required></label></div><label>Description<textarea name="description" rows="2">${escapeHtml(p.description || "")}</textarea></label>${isGroup ? `<div class="form-grid"><label>Volume général<input name="master_volume" type="number" min="0" max="1" step=".05" value="${Number(p.volume ?? 1)}"></label><label>Fondu d’entrée (s)<input name="fade_in" type="number" min="0" step=".1" value="${Number(p.transitions?.fade_in_seconds || 0)}"></label></div><section><div class="section-head"><div><h3>Couches sonores</h3><small>Ambiance, musique, voix et effets peuvent cohabiter.</small></div><button type="button" data-add-layer>＋ Ajouter une couche</button></div><div id="audio-composition-rows"></div></section><section><h3>Bâtiments suggérés</h3><p class="field-note">Facultatif : aide à retrouver les usages. Un Event peut toujours choisir d’autres bâtiments.</p><div class="audio-building-picker">${state.catalogs.building.map((building) => `<label class="check"><input type="checkbox" name="building_key" value="${escapeHtml(building.entity_key)}" ${(p.building_keys || []).includes(building.entity_key) ? "checked" : ""}><span>${escapeHtml(building.payload.emoji || "🏰")} ${escapeHtml(building.payload.name)}</span></label>`).join("")}</div></section>` : `<section><div class="section-head"><div><h3>Chronologie</h3><small>Chaque étape peut lire un son, afficher un texte ou créer un silence.</small></div><button type="button" data-add-step>＋ Ajouter une étape</button></div><div id="audio-composition-rows" class="audio-story-timeline"></div></section>`}</div><div class="actions"><button type="button" data-close>Annuler</button><button class="primary">Enregistrer et publier</button></div></form>`;
+  dialog.innerHTML = `<form><div class="dialog-head"><div><small>${isGroup ? "GROUPE D’AMBIANCE" : "HISTOIRE AUDITIVE"}</small><h2>${entity ? "Modifier" : "Créer"} ${isGroup ? "une atmosphère" : "un récit audio"}</h2></div><button type="button" data-close>×</button></div><div class="audio-composition-form"><div class="form-grid"><label>Nom visible<input name="title" value="${escapeHtml(p.name || "")}" required></label><label>Identifiant technique<input name="key" value="${escapeHtml(entity?.entity_key || "")}" ${entity ? "readonly" : ""} required></label></div><label>Description<textarea name="description" rows="2">${escapeHtml(p.description || "")}</textarea></label>${isGroup ? `<div class="form-grid"><label>Volume général<input name="master_volume" type="number" min="0" max="1" step=".05" value="${Number(p.volume ?? 1)}"></label><label>Fondu d’entrée (s)<input name="fade_in" type="number" min="0" step=".1" value="${Number(p.transitions?.fade_in_seconds || 0)}"></label></div><section><div class="section-head"><div><h3>Couches sonores</h3><small>Ambiance, musique, voix et effets peuvent cohabiter.</small></div><button type="button" data-add-layer>＋ Ajouter une couche</button></div><div id="audio-composition-rows"></div></section><section><h3>Bâtiments suggérés</h3><p class="field-note">Facultatif : aide à retrouver les usages. Un Event peut toujours choisir d’autres bâtiments.</p><div class="audio-building-picker">${state.catalogs.building.map((building) => `<label class="check"><input type="checkbox" name="building_key" value="${escapeHtml(building.entity_key)}" ${(p.building_keys || []).includes(building.entity_key) ? "checked" : ""}><span>${escapeHtml(building.payload.emoji || "🏰")} ${escapeHtml(building.payload.name)}</span></label>`).join("")}</div></section>` : `<section><div class="section-head"><div><h3>Chronologie</h3><small>Chaque étape peut lire un son, afficher un texte ou créer un silence.</small></div><button type="button" data-add-step>＋ Ajouter une étape</button></div><div id="audio-composition-rows" class="audio-story-timeline"></div></section>`}</div><div class="actions"><button type="button" data-close>Annuler</button><button class="primary">Enregistrer et publier sur Discord</button></div></form>`;
   dialog.showModal();
   const rows = dialog.querySelector("#audio-composition-rows");
   if (isGroup)
@@ -3005,7 +3040,7 @@ async function loadVoicePresenceStudio() {
   const profileCards = profiles
     .map(
       (entity) =>
-        `<article class="voice-profile-card"><span>◖</span><div><small>${escapeHtml(entity.payload.language || "Langue libre")} · ${escapeHtml(entity.payload.provider || "Fichiers")}</small><h3>${escapeHtml(entity.payload.name)}</h3><p>${(entity.payload.clips || []).length} clip(s) · volume ${Number(entity.payload.volume ?? 1)}</p></div><button type="button" data-edit-profile="${escapeHtml(entity.entity_key)}">Modifier</button></article>`,
+        `<article class="voice-profile-card"><span>◖</span><div><small>${escapeHtml(entity.payload.language || "Langue libre")} · ${escapeHtml(entity.payload.provider || "Fichiers")}</small><h3>${escapeHtml(entity.payload.name)}</h3><p>${(entity.payload.clips || []).length} clip(s) · volume ${Number(entity.payload.volume ?? 1)}</p></div><button type="button" data-edit-profile="${escapeHtml(entity.entity_key)}">Ouvrir</button></article>`,
     )
     .join("");
   $("#admin-view").innerHTML =
@@ -3073,7 +3108,7 @@ function openVoicePresenceDialog(entity = null) {
     return showDesktopRequired("La création d’une présence vocale");
   const dialog = voiceDialog(),
     p = clone(entity?.payload || {});
-  dialog.innerHTML = `<form><div class="dialog-head"><div><small>IDENTITÉ AUDIO</small><h2>${entity ? "Configurer" : "Créer"} une présence vocale</h2></div><button type="button" data-close>×</button></div><div class="voice-editor-body"><section class="voice-explainer"><span>◉</span><p><b>La présence est l’identité perçue.</b> KingdomVoice choisit automatiquement une capacité Discord libre au moment utile.</p></section><div class="form-grid"><label>Nom visible<input name="name" value="${escapeHtml(p.name || "")}" placeholder="Ex. Guide de la station" required data-tutorial="voice-presence-name"></label><label>Type<select name="presence_type"><option value="npc" ${p.presence_type === "npc" ? "selected" : ""}>Personnage</option><option value="ambience" ${p.presence_type === "ambience" ? "selected" : ""}>Ambiance</option><option value="custom" ${!p.presence_type || p.presence_type === "custom" ? "selected" : ""}>Personnalisée</option></select></label><label>Source<select name="source_key">${entityOptions(state.catalogs.npc, p.source_key, "Aucune source")}</select></label><label>Lieu initial<select name="location_key">${entityOptions(state.catalogs.location, p.location_key, "À la demande")}</select></label><label>Profil vocal<select name="voice_profile_key">${entityOptions(state.catalogs.voice_profile, p.voice_profile_key, "Aucun profil")}</select></label><label>Scène audio<select name="scene_key">${entityOptions(state.catalogs.audio_group, p.scene_key, "Aucune scène")}</select></label><label>Comportement<select name="assignment_mode"><option value="on_demand" ${p.assignment_mode === "on_demand" || !p.assignment_mode ? "selected" : ""}>À la demande</option><option value="automatic" ${p.assignment_mode === "automatic" ? "selected" : ""}>Présence automatique</option><option value="follow_source" ${p.assignment_mode === "follow_source" ? "selected" : ""}>Suivre la position de la source</option></select></label><label>Priorité<input name="priority" type="number" min="-100" max="100" value="${Number(p.priority || 0)}"></label></div><label>Avatar de serveur (URL)<input name="avatar_url" type="url" value="${escapeHtml(p.avatar_url || "")}" placeholder="Facultatif · dépend des permissions Discord"></label><details><summary>Options avancées</summary><div class="form-grid"><label>Libérer après inactivité (s)<input name="release_timeout_seconds" type="number" min="0" value="${Number(p.release_timeout_seconds ?? 30)}"></label><label>Identifiant technique<input name="key" value="${escapeHtml(entity?.entity_key || "")}" ${entity ? "readonly" : ""} placeholder="Généré depuis le nom"></label></div></details></div><div class="actions"><button type="button" data-close>Annuler</button>${entity ? '<button type="button" class="danger" data-delete>Supprimer</button>' : ""}<button class="primary">Enregistrer et publier</button></div></form>`;
+  dialog.innerHTML = `<form><div class="dialog-head"><div><small>IDENTITÉ AUDIO</small><h2>${entity ? "Configurer" : "Créer"} une présence vocale</h2></div><button type="button" data-close>×</button></div><div class="voice-editor-body"><section class="voice-explainer"><span>◉</span><p><b>La présence est l’identité perçue.</b> KingdomVoice choisit automatiquement une capacité Discord libre au moment utile.</p></section><div class="form-grid"><label>Nom visible<input name="name" value="${escapeHtml(p.name || "")}" placeholder="Ex. Guide de la station" required data-tutorial="voice-presence-name"></label><label>Type<select name="presence_type"><option value="npc" ${p.presence_type === "npc" ? "selected" : ""}>Personnage</option><option value="ambience" ${p.presence_type === "ambience" ? "selected" : ""}>Ambiance</option><option value="custom" ${!p.presence_type || p.presence_type === "custom" ? "selected" : ""}>Personnalisée</option></select></label><label>Source<select name="source_key">${entityOptions(state.catalogs.npc, p.source_key, "Aucune source")}</select></label><label>Lieu initial<select name="location_key">${entityOptions(state.catalogs.location, p.location_key, "À la demande")}</select></label><label>Profil vocal<select name="voice_profile_key">${entityOptions(state.catalogs.voice_profile, p.voice_profile_key, "Aucun profil")}</select></label><label>Scène audio<select name="scene_key">${entityOptions(state.catalogs.audio_group, p.scene_key, "Aucune scène")}</select></label><label>Comportement<select name="assignment_mode"><option value="on_demand" ${p.assignment_mode === "on_demand" || !p.assignment_mode ? "selected" : ""}>À la demande</option><option value="automatic" ${p.assignment_mode === "automatic" ? "selected" : ""}>Présence automatique</option><option value="follow_source" ${p.assignment_mode === "follow_source" ? "selected" : ""}>Suivre la position de la source</option></select></label><label>Priorité<input name="priority" type="number" min="-100" max="100" value="${Number(p.priority || 0)}"></label></div><label>Avatar de serveur (URL)<input name="avatar_url" type="url" value="${escapeHtml(p.avatar_url || "")}" placeholder="Facultatif · dépend des permissions Discord"></label><details><summary>Options avancées</summary><div class="form-grid"><label>Libérer après inactivité (s)<input name="release_timeout_seconds" type="number" min="0" value="${Number(p.release_timeout_seconds ?? 30)}"></label><label>Identifiant technique<input name="key" value="${escapeHtml(entity?.entity_key || "")}" ${entity ? "readonly" : ""} placeholder="Généré depuis le nom"></label></div></details></div><div class="actions"><button type="button" data-close>Annuler</button>${entity ? '<button type="button" class="danger" data-delete>Supprimer</button>' : ""}<button class="primary">Enregistrer et publier sur Discord</button></div></form>`;
   dialog.showModal();
   dialog
     .querySelectorAll("[data-close]")
@@ -3125,7 +3160,7 @@ function openVoiceProfileDialog(entity = null) {
     ),
     p.fallback_profile_key,
     "Aucun fallback",
-  )}</select></label><label>Tags<input name="tags" value="${escapeHtml((p.tags || []).join(", "))}" placeholder="calme, radio, accueil"></label></div><section><h3>Clips disponibles</h3><p class="field-note">Sélectionnez les sons qui composent ce profil. Les catégories détaillées restent facultatives.</p><div class="voice-clip-picker">${state.catalogs.audio.map((audio) => `<label><input type="checkbox" name="clip" value="${escapeHtml(audio.entity_key)}" ${clipKeys.includes(audio.entity_key) ? "checked" : ""}><span>${escapeHtml(audio.payload.emoji || "🔊")} ${escapeHtml(audio.payload.name)}</span><small>${escapeHtml(audio.payload.audio_type || "audio")}</small></label>`).join("") || "<p>Aucun son disponible dans la bibliothèque.</p>"}</div></section><details><summary>Options avancées</summary><label>Identifiant technique<input name="key" value="${escapeHtml(entity?.entity_key || "")}" ${entity ? "readonly" : ""}></label></details></div><div class="actions"><button type="button" data-close>Annuler</button>${entity ? '<button type="button" class="danger" data-delete>Supprimer</button>' : ""}<button class="primary">Enregistrer et publier</button></div></form>`;
+  )}</select></label><label>Tags<input name="tags" value="${escapeHtml((p.tags || []).join(", "))}" placeholder="calme, radio, accueil"></label></div><section><h3>Clips disponibles</h3><p class="field-note">Sélectionnez les sons qui composent ce profil. Les catégories détaillées restent facultatives.</p><div class="voice-clip-picker">${state.catalogs.audio.map((audio) => `<label><input type="checkbox" name="clip" value="${escapeHtml(audio.entity_key)}" ${clipKeys.includes(audio.entity_key) ? "checked" : ""}><span>${escapeHtml(audio.payload.emoji || "🔊")} ${escapeHtml(audio.payload.name)}</span><small>${escapeHtml(audio.payload.audio_type || "audio")}</small></label>`).join("") || "<p>Aucun son disponible dans la bibliothèque.</p>"}</div></section><details><summary>Options avancées</summary><label>Identifiant technique<input name="key" value="${escapeHtml(entity?.entity_key || "")}" ${entity ? "readonly" : ""}></label></details></div><div class="actions"><button type="button" data-close>Annuler</button>${entity ? '<button type="button" class="danger" data-delete>Supprimer</button>' : ""}<button class="primary">Enregistrer et publier sur Discord</button></div></form>`;
   dialog.showModal();
   dialog
     .querySelectorAll("[data-close]")
@@ -4356,7 +4391,7 @@ function simpleDiscordMarkup() {
                 .map((key) => escapeHtml(actionDisplayName(key)))
                 .join(" · ")}`
             : ""
-        }</p></div><button type="button" data-simple-page="${index}">Modifier</button></article>`;
+        }</p></div><button type="button" data-simple-page="${index}">Modifier la page</button></article>`;
       })
       .join("") || '<p class="simple-empty">Aucune page Discord.</p>'
   }</div><button type="button" class="secondary" data-add-simple-page>＋ Ajouter une page</button></section>`;
@@ -4373,6 +4408,7 @@ function refreshSimpleDiscord() {
   panel.querySelector(".simple-discord-panel")?.remove();
   panel.insertAdjacentHTML("afterbegin", simpleDiscordMarkup());
   bindSimpleDiscord();
+  refreshDiscordInspectorPreview();
 }
 function openSimplePageEditor(index, created = false) {
   const page = state.interfaceDraft.pages[index];
@@ -4389,7 +4425,7 @@ function openSimplePageEditor(index, created = false) {
           component.props?.text ||
           COMPONENT_LIBRARY[component.type]?.name ||
           component.type;
-        return `<article><span>${COMPONENT_LIBRARY[component.type]?.icon || "⚙"}</span><div><b>${escapeHtml(String(label).slice(0, 80))}</b><small>${escapeHtml(COMPONENT_LIBRARY[component.type]?.name || "Composant avancé")}</small></div>${simpleTypes.has(component.type) ? `<button type="button" data-simple-component="${i}">Modifier</button>` : "<em>⚙ Avancé</em>"}</article>`;
+        return `<article><span>${COMPONENT_LIBRARY[component.type]?.icon || "⚙"}</span><div><b>${escapeHtml(String(label).slice(0, 80))}</b><small>${escapeHtml(COMPONENT_LIBRARY[component.type]?.name || "Composant avancé")}</small></div>${simpleTypes.has(component.type) ? `<button type="button" data-simple-component="${i}">Modifier le composant</button>` : "<em>⚙ Avancé</em>"}</article>`;
       })
       .join("");
   const dialog = simpleDialog(
@@ -4845,6 +4881,7 @@ function renderVisualStudio() {
     };
   });
   renderPropertyPanel();
+  refreshDiscordInspectorPreview();
 }
 
 function renderCanvasComponent(component) {
@@ -7382,6 +7419,71 @@ function renderBuildingFields(payload, preset = null) {
   installBuildingWorkbench(payload, buildingKey, modules);
 }
 
+function discordInspectorComponentMarkup(component) {
+  const props = component.props || {};
+  if (component.type === "hero")
+    return `<div class="discord-inspector-hero"><strong>${escapeHtml(`${props.emoji || ""} ${props.title || "Bienvenue"}`.trim())}</strong><span>${escapeHtml(props.subtitle || "")}</span></div>`;
+  if (component.type === "text")
+    return `<p>${escapeHtml(props.text || "Texte à compléter")}</p>`;
+  if (component.type === "sequence")
+    return `<p>${escapeHtml(component.props?.steps?.[0]?.text || "Séquence de messages")}</p>`;
+  if (component.type === "card")
+    return `<div class="discord-inspector-card"><b>${escapeHtml(props.title || "Information")}</b><span>${escapeHtml(props.text || "")}</span></div>`;
+  if (component.type === "stat")
+    return `<div class="discord-inspector-stat"><span>${escapeHtml(props.label || "Indicateur")}</span><b>${escapeHtml(props.value || "—")}</b></div>`;
+  if (component.type === "divider") return "<hr>";
+  if (component.type === "image")
+    return `<div class="discord-inspector-media">▧ ${escapeHtml(props.alt || "Image Discord")}</div>`;
+  if (component.type === "player_inventory")
+    return `<div class="discord-inspector-card"><b>🎒 ${escapeHtml(props.title || "Inventaire du joueur")}</b><span>Les objets du joueur apparaîtront ici.</span></div>`;
+  if (component.type === "building_inventory")
+    return `<div class="discord-inspector-card"><b>📦 ${escapeHtml(props.title || "Stock commun")}</b><span>Le stock du bâtiment apparaîtra ici.</span></div>`;
+  return "";
+}
+
+function discordInspectorPreviewMarkup() {
+  const draft = state.interfaceDraft,
+    pages = draft?.pages || [],
+    page =
+      pages.find((item) => item.key === draft?.start_page) ||
+      pages[0],
+    buildingName = $("#name")?.value.trim() || "Nouveau bâtiment";
+  if (!page)
+    return `<section class="discord-inspector-preview" id="discord-inspector-preview"><div class="discord-inspector-heading"><small>APERÇU JOUEUR · DISCORD</small><span>En direct</span></div><div class="discord-inspector-empty"><b>Aucune page à afficher</b><span>Ajoutez une page dans l’onglet Interface Discord.</span></div></section>`;
+  const components = page.components || [],
+    content = components
+      .filter((component) => !["button", "select"].includes(component.type))
+      .slice(0, 5)
+      .map(discordInspectorComponentMarkup)
+      .join(""),
+    buttons = components
+      .filter((component) => component.type === "button")
+      .sort((a, b) => Number(a.slot || 0) - Number(b.slot || 0))
+      .slice(0, 5)
+      .map(
+        (component) =>
+          `<button type="button" tabindex="-1">${escapeHtml(component.props?.emoji || "")} ${escapeHtml(component.props?.label || "Action")}</button>`,
+      )
+      .join(""),
+    selects = components
+      .filter((component) => component.type === "select")
+      .slice(0, 2)
+      .map(
+        (component) =>
+          `<div class="discord-inspector-select">${escapeHtml(component.props?.placeholder || component.props?.label || "Choisir une option")} <span>⌄</span></div>`,
+      )
+      .join(""),
+    themeColor = /^#[0-9a-f]{6}$/i.test(draft?.theme?.color || "")
+      ? draft.theme.color
+      : "#4f8f64";
+  return `<section class="discord-inspector-preview" id="discord-inspector-preview"><div class="discord-inspector-heading"><small>APERÇU JOUEUR · DISCORD</small><span>En direct</span></div><div class="discord-inspector-channel"># ${escapeHtml(technicalKey(buildingName, "batiment"))}</div><div class="discord-inspector-message"><div class="discord-inspector-avatar">K</div><div class="discord-inspector-body"><div class="discord-inspector-author"><b>KingdomEngine</b><em>BOT</em><small>Maintenant</small></div><div class="discord-inspector-embed" style="--discord-accent:${themeColor}"><small>${escapeHtml(page.name || "Page d’accueil")}</small>${content || "<p>Ajoutez du contenu à cette page.</p>"}</div>${buttons ? `<div class="discord-inspector-actions">${buttons}</div>` : ""}${selects}</div></div><footer>Aperçu de la page d’accueil · mise à jour automatique</footer></section>`;
+}
+
+function refreshDiscordInspectorPreview() {
+  const current = $("#discord-inspector-preview");
+  if (current) current.outerHTML = discordInspectorPreviewMarkup();
+}
+
 function installBuildingWorkbench(payload, buildingKey, modules) {
   const layout = $("#editor .editor-layout"),
     main = layout?.querySelector(".editor-main"),
@@ -7401,7 +7503,7 @@ function installBuildingWorkbench(payload, buildingKey, modules) {
         "fr",
       ),
     );
-  navigator.innerHTML = `<header><small>ESPACES INTERACTIFS</small><h3>Bâtiments du monde</h3><p>Passez d'un lieu à l'autre sans quitter l'atelier.</p></header><div class="building-workbench-list">${buildings.map((entity) => `<button type="button" class="${entity.entity_key === buildingKey ? "active" : ""}" data-workbench-building="${escapeHtml(entity.entity_key)}"><span>${escapeHtml(entity.payload.emoji || "🏰")}</span><b>${escapeHtml(entity.payload.name || entity.entity_key)}</b><small>${entity.status === "published" ? "Publié" : "Brouillon"}</small></button>`).join("") || '<p class="empty">Ce sera le premier bâtiment de ce monde.</p>'}</div><button type="button" class="secondary building-workbench-new">＋ Nouveau bâtiment</button>`;
+  navigator.innerHTML = `<header><small>BÂTIMENTS</small><h3>Bâtiments du monde</h3><p>Passez d'un lieu à l'autre sans quitter l'atelier.</p></header><div class="building-workbench-list">${buildings.map((entity) => `<button type="button" class="${entity.entity_key === buildingKey ? "active" : ""}" data-workbench-building="${escapeHtml(entity.entity_key)}"><span>${escapeHtml(entity.payload.emoji || "🏰")}</span><b>${escapeHtml(entity.payload.name || entity.entity_key)}</b><small>${entity.status === "published" ? "Publié" : "Brouillon"}</small></button>`).join("") || '<p class="empty">Ce sera le premier bâtiment de ce monde.</p>'}</div><button type="button" class="secondary building-workbench-new">＋ Créer un bâtiment</button>`;
   layout.insertBefore(navigator, main);
   const commonSection = $("#definition-step > .common-fields.form-section"),
     technical = $("#definition-step > details.common-fields");
@@ -7416,7 +7518,7 @@ function installBuildingWorkbench(payload, buildingKey, modules) {
   if (!professionCount) warnings.push("Aucun métier configuré.");
   if (!pageCount) warnings.push("Aucune page Discord.");
   help.hidden = false;
-  help.innerHTML = `<section class="building-inspector-summary"><small>INSPECTEUR</small><div class="building-inspector-title"><span>${escapeHtml(payload.emoji || "🏰")}</span><div><h3>${escapeHtml(payload.name || "Nouveau bâtiment")}</h3><p>${state.editing?.status === "published" ? "Publié sur Discord" : "Brouillon de travail"}</p></div></div><dl><div><dt>Actions</dt><dd>${actionCount}</dd></div><div><dt>Métiers</dt><dd>${professionCount}</dd></div><div><dt>Activités</dt><dd>${activityCount}</dd></div><div><dt>Pages</dt><dd>${pageCount}</dd></div></dl>${warnings.length ? `<div class="building-inspector-warnings"><b>À vérifier</b>${warnings.map((text) => `<span>◇ ${escapeHtml(text)}</span>`).join("")}</div>` : '<div class="building-inspector-ready">✓ Prêt à être configuré et publié</div>'}</section><section class="building-contextual-help"><span class="help-icon">?</span><small>AIDE CONTEXTUELLE</small><h3 id="help-title">Comprendre ce réglage</h3><p id="help-text">Survolez ou sélectionnez un réglage pour afficher son explication.</p><ul id="help-list"></ul></section>`;
+  help.innerHTML = `<section class="building-inspector-summary"><small>INSPECTEUR</small><div class="building-inspector-title"><span>${escapeHtml(payload.emoji || "🏰")}</span><div><h3>${escapeHtml(payload.name || "Nouveau bâtiment")}</h3><p>${state.editing?.status === "published" ? "Publié sur Discord" : "Brouillon de travail"}</p></div></div><dl><div><dt>Actions</dt><dd>${actionCount}</dd></div><div><dt>Métiers</dt><dd>${professionCount}</dd></div><div><dt>Activités</dt><dd>${activityCount}</dd></div><div><dt>Pages</dt><dd>${pageCount}</dd></div></dl>${warnings.length ? `<div class="building-inspector-warnings"><b>À vérifier</b>${warnings.map((text) => `<span>◇ ${escapeHtml(text)}</span>`).join("")}</div>` : '<div class="building-inspector-ready">✓ Prêt à être configuré et publié</div>'}</section>${discordInspectorPreviewMarkup()}<section class="building-contextual-help"><span class="help-icon">?</span><small>AIDE CONTEXTUELLE</small><h3 id="help-title">Comprendre ce réglage</h3><p id="help-text">Survolez ou sélectionnez un réglage pour afficher son explication.</p><ul id="help-list"></ul></section>`;
   const head = $("#editor .dialog-head");
   head?.querySelector("#building-list-toggle")?.remove();
   head?.querySelector("#building-inspector-toggle")?.remove();
@@ -7650,7 +7752,7 @@ async function loadItemCatalog() {
     data.items
       .map(
         (item) =>
-          `<article class="card item-card" data-open="${escapeHtml(item.id)}" tabindex="0"><div class="card-head"><span class="emoji">${escapeHtml(item.emoji)}</span><span class="badge ${item.status}">${item.status === "published" ? "PUBLIÉ" : "BROUILLON"}</span></div><h3>${escapeHtml(item.name)}</h3><div class="item-tags"><span>${escapeHtml(item.category)}</span>${item.buildings.map((b) => `<span title="${escapeHtml(b.relation_labels.join(", "))}">${escapeHtml(b.name)}</span>`).join("")}</div><p>${escapeHtml(item.description || "Aucune description")}</p><div class="technical-id">ID technique : <code>${escapeHtml(item.id)}</code></div><div class="meta"><span>v${item.version}</span><span><button data-edit="${escapeHtml(item.id)}">Modifier</button>${item.status === "draft" ? ` · <button data-publish="${escapeHtml(item.id)}" data-version="${item.version}">Publier</button>` : ""} · <button class="danger-link" data-delete="${escapeHtml(item.id)}">Supprimer</button></span></div></article>`,
+          `<article class="card item-card" data-open="${escapeHtml(item.id)}" tabindex="0"><div class="card-head"><span class="emoji">${escapeHtml(item.emoji)}</span><span class="badge ${item.status}">${item.status === "published" ? "PUBLIÉ" : "BROUILLON"}</span></div><h3>${escapeHtml(item.name)}</h3><div class="item-tags"><span>${escapeHtml(item.category)}</span>${item.buildings.map((b) => `<span title="${escapeHtml(b.relation_labels.join(", "))}">${escapeHtml(b.name)}</span>`).join("")}</div><p>${escapeHtml(item.description || "Aucune description")}</p><div class="technical-id">ID technique : <code>${escapeHtml(item.id)}</code></div><div class="meta"><span>v${item.version}</span><span><button data-edit="${escapeHtml(item.id)}">Ouvrir</button>${item.status === "draft" ? ` · <button data-publish="${escapeHtml(item.id)}" data-version="${item.version}">Publier sur Discord</button>` : ""} · <button class="danger-link" data-delete="${escapeHtml(item.id)}">Supprimer</button></span></div></article>`,
       )
       .join("") ||
     '<p class="empty">Aucun objet ne correspond à ces filtres.</p>';
@@ -8970,7 +9072,7 @@ async function publishItem(key, version) {
     alert((await response.json()).detail);
     return;
   }
-  setSaveState("saved", "Publié");
+  setSaveState("saved", "Publié sur Discord");
   await loadCatalogs();
   await load();
 }
@@ -9122,6 +9224,63 @@ async function fetchOverview(message = "Chargement…") {
   return response.json();
 }
 
+function renderBeginnerDashboard({
+  data,
+  metrics,
+  core,
+  activeToday,
+  activity,
+  activeEvents,
+  alerts,
+  projects,
+  rank,
+}) {
+  const steps = [
+      {
+        done: Number(metrics.buildings || 0) > 0,
+        label: "Créer un premier bâtiment",
+        detail: "Le lieu où les joueurs commenceront à agir.",
+        target: "building",
+      },
+      {
+        done: Number(metrics.published_buildings || 0) > 0,
+        label: "Publier le bâtiment sur Discord",
+        detail: "Rendre son interface visible aux joueurs.",
+        target: "building",
+      },
+      {
+        done: (state.catalogs.bot || []).some(
+          (item) => item.payload?.enabled && item.payload?.application_id,
+        ),
+        label: "Connecter un bot Discord",
+        detail: "Relier KingdomEngine à votre serveur.",
+        target: "bot",
+      },
+      {
+        done: Boolean(core?.running),
+        label: "Vérifier que le monde est en ligne",
+        detail: "Contrôler les services avant d’accueillir les joueurs.",
+        target: "supervision",
+      },
+    ],
+    completedSteps = steps.filter((step) => step.done).length,
+    nextStep = steps.find((step) => !step.done) || {
+      label: "Faire vivre le monde",
+      detail: "Tout est prêt : ajoutez du contenu à votre rythme.",
+      target: "live_world",
+    },
+    criticalAlerts = alerts.filter((alert) => alert.kind === "danger"),
+    alertMarkup = criticalAlerts.length
+      ? criticalAlerts
+          .map(
+            (alert) =>
+              `<article class="${alert.kind}"><span>${alert.icon}</span><div><b>${escapeHtml(alert.title)}</b><small>${escapeHtml(alert.detail)}</small></div></article>`,
+          )
+          .join("")
+      : '<article class="success"><span>✓</span><div><b>Tout fonctionne normalement</b><small>Aucune intervention nécessaire.</small></div></article>';
+  $("#admin-view").innerHTML = `<div class="royal-dashboard dashboard-simple"><section class="dashboard-welcome dashboard-welcome-simple"><div class="dashboard-welcome-copy"><small>PROCHAINE ÉTAPE CONSEILLÉE</small><h2>${escapeHtml(nextStep.label)}</h2><p>${escapeHtml(nextStep.detail)}</p><div class="dashboard-hero-actions"><button class="primary" data-go="${nextStep.target}">Continuer</button><button data-go="academy">Ouvrir l’aide guidée</button></div></div></section><section class="dashboard-start"><div class="royal-panel-title"><div><small>DÉMARRAGE RAPIDE</small><h2>${completedSteps} étape(s) sur ${steps.length}</h2></div><span>${Math.round((completedSteps / steps.length) * 100)} %</span></div><div class="dashboard-start-steps">${steps.map((step, index) => `<button type="button" class="${step.done ? "done" : ""}" data-go="${step.target}"><i>${step.done ? "✓" : index + 1}</i><span><b>${escapeHtml(step.label)}</b><small>${escapeHtml(step.detail)}</small></span><em>›</em></button>`).join("")}</div></section><section class="royal-metrics dashboard-metrics dashboard-metrics-compact">${metricCard("JOUEURS", metrics.players, `${activeToday} actif(s) aujourd’hui`)}${metricCard("BÂTIMENTS PUBLIÉS", metrics.published_buildings, `${metrics.buildings || 0} créé(s)`)}${metricCard("ÉVÉNEMENTS ACTIFS", metrics.active_events, "visibles par les joueurs")}${metricCard("ACTIVITÉS EN COURS", metrics.pending_jobs, "actions temporisées")}</section><div class="dashboard-columns dashboard-columns-simple"><section class="royal-panel dashboard-activity"><div class="royal-panel-title"><div><small>ACTIVITÉ RÉCENTE</small><h2>Dernières actions</h2></div><button data-go="supervision">Voir tout</button></div><ol class="royal-activity">${activity}</ol></section><section class="royal-panel"><div class="royal-panel-title"><div><small>À SURVEILLER</small><h2>État du monde</h2></div><button data-go="supervision">Détails</button></div><div class="dashboard-alerts">${alertMarkup}</div><div class="dashboard-events">${activeEvents}</div></section></div>${projects ? `<details class="dashboard-secondary"><summary>Voir les projets collectifs</summary>${projects}</details>` : ""}<details class="dashboard-secondary"><summary>Voir les classements des joueurs</summary><div class="royal-rankings dashboard-rankings"><section class="royal-panel"><div class="royal-panel-title"><h2>Les plus riches</h2></div><ol>${rank(data.rankings?.wealth || [], "wealth")}</ol></section><section class="royal-panel"><div class="royal-panel-title"><h2>Les plus expérimentés</h2></div><ol>${rank(data.rankings?.experience || [], "experience")}</ol></section></div></details></div>`;
+}
+
 async function loadDashboard() {
   const data = await fetchOverview("Préparation du tableau de bord…");
   if (!data) return;
@@ -9161,21 +9320,7 @@ async function loadDashboard() {
           `<li><span class="activity-dot"></span><b>${escapeHtml(item.player_name)}</b><span>${escapeHtml(item.action_name)}</span><small>${escapeHtml(item.building_name)} · ${formatDate(item.created_at)}</small></li>`,
       )
       .join("") || "<li class='empty-admin'>Aucune activité récente.</li>";
-  const core = serviceMetric("world"),
-    voice = serviceMetric("audio"),
-    connectedBots = data.services.filter((service) => service.running).length;
-  const itemCount =
-      data.item_catalog?.total ?? data.item_catalog?.items?.length ?? 0,
-    publishedRate = metrics.buildings
-      ? Math.round((metrics.published_buildings * 100) / metrics.buildings)
-      : 0,
-    serviceRate = data.services.length
-      ? Math.round((connectedBots * 100) / data.services.length)
-      : 100,
-    totalStock = data.buildings.reduce(
-      (sum, building) => sum + Number(building.stock_total || 0),
-      0,
-    );
+  const core = serviceMetric("world");
   const activeEvents =
     (data.events || [])
       .filter((event) => event.status === "published" && event.enabled)
@@ -9206,31 +9351,17 @@ async function loadDashboard() {
           },
         ]),
   ].slice(0, 5);
-  $("#admin-view").innerHTML =
-    `<div class="royal-dashboard"><section class="dashboard-welcome"><div class="dashboard-welcome-copy"><small>CENTRE DE COMMANDEMENT</small><h2>KINGDOM<span>WEB</span></h2><p>Créez, supervisez et donnez vie à votre royaume Discord depuis un seul espace.</p><div class="dashboard-hero-actions"><button class="primary" data-go="live_world">◉ Voir le monde en direct</button><button data-go="calendar">▦ Ouvrir le calendrier</button></div></div></section><section class="dashboard-health"><article class="${core?.running ? "healthy" : "warning"}"><span>⬡</span><div><small>KINGDOMCORE</small><b>${core?.running ? "Opérationnel" : "Intervention requise"}</b></div></article><article class="${voice?.running ? "healthy" : "warning"}"><span>◖</span><div><small>KINGDOMVOICE</small><b>${voice?.running ? "Audio disponible" : "Service hors ligne"}</b></div></article><article class="${serviceRate === 100 ? "healthy" : "warning"}"><span>⌁</span><div><small>SANTÉ DES SERVICES</small><b>${serviceRate}% opérationnels</b></div></article><article class="healthy"><span>▱</span><div><small>DERNIÈRE SYNCHRONISATION</small><b>${formatDate(data.generated_at)}</b></div></article></section><section class="royal-metrics dashboard-metrics">${metricCard("JOUEURS", metrics.players, `${activeToday} actif(s) aujourd’hui`)}${metricCard("BÂTIMENTS PUBLIÉS", metrics.published_buildings, `${publishedRate}% des définitions`)}${metricCard("OBJETS DISPONIBLES", itemCount, `${totalStock} unité(s) en stock`)}${metricCard("ÉVÉNEMENTS ACTIFS", metrics.active_events, "publiés et activés")}${metricCard("ACTIVITÉS EN COURS", metrics.pending_jobs, "tâches temporisées")}${metricCard("SERVICES CONNECTÉS", `${connectedBots}/${data.services.length}`, core?.running ? "KingdomCore en ligne" : "KingdomCore arrêté")}</section><div class="dashboard-columns"><section class="royal-panel dashboard-activity"><div class="royal-panel-title"><div><small>ACTIVITÉ RÉCENTE</small><h2>Ce qui se passe dans le royaume</h2></div><button data-go="supervision">Voir tout</button></div><ol class="royal-activity">${activity}</ol></section><section class="royal-panel"><div class="royal-panel-title"><div><small>ÉVÉNEMENTS</small><h2>Animations en cours</h2></div><button data-go="event">Gérer</button></div><div class="dashboard-events">${activeEvents}</div></section><section class="royal-panel"><div class="royal-panel-title"><div><small>VIGILANCE</small><h2>Alertes système</h2></div><button data-go="supervision">Superviser</button></div><div class="dashboard-alerts">${alerts.map((alert) => `<article class="${alert.kind}"><span>${alert.icon}</span><div><b>${escapeHtml(alert.title)}</b><small>${escapeHtml(alert.detail)}</small></div></article>`).join("")}</div></section></div>${projects}<section class="dashboard-quick"><div class="dashboard-section-title"><div><small>ACCÈS RAPIDE</small><h2>Continuer à construire le royaume</h2></div><span>Les outils les plus utilisés</span></div><div><button data-go="building">♜ <span><b>Créer un bâtiment</b><small>Ajouter un lieu jouable</small></span></button><button data-go="profession">⚒ <span><b>Créer un métier</b><small>Définir une progression</small></span></button><button data-go="item">⚔ <span><b>Créer un objet</b><small>Enrichir le catalogue</small></span></button><button data-go="event">✦ <span><b>Créer un événement</b><small>Animer le Royaume</small></span></button><button data-go="location">⌖ <span><b>Organiser le monde</b><small>Relier les lieux</small></span></button><button data-go="bot">♙ <span><b>Gérer les agents</b><small>Configurer Discord</small></span></button></div></section><div class="royal-rankings dashboard-rankings"><section class="royal-panel"><div class="royal-panel-title"><div><small>FORTUNES</small><h2>Les plus riches</h2></div></div><ol>${rank(data.rankings?.wealth || [], "wealth")}</ol></section><section class="royal-panel"><div class="royal-panel-title"><div><small>MÉTIERS</small><h2>Les plus expérimentés</h2></div></div><ol>${rank(data.rankings?.experience || [], "experience")}</ol></section></div></div>`;
-  const healthLabels = $$(".dashboard-health article small"),
-    healthValues = $$(".dashboard-health article b");
-  if (healthLabels[0]) healthLabels[0].textContent = "MONDE";
-  if (healthLabels[1]) healthLabels[1].textContent = "AUDIO";
-  if (healthLabels[2]) healthLabels[2].textContent = "DISPONIBILITÉ";
-  if (healthValues[0])
-    healthValues[0].textContent = core?.running
-      ? "Monde opérationnel"
-      : "Monde indisponible";
-  if (healthValues[1])
-    healthValues[1].textContent = voice?.running
-      ? "Atmosphère disponible"
-      : "Audio indisponible";
-  const voiceCapacity = state.catalogs.bot.filter(
-      (item) => item.payload.bot_type === "voice" && item.payload.enabled,
-    ).length,
-    voiceActive = state.catalogs.voice_presence.filter(
-      (item) =>
-        item.status === "published" && item.payload.current_state === "active",
-    ).length,
-    lastMetric = $("#admin-view .dashboard-metrics article:last-child");
-  if (lastMetric)
-    lastMetric.innerHTML = `<small>PRÉSENCES VOCALES</small><strong>${voiceActive} / ${voiceCapacity}</strong><span>${Math.max(0, voiceCapacity - voiceActive)} slot(s) disponible(s)</span>`;
+  renderBeginnerDashboard({
+    data,
+    metrics,
+    core,
+    activeToday,
+    activity,
+    activeEvents,
+    alerts,
+    projects,
+    rank,
+  });
   bindNavigationShortcuts();
 }
 
@@ -9404,7 +9535,7 @@ function renderSettings(
     discord = settings.discord,
     theme = settings.theme;
   $("#admin-view").innerHTML =
-    `<div class="settings-layout"><section class="admin-section settings-hero"><div><small>CONFIGURATION CENTRALE</small><h2>Le Royaume, depuis un seul endroit</h2><p>Les valeurs publiées sont utilisées par KingdomCore et par le provisionnement Discord.</p></div><div class="settings-hero-actions"><span id="discord-provision-status">${provision.status === "done" ? `✓ Discord synchronisé · ${escapeHtml(provision.report || "")}` : provision.status === "failed" ? `Échec précédent : ${escapeHtml(provision.error || "")}` : provision.status === "pending" || provision.status === "processing" ? "Installation Discord en attente…" : "Discord non installé depuis KingdomWeb."}</span><div><button type="button" id="install-discord-server" class="secondary">${provision.installed ? "Mettre à jour Discord" : "Installer le serveur Discord"}</button><button type="button" class="primary" id="save-settings">Enregistrer et publier</button></div></div></section><section class="settings-shortcuts"><button data-go="building">🏰 Interfaces des bâtiments</button><button data-go="item">🎒 Objets</button><button data-go="event">⚡ Événements</button><button data-go="bot">🤖 Bots</button><button data-go="audio">🔊 Voix & audio</button></section><nav class="section-tabs" aria-label="Sections des paramètres"><button data-settings-tab="onboarding" class="${state.settingsTab === "onboarding" ? "active" : ""}">Arrivée des joueurs</button><button data-settings-tab="roles" class="${state.settingsTab === "roles" ? "active" : ""}">Rôles & couleurs</button><button data-settings-tab="discord" class="${state.settingsTab === "discord" ? "active" : ""}">Organisation Discord</button><button data-settings-tab="access" class="${state.settingsTab === "access" ? "active" : ""}">Entrée des bâtiments</button></nav><div class="settings-grid"><section class="admin-section settings-card" data-settings-panel="onboarding"><h3>${escapeHtml(onboarding.button_emoji || "✅")} ${escapeHtml(onboarding.title || "Accueil des nouveaux joueurs")}</h3>${settingCheck("Activer le parcours d'arrivée", "onboarding.enabled", onboarding.enabled)}${settingField("Salon d'arrivée", "onboarding.channel_name", onboarding.channel_name)}${settingField("Titre", "onboarding.title", onboarding.title)}${settingArea("Règles du serveur", "onboarding.rules_text", onboarding.rules_text)}${settingField("Libellé du bouton", "onboarding.button_label", onboarding.button_label)}${settingField("Emoji du bouton", "onboarding.button_emoji", onboarding.button_emoji)}${settingField("Confirmation", "onboarding.confirmation", onboarding.confirmation)}</section><section class="admin-section settings-card" data-settings-panel="roles"><h3>👥 Rôles Discord</h3>${settingField("Administrateur du monde", "roles.game_master", roles.game_master)}${settingField("Membre après validation", "roles.player", roles.player)}${settingField("Agents Discord", "roles.bot", roles.bot)}<p class="field-note">Le rôle de membre est accordé après la validation de ce parcours.</p><h3>🎨 Couleurs</h3>${settingField("Couleur principale", "theme.primary_color", theme.primary_color)}${settingField("Accent", "theme.accent_color", theme.accent_color)}</section><section class="admin-section settings-card" data-settings-panel="discord"><h3>🏰 Organisation Discord</h3>${settingField("Catégorie générale", "discord.general_category", discord.general_category)}${settingField("Modèle des catégories bâtiment", "discord.building_category_template", discord.building_category_template)}${settingField("Salon d'accueil", "discord.welcome_channel", discord.welcome_channel)}${settingField("Salon des commandes", "discord.commands_channel", discord.commands_channel)}${settingField("Salon d'administration", "discord.administration_channel", discord.administration_channel)}${settingField("Salon texte d'un bâtiment", "discord.building_text_channel", discord.building_text_channel)}${settingField("Salon vocal d'un bâtiment", "discord.building_voice_channel_template", discord.building_voice_channel_template)}</section><section class="admin-section settings-card" data-settings-panel="access"><h3>🚪 Entrée dans les bâtiments</h3>${settingCheck("Accès textuel seulement pendant la présence vocale", "discord.temporary_text_access", discord.temporary_text_access)}${settingCheck("Publier le message d'entrée", "discord.entry_message_enabled", discord.entry_message_enabled)}${settingArea("Message d'entrée", "discord.entry_message", discord.entry_message)}<p class="field-note">Variables disponibles : {player}, {building}, {key}. Après une modification de structure, relancez le provisionnement Discord.</p></section></div></div>`;
+    `<div class="settings-layout"><section class="admin-section settings-hero"><div><small>CONFIGURATION CENTRALE</small><h2>Le Royaume, depuis un seul endroit</h2><p>Les valeurs publiées sont utilisées par KingdomCore et par le provisionnement Discord.</p></div><div class="settings-hero-actions"><span id="discord-provision-status">${provision.status === "done" ? `✓ Discord synchronisé · ${escapeHtml(provision.report || "")}` : provision.status === "failed" ? `Échec précédent : ${escapeHtml(provision.error || "")}` : provision.status === "pending" || provision.status === "processing" ? "Installation Discord en attente…" : "Discord non installé depuis KingdomWeb."}</span><div><button type="button" id="install-discord-server" class="secondary">${provision.installed ? "Mettre à jour Discord" : "Installer le serveur Discord"}</button><button type="button" class="primary" id="save-settings">Enregistrer les paramètres</button></div></div></section><section class="settings-shortcuts"><button data-go="building">🏰 Interfaces des bâtiments</button><button data-go="item">🎒 Objets</button><button data-go="event">⚡ Événements</button><button data-go="bot">🤖 Bots</button><button data-go="audio">🔊 Voix & audio</button></section><nav class="section-tabs" aria-label="Sections des paramètres"><button data-settings-tab="onboarding" class="${state.settingsTab === "onboarding" ? "active" : ""}">Arrivée des joueurs</button><button data-settings-tab="roles" class="${state.settingsTab === "roles" ? "active" : ""}">Rôles & couleurs</button><button data-settings-tab="discord" class="${state.settingsTab === "discord" ? "active" : ""}">Organisation Discord</button><button data-settings-tab="access" class="${state.settingsTab === "access" ? "active" : ""}">Entrée des bâtiments</button></nav><div class="settings-grid"><section class="admin-section settings-card" data-settings-panel="onboarding"><h3>${escapeHtml(onboarding.button_emoji || "✅")} ${escapeHtml(onboarding.title || "Accueil des nouveaux joueurs")}</h3>${settingCheck("Activer le parcours d'arrivée", "onboarding.enabled", onboarding.enabled)}${settingField("Salon d'arrivée", "onboarding.channel_name", onboarding.channel_name)}${settingField("Titre", "onboarding.title", onboarding.title)}${settingArea("Règles du serveur", "onboarding.rules_text", onboarding.rules_text)}${settingField("Libellé du bouton", "onboarding.button_label", onboarding.button_label)}${settingField("Emoji du bouton", "onboarding.button_emoji", onboarding.button_emoji)}${settingField("Confirmation", "onboarding.confirmation", onboarding.confirmation)}</section><section class="admin-section settings-card" data-settings-panel="roles"><h3>👥 Rôles Discord</h3>${settingField("Administrateur du monde", "roles.game_master", roles.game_master)}${settingField("Membre après validation", "roles.player", roles.player)}${settingField("Agents Discord", "roles.bot", roles.bot)}<p class="field-note">Le rôle de membre est accordé après la validation de ce parcours.</p><h3>🎨 Couleurs</h3>${settingField("Couleur principale", "theme.primary_color", theme.primary_color)}${settingField("Accent", "theme.accent_color", theme.accent_color)}</section><section class="admin-section settings-card" data-settings-panel="discord"><h3>🏰 Organisation Discord</h3>${settingField("Catégorie générale", "discord.general_category", discord.general_category)}${settingField("Modèle des catégories bâtiment", "discord.building_category_template", discord.building_category_template)}${settingField("Salon d'accueil", "discord.welcome_channel", discord.welcome_channel)}${settingField("Salon des commandes", "discord.commands_channel", discord.commands_channel)}${settingField("Salon d'administration", "discord.administration_channel", discord.administration_channel)}${settingField("Salon texte d'un bâtiment", "discord.building_text_channel", discord.building_text_channel)}${settingField("Salon vocal d'un bâtiment", "discord.building_voice_channel_template", discord.building_voice_channel_template)}</section><section class="admin-section settings-card" data-settings-panel="access"><h3>🚪 Entrée dans les bâtiments</h3>${settingCheck("Accès textuel seulement pendant la présence vocale", "discord.temporary_text_access", discord.temporary_text_access)}${settingCheck("Publier le message d'entrée", "discord.entry_message_enabled", discord.entry_message_enabled)}${settingArea("Message d'entrée", "discord.entry_message", discord.entry_message)}<p class="field-note">Variables disponibles : {player}, {building}, {key}. Après une modification de structure, relancez le provisionnement Discord.</p></section></div></div>`;
   const onboardingEnabled = $('[data-setting="onboarding.enabled"]');
   $(".settings-hero>div:first-child").innerHTML =
     '<small>INSTALLATION ET SYNCHRONISATION DISCORD</small><h2>KingdomEngine sur votre serveur</h2><p>① Invitez KingdomCore depuis votre profil. ② Installez le serveur ci-contre. ③ Publiez vos bâtiments : leurs salons sont ensuite ajoutés automatiquement. Une suppression retire aussi automatiquement les salons correspondants.</p><div class="discord-install-steps"><span>① Bot invité</span><span>② Serveur installé</span><span>③ Bâtiments synchronisés</span></div>';
@@ -9648,7 +9779,7 @@ async function saveSettings() {
     ),
   );
   button.disabled = true;
-  button.textContent = "Publication…";
+  button.textContent = "Enregistrement…";
   const response = await fetch("/api/server/settings", {
     method: "POST",
     headers,
@@ -9659,7 +9790,7 @@ async function saveSettings() {
   });
   const data = await response.json();
   button.disabled = false;
-  button.textContent = "Enregistrer et publier";
+  button.textContent = "Enregistrer les paramètres";
   if (!response.ok) {
     alert(data.detail);
     return;
@@ -9894,7 +10025,7 @@ function playerPanel(data) {
   if (state.playerTab === "overview")
     return `<div class="player-cards">${metricCard("💰 ARGENT", Number(p.money).toLocaleString("fr-FR"), "écus")}${metricCard("⚡ ÉNERGIE", `${p.energy} / 100`)}${metricCard("🛠️ MÉTIER", active?.name || "Aucun", active ? `niveau ${active.level} · ${active.experience} XP` : "")}${metricCard("🕒 ACTIVITÉ", pending ? pending.action_key : "Aucune", pending ? pending.building_key : "")}</div><div class="admin-split"><section class="admin-section"><h3>Informations</h3><p>Discord ID : <b>${escapeHtml(p.discord_id)}</b></p><p>Création : ${p.created_at ? formatDate(p.created_at) : "Non conservée"}</p><p>Dernière activité : ${formatDate(p.updated_at)}</p></section><section class="admin-section"><h3>États et cooldowns</h3>${data.states.map((x) => `<p><b>${escapeHtml(x.key)}</b> : ${escapeHtml(JSON.stringify(x.value))}</p>`).join("") || '<p class="muted">Aucun état temporaire.</p>'}${data.cooldowns.map((x) => `<p>${escapeHtml(x.building_key)} / ${escapeHtml(x.action_key)} <button data-cooldown="${escapeHtml(x.building_key)}|${escapeHtml(x.action_key)}">Réinitialiser</button></p>`).join("")}</section></div>`;
   if (state.playerTab === "inventory")
-    return `<section class="admin-section"><div class="admin-section-head"><h3>Inventaire</h3><button class="primary" data-mutation="inventory">Modifier</button></div><div class="inventory-grid">${data.inventory.map((x) => `<article class="${x.missing ? "missing-reference" : ""}"><span>${escapeHtml(x.emoji)}</span><div><b>${escapeHtml(x.name)}</b><small>${x.missing ? `⚠ Référence manquante · ${escapeHtml(x.item_key)}` : escapeHtml(x.category)}</small></div><strong>× ${x.quantity}</strong></article>`).join("") || '<p class="muted">Inventaire vide.</p>'}</div></section>`;
+    return `<section class="admin-section"><div class="admin-section-head"><h3>Inventaire</h3><button class="primary" data-mutation="inventory">Gérer l’inventaire</button></div><div class="inventory-grid">${data.inventory.map((x) => `<article class="${x.missing ? "missing-reference" : ""}"><span>${escapeHtml(x.emoji)}</span><div><b>${escapeHtml(x.name)}</b><small>${x.missing ? `⚠ Référence manquante · ${escapeHtml(x.item_key)}` : escapeHtml(x.category)}</small></div><strong>× ${x.quantity}</strong></article>`).join("") || '<p class="muted">Inventaire vide.</p>'}</div></section>`;
   if (state.playerTab === "professions")
     return `<section class="admin-section"><div class="admin-section-head"><h3>Métiers</h3><button class="primary" data-mutation="profession">Administrer</button></div>${data.professions.map((x) => `<article class="profession-row"><div><b>${x.active ? "● " : ""}${escapeHtml(x.name)}</b><small>${x.active ? "Actif" : "Historique"}</small></div><div>Niveau ${x.level} · ${x.experience} XP</div><progress max="${x.experience_per_level}" value="${x.experience % x.experience_per_level}"></progress></article>`).join("") || '<p class="muted">Aucun métier pratiqué.</p>'}</section>`;
   if (state.playerTab === "tools")
@@ -10160,7 +10291,7 @@ $("#cards").addEventListener("click", async (event) => {
     const deletion = await response.json();
     if (state.type === "building" && deletion.discord_sync?.requested)
       alert(
-        "Bâtiment supprimé du Studio. KingdomCore va retirer automatiquement ses salons Discord. Suivez l'opération dans Configuration du monde.",
+        "Bâtiment supprimé du Studio. KingdomCore va retirer automatiquement ses salons Discord. Suivez l'opération dans Paramètres du monde.",
       );
     await loadCatalogs();
     await load();
@@ -10254,9 +10385,11 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !$("#editor").hidden) closeEditor();
 });
 
-$("#save").onclick = async () => {
+async function saveEditor(publishRequested = false) {
   if (state.referencePreview) return;
-  const button = $("#save");
+  const saveButton = $("#save"),
+    publishButton = $("#save-publish"),
+    activeButton = publishRequested ? publishButton : saveButton;
   try {
     const name = $("#name").value.trim();
     if (!name) throw Error("Donne un nom au lieu avant de l’enregistrer.");
@@ -10269,9 +10402,15 @@ $("#save").onclick = async () => {
       throw Error(
         "Le nom doit contenir au moins quelques lettres ou chiffres.",
       );
-    button.disabled = true;
-    button.textContent = "Enregistrement…";
-    setSaveState("saving", "Enregistrement…");
+    saveButton.disabled = true;
+    publishButton.disabled = true;
+    activeButton.textContent = publishRequested
+      ? "Publication…"
+      : "Enregistrement…";
+    setSaveState(
+      "saving",
+      publishRequested ? "Publication sur Discord…" : "Enregistrement…",
+    );
     const key = $("#key").value,
       selectedBuildingBot =
         state.type === "building" ? fieldValue("relation_bot_key") || "" : "";
@@ -10315,9 +10454,10 @@ $("#save").onclick = async () => {
     const saved = await response.json();
     if (state.type === "building")
       await persistBuildingBotRelation(key, selectedBuildingBot);
-    if (state.type === "audio") {
+    const shouldPublish = publishRequested;
+    if (shouldPublish) {
       const published = await fetch(
-        `/api/content/audio/${saved.entity_key}/${saved.version}/publish`,
+        `/api/content/${state.type}/${saved.entity_key}/${saved.version}/publish`,
         { method: "POST", headers, body: "{}" },
       );
       if (!published.ok) throw Error((await published.json()).detail);
@@ -10330,22 +10470,33 @@ $("#save").onclick = async () => {
     await load();
     setSaveState(
       "saved",
-      savedType === "audio" ? "Publié" : "Brouillon enregistré",
+      shouldPublish
+        ? "Publié sur Discord"
+        : "Enregistré · non publié sur Discord",
     );
   } catch (error) {
     $("#error").textContent = error.message;
     setSaveState("error", "Échec de sauvegarde");
   } finally {
-    button.disabled = false;
-    button.textContent = "Enregistrer le brouillon";
+    saveButton.disabled = false;
+    publishButton.disabled = false;
+    saveButton.textContent = "Enregistrer";
+    publishButton.textContent = "Publier sur Discord";
   }
-};
+}
+
+$("#save").onclick = () => saveEditor(false);
+$("#save-publish").onclick = () => saveEditor(true);
 
 $("#new").onclick = startCreate;
 $("#search").oninput = () =>
   state.type === "bot" ? renderDiscordConnections() : renderCards();
-$("#editor-form").addEventListener("input", markEditorDirty);
-$("#editor-form").addEventListener("change", markEditorDirty);
+const handleEditorMutation = () => {
+  markEditorDirty();
+  refreshDiscordInspectorPreview();
+};
+$("#editor-form").addEventListener("input", handleEditorMutation);
+$("#editor-form").addEventListener("change", handleEditorMutation);
 window.addEventListener("beforeunload", (event) => {
   if (!state.editorDirty) return;
   event.preventDefault();
@@ -10488,12 +10639,13 @@ async function selectNavigationPage(button) {
   activateNavigation(button);
   setSidebarOpen(false);
   state.type = nextType;
+  updatePrimaryActionLabel();
   $("#title").textContent = labels[state.type];
   $("#crumb").textContent = labels[state.type].toUpperCase();
   $("#page-description").textContent =
     pageDescriptions[state.type] ||
     "Administrez le Royaume depuis un espace unique.";
-  setSaveState("saved", "Synchronisé");
+  setSaveState("saved", "À jour");
   await load();
   KingdomTutorials.resumeForPage(state.type);
 }

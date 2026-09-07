@@ -614,7 +614,7 @@ def test_voice_presence_has_a_real_client_ui_and_hides_worker_details():
 def test_navigation_uses_generic_world_editor_vocabulary():
     static = Path(web.__file__).with_name("static")
     page = (static / "index.html").read_text(encoding="utf-8")
-    assert "Entités & lieux" in page
+    assert "Carte & lieux" in page
 
 
 def test_frontend_sources_keep_human_readable_sections_and_unminified_css():
@@ -666,10 +666,34 @@ def test_navigation_and_dark_theme_remain_available_in_desktop_and_mobile_shells
     assert '--accent:#24945f' in compact_styles
     assert '--violet:#7667d8' in compact_styles
     assert '[hidden]{display:none!important' in compact_styles
-    assert "Espaces interactifs" in page
-    assert "Objets & ressources" in page
-    assert "Temps & calendrier" in page
-    assert "Présences vocales" in page
+    assert "Bâtiments" in page
+    assert "Objets" in page
+    assert "Calendrier" in page
+    assert "Voix & présences" in page
+
+
+def test_novice_interface_has_explicit_actions_discord_preview_and_light_dashboard():
+    static = Path(web.__file__).with_name("static")
+    page = (static / "index.html").read_text(encoding="utf-8")
+    script = (static / "app.js").read_text(encoding="utf-8")
+    builder_styles = (static / "premium-builder.css").read_text(encoding="utf-8")
+    dashboard_styles = (static / "brand-system.css").read_text(encoding="utf-8")
+
+    assert 'id="save">Enregistrer' in "".join(page.split())
+    compact_page = "".join(page.split())
+    assert 'id="save-publish"' in compact_page
+    assert "Publier sur Discord" in page
+    assert "saveEditor(false)" in script
+    assert "saveEditor(true)" in script
+    assert "Enregistré · non publié sur Discord" in script
+    assert 'id="discord-inspector-preview"' in script
+    assert "APERÇU JOUEUR · DISCORD" in script
+    assert "refreshDiscordInspectorPreview" in script
+    assert ".discord-inspector-message" in builder_styles
+    assert "renderBeginnerDashboard" in script
+    assert "PROCHAINE ÉTAPE CONSEILLÉE" in script
+    assert "dashboard-metrics-compact" in dashboard_styles
+    assert "@media (max-width: 520px)" in dashboard_styles
 
 
 def test_building_and_item_editors_keep_full_size_workspaces_and_profession_delete():

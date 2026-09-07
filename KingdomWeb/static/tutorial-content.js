@@ -23,7 +23,7 @@ window.KingdomTutorialContent = {
           target: "#new",
           title: "Commencez par un bâtiment",
           content:
-            "Cliquez sur Nouvelle définition. Le bâtiment contiendra votre première expérience jouable.",
+            "Cliquez sur Créer un bâtiment. Il contiendra votre première expérience jouable.",
           interaction: "target",
           completion: { event: "dom_click", selector: "#new" },
         },
@@ -222,7 +222,7 @@ window.KingdomTutorialContent = {
           page: "building",
           target: "#new",
           title: "Créer une fiche",
-          content: "Cliquez sur Nouvelle définition.",
+          content: "Cliquez sur le bouton Créer de cette page.",
           interaction: "target",
           completion: { event: "dom_click", selector: "#new" },
         },
@@ -659,7 +659,7 @@ window.KingdomTutorialContent = {
           target: "#new",
           title: "Créer l’environnement",
           content:
-            "Cliquez sur Nouvelle définition. Si un environnement existe déjà, vous pourrez quitter et ouvrir sa fiche à la place.",
+            "Cliquez sur Créer une météo. Si une météo existe déjà, vous pourrez quitter et ouvrir sa fiche à la place.",
           interaction: "target",
           completion: { event: "dom_click", selector: "#new" },
         },

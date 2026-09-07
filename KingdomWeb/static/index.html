@@ -63,34 +63,36 @@
         <button class="nav-primary active" data-type="dashboard">
           <span class="nav-icon">⌂</span><span>Tableau de bord</span>
         </button>
-        <div class="nav-divider"><span>CRÉATION DU MONDE</span></div>
+        <div class="nav-divider"><span>CONSTRUIRE LE MONDE</span></div>
         <span hidden data-nav-group="world" aria-expanded="true"></span>
         <div class="nav-submenu nav-direct" data-nav-submenu="world">
           <button data-type="live_world"><span>◉</span>Monde en direct</button
-          ><button data-type="location"><span>⌖</span>Entités & lieux</button
+          ><button data-type="location"><span>⌖</span>Carte & lieux</button
           ><button data-type="building">
-            <span>▦</span>Espaces interactifs</button
+            <span>▦</span>Bâtiments</button
           ><button data-type="npc"><span>♙</span>Personnages</button
           ><button data-type="profession">
-            <span>⚒</span>Activités & métiers</button
-          ><button data-type="item"><span>◇</span>Objets & ressources</button>
+            <span>⚒</span>Métiers & activités</button
+          ><button data-type="item"><span>◇</span>Objets</button>
         </div>
-        <div class="nav-divider"><span>ATMOSPHÈRE</span></div>
+        <div class="nav-divider"><span>SON & DISCORD</span></div>
         <div class="nav-submenu nav-direct">
           <button
             data-type="voice_presence"
             data-tutorial="voice-presence-open"
           >
-            <span>◉</span>Présences vocales</button
-          ><button data-type="audio"><span>◖</span>Bibliothèque audio</button
-          ><button data-type="bot"><span>♧</span>Connexion Discord</button>
+            <span>◉</span>Voix & présences</button
+          ><button data-type="audio"><span>◖</span>Sons & musiques</button
+          ><button data-type="bot"><span>♧</span>Bots Discord</button>
         </div>
         <div class="nav-divider"><span>DYNAMIQUE</span></div>
         <span hidden data-nav-group="gameplay" aria-expanded="true"></span>
         <div class="nav-submenu nav-direct" data-nav-submenu="gameplay">
           <button data-type="event"><span>✦</span>Événements</button
-          ><button data-type="calendar"><span>▦</span>Temps & calendrier</button
-          ><button data-type="environment"><span>☀</span>Environnement</button>
+          ><button data-type="calendar"><span>▦</span>Calendrier</button
+          ><button data-type="environment">
+            <span>☀</span>Météo & environnement
+          </button>
         </div>
         <div class="nav-divider"><span>SUPERVISION</span></div>
         <span hidden data-nav-group="tools" aria-expanded="true"></span>
@@ -102,10 +104,10 @@
         </div>
         <div class="nav-divider"><span>PARAMÈTRES</span></div>
         <button class="nav-primary" data-type="settings">
-          <span class="nav-icon">⚙</span><span>Configuration du monde</span>
+          <span class="nav-icon">⚙</span><span>Paramètres du monde</span>
         </button>
         <button class="nav-primary" data-type="profile">
-          <span class="nav-icon">♙</span><span>Mon profil & serveurs</span>
+          <span class="nav-icon">♙</span><span>Compte & serveurs</span>
         </button>
         <button
           class="nav-primary"
@@ -174,9 +176,9 @@
             <span class="theme-icon" aria-hidden="true">☾</span
             ><span class="theme-label">Mode nuit</span></button
           ><span class="save-state" id="save-state" data-state="saved"
-            ><i></i><span>Synchronisé</span></span
+            ><i></i><span>À jour</span></span
           ><button class="primary" id="new" hidden>
-            ＋ Nouvelle définition
+            ＋ Créer
           </button>
         </div>
       </header>
@@ -248,7 +250,7 @@
           <div class="dialog-head">
             <div>
               <small id="editor-kicker">ÉDITEUR NO-CODE</small>
-              <h2 id="editor-title">Nouvelle définition</h2>
+              <h2 id="editor-title">Créer un contenu</h2>
             </div>
             <button
               type="button"
@@ -374,8 +376,9 @@
               ← Changer de modèle</button
             ><span class="action-spacer"></span
             ><button type="button" id="cancel-editor">Annuler</button
-            ><button type="button" class="primary" id="save">
-              Enregistrer le brouillon
+            ><button type="button" id="save">Enregistrer</button
+            ><button type="button" class="primary" id="save-publish">
+              Publier sur Discord
             </button>
           </div>
         </form>
