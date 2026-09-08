@@ -32,6 +32,7 @@ from KingdomWeb.discord_channels import DiscordChannelAdministrationService, Dis
 from KingdomWeb.world_creator import WorldCreatorService
 from kingdomCore.world import WorldEngine, WorldError
 from KingdomVoice.configuration import discover_platform_workers, migrate_bot_catalog
+from KingdomVoice.runtime_status import read_voice_status
 from KingdomWeb.accounts import ErreurAuthentification, ErreurAutorisation, RegistreComptes
 from seed import DEFINITIONS, REFERENCE_BUILDING
 import discord
@@ -558,13 +559,25 @@ def platform_overview():
         audit = [dict(row) for row in base.execute("SELECT action,target_type,target_id,created_at FROM platform_audit ORDER BY id DESC LIMIT 30").fetchall()]
         support = [dict(row) for row in base.execute("SELECT g.grant_id,w.slug world_slug,g.scopes_json,g.expires_at,g.status,g.created_at FROM support_grants g JOIN worlds w ON w.id=g.world_id ORDER BY g.created_at DESC LIMIT 30").fetchall()]
         servers = [dict(row) for row in base.execute("SELECT slug,name,guild_id,database_path FROM managed_servers WHERE active=1 ORDER BY name").fetchall()]
+    voice_runtime = read_voice_status()
+    runtime_workers = list(voice_runtime.get("workers") or [])
     voice_worlds = []
     for server in servers:
         try:
             world_store = ContentStore(server["database_path"]); world_store.initialize()
             presences = world_store.list("voice_presence")
             voice_bots = [item for item in world_store.list("bot") if item["payload"].get("bot_type") == "voice" and item["payload"].get("enabled")]
-            voice_worlds.append({"world_slug": server["slug"], "world_name": server["name"], "guild_id": server["guild_id"], "capacity": len(voice_bots), "active": sum(item["payload"].get("current_state") == "active" for item in presences), "presences": [{"key": item["entity_key"], "name": item["payload"].get("name", item["entity_key"]), "type": item["payload"].get("presence_type", "custom"), "state": item["payload"].get("current_state", "ready"), "location_key": item["payload"].get("location_key", "")} for item in presences]})
+            guild_workers = [
+                worker
+                for worker in runtime_workers
+                if str(worker.get("guild_id", "")) == str(server["guild_id"])
+            ]
+            connected_presence_keys = {
+                str(worker.get("presence_key", ""))
+                for worker in guild_workers
+                if worker.get("connected")
+            }
+            voice_worlds.append({"world_slug": server["slug"], "world_name": server["name"], "guild_id": server["guild_id"], "capacity": len(voice_bots), "active": sum(bool(worker.get("connected")) for worker in guild_workers), "presences": [{"key": item["entity_key"], "name": item["payload"].get("name", item["entity_key"]), "type": item["payload"].get("presence_type", "custom"), "state": "active" if item["entity_key"] in connected_presence_keys else "ready", "location_key": item["payload"].get("location_key", "")} for item in presences]})
         except Exception as exc:
             voice_worlds.append({"world_slug": server["slug"], "world_name": server["name"], "guild_id": server["guild_id"], "capacity": 0, "active": 0, "presences": [], "error": type(exc).__name__})
     platform_workers = [
@@ -1154,14 +1167,22 @@ def import_legacy_content():
 
 
 @app.get("/api/bots/status", dependencies=[Depends(authorize)])
-def bot_statuses():
+def bot_statuses(request: Request):
     statuses = []
+    runtime = read_voice_status()
+    selected_guild = str(request.state.serveur.get("guild_id", ""))
+    runtime_by_key = {
+        str(worker.get("key", "")): worker
+        for worker in runtime.get("workers", [])
+        if str(worker.get("guild_id", "")) == selected_guild
+    }
     # La page Connexion Discord est aussi un outil de préparation : un bot en
     # brouillon doit donc signaler ses variables manquantes avant publication.
     for entity in store.list("bot"):
         config = entity["payload"]
         token_env, token = _configured_environment(config, "token_env", "legacy_token_env")
         application_env, application_id = _configured_environment(config, "application_id_env", "legacy_application_id_env")
+        worker_runtime = runtime_by_key.get(entity["entity_key"], {})
         statuses.append({
             "key": entity["entity_key"],
             "name": config["name"],
@@ -1173,11 +1194,15 @@ def bot_statuses():
             "token_configured": bool(token),
             "channel_configured": bool(config.get("building_key") or config.get("voice_channel_id") or (config.get("voice_channel_env") and os.getenv(str(config["voice_channel_env"])))),
             "worker_kind": config.get("worker_kind", "custom"),
+            "connected": bool(worker_runtime.get("connected")),
+            "runtime_state": worker_runtime.get("state", "offline"),
+            "presence_key": worker_runtime.get("presence_key", ""),
         })
     known = {status["key"] for status in statuses}
     for worker in discover_platform_workers():
         if worker["key"] in known:
             continue
+        worker_runtime = runtime_by_key.get(worker["key"], {})
         statuses.append({
             "key": worker["key"],
             "name": worker["name"],
@@ -1189,6 +1214,9 @@ def bot_statuses():
             "token_configured": True,
             "channel_configured": False,
             "worker_kind": "platform",
+            "connected": bool(worker_runtime.get("connected")),
+            "runtime_state": worker_runtime.get("state", "offline"),
+            "presence_key": worker_runtime.get("presence_key", ""),
         })
     return statuses
 

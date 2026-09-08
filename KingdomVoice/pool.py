@@ -128,6 +128,13 @@ class VoiceWorkerPool:
             worker.state = "free"; worker.channel_id = ""; worker.presence_key = ""; worker.scene_key = ""; worker.last_activity = _now(); worker.error = ""
             return worker
 
+    def touch(self, worker_key: str) -> VoiceWorkerState:
+        """Signale qu'un worker est toujours utilisé dans son salon vocal."""
+        with self._lock:
+            worker = self.workers[worker_key]
+            worker.last_activity = _now()
+            return worker
+
     def fail(self, worker_key: str, error: Exception | str) -> None:
         with self._lock:
             worker = self.workers[worker_key]; worker.state = "error"; worker.error = str(error)[:500]; worker.last_activity = _now()

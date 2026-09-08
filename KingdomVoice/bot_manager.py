@@ -17,6 +17,7 @@ from KingdomData.paths import PACKAGE_DATA_ROOT, persistent_data_root
 from KingdomVoice.resolver import resolve_audio_scene
 from KingdomVoice.pool import VoicePresence, VoiceWorkerPool, VoiceWorkerState
 from KingdomVoice.configuration import discover_platform_workers
+from KingdomVoice.runtime_status import write_voice_status
 from kingdomEvent.lifecycle import EventLifecycle
 from kingdomEvent.runtime import WorldClock
 
@@ -523,6 +524,15 @@ class VoiceBotManager:
 
     async def _sync_automatic_presences(self) -> None:
         presences = self._published_presences()
+        # Un joueur toujours présent constitue une activité réelle. Sans ce
+        # heartbeat, le délai d'inactivité libérait puis réallouait le worker
+        # en boucle alors que personne n'avait quitté le salon.
+        for worker in self.pool.workers.values():
+            if (
+                worker.presence_key in presences
+                and self._channel_has_humans(worker.guild_id, worker.channel_id)
+            ):
+                self.pool.touch(worker.key)
         self.pool.sweep(presences)
         # Une présence automatique ne monopolise une capacité que pendant la
         # présence réelle de joueurs dans son salon. Le même worker peut ainsi
@@ -551,6 +561,33 @@ class VoiceBotManager:
                 building_key=building_key,
                 world_store=self._presence_stores.get(presence.key, self.store),
             )
+        self._publish_runtime_status()
+
+    def _publish_runtime_status(self) -> None:
+        """Expose les connexions Discord réelles aux interfaces de supervision."""
+        snapshot = self.pool.snapshot()
+        active = 0
+        for worker in snapshot["workers"]:
+            client = self.clients.get(worker["key"])
+            connected = bool(
+                client
+                and any(
+                    voice.is_connected()
+                    and str(getattr(voice.guild, "id", "")) == worker["guild_id"]
+                    and str(getattr(voice.channel, "id", "")) == worker["channel_id"]
+                    for voice in client.voice_clients
+                )
+            )
+            worker["connected"] = connected
+            if connected:
+                worker["state"] = "connected"
+                active += 1
+        snapshot["active"] = active
+        snapshot["available"] = max(0, snapshot["quota"] - active)
+        try:
+            write_voice_status(snapshot)
+        except OSError as exc:
+            print(f"[KingdomVoice] état de supervision indisponible : {exc}")
 
     def _client_for(
         self,
