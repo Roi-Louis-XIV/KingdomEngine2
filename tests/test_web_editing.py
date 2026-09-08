@@ -604,10 +604,14 @@ def test_voice_presence_has_a_real_client_ui_and_hides_worker_details():
     assert "loadVoicePresenceStudio" in script
     assert "openVoicePresenceDialog" in script
     assert "openVoiceProfileDialog" in script
-    assert "Une capacité audio, plusieurs identités" in script
-    assert "Aucune présence vocale" in script
+    assert "Une ambiance dans chaque bâtiment" in script
+    assert "Affecter un bot audio" in script
+    assert 'name="building_key" required' in script
+    assert "building_key: buildingKey" in script
+    assert "Aucun bâtiment sonorisé" in script
     assert "worker_01" not in script
     assert ".voice-presence-grid" in styles
+    assert ".voice-assignment-step" in styles
     assert "@media(max-width:760px)" in "".join(styles.split())
 
 

@@ -1,8 +1,10 @@
 import asyncio
 from types import SimpleNamespace
 
+from KingdomData import ContentStore
 from KingdomVoice.bot_manager import ManagedVoiceBot, VoiceBotManager, _normalized_name
 from KingdomVoice.configuration import discover_platform_workers
+from KingdomVoice.pool import VoicePresence
 
 
 def test_provisioned_voice_channel_matches_building_name():
@@ -96,3 +98,47 @@ def test_automatic_presence_resolves_its_only_building_and_channel():
         "forest_sound", "Forêt", "ambience", location_key="forest"
     )
     assert VoiceBotManager._presence_target(manager, presence) == ("camp", "456")
+
+
+def test_direct_building_assignment_does_not_depend_on_location_guessing():
+    store = SimpleNamespace(
+        list=lambda entity_type, **_kwargs: [
+            {"entity_key": "camp", "payload": {"location_key": "forest"}},
+            {"entity_key": "lodge", "payload": {"location_key": "forest"}},
+        ] if entity_type == "building" else [],
+        building_channels=lambda key: {"voice_channel_id": "789"} if key == "lodge" else {},
+    )
+    manager = SimpleNamespace(store=store, _presence_stores={})
+    presence = VoicePresence(
+        "forest_sound",
+        "Forêt",
+        "ambience",
+        location_key="forest",
+        metadata={"building_key": "lodge"},
+    )
+
+    assert VoiceBotManager._presence_target(manager, presence) == ("lodge", "789")
+
+
+def test_automatic_presences_are_loaded_from_every_managed_world(tmp_path):
+    first = ContentStore(tmp_path / "first.db")
+    second = ContentStore(tmp_path / "second.db")
+    first.initialize()
+    second.initialize()
+    draft = second.save(
+        "voice_presence",
+        "forge_ambience",
+        {
+            "name": "Forge",
+            "assignment_mode": "automatic",
+            "metadata": {"building_key": "forge"},
+        },
+    )
+    second.publish("voice_presence", "forge_ambience", draft["version"])
+
+    manager = VoiceBotManager(first, worlds=[(first, "111"), (second, "222")])
+    presences = manager._published_presences()
+
+    assert list(presences) == ["222:forge_ambience"]
+    assert presences["222:forge_ambience"].metadata["building_key"] == "forge"
+    assert manager._presence_stores["222:forge_ambience"].path == second.path

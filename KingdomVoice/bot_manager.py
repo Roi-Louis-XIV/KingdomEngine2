@@ -304,8 +304,15 @@ class ManagedVoiceBot(discord.Client):
 class VoiceBotManager:
     """Charge et exécute tous les profils vocaux publiés et activés."""
 
-    def __init__(self, store: ContentStore | None = None, assets_root: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        store: ContentStore | None = None,
+        assets_root: str | Path | None = None,
+        worlds: list[tuple[ContentStore, str]] | None = None,
+    ) -> None:
         self.store = store or ContentStore()
+        self.worlds = worlds or [(self.store, os.getenv("KINGDOM_GUILD_ID", ""))]
+        self._presence_stores: dict[str, ContentStore] = {}
         self.assets_root = Path(assets_root) if assets_root else persistent_data_root()
         self.clients: dict[str, ManagedVoiceBot] = {}
         self._last_scene_check = 0.0
@@ -383,7 +390,15 @@ class VoiceBotManager:
             await asyncio.gather(dispatcher, return_exceptions=True)
             await asyncio.gather(*(client.close() for client in self.clients.values()), return_exceptions=True)
 
-    async def assign_presence(self, presence: VoicePresence, *, guild_id: str = "", channel_id: str = "", building_key: str = "") -> ManagedVoiceBot | None:
+    async def assign_presence(
+        self,
+        presence: VoicePresence,
+        *,
+        guild_id: str = "",
+        channel_id: str = "",
+        building_key: str = "",
+        world_store: ContentStore | None = None,
+    ) -> ManagedVoiceBot | None:
         """Affecte une présence sans rendre le gameplay dépendant de l'audio."""
         worker = self.pool.allocate(presence, guild_id=guild_id, channel_id=channel_id)
         if worker is None:
@@ -393,6 +408,7 @@ class VoiceBotManager:
         if client is None:
             self.pool.fail(worker.key, "Client Discord indisponible")
             return None
+        client.store = world_store or self.store
         client.config.update({"guild_id": guild_id or client.config.get("guild_id", ""), "voice_channel_id": channel_id or 0, "building_key": building_key, "presence_key": presence.key})
         client.current_group_key = presence.scene_key or client.current_group_key
         await client.apply_presence_identity(presence)
@@ -409,37 +425,49 @@ class VoiceBotManager:
 
     def _published_presences(self) -> dict[str, VoicePresence]:
         presences: dict[str, VoicePresence] = {}
-        for entity in self.store.list("voice_presence", published=True):
-            payload = entity["payload"]
-            if payload.get("assignment_mode", "on_demand") != "automatic":
-                continue
-            presences[entity["entity_key"]] = VoicePresence(
-                key=entity["entity_key"],
-                name=str(payload.get("name", entity["entity_key"])),
-                presence_type=str(payload.get("presence_type", "custom")),
-                source_key=str(payload.get("source_key", "")),
-                avatar_url=str(payload.get("avatar_url", "")),
-                voice_profile_key=str(payload.get("voice_profile_key", "")),
-                scene_key=str(payload.get("scene_key", "")),
-                priority=int(payload.get("priority", 0)),
-                location_key=str(payload.get("location_key", "")),
-                assignment_mode="automatic",
-                release_timeout_seconds=int(payload.get("release_timeout_seconds", 30)),
-                metadata=dict(payload.get("metadata", {})),
-            )
+        self._presence_stores = {}
+        multiple_worlds = len(self.worlds) > 1
+        for world_store, guild_id in self.worlds:
+            for entity in world_store.list("voice_presence", published=True):
+                payload = entity["payload"]
+                if payload.get("assignment_mode", "on_demand") != "automatic":
+                    continue
+                runtime_key = (
+                    f"{guild_id}:{entity['entity_key']}"
+                    if multiple_worlds and guild_id
+                    else entity["entity_key"]
+                )
+                metadata = dict(payload.get("metadata", {}))
+                metadata.update({"runtime_entity_key": entity["entity_key"], "guild_id": guild_id})
+                presences[runtime_key] = VoicePresence(
+                    key=runtime_key,
+                    name=str(payload.get("name", entity["entity_key"])),
+                    presence_type=str(payload.get("presence_type", "custom")),
+                    source_key=str(payload.get("source_key", "")),
+                    avatar_url=str(payload.get("avatar_url", "")),
+                    voice_profile_key=str(payload.get("voice_profile_key", "")),
+                    scene_key=str(payload.get("scene_key", "")),
+                    priority=int(payload.get("priority", 0)),
+                    location_key=str(payload.get("location_key", "")),
+                    assignment_mode="automatic",
+                    release_timeout_seconds=int(payload.get("release_timeout_seconds", 30)),
+                    metadata=metadata,
+                )
+                self._presence_stores[runtime_key] = world_store
         return presences
 
     def _presence_target(self, presence: VoicePresence) -> tuple[str, str]:
+        world_store = getattr(self, "_presence_stores", {}).get(presence.key, self.store)
         building_key = str(presence.metadata.get("building_key", ""))
         if not building_key and presence.location_key:
             candidates = [
                 item["entity_key"]
-                for item in self.store.list("building", published=True)
+                for item in world_store.list("building", published=True)
                 if str(item["payload"].get("location_key", "")) == presence.location_key
             ]
             if len(candidates) == 1:
                 building_key = candidates[0]
-        channels = self.store.building_channels(building_key) if building_key else {}
+        channels = world_store.building_channels(building_key) if building_key else {}
         return building_key, str(channels.get("voice_channel_id", ""))
 
     async def _sync_automatic_presences(self) -> None:
@@ -455,20 +483,45 @@ class VoiceBotManager:
                 continue
             await self.assign_presence(
                 presence,
-                guild_id=os.getenv("KINGDOM_GUILD_ID", ""),
+                guild_id=str(presence.metadata.get("guild_id") or os.getenv("KINGDOM_GUILD_ID", "")),
                 channel_id=channel_id,
                 building_key=building_key,
+                world_store=self._presence_stores.get(presence.key, self.store),
             )
 
-    def _client_for(self, command: dict[str, Any], audio: dict[str, Any] | None = None) -> ManagedVoiceBot | None:
+    def _client_for(
+        self,
+        command: dict[str, Any],
+        audio: dict[str, Any] | None = None,
+        world_store: ContentStore | None = None,
+    ) -> ManagedVoiceBot | None:
         building_key = str(command.get("building_key", ""))
         explicit = str(command.get("bot_key") or "")
         speaker = str((audio or {}).get("speaker_bot_key") or "")
+
+        def belongs_to_world(client: ManagedVoiceBot) -> bool:
+            if world_store is None:
+                return True
+            return client.store.path.resolve() == world_store.path.resolve()
+
         if explicit and explicit in self.clients:
-            return self.clients[explicit]
-        if speaker in self.clients and str(self.clients[speaker].config.get("building_key", "")) == building_key:
+            candidate = self.clients[explicit]
+            return candidate if belongs_to_world(candidate) else None
+        if (
+            speaker in self.clients
+            and belongs_to_world(self.clients[speaker])
+            and str(self.clients[speaker].config.get("building_key", "")) == building_key
+        ):
             return self.clients[speaker]
-        assigned = next((client for client in self.clients.values() if str(client.config.get("building_key", "")) == building_key), None)
+        assigned = next(
+            (
+                client
+                for client in self.clients.values()
+                if belongs_to_world(client)
+                and str(client.config.get("building_key", "")) == building_key
+            ),
+            None,
+        )
         return assigned
 
     async def _dispatch_audio(self) -> None:
@@ -479,23 +532,24 @@ class VoiceBotManager:
                 self._last_scene_check=now
                 await self._sync_automatic_presences()
                 await asyncio.gather(*(client.sync_effective_scene() for client in self.clients.values()),return_exceptions=True)
-            for command in self.store.pending_audio():
-                error = ""
-                try:
-                    audio = self.store.get("audio", command["audio_key"], published=True)["payload"] if command["audio_key"] else None
-                    client = self._client_for(command, audio)
-                    if client is None:
-                        raise RuntimeError("Aucun bot vocal n’est attribué à ce bâtiment.")
-                    if command["command"] == "play":
-                        await client.play_audio(command["audio_key"])
-                    elif command["command"] == "set_group":
-                        await client.set_group(command["group_key"])
-                    else:
-                        raise RuntimeError(f"Commande audio inconnue : {command['command']}")
-                except Exception as exc:
-                    error = str(exc)
-                    print(f"[KingdomVoice] commande #{command['id']} refusée : {error}")
-                self.store.finish_audio(int(command["id"]), error)
+            for world_store, _guild_id in self.worlds:
+                for command in world_store.pending_audio():
+                    error = ""
+                    try:
+                        audio = world_store.get("audio", command["audio_key"], published=True)["payload"] if command["audio_key"] else None
+                        client = self._client_for(command, audio, world_store)
+                        if client is None:
+                            raise RuntimeError("Aucun bot vocal n’est attribué à ce bâtiment.")
+                        if command["command"] == "play":
+                            await client.play_audio(command["audio_key"])
+                        elif command["command"] == "set_group":
+                            await client.set_group(command["group_key"])
+                        else:
+                            raise RuntimeError(f"Commande audio inconnue : {command['command']}")
+                    except Exception as exc:
+                        error = str(exc)
+                        print(f"[KingdomVoice] commande #{command['id']} refusée : {error}")
+                    world_store.finish_audio(int(command["id"]), error)
             await asyncio.sleep(0.75)
 
     def is_closed(self) -> bool:

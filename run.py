@@ -102,7 +102,23 @@ elif args.module == "voice":
     from import_v1 import import_v1
     from seed import DEFINITIONS
     voice_store = ContentStore(); voice_store.initialize(); voice_store.seed(DEFINITIONS); import_v1(voice_store)
-    asyncio.run(VoiceBotManager(voice_store).run())
+    voice_worlds: list[tuple[ContentStore, str]] = []
+    with voice_store.connection() as database:
+        tables = {row[0] for row in database.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        managed = database.execute(
+            "SELECT guild_id,database_path FROM managed_servers WHERE active=1 AND guild_id<>''"
+        ).fetchall() if "managed_servers" in tables else []
+    seen_paths: set[Path] = set()
+    for guild_id, configured_path in managed:
+        world_store = ContentStore(configured_path); world_store.initialize()
+        resolved = world_store.path.resolve()
+        if resolved in seen_paths:
+            continue
+        seen_paths.add(resolved)
+        voice_worlds.append((world_store, str(guild_id)))
+    if not voice_worlds:
+        voice_worlds.append((voice_store, os.getenv("KINGDOM_GUILD_ID", "")))
+    asyncio.run(VoiceBotManager(voice_store, worlds=voice_worlds).run())
 elif args.module == "provision":
     from KingdomData import ContentStore
     from kingdomCore.provisioner import run_provisioning

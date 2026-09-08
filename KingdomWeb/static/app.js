@@ -3005,10 +3005,15 @@ function openAudioComposition(mode, entity = null) {
 async function loadVoicePresenceStudio() {
   showSystemView();
   await loadCatalogs();
+  const statusResponse = await fetch("/api/bots/status", {
+    headers,
+    cache: "no-store",
+  });
+  state.botStatuses = statusResponse.ok ? await statusResponse.json() : [];
   const presences = state.catalogs.voice_presence,
     profiles = state.catalogs.voice_profile;
-  const voiceBots = state.catalogs.bot.filter(
-    (item) => item.payload.bot_type === "voice" && item.payload.enabled,
+  const voiceBots = state.botStatuses.filter(
+    (item) => item.type === "voice" && item.enabled && item.token_configured,
   );
   const published = presences.filter((item) => item.status === "published"),
     active = published.filter(
@@ -3020,6 +3025,13 @@ async function loadVoicePresenceStudio() {
   const locationName = (key) =>
     state.catalogs.location.find((item) => item.entity_key === key)?.payload
       .name || "À la demande";
+  const buildingName = (payload) => {
+    const key = payload.metadata?.building_key || "";
+    return (
+      state.catalogs.building.find((item) => item.entity_key === key)?.payload
+        .name || "Aucun bâtiment"
+    );
+  };
   const typeLabel = {
     npc: "Personnage",
     ambience: "Ambiance",
@@ -3034,7 +3046,7 @@ async function loadVoicePresenceStudio() {
             : p.current_state === "error"
               ? "Indisponible"
               : "Prête";
-      return `<article class="voice-presence-card" data-state="${escapeHtml(p.current_state || "ready")}"><header><span>${p.presence_type === "npc" ? "♙" : p.presence_type === "ambience" ? "◖" : "◉"}</span><div><small>${escapeHtml(typeLabel[p.presence_type] || "Personnalisée")}</small><h3>${escapeHtml(p.name)}</h3></div><i>${stateLabel}</i></header><dl><div><dt>Lieu</dt><dd>${escapeHtml(locationName(p.location_key))}</dd></div><div><dt>Voix</dt><dd>${escapeHtml(profileName(p.voice_profile_key))}</dd></div><div><dt>Comportement</dt><dd>${p.assignment_mode === "automatic" ? "Automatique" : p.assignment_mode === "follow_source" ? "Suit sa source" : "À la demande"}</dd></div><div><dt>Priorité</dt><dd>${Number(p.priority || 0)}</dd></div></dl><footer><span>${entity.status === "published" ? "Publié" : entity.status === "draft" ? "Brouillon" : entity.status}</span><button type="button" data-edit-presence="${escapeHtml(entity.entity_key)}">Configurer</button></footer></article>`;
+      return `<article class="voice-presence-card" data-state="${escapeHtml(p.current_state || "ready")}"><header><span>${p.presence_type === "npc" ? "♙" : p.presence_type === "ambience" ? "◖" : "◉"}</span><div><small>${escapeHtml(typeLabel[p.presence_type] || "Personnalisée")}</small><h3>${escapeHtml(p.name)}</h3></div><i>${stateLabel}</i></header><dl><div><dt>Bâtiment affecté</dt><dd>${escapeHtml(buildingName(p))}</dd></div><div><dt>Scène sonore</dt><dd>${escapeHtml(state.catalogs.audio_group.find((item) => item.entity_key === p.scene_key)?.payload.name || "Ambiance du bâtiment")}</dd></div><div><dt>Connexion</dt><dd>${p.assignment_mode === "automatic" ? "Automatique avec les joueurs" : p.assignment_mode === "follow_source" ? "Suit sa source" : "Déclenchée par une action"}</dd></div><div><dt>Profil</dt><dd>${escapeHtml(profileName(p.voice_profile_key))}</dd></div></dl><footer><span>${entity.status === "published" ? "Publié" : entity.status === "draft" ? "Brouillon" : entity.status}</span><button type="button" data-edit-presence="${escapeHtml(entity.entity_key)}">Configurer</button></footer></article>`;
     })
     .join("");
   const profileCards = profiles
@@ -3044,7 +3056,7 @@ async function loadVoicePresenceStudio() {
     )
     .join("");
   $("#admin-view").innerHTML =
-    `<div class="voice-studio" data-tutorial="voice-presence-studio"><section class="voice-studio-hero"><div><small>PRÉSENCES VOCALES</small><h2>Une capacité audio, plusieurs identités</h2><p>Un personnage, une ambiance ou une scène emprunte temporairement une capacité Discord disponible. Aucun bot n’est lié définitivement à une identité.</p></div><button type="button" class="primary" data-new-presence>＋ Nouvelle présence</button></section><section class="voice-capacity"><div><span>${active.length}</span><b>/ ${voiceBots.length}</b><small>présences actuellement déclarées actives</small></div><progress max="${Math.max(1, voiceBots.length)}" value="${active.length}"></progress><p>${voiceBots.length ? `${Math.max(0, voiceBots.length - active.length)} slot(s) disponible(s)` : "Aucune capacité audio configurée : le monde reste entièrement jouable."}</p></section><nav class="section-tabs voice-tabs"><button class="active" data-voice-tab="presences">Présences <b>${presences.length}</b></button><button data-voice-tab="profiles">Profils vocaux <b>${profiles.length}</b></button><button data-voice-tab="capacity">Capacité audio</button></nav><section data-voice-panel="presences"><div class="voice-panel-head"><div><h2>Identités disponibles</h2><p>Les détails du worker Discord restent gérés automatiquement.</p></div></div><div class="voice-presence-grid">${cards || `<div class="product-empty"><span>◉</span><h3>Aucune présence vocale</h3><p>Créez une identité pour un personnage, une ambiance de lieu ou une scène personnalisée.</p><button type="button" class="primary" data-new-presence>Créer ma première présence</button></div>`}</div></section><section data-voice-panel="profiles" hidden><div class="voice-panel-head"><div><h2>Profils vocaux</h2><p>Regroupez les clips, la langue, le volume et le fallback d’une voix.</p></div><button type="button" data-new-profile>＋ Nouveau profil</button></div><div class="voice-profile-list">${profileCards || `<div class="product-empty"><span>◖</span><h3>Aucun profil vocal</h3><p>Un profil est facultatif pour une ambiance, mais recommandé pour un personnage.</p></div>`}</div></section><section data-voice-panel="capacity" hidden><div class="capacity-grid">${voiceBots.map((bot, index) => `<article><span>${bot.payload.enabled ? "●" : "○"}</span><div><small>SLOT AUDIO ${index + 1}</small><h3>${bot.payload.enabled ? "Disponible" : "Désactivé"}</h3><p>Fourni par une application Discord configurée. L’identité technique reste masquée.</p></div></article>`).join("") || `<div class="product-empty"><span>◌</span><h3>Audio indisponible</h3><p>Configurez au moins une connexion vocale Discord. Les autres mécaniques du monde continuent normalement.</p><button data-go="bot">Configurer Discord</button></div>`}</div></section></div>`;
+    `<div class="voice-studio" data-tutorial="voice-presence-studio"><section class="voice-studio-hero"><div><small>BOTS AUDIO</small><h2>Une ambiance dans chaque bâtiment</h2><p>Choisissez simplement un bâtiment et une scène sonore. KingdomVoice affecte automatiquement un Voice Worker disponible lorsque des joueurs entrent dans le vocal.</p></div><button type="button" class="primary" data-new-presence>＋ Affecter un bot audio</button></section><section class="voice-quick-guide"><strong>Configuration en 3 étapes</strong><span><b>1</b> Ajouter les Voice Workers à Discord</span><span><b>2</b> Choisir un bâtiment et une ambiance</span><span><b>3</b> Redémarrer KingdomVoice après la première configuration</span></section><section class="voice-capacity"><div><span>${active.length}</span><b>/ ${voiceBots.length}</b><small>affectations actives / workers avec token</small></div><progress max="${Math.max(1, voiceBots.length)}" value="${active.length}"></progress><p>${voiceBots.length ? `${Math.max(0, voiceBots.length - active.length)} capacité(s) disponible(s)` : "Aucun Voice Worker opérationnel. Vérifiez les tokens dans Connexion Discord."}</p></section><nav class="section-tabs voice-tabs"><button class="active" data-voice-tab="presences">Affectations <b>${presences.length}</b></button><button data-voice-tab="profiles">Profils vocaux <b>${profiles.length}</b></button><button data-voice-tab="capacity">Voice Workers</button></nav><section data-voice-panel="presences"><div class="voice-panel-head"><div><h2>Bâtiments sonorisés</h2><p>Chaque fiche relie un bâtiment à une identité et une scène audio.</p></div></div><div class="voice-presence-grid">${cards || `<div class="product-empty"><span>◉</span><h3>Aucun bâtiment sonorisé</h3><p>Choisissez un bâtiment, puis l’ambiance que son bot doit diffuser.</p><button type="button" class="primary" data-new-presence>Affecter mon premier bot audio</button></div>`}</div></section><section data-voice-panel="profiles" hidden><div class="voice-panel-head"><div><h2>Profils vocaux</h2><p>Regroupez les clips, la langue, le volume et le fallback d’une voix.</p></div><button type="button" data-new-profile>＋ Nouveau profil</button></div><div class="voice-profile-list">${profileCards || `<div class="product-empty"><span>◖</span><h3>Aucun profil vocal</h3><p>Un profil est facultatif pour une ambiance, mais recommandé pour un personnage.</p></div>`}</div></section><section data-voice-panel="capacity" hidden><div class="capacity-grid">${voiceBots.map((bot, index) => `<article><span>●</span><div><small>VOICE WORKER ${index + 1}</small><h3>${escapeHtml(bot.name || "Capacité disponible")}</h3><p>Token détecté. Ajoutez également cette application au serveur depuis Connexion Discord.</p></div></article>`).join("") || `<div class="product-empty"><span>◌</span><h3>Audio indisponible</h3><p>Configurez au moins un token Voice Worker puis ajoutez son application au serveur.</p><button data-go="bot">Ouvrir Connexion Discord</button></div>`}</div></section></div>`;
   bindVoiceStudio();
 }
 
@@ -3105,10 +3117,89 @@ function entityOptions(items, value, empty = "Aucun") {
 
 function openVoicePresenceDialog(entity = null) {
   if (mobileCreationBlocked())
-    return showDesktopRequired("La création d’une présence vocale");
+    return showDesktopRequired("L’affectation d’un bot audio");
   const dialog = voiceDialog(),
-    p = clone(entity?.payload || {});
-  dialog.innerHTML = `<form><div class="dialog-head"><div><small>IDENTITÉ AUDIO</small><h2>${entity ? "Configurer" : "Créer"} une présence vocale</h2></div><button type="button" data-close>×</button></div><div class="voice-editor-body"><section class="voice-explainer"><span>◉</span><p><b>La présence est l’identité perçue.</b> KingdomVoice choisit automatiquement une capacité Discord libre au moment utile.</p></section><div class="form-grid"><label>Nom visible<input name="name" value="${escapeHtml(p.name || "")}" placeholder="Ex. Guide de la station" required data-tutorial="voice-presence-name"></label><label>Type<select name="presence_type"><option value="npc" ${p.presence_type === "npc" ? "selected" : ""}>Personnage</option><option value="ambience" ${p.presence_type === "ambience" ? "selected" : ""}>Ambiance</option><option value="custom" ${!p.presence_type || p.presence_type === "custom" ? "selected" : ""}>Personnalisée</option></select></label><label>Source<select name="source_key">${entityOptions(state.catalogs.npc, p.source_key, "Aucune source")}</select></label><label>Lieu initial<select name="location_key">${entityOptions(state.catalogs.location, p.location_key, "À la demande")}</select></label><label>Profil vocal<select name="voice_profile_key">${entityOptions(state.catalogs.voice_profile, p.voice_profile_key, "Aucun profil")}</select></label><label>Scène audio<select name="scene_key">${entityOptions(state.catalogs.audio_group, p.scene_key, "Aucune scène")}</select></label><label>Comportement<select name="assignment_mode"><option value="on_demand" ${p.assignment_mode === "on_demand" || !p.assignment_mode ? "selected" : ""}>À la demande</option><option value="automatic" ${p.assignment_mode === "automatic" ? "selected" : ""}>Présence automatique</option><option value="follow_source" ${p.assignment_mode === "follow_source" ? "selected" : ""}>Suivre la position de la source</option></select></label><label>Priorité<input name="priority" type="number" min="-100" max="100" value="${Number(p.priority || 0)}"></label></div><label>Avatar de serveur (URL)<input name="avatar_url" type="url" value="${escapeHtml(p.avatar_url || "")}" placeholder="Facultatif · dépend des permissions Discord"></label><details><summary>Options avancées</summary><div class="form-grid"><label>Libérer après inactivité (s)<input name="release_timeout_seconds" type="number" min="0" value="${Number(p.release_timeout_seconds ?? 30)}"></label><label>Identifiant technique<input name="key" value="${escapeHtml(entity?.entity_key || "")}" ${entity ? "readonly" : ""} placeholder="Généré depuis le nom"></label></div></details></div><div class="actions"><button type="button" data-close>Annuler</button>${entity ? '<button type="button" class="danger" data-delete>Supprimer</button>' : ""}<button class="primary">Enregistrer et publier sur Discord</button></div></form>`;
+    p = clone(entity?.payload || {}),
+    selectedBuilding = p.metadata?.building_key || "";
+  dialog.innerHTML = `
+    <form>
+      <div class="dialog-head">
+        <div>
+          <small>AFFECTATION AUDIO</small>
+          <h2>${entity ? "Configurer" : "Affecter"} un bot à un bâtiment</h2>
+        </div>
+        <button type="button" data-close aria-label="Fermer">×</button>
+      </div>
+      <div class="voice-editor-body">
+        <section class="voice-assignment-step">
+          <div class="voice-step-number">1</div>
+          <label>
+            Dans quel bâtiment le bot doit-il venir ?
+            <select name="building_key" required>
+              ${entityOptions(
+                state.catalogs.building.filter(
+                  (item) => !item.payload.is_reference,
+                ),
+                selectedBuilding,
+                "Choisir un bâtiment…",
+              )}
+            </select>
+            <small>Le salon vocal est retrouvé automatiquement après la synchronisation Discord.</small>
+          </label>
+        </section>
+        <section class="voice-assignment-step">
+          <div class="voice-step-number">2</div>
+          <label>
+            Que doit-il diffuser ?
+            <select name="scene_key">
+              ${entityOptions(
+                state.catalogs.audio_group,
+                p.scene_key,
+                "Utiliser l’ambiance configurée dans le bâtiment",
+              )}
+            </select>
+            <small>Une scène audio regroupe les musiques, ambiances et effets à lire ensemble.</small>
+          </label>
+        </section>
+        <section class="voice-assignment-step">
+          <div class="voice-step-number">3</div>
+          <div class="voice-assignment-fields">
+            <label>
+              Nom affiché sur Discord
+              <input name="name" value="${escapeHtml(p.name || "")}" placeholder="Ex. Tavernier de Valbrume" required data-tutorial="voice-presence-name">
+            </label>
+            <label>
+              Connexion
+              <select name="assignment_mode">
+                <option value="automatic" ${p.assignment_mode !== "on_demand" && p.assignment_mode !== "follow_source" ? "selected" : ""}>Automatique quand des joueurs entrent</option>
+                <option value="on_demand" ${p.assignment_mode === "on_demand" ? "selected" : ""}>Seulement lorsqu’une action le demande</option>
+                <option value="follow_source" ${p.assignment_mode === "follow_source" ? "selected" : ""}>Suivre le personnage associé</option>
+              </select>
+            </label>
+          </div>
+        </section>
+        <aside class="voice-connection-note">
+          <b>Après l’enregistrement</b>
+          <span>KingdomVoice choisira tout seul un Voice Worker libre. Aucun token ni identifiant Discord n’est nécessaire ici.</span>
+        </aside>
+        <details>
+          <summary>Options avancées</summary>
+          <div class="form-grid">
+            <label>Type<select name="presence_type"><option value="ambience" ${p.presence_type === "ambience" || !p.presence_type ? "selected" : ""}>Ambiance</option><option value="npc" ${p.presence_type === "npc" ? "selected" : ""}>Personnage</option><option value="custom" ${p.presence_type === "custom" ? "selected" : ""}>Personnalisée</option></select></label>
+            <label>Personnage associé<select name="source_key">${entityOptions(state.catalogs.npc, p.source_key, "Aucun personnage")}</select></label>
+            <label>Profil vocal<select name="voice_profile_key">${entityOptions(state.catalogs.voice_profile, p.voice_profile_key, "Aucun profil")}</select></label>
+            <label>Priorité<input name="priority" type="number" min="-100" max="100" value="${Number(p.priority || 0)}"></label>
+            <label>Libérer après inactivité (s)<input name="release_timeout_seconds" type="number" min="0" value="${Number(p.release_timeout_seconds ?? 30)}"></label>
+            <label>Identifiant technique<input name="key" value="${escapeHtml(entity?.entity_key || "")}" ${entity ? "readonly" : ""} placeholder="Généré depuis le nom"></label>
+          </div>
+        </details>
+      </div>
+      <div class="actions">
+        <button type="button" data-close>Annuler</button>
+        ${entity ? '<button type="button" class="danger" data-delete>Supprimer</button>' : ""}
+        <button class="primary">Enregistrer et activer</button>
+      </div>
+    </form>`;
   dialog.showModal();
   dialog
     .querySelectorAll("[data-close]")
@@ -3116,20 +3207,27 @@ function openVoicePresenceDialog(entity = null) {
   dialog.querySelector("form").onsubmit = async (event) => {
     event.preventDefault();
     const form = event.currentTarget,
+      buildingKey = form.elements.building_key.value,
+      building = state.catalogs.building.find(
+        (item) => item.entity_key === buildingKey,
+      ),
       payload = {
         name: form.elements.name.value.trim(),
         presence_type: form.elements.presence_type.value,
         source_key: form.elements.source_key.value,
-        location_key: form.elements.location_key.value,
+        location_key: building?.payload.location_key || "",
         voice_profile_key: form.elements.voice_profile_key.value,
         scene_key: form.elements.scene_key.value,
         assignment_mode: form.elements.assignment_mode.value,
         priority: Number(form.elements.priority.value),
-        avatar_url: form.elements.avatar_url.value.trim(),
         release_timeout_seconds: Number(
           form.elements.release_timeout_seconds.value,
         ),
         current_state: p.current_state || "ready",
+        metadata: {
+          ...(p.metadata || {}),
+          building_key: buildingKey,
+        },
       };
     await saveAndPublishEntity(
       "voice_presence",
