@@ -68,12 +68,21 @@ class ServiceSupervisor:
         status = self._normalise_systemd_state(active, sub)
         main_pid = int(values.get("MainPID", "0") or 0)
         exit_code = int(values.get("ExecMainStatus", "0") or 0)
+        last_error = None
+        if exit_code:
+            diagnostic = self._journal(unit, 20)
+            meaningful = next(
+                (line for line in reversed(diagnostic) if line.strip()), ""
+            )
+            last_error = f"Code de sortie {exit_code}"
+            if meaningful:
+                last_error += f" · {meaningful[:240]}"
         return {
             "pid": main_pid or None, "running": status == "running", "status": status,
             "provider": "systemd", "unit": unit, "started_at": values.get("ActiveEnterTimestamp") or None,
             "checked_at": datetime.now(timezone.utc).isoformat(),
             "restart_count": int(values.get("NRestarts", "0") or 0),
-            "last_error": f"Code de sortie {exit_code}" if exit_code else None,
+            "last_error": last_error,
             # Protégé par le rôle platform_admin et une règle sudoers limitée.
             "controllable": True,
         }
@@ -156,8 +165,44 @@ class ServiceSupervisor:
         for definition in self.definitions():
             output = self._tail(LOGS_DIR / f"{definition['key']}.out.log", limit)
             errors = self._tail(LOGS_DIR / f"{definition['key']}.err.log", limit)
-            result[definition["key"]] = {"output": output, "errors": errors}
+            unit = self.SYSTEMD_UNITS.get(definition["key"])
+            journal = self._journal(unit, limit) if unit else []
+            result[definition["key"]] = {
+                "output": self._redact(output),
+                "errors": self._redact(errors),
+                "journal": self._redact(journal),
+            }
         return result
+
+    @staticmethod
+    def _journal(unit: str, limit: int) -> list[str]:
+        """Lit journald sans shell et revient silencieusement aux fichiers."""
+        if sys.platform == "win32" or not Path("/run/systemd/system").exists():
+            return []
+        try:
+            result = subprocess.run(
+                ["journalctl", "-u", unit, "-n", str(min(limit, 500)), "--no-pager", "-o", "short-iso"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=4,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return []
+        return result.stdout.splitlines() if result.returncode == 0 else []
+
+    @staticmethod
+    def _redact(lines: list[str]) -> list[str]:
+        """Évite qu'un secret copié accidentellement arrive dans l'interface."""
+        import re
+        authorization = re.compile(r"(?i)\b(Bot|Bearer)\s+[A-Za-z0-9._-]{20,}")
+        assignment = re.compile(r"(?i)(token|password|secret|authorization)(\s*[:=]\s*)([^\s,;]+)")
+        cleaned = []
+        for line in lines:
+            value = authorization.sub(r"\1 [MASQUÉ]", line)
+            value = assignment.sub(r"\1\2[MASQUÉ]", value)
+            cleaned.append(value)
+        return cleaned
 
     def _start(self, definition: dict[str, Any]) -> None:
         status = next(item for item in self.statuses() if item["key"] == definition["key"])

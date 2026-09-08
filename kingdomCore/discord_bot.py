@@ -181,6 +181,30 @@ class InterfaceView(discord.ui.View):
         self.notice = ""
         self._render_interactions()
 
+    async def on_error(
+        self,
+        interaction: discord.Interaction,
+        error: Exception,
+        item: discord.ui.Item[Any],
+    ) -> None:
+        """Ne laisse jamais une interface échouer silencieusement."""
+        logger.exception(
+            "Erreur dans l'interface %s, page %s, composant %s, joueur %s.",
+            self._building_key(),
+            self.page_key,
+            getattr(item, "custom_id", "inconnu"),
+            getattr(interaction.user, "id", "inconnu"),
+            exc_info=(type(error), error, error.__traceback__),
+        )
+        message = "Cette interaction a rencontré une erreur. Le diagnostic est disponible dans les journaux KingdomCore."
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(message, ephemeral=True)
+            else:
+                await interaction.response.send_message(message, ephemeral=True)
+        except discord.DiscordException:
+            logger.exception("Impossible d'envoyer le diagnostic d'interface au joueur.")
+
     @property
     def page(self) -> dict[str, Any]:
         return next(page for page in self.definition["pages"] if page["key"] == self.page_key)
@@ -606,6 +630,12 @@ class InterfaceView(discord.ui.View):
                 self.page_key = str(target["on_success_page"])
                 self.page_started_at = time.time()
         except Exception as exc:
+            logger.exception(
+                "Action %s/%s refusée pour le joueur %s.",
+                target.get("building", self._building_key()),
+                target.get("action", "inconnue"),
+                interaction.user.id,
+            )
             self.notice = str(exc)
         self._render_interactions()
         await interaction.edit_original_response(embed=self.embed(), view=self)
@@ -1314,6 +1344,36 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
             if not interaction.response.is_done():
                 logger.warning("Prise en charge de secours du serment pour l'interaction %s.", interaction.id)
                 await oath_view.accept_oath(interaction)
+        # Les panneaux d'entrée restent dans Discord après un redémarrage. Une
+        # vue créée avant ce redémarrage n'est plus en mémoire : ce filet de
+        # sécurité reconstruit alors le bon moteur depuis le serveur concerné.
+        if str(component_id or "").startswith("kel:"):
+            await asyncio.sleep(0.15)
+            if interaction.response.is_done():
+                return
+            building_key = str(component_id).removeprefix("kel:")
+            try:
+                guild_store = managed_store_for_guild(store, interaction.guild_id)
+                guild_engine = GameEngine(guild_store, EventBus())
+                building = guild_engine.building(building_key)
+                definition = interface_for_building(guild_store, building["payload"]) or interface_from_building(
+                    building_key, building["payload"], building["payload"].get("actions", [])
+                )
+                logger.info(
+                    "Reprise du panneau d'entrée %s pour le joueur %s après redémarrage.",
+                    building_key, interaction.user.id,
+                )
+                await PrivateInterfaceLauncher(guild_engine, definition, interaction.user.id).open(interaction)
+            except Exception as exc:
+                logger.exception(
+                    "Panneau d'entrée %s impossible à restaurer pour %s.",
+                    building_key, interaction.user.id,
+                )
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "Le menu du bâtiment n'a pas pu être restauré. Le diagnostic est enregistré dans KingdomCore.",
+                        ephemeral=True,
+                    )
 
     @bot.event
     async def on_ready():

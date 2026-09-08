@@ -541,3 +541,81 @@ body > main {
     grid-column: 2;
   }
 }
+/* ==============================
+   JOURNAUX SYSTÈME
+   ============================== */
+
+.ops-panel.system-logs {
+  margin: 20px 0;
+}
+
+.system-logs > header {
+  margin-bottom: 14px;
+}
+
+.ops-log {
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line, #293244);
+  border-radius: 12px;
+  background: #0a0f18;
+}
+
+.ops-log summary {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  cursor: pointer;
+  list-style: none;
+  background: #111824;
+}
+
+.ops-log summary::-webkit-details-marker {
+  display: none;
+}
+
+.ops-log summary > span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  color: #07120d;
+  background: #4bd9a1;
+  font-weight: 900;
+}
+
+.ops-log summary b,
+.ops-log summary small {
+  display: block;
+}
+
+.ops-log summary small {
+  margin-top: 3px;
+  color: #91a0b7;
+}
+
+.ops-log pre {
+  max-height: 360px;
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  color: #c8d6e8;
+  background: #070b11;
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+@media (max-width: 680px) {
+  .ops-log summary {
+    grid-template-columns: auto 1fr;
+  }
+
+  .ops-log summary button {
+    grid-column: 1 / -1;
+  }
+}

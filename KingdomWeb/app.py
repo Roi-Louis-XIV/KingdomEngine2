@@ -578,7 +578,8 @@ def platform_overview():
         }
         for worker in discover_platform_workers()
     ]
-    return {"accounts": accounts, "metrics": {"users": len(accounts), "organizations": organizations, "worlds": worlds, "active_support": active_support}, "services": ServiceSupervisor().statuses(), "voice_worlds": voice_worlds, "platform_workers": platform_workers, "support": support, "audit": audit, "deployment": _deployment_summary()}
+    supervisor = ServiceSupervisor()
+    return {"accounts": accounts, "metrics": {"users": len(accounts), "organizations": organizations, "worlds": worlds, "active_support": active_support}, "services": supervisor.statuses(), "service_logs": supervisor.logs(160), "voice_worlds": voice_worlds, "platform_workers": platform_workers, "support": support, "audit": audit, "deployment": _deployment_summary()}
 
 
 def _deployment_summary() -> dict[str, Any]:

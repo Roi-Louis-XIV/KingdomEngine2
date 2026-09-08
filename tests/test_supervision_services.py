@@ -119,6 +119,17 @@ def test_systemd_states_are_not_reduced_to_a_boolean():
     assert normalise("mystery", "mystery") == "unknown"
 
 
+def test_service_logs_redact_secrets_without_hiding_normal_bot_messages():
+    lines = ServiceSupervisor._redact([
+        "Bot KingdomCore connecté",
+        "token=super-secret-value",
+        "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456",
+    ])
+    assert lines[0] == "Bot KingdomCore connecté"
+    assert "super-secret-value" not in lines[1]
+    assert "abcdefghijklmnopqrstuvwxyz123456" not in lines[2]
+
+
 def test_platform_update_triggers_only_the_declared_systemd_unit(monkeypatch):
     calls = []
     monkeypatch.setattr(supervision.sys, "platform", "linux")

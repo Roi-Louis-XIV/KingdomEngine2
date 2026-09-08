@@ -619,6 +619,16 @@ def test_voice_presence_has_a_real_client_ui_and_hides_worker_details():
     assert "@media(max-width:760px)" in "".join(styles.split())
 
 
+def test_platform_admin_exposes_copyable_systemd_service_logs():
+    static = Path(web.__file__).with_name("static")
+    script = (static / "platform-admin.js").read_text(encoding="utf-8")
+    styles = (static / "platform-admin-v2.css").read_text(encoding="utf-8")
+    assert "service_logs" in script
+    assert "Journaux système" in script
+    assert "data-copy-service-log" in script
+    assert ".ops-log pre" in styles
+
+
 def test_navigation_uses_generic_world_editor_vocabulary():
     static = Path(web.__file__).with_name("static")
     page = (static / "index.html").read_text(encoding="utf-8")

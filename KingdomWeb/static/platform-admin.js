@@ -45,6 +45,29 @@ function serviceCard(service) {
   return `<article class="ops-service" data-status="${esc(status)}"><div class="ops-service-icon">${stateIcon[status] || "?"}</div><div><small>${esc(service.key.toUpperCase())}</small><h3>${esc(service.name)}</h3><p>${esc(stateLabel[status] || status)} · vérifié ${relative(service.checked_at)}</p></div><span class="ops-state">${esc(stateLabel[status] || status)}</span><dl><div><dt>Source</dt><dd>${service.provider === "systemd" ? "Service Debian" : "Processus local"}</dd></div><div><dt>Depuis</dt><dd>${esc(service.started_at || "—")}</dd></div><div><dt>Redémarrages</dt><dd>${service.restart_count ?? "—"}</dd></div></dl>${service.last_error ? `<p class="ops-error">${esc(service.last_error)}</p>` : ""}${actions}<small class="ops-service-feedback" data-platform-feedback="${esc(service.key)}"></small></article>`;
 }
 
+function serviceLogPanels(logs, services) {
+  return services
+    .map((service) => {
+      const log = logs?.[service.key] || {},
+        journal = log.journal || [],
+        errors = log.errors || [],
+        output = log.output || [],
+        lines = journal.length ? journal : [...errors, ...output],
+        content = lines.length
+          ? lines.join("\n")
+          : "Aucune ligne disponible pour le moment.";
+      return `<details class="ops-log" ${service.key === "core" ? "open" : ""}>
+        <summary>
+          <span>${stateIcon[service.status] || "◇"}</span>
+          <div><b>${esc(service.name)}</b><small>${journal.length ? "Journal systemd" : "Fichiers de sortie"} · ${lines.length} ligne(s)</small></div>
+          <button type="button" data-copy-service-log="${esc(service.key)}">▣ Copier</button>
+        </summary>
+        <pre data-service-log="${esc(service.key)}">${esc(content)}</pre>
+      </details>`;
+    })
+    .join("");
+}
+
 async function controlService(button) {
   const service = button.dataset.platformService,
     operation = button.dataset.platformOperation;
@@ -133,7 +156,8 @@ async function load() {
   const data = await response.json(),
     m = data.metrics,
     services = data.services || [],
-    deployment = data.deployment || {};
+    deployment = data.deployment || {},
+    serviceLogs = data.service_logs || {};
   const healthy = services.filter(
       (service) =>
         (service.status || (service.running ? "running" : "stopped")) ===
@@ -174,13 +198,25 @@ async function load() {
           `<article class="ops-timeline"><i></i><div><b>${esc(item.action)}</b><small>${esc(item.target_type)} · ${esc(item.target_id)}</small></div><time>${relative(item.created_at)}</time></article>`,
       )
       .join("") || '<p class="ops-empty">Aucune opération auditée.</p>';
-  root.innerHTML = `<section class="ops-hero"><div><small>CENTRE D’EXPLOITATION</small><h2>${incidents ? "Attention requise" : "Plateforme opérationnelle"}</h2><p>${healthy}/${services.length} services disponibles · dernière vérification à l’instant</p></div><span class="ops-global ${incidents ? "warning" : "healthy"}"><i></i>${incidents ? `${incidents} incident(s)` : "Tous les systèmes sont stables"}</span></section><section class="ops-metrics"><article><span>♙</span><small>UTILISATEURS</small><strong>${m.users}</strong><p>${m.organizations} organisation(s)</p></article><article><span>◇</span><small>MONDES ACTIFS</small><strong>${m.worlds}</strong><p>Environnements clients</p></article><article><span>◖</span><small>CAPACITÉ VOCALE</small><strong>${(data.voice_worlds || []).reduce((sum, w) => sum + w.active, 0)} / ${(data.voice_worlds || []).reduce((sum, w) => sum + w.capacity, 0)}</strong><p>Allocations actives</p></article><article><span>⌁</span><small>SUPPORT ACTIF</small><strong>${m.active_support}</strong><p>Accès consentis</p></article></section><section class="ops-services"><div class="ops-title"><div><small>SANTÉ PLATEFORME</small><h2>Services de production</h2></div><button type="button" id="refresh-platform">↻ Rafraîchir</button></div><div>${services.map(serviceCard).join("")}</div></section><div class="ops-grid">${panel("Clients et mondes", accounts, "Comptes autorisés sur la plateforme.", "clients")}${panel("Capacité Voice", voice, "Allocations et présences par monde.", "voice")}${panel("Support Mode", support, "Consentements temporaires et périmètres.", "support")}${panel("Déploiement", `<article class="deployment-card"><span>${deployment.status === "success" ? "✓" : "◇"}</span><div><small>${esc(deployment.environment || "Production")}</small><h3>${esc(deployment.commit || "inconnu")}</h3><p>${esc(deployment.message || "Aucun rapport disponible.")}</p><div class="deployment-actions"><button type="button" id="sync-github">↻ Synchroniser avec GitHub</button><small id="deployment-feedback" class="deployment-feedback"></small></div></div><time>${relative(deployment.deployed_at)}</time></article>`, "Version actuellement déployée.", "deployment")}${panel("Journal d’exploitation", audit, "Actions administratives récentes.", "audit")}</div>`;
+  root.innerHTML = `<section class="ops-hero"><div><small>CENTRE D’EXPLOITATION</small><h2>${incidents ? "Attention requise" : "Plateforme opérationnelle"}</h2><p>${healthy}/${services.length} services disponibles · dernière vérification à l’instant</p></div><span class="ops-global ${incidents ? "warning" : "healthy"}"><i></i>${incidents ? `${incidents} incident(s)` : "Tous les systèmes sont stables"}</span></section><section class="ops-metrics"><article><span>♙</span><small>UTILISATEURS</small><strong>${m.users}</strong><p>${m.organizations} organisation(s)</p></article><article><span>◇</span><small>MONDES ACTIFS</small><strong>${m.worlds}</strong><p>Environnements clients</p></article><article><span>◖</span><small>CAPACITÉ VOCALE</small><strong>${(data.voice_worlds || []).reduce((sum, w) => sum + w.active, 0)} / ${(data.voice_worlds || []).reduce((sum, w) => sum + w.capacity, 0)}</strong><p>Allocations actives</p></article><article><span>⌁</span><small>SUPPORT ACTIF</small><strong>${m.active_support}</strong><p>Accès consentis</p></article></section><section class="ops-services"><div class="ops-title"><div><small>SANTÉ PLATEFORME</small><h2>Services de production</h2></div><button type="button" id="refresh-platform">↻ Rafraîchir</button></div><div>${services.map(serviceCard).join("")}</div></section>${panel("Journaux système", serviceLogPanels(serviceLogs, services), "Sorties réelles de KingdomWeb, KingdomCore et KingdomVoice. Le journal Core contient les interactions Discord.", "system-logs")}<div class="ops-grid">${panel("Clients et mondes", accounts, "Comptes autorisés sur la plateforme.", "clients")}${panel("Capacité Voice", voice, "Allocations et présences par monde.", "voice")}${panel("Support Mode", support, "Consentements temporaires et périmètres.", "support")}${panel("Déploiement", `<article class="deployment-card"><span>${deployment.status === "success" ? "✓" : "◇"}</span><div><small>${esc(deployment.environment || "Production")}</small><h3>${esc(deployment.commit || "inconnu")}</h3><p>${esc(deployment.message || "Aucun rapport disponible.")}</p><div class="deployment-actions"><button type="button" id="sync-github">↻ Synchroniser avec GitHub</button><small id="deployment-feedback" class="deployment-feedback"></small></div></div><time>${relative(deployment.deployed_at)}</time></article>`, "Version actuellement déployée.", "deployment")}${panel("Journal d’exploitation", audit, "Actions administratives récentes.", "audit")}</div>`;
   document.querySelector("#refresh-platform").onclick = load;
   document.querySelector("#sync-github").onclick = (event) =>
     synchronizeWithGithub(event.currentTarget);
   document
     .querySelectorAll("[data-platform-service]")
     .forEach((button) => (button.onclick = () => controlService(button)));
+  document.querySelectorAll("[data-copy-service-log]").forEach(
+    (button) =>
+      (button.onclick = async (event) => {
+        event.preventDefault();
+        const content = document.querySelector(
+          `[data-service-log="${button.dataset.copyServiceLog}"]`,
+        )?.textContent;
+        if (content) await navigator.clipboard.writeText(content);
+        button.textContent = "✓ Copié";
+        setTimeout(() => (button.textContent = "▣ Copier"), 1200);
+      }),
+  );
   document.querySelectorAll("[data-delete-account]").forEach(
     (button) =>
       (button.onclick = async () => {
