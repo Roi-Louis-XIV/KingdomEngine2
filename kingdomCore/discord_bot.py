@@ -703,8 +703,15 @@ class PrivateInterfaceLauncher(discord.ui.View):
                 ephemeral=True,
             )
             return
-        entry_page = str(self.definition.get("entry_page") or self.definition.get("start_page", "home"))
-        view = InterfaceView(self.engine, self.definition, page_key=entry_page, owner_id=interaction.user.id)
+        # Le panneau Discord peut être plus ancien que la dernière publication.
+        # Recharge toujours la définition publiée au clic pour appliquer les
+        # changements KingdomWeb sans redémarrage et sans recréer le message.
+        payload = current_building["payload"]
+        definition = interface_for_building(self.engine.store, payload) or interface_from_building(
+            building_key, payload, payload.get("actions", [])
+        )
+        entry_page = str(definition.get("entry_page") or definition.get("start_page", "home"))
+        view = InterfaceView(self.engine, definition, page_key=entry_page, owner_id=interaction.user.id)
         await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
 
 
@@ -1268,6 +1275,26 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
                                     f"{len(report.created_roles)} rôle(s), {len(report.created_channels)} salon(s) créés, "
                                     f"{report.assigned_roles} attribution(s) de rôle"
                                 )
+                                if request["scope"] == "building" and request["building_key"]:
+                                    building_key = str(request["building_key"])
+                                    entity = target_store.get("building", building_key, published=True)
+                                    channels = target_store.building_channels(building_key)
+                                    voice_channel = guild.get_channel(int(channels.get("voice_channel_id") or 0))
+                                    occupants = [
+                                        member
+                                        for member in getattr(voice_channel, "members", [])
+                                        if not member.bot
+                                    ]
+                                    if occupants:
+                                        await send_building_entry(
+                                            target_store,
+                                            GameEngine(target_store, EventBus()),
+                                            occupants[0],
+                                            entity,
+                                            get_server_settings(target_store),
+                                            getattr(voice_channel, "category", None),
+                                        )
+                                        summary += ", panneau du bâtiment actualisé"
                             target_store.finish_discord_provision(request["id"], report=summary)
                             logger.warning("Synchronisation Discord terminée pour %s : %s.", guild.name, summary)
                             if request["scope"] == "uninstall":

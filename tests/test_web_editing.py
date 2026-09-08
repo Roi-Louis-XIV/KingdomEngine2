@@ -134,6 +134,27 @@ def test_building_secondary_menu_does_not_open_the_editor():
     assert "await openEditor(entity)" in javascript
 
 
+def test_catalog_cards_and_building_editor_require_explicit_actions():
+    javascript = (Path(web.__file__).parent / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+    assert 'event.target.closest("button[data-edit],button[data-open]")' in javascript
+    assert 'event.target.closest("button[data-open]")' in javascript
+    assert 'if (event.target === $("#editor")) closeEditor()' not in javascript
+    assert '$("#save-publish").hidden = state.type === "building"' in javascript
+
+
+def test_building_publication_refreshes_the_active_discord_panel():
+    source = (
+        Path(web.__file__).parents[1] / "kingdomCore" / "discord_bot.py"
+    ).read_text(encoding="utf-8")
+    assert 'request["scope"] == "building"' in source
+    assert "await send_building_entry(" in source
+    assert 'summary += ", panneau du bâtiment actualisé"' in source
+    assert "definition = interface_for_building(self.engine.store, payload)" in source
+    assert "view = InterfaceView(self.engine, definition" in source
+
+
 def test_discord_connections_show_every_audio_bot_and_future_access_marker():
     static_root = Path(web.__file__).parent / "static"
     javascript = (static_root / "app.js").read_text(encoding="utf-8")

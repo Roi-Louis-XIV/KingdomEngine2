@@ -2511,6 +2511,7 @@ function startCreate() {
   if (mobileCreationBlocked())
     return showDesktopRequired("La création de contenu");
   resetEditor();
+  $("#save-publish").hidden = state.type === "building";
   $("#key").disabled = false;
   $("#key").value = "";
   $("#name").value = "";
@@ -2605,6 +2606,9 @@ async function openEditor(entity, duplicate = false) {
     ? "Crée une variante"
     : `Modifier ${payload.name}`;
   renderFields(payload);
+  // Un bâtiment est d'abord enregistré comme brouillon. Sa publication et sa
+  // synchronisation Discord se font ensuite depuis sa carte dans le catalogue.
+  $("#save-publish").hidden = state.type === "building";
   if (duplicate) $("#wizard-back").hidden = false;
   setHelp(duplicate ? "name" : "actions");
   showModal();
@@ -10446,7 +10450,7 @@ $("#cards").addEventListener("click", async (event) => {
   // Le menu « ••• » reste isolé, mais le bouton Modifier placé dans la même
   // barre doit continuer à ouvrir l'éditeur.
   if (event.target.closest("details,summary")) return;
-  const target = event.target.closest("[data-edit],[data-open]");
+  const target = event.target.closest("button[data-edit],button[data-open]");
   if (target) {
     const key = target.dataset.edit || target.dataset.open,
       entity = state.items.find((item) => item.entity_key === key);
@@ -10464,7 +10468,7 @@ $("#cards").addEventListener("click", async (event) => {
 
 $("#cards").addEventListener("keydown", (event) => {
   if (["Enter", " "].includes(event.key)) {
-    const card = event.target.closest("[data-open]");
+    const card = event.target.closest("button[data-open]");
     if (card) {
       event.preventDefault();
       const entity = state.items.find(
@@ -10524,9 +10528,8 @@ $("#wizard-back").onclick = () => {
 $("#close-editor").onclick = closeEditor;
 $("#cancel-editor").onclick = closeEditor;
 $("#editor-form").onsubmit = (event) => event.preventDefault();
-$("#editor").onclick = (event) => {
-  if (event.target === $("#editor")) closeEditor();
-};
+// Cliquer sur l'arrière-plan n'est pas une intention de fermeture. L'éditeur
+// se quitte uniquement avec Fermer, Annuler ou la touche Échap.
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !$("#editor").hidden) closeEditor();
 });
