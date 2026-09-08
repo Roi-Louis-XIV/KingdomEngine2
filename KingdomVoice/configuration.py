@@ -16,6 +16,49 @@ LEGACY_WORKERS = (
 )
 
 
+def migrate_bot_catalog(store) -> list[str]:
+    """Retire les doublons historiques devenus inutiles.
+
+    Les suppressions passent par le versioning KingdomData : aucune ligne
+    d'historique n'est effacée physiquement et la migration reste idempotente.
+    """
+    removed: list[str] = []
+    bots = {entity["entity_key"]: entity for entity in store.list("bot")}
+    legacy_owner = {token: key for _number, key, token, _app in LEGACY_WORKERS}
+    legacy_owner.update({app: key for _number, key, _token, app in LEGACY_WORKERS})
+    for key, entity in list(bots.items()):
+        payload = entity["payload"]
+        if (
+            key == "realm_steward"
+            or (
+                payload.get("bot_type", "text") == "text"
+                and payload.get("name") == "Intendant du Royaume"
+                and payload.get("token_env") == "KINGDOM_CORE_TOKEN"
+            )
+        ):
+            store.delete("bot", key, "migration-system-bot-cleanup")
+            removed.append(key)
+            continue
+        if payload.get("bot_type") != "voice" or payload.get("worker_kind") == "platform":
+            continue
+        references = {
+            str(payload.get(field, ""))
+            for field in (
+                "token_env", "legacy_token_env",
+                "application_id_env", "legacy_application_id_env",
+            )
+            if payload.get(field)
+        }
+        canonical = next(
+            (legacy_owner[reference] for reference in references if reference in legacy_owner),
+            "",
+        )
+        if canonical and canonical in bots and key != canonical:
+            store.delete("bot", key, "migration-duplicate-voice-worker")
+            removed.append(key)
+    return removed
+
+
 def discover_platform_workers(
     environment: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:

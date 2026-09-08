@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 from KingdomData import ContentStore
 from KingdomVoice.bot_manager import ManagedVoiceBot, VoiceBotManager, _normalized_name
-from KingdomVoice.configuration import discover_platform_workers
+from KingdomVoice.configuration import discover_platform_workers, migrate_bot_catalog
 from KingdomVoice.pool import VoicePresence
 
 
@@ -122,6 +122,43 @@ def test_five_platform_workers_exist_before_tokens_are_configured():
         "Voice Worker 4", "Voice Worker 5",
     ]
     assert all(worker["worker_kind"] == "platform" for worker in workers)
+
+
+def test_bot_catalog_migration_removes_legacy_duplicates_and_steward(tmp_path):
+    store = ContentStore(tmp_path / "bots.db")
+    store.initialize()
+    definitions = [
+        {
+            "type": "bot", "key": "voice_edgar",
+            "payload": {
+                "name": "Voice Worker 1", "bot_type": "voice",
+                "worker_kind": "platform", "token_env": "VOICE_WORKER_1_TOKEN",
+                "legacy_token_env": "EDGAR_BOT_TOKEN", "voice_channel_env": "VOICE_WORKER_1_CHANNEL_ID",
+            },
+        },
+        {
+            "type": "bot", "key": "old_edgar_copy",
+            "payload": {
+                "name": "Voice Worker 1", "bot_type": "voice",
+                "worker_kind": "custom", "token_env": "EDGAR_BOT_TOKEN",
+                "voice_channel_env": "OLD_EDGAR_CHANNEL_ID",
+            },
+        },
+        {
+            "type": "bot", "key": "realm_steward",
+            "payload": {
+                "name": "Intendant du Royaume", "bot_type": "text",
+                "token_env": "KINGDOM_CORE_TOKEN",
+            },
+        },
+    ]
+    store.seed(definitions)
+
+    removed = migrate_bot_catalog(store)
+
+    assert set(removed) == {"old_edgar_copy", "realm_steward"}
+    assert [item["entity_key"] for item in store.list("bot")] == ["voice_edgar"]
+    assert migrate_bot_catalog(store) == []
 
 
 def test_configured_enables_historical_worker_from_environment(monkeypatch):

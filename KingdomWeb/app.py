@@ -31,7 +31,7 @@ from KingdomWeb.item_catalog import ItemCatalogService
 from KingdomWeb.discord_channels import DiscordChannelAdministrationService, DiscordChannelError
 from KingdomWeb.world_creator import WorldCreatorService
 from kingdomCore.world import WorldEngine, WorldError
-from KingdomVoice.configuration import discover_platform_workers
+from KingdomVoice.configuration import discover_platform_workers, migrate_bot_catalog
 from KingdomWeb.accounts import ErreurAuthentification, ErreurAutorisation, RegistreComptes
 from seed import DEFINITIONS, REFERENCE_BUILDING
 import discord
@@ -66,6 +66,7 @@ class MagasinsServeurs:
             seed_legacy_audio_catalog(magasin)
             self._magasins[chemin] = magasin
         self._synchroniser_modeles_bots(magasin)
+        migrate_bot_catalog(magasin)
         self._selection.set(magasin)
         return magasin
 
@@ -139,6 +140,7 @@ async def lifespan(_app: FastAPI):
     store.initialize()
     store.seed(DEFINITIONS)
     import_v1(store)
+    migrate_bot_catalog(store)
     yield
 
 
@@ -987,6 +989,7 @@ def _magasin_serveur(serveur: dict[str, Any]) -> ContentStore:
     magasin.seed(DEFINITIONS)
     if isinstance(store, MagasinsServeurs):
         store._synchroniser_modeles_bots(magasin)
+    migrate_bot_catalog(magasin)
     return magasin
 
 

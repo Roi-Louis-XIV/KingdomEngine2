@@ -18,6 +18,7 @@ from KingdomData import ContentStore, get_server_settings, interface_from_buildi
 from kingdomEvent import EventBus
 from import_v1 import import_v1
 from seed import DEFINITIONS
+from KingdomVoice.configuration import migrate_bot_catalog
 from .engine import GameEngine
 from .world import WorldEngine, WorldError
 from .provisioner import DiscordProvisioner, OATH_CUSTOM_ID, building_role_name, channel_slug, find_player_role, message_is_oath
@@ -1094,6 +1095,7 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
     store.initialize()
     store.seed(DEFINITIONS)
     import_v1(store)
+    migrate_bot_catalog(store)
     engine = GameEngine(store, EventBus())
     intents = discord.Intents.default()
     intents.members = True

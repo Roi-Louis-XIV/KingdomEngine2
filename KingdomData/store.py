@@ -269,7 +269,7 @@ class ContentStore:
 
     def delete(self, entity_type: str, key: str, author: str = "web") -> dict[str, Any]:
         """Masque une définition sans détruire son historique versionné."""
-        if entity_type not in {"building", "item", "event", "audio", "audio_group", "audio_story", "voice_presence", "voice_profile", "profession", "environment", "location", "npc"}:
+        if entity_type not in {"building", "item", "event", "audio", "audio_group", "audio_story", "voice_presence", "voice_profile", "profession", "environment", "location", "npc", "bot"}:
             raise ValidationError("Ce type de contenu ne peut pas être supprimé.")
         current = self.get(entity_type, key)
         with self._lock, self.connection() as db:

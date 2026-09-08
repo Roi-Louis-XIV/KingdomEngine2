@@ -161,7 +161,6 @@ def _medieval() -> list[dict[str, Any]]:
         {"type":"event","key":"royal_hunt","payload":{"name":"Grande chasse royale","emoji":"🏹","description":"Les bois offrent davantage de ressources rares.","trigger":{"type":"manual"},"enabled":False,"modifiers":[{"property":"production.quantity","operator":"multiply","value":1.25,"scope":"building","targets":["forester_lodge"]}],"effects":[]}},
         {"type":"event","key":"deep_fog","payload":{"name":"Brume profonde","emoji":"🌫️","description":"La brume ralentit les expéditions extérieures.","trigger":{"type":"manual"},"enabled":False,"modifiers":[{"property":"activity.duration","operator":"multiply","value":1.3,"scope":"world"}],"effects":[]}},
         {"type":"event","key":"forge_blessing","payload":{"name":"Bénédiction de la forge","emoji":"🔥","description":"Les artisans travaillent avec une efficacité exceptionnelle.","trigger":{"type":"manual"},"enabled":False,"modifiers":[{"property":"production.duration","operator":"multiply","value":0.75,"scope":"building","targets":["royal_forge"]}],"effects":[]}},
-        {"type":"bot","key":"realm_steward","payload":{"name":"Intendant du Royaume","emoji":"🛡️","description":"Agent Discord principal du modèle médiéval.","bot_type":"text","token_env":"KINGDOM_CORE_TOKEN","application_id_env":"KINGDOM_APPLICATION_ID","enabled":True,"presence":"Veille sur le royaume","modules":["buildings","profiles","events","weather"]}},
     ]
     return definitions
 

@@ -37,7 +37,10 @@ def test_medieval_preset_is_a_complete_editable_vertical_slice(tmp_path):
     assert {row["entity_key"] for row in store.list("profession", published=True)} == {"forester", "miner", "blacksmith", "herbalist"}
     assert len(store.list("event", published=True)) == 4
     assert store.get("environment", "realm_climate")["payload"]["calendar"]["months"]
-    assert store.get("bot", "realm_steward")["payload"]["bot_type"] == "text"
+    assert not [
+        item for item in store.list("bot")
+        if item["payload"].get("name") == "Intendant du Royaume"
+    ]
     onboarding = store.get("server_settings", "kingdom_server", published=True)["payload"]["onboarding"]
     assert onboarding["title"] == "Le Serment de la Sainte Pelle"
     assert onboarding["currency_label"] == "écus"

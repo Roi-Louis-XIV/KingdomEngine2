@@ -388,7 +388,7 @@ def test_discord_status_includes_unpublished_audio_bots(tmp_path, monkeypatch):
     assert draft["enabled"] is False
 
 
-def test_voice_worker_status_accepts_legacy_secret_during_migration(tmp_path, monkeypatch):
+def test_legacy_voice_worker_secret_is_transferred_to_canonical_worker(tmp_path, monkeypatch):
     store = ContentStore(tmp_path / "worker-status.db"); store.initialize()
     draft = store.save("bot", "voice_worker_test", {
         "name": "Voice Worker 1", "bot_type": "voice", "voice_channel_id": "42",
@@ -400,7 +400,8 @@ def test_voice_worker_status_accepts_legacy_secret_during_migration(tmp_path, mo
     monkeypatch.setenv("EDGAR_APPLICATION_ID", "123456789012345678")
     with TestClient(web.app) as client:
         statuses = client.get("/api/bots/status", headers={"Authorization": "Bearer change-me"}).json()
-        status = next(item for item in statuses if item["key"] == "voice_worker_test")
+        assert not any(item["key"] == "voice_worker_test" for item in statuses)
+        status = next(item for item in statuses if item["key"] == "voice_edgar")
     assert status["token_configured"] is True
     assert status["application_id_configured"] is True
 

@@ -99,9 +99,10 @@ elif args.module == "voice":
     import asyncio
     from KingdomData import ContentStore
     from KingdomVoice import VoiceBotManager
+    from KingdomVoice.configuration import migrate_bot_catalog
     from import_v1 import import_v1
     from seed import DEFINITIONS
-    voice_store = ContentStore(); voice_store.initialize(); voice_store.seed(DEFINITIONS); import_v1(voice_store)
+    voice_store = ContentStore(); voice_store.initialize(); voice_store.seed(DEFINITIONS); import_v1(voice_store); migrate_bot_catalog(voice_store)
     voice_worlds: list[tuple[ContentStore, str]] = []
     with voice_store.connection() as database:
         tables = {row[0] for row in database.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -111,6 +112,7 @@ elif args.module == "voice":
     seen_paths: set[Path] = set()
     for guild_id, configured_path in managed:
         world_store = ContentStore(configured_path); world_store.initialize()
+        migrate_bot_catalog(world_store)
         resolved = world_store.path.resolve()
         if resolved in seen_paths:
             continue
