@@ -64,16 +64,63 @@ def test_voice_worker_applies_configured_server_identity():
     assert "bio" not in member.edited
 
 
+def test_voice_worker_reapplies_name_when_reallocated_between_buildings(tmp_path):
+    class FakeMember:
+        bot = True
+
+        def __init__(self):
+            self.nick = "Voice Worker 1"
+            self.names = []
+
+        async def edit(self, **kwargs):
+            if "nick" in kwargs:
+                self.nick = kwargs["nick"]
+                self.names.append(kwargs["nick"])
+
+    member = FakeMember()
+    guild = SimpleNamespace(me=member)
+    fake = SimpleNamespace(
+        config={"guild_id": "123"},
+        guilds=[guild],
+        get_guild=lambda guild_id: guild if guild_id == 123 else None,
+        assets_root=tmp_path,
+        _applied_identity="",
+        key="voice_edgar",
+    )
+
+    asyncio.run(ManagedVoiceBot.apply_presence_identity(
+        fake, VoicePresence("mine", "Kevin", "npc")
+    ))
+    fake._applied_identity = ""  # équivaut à la libération de la capacité
+    asyncio.run(ManagedVoiceBot.apply_presence_identity(
+        fake, VoicePresence("castle", "Edgar", "npc")
+    ))
+
+    assert member.names == ["Kevin", "Edgar"]
+
+
 def test_historical_platform_workers_are_discovered_without_exposing_tokens():
     workers = discover_platform_workers({
         "EDGAR_BOT_TOKEN": "secret-edgar",
         "VOICE_WORKER_3_TOKEN": "secret-three",
         "VOICE_WORKER_3_APPLICATION_ID": "123",
     })
-    assert [worker["key"] for worker in workers] == ["voice_edgar", "voice_roland"]
+    assert [worker["key"] for worker in workers] == [
+        "voice_edgar", "voice_edouard", "voice_roland", "voice_sylvain", "voice_wagner"
+    ]
     assert workers[0]["token_env"] == "EDGAR_BOT_TOKEN"
-    assert workers[1]["token_env"] == "VOICE_WORKER_3_TOKEN"
+    assert workers[2]["token_env"] == "VOICE_WORKER_3_TOKEN"
     assert "secret-edgar" not in repr(workers)
+    assert all(worker["worker_kind"] == "platform" for worker in workers)
+
+
+def test_five_platform_workers_exist_before_tokens_are_configured():
+    workers = discover_platform_workers({})
+    assert len(workers) == 5
+    assert [worker["name"] for worker in workers] == [
+        "Voice Worker 1", "Voice Worker 2", "Voice Worker 3",
+        "Voice Worker 4", "Voice Worker 5",
+    ]
     assert all(worker["worker_kind"] == "platform" for worker in workers)
 
 

@@ -14,6 +14,36 @@ DEFINITIONS = [
     {"type":"audio","key":"forest_chop_sound","payload":{"name":"Coup de hache","emoji":"🔊","description":"Réaction sonore de la forêt.","source":"assets/forest/axe.mp3","triggers":["forest.wood.chopped"],"volume":0.7}},
 ]
 
+# Capacités vocales système livrées avec KingdomEngine. Leur identité demeure
+# volontairement neutre : le nom et la photo visibles dans Discord appartiennent
+# à la présence affectée au bâtiment, pas au worker technique.
+for _number, _legacy_key, _legacy_token, _legacy_application in (
+    (1, "voice_edgar", "EDGAR_BOT_TOKEN", "EDGAR_APPLICATION_ID"),
+    (2, "voice_edouard", "EDOUARD_BOT_TOKEN", "EDOUARD_APPLICATION_ID"),
+    (3, "voice_roland", "ROLAND_BOT_TOKEN", "ROLAND_APPLICATION_ID"),
+    (4, "voice_sylvain", "SYLVAIN_BOT_TOKEN", "SYLVAIN_APPLICATION_ID"),
+    (5, "voice_wagner", "WAGNER_BOT_TOKEN", "WAGNER_APPLICATION_ID"),
+):
+    DEFINITIONS.append({
+        "type": "bot",
+        "key": _legacy_key,
+        "payload": {
+            "name": f"Voice Worker {_number}",
+            "emoji": "🎙️",
+            "description": "Capacité audio système réutilisable par les présences vocales.",
+            "bot_type": "voice",
+            "worker_kind": "platform",
+            "worker_number": _number,
+            "enabled": True,
+            "auto_join": True,
+            "token_env": f"VOICE_WORKER_{_number}_TOKEN",
+            "application_id_env": f"VOICE_WORKER_{_number}_APPLICATION_ID",
+            "legacy_token_env": _legacy_token,
+            "legacy_application_id_env": _legacy_application,
+            "voice_channel_env": f"VOICE_WORKER_{_number}_CHANNEL_ID",
+        },
+    })
+
 # Cette définition n'est jamais semée dans un royaume. KingdomWeb l'expose
 # comme une démonstration isolée et non enregistrable depuis l'Académie.
 REFERENCE_BUILDING = {

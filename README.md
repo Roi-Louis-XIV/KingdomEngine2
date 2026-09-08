@@ -74,6 +74,8 @@ La navigation de KingdomWeb est organisée comme un éditeur de monde génériqu
 
 **Présences vocales** propose désormais un parcours direct en trois étapes : ajouter les Voice Workers au serveur depuis **Connexion Discord**, cliquer sur **Affecter un bot audio**, puis choisir le bâtiment et son ambiance. Le mode automatique est sélectionné par défaut : KingdomVoice retrouve le salon vocal provisionné du bâtiment, choisit un worker libre et le connecte dès qu’un joueur entre. Les réglages de personnage, profil vocal, priorité et libération restent disponibles dans **Options avancées**. Sur mobile, ces informations restent consultables mais leur édition structurelle est réservée à l’ordinateur.
 
+KingdomEngine fournit cinq emplacements **Voice Worker** de base. Ils restent visibles même avant la configuration de leurs tokens et ne peuvent pas être supprimés. Des workers supplémentaires peuvent être ajoutés puis supprimés par l’administrateur. Un worker est uniquement une capacité technique : son nom et sa photo Discord se configurent dans la fiche **Voix et Présences** du bâtiment. Lorsqu’un joueur quitte le salon, la capacité est libérée ; sa prochaine affectation réapplique automatiquement le nom et la photo de la nouvelle présence.
+
 Le contenu historique **Le Royaume** est désormais identifié comme content pack de compatibilité dans [`content_packs/le_royaume`](content_packs/le_royaume). `seed.py` et `import_v1.py` restent temporairement le pont de chargement pour ne pas altérer les mondes installés.
 
 ### Aide et tutoriels interactifs

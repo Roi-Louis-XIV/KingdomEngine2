@@ -20,12 +20,16 @@ def discover_platform_workers(
     environment: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """Détecte les workers réellement configurés sans retourner leurs secrets."""
-    env = environment or os.environ
-    numbers = {
+    env = os.environ if environment is None else environment
+    # Cinq emplacements sont fournis par défaut par KingdomEngine. Ils restent
+    # visibles même avant la saisie des tokens afin que l'installation soit
+    # compréhensible et reproductible sur un nouveau serveur.
+    numbers = set(range(1, len(LEGACY_WORKERS) + 1))
+    numbers.update({
         int(match.group(1))
         for name, value in env.items()
         if value and (match := re.fullmatch(r"VOICE_WORKER_(\d+)_TOKEN", name))
-    }
+    })
     numbers.update(number for number, _, token, _ in LEGACY_WORKERS if env.get(token))
     legacy = {number: (key, token, app) for number, key, token, app in LEGACY_WORKERS}
     workers: list[dict[str, Any]] = []

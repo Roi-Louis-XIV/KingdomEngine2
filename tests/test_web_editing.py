@@ -608,6 +608,10 @@ def test_voice_presence_has_a_real_client_ui_and_hides_worker_details():
     assert "Affecter un bot audio" in script
     assert 'name="building_key" required' in script
     assert "building_key: buildingKey" in script
+    assert 'name="avatar" type="file"' in script
+    assert "/api/voice-presences/" in script
+    assert "VOICE WORKER DE BASE" in script
+    assert "L’identité n’est pas définie ici" in script
     assert "Aucun bâtiment sonorisé" in script
     assert "worker_01" not in script
     assert ".voice-presence-grid" in styles

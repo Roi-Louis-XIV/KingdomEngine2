@@ -2223,7 +2223,8 @@ function discordConnectionCard(entity) {
       : !applicationReady
         ? "Application ID manquant"
         : "Token manquant";
-  return `<article class="discord-connection-card ${voice ? "audio-connection" : "core-connection"}" data-open="${escapeHtml(entity.entity_key)}" data-access-tier="included" tabindex="0"><div class="discord-connection-icon">${escapeHtml(payload.emoji || (voice ? "🎙️" : "🛡️"))}</div><div class="discord-connection-copy"><small>${voice ? "BOT AUDIO DISCORD" : "CONNEXION PRINCIPALE"}</small><h3>${escapeHtml(payload.name || entity.entity_key)}</h3><p>${escapeHtml(payload.description || (voice ? "Diffuse les ambiances, voix et scènes de KingdomVoice." : "Pilote les interfaces textuelles du monde."))}</p><div class="discord-connection-meta"><span class="${applicationReady ? "ready" : "missing"}">${applicationReady ? "✓ Application configurée" : "⚠ Application ID à renseigner"}</span><span class="${tokenReady ? "ready" : "missing"}">${tokenReady ? "✓ Token configuré" : "⚠ Token à renseigner"}</span>${voice ? `<span>${payload.building_key ? `🏰 ${escapeHtml(state.catalogs.building.find((item) => item.entity_key === payload.building_key)?.payload.name || payload.building_key)}` : "◇ Aucun bâtiment attribué"}</span>` : ""}</div></div><div class="discord-connection-actions"><span class="connection-readiness ${applicationReady && tokenReady ? "ready" : "missing"}">${readiness}</span><button type="button" class="primary" data-invite="${escapeHtml(entity.entity_key)}" ${applicationReady ? "" : "disabled"}>${voice ? "Ajouter à Discord" : "Installer sur Discord"}</button><button type="button" data-edit="${escapeHtml(entity.entity_key)}">Configurer le bot</button>${entity.status === "draft" ? `<button type="button" data-publish="${escapeHtml(entity.entity_key)}" data-version="${entity.version}">Publier sur Discord</button>` : ""}</div></article>`;
+  const protectedWorker = payload.worker_kind === "platform";
+  return `<article class="discord-connection-card ${voice ? "audio-connection" : "core-connection"}" data-open="${escapeHtml(entity.entity_key)}" data-access-tier="included" tabindex="0"><div class="discord-connection-icon">${escapeHtml(payload.emoji || (voice ? "🎙️" : "🛡️"))}</div><div class="discord-connection-copy"><small>${voice ? protectedWorker ? "VOICE WORKER DE BASE" : "VOICE WORKER AJOUTÉ" : "CONNEXION PRINCIPALE"}</small><h3>${escapeHtml(payload.name || entity.entity_key)}</h3><p>${escapeHtml(payload.description || (voice ? "Capacité technique réutilisée par les identités de Voix et Présences." : "Pilote les interfaces textuelles du monde."))}</p><div class="discord-connection-meta"><span class="${applicationReady ? "ready" : "missing"}">${applicationReady ? "✓ Application configurée" : "⚠ Application ID à renseigner"}</span><span class="${tokenReady ? "ready" : "missing"}">${tokenReady ? "✓ Token configuré" : "⚠ Token à renseigner"}</span>${voice ? `<span>${protectedWorker ? "🔒 Fourni par KingdomEngine" : "Personnalisable et supprimable"}</span>` : ""}</div></div><div class="discord-connection-actions"><span class="connection-readiness ${applicationReady && tokenReady ? "ready" : "missing"}">${readiness}</span><button type="button" class="primary" data-invite="${escapeHtml(entity.entity_key)}" ${applicationReady ? "" : "disabled"}>${voice ? "Ajouter à Discord" : "Installer sur Discord"}</button><button type="button" data-edit="${escapeHtml(entity.entity_key)}">${voice ? "Configurer la connexion" : "Configurer le bot"}</button>${!protectedWorker && voice ? `<button type="button" class="danger" data-delete="${escapeHtml(entity.entity_key)}">Supprimer</button>` : ""}${entity.status === "draft" ? `<button type="button" data-publish="${escapeHtml(entity.entity_key)}" data-version="${entity.version}">Publier sur Discord</button>` : ""}</div></article>`;
 }
 
 function renderDiscordConnections() {
@@ -3169,6 +3170,11 @@ function openVoicePresenceDialog(entity = null) {
               <input name="name" value="${escapeHtml(p.name || "")}" placeholder="Ex. Tavernier de Valbrume" required data-tutorial="voice-presence-name">
             </label>
             <label>
+              Photo affichée sur Discord
+              <input name="avatar" type="file" accept="image/png,image/jpeg,image/webp">
+              <small>${p.avatar_path ? "Une photo est actuellement configurée. Choisissez un fichier pour la remplacer." : "Facultatif · PNG, JPG ou WEBP, 8 Mo maximum."}</small>
+            </label>
+            <label>
               Connexion
               <select name="assignment_mode">
                 <option value="automatic" ${p.assignment_mode !== "on_demand" && p.assignment_mode !== "follow_source" ? "selected" : ""}>Automatique quand des joueurs entrent</option>
@@ -3229,13 +3235,25 @@ function openVoicePresenceDialog(entity = null) {
           building_key: buildingKey,
         },
       };
+    const presenceKey = entity?.entity_key ||
+      technicalKey(form.elements.key.value || payload.name, "presence");
     await saveAndPublishEntity(
       "voice_presence",
-      entity?.entity_key ||
-        technicalKey(form.elements.key.value || payload.name, "presence"),
+      presenceKey,
       payload,
       entity?.version,
     );
+    const avatar = form.elements.avatar.files?.[0];
+    if (avatar) {
+      const upload = new FormData();
+      upload.append("file", avatar);
+      const response = await fetch(
+        `/api/voice-presences/${encodeURIComponent(presenceKey)}/avatar`,
+        { method: "POST", headers: multipartHeaders(), body: upload },
+      );
+      if (!response.ok)
+        throw Error((await response.json()).detail || "Import de la photo impossible.");
+    }
     dialog.close();
     await loadVoicePresenceStudio();
   };
@@ -3417,12 +3435,13 @@ function audioOptions(current = "", type = "") {
 
 function renderBotFields(payload) {
   const root = $("#type-fields");
-  const worker = payload.bot_type === "voice",
-    avatar =
-      payload.avatar_path && state.editing
-        ? `<img src="/api/bots/${encodeURIComponent(state.editing.entity_key)}/avatar?v=${state.editing.version}" alt="Avatar du worker">`
-        : "<span>🎙️</span>";
-  root.innerHTML = `<section class="form-section"><h3>Identité et connexion Discord</h3>${worker ? `<section class="voice-worker-identity"><div class="voice-worker-avatar">${avatar}</div><div><small>IDENTITÉ SUR CE SERVEUR</small><h3>${escapeHtml(payload.server_nickname || payload.name || "Voice Worker")}</h3><p>${escapeHtml(payload.server_bio || payload.description || "Capacité vocale générique")}</p></div></section><div class="form-grid">${input("Pseudonyme sur ce serveur Discord", "server_nickname", payload.server_nickname || payload.name || "")}${input("Description interne KingdomWeb", "server_bio", payload.server_bio || payload.description || "")}</div><label>Illustration interne<input id="bot-avatar-file" type="file" accept="image/png,image/jpeg,image/webp"><small>Visible dans KingdomWeb uniquement. Discord ne permet pas un avatar ou une bio différents pour chaque présence empruntant le même bot.</small></label><input type="hidden" data-field="avatar_path" value="${escapeHtml(payload.avatar_path || "")}">` : ""}<div class="form-grid">${select(
+  const worker = payload.bot_type === "voice";
+  if (worker) {
+    const name = $("#name");
+    name.value = payload.name || "Voice Worker";
+    name.readOnly = true;
+  }
+  root.innerHTML = `<section class="form-section"><h3>${worker ? "Connexion technique du Voice Worker" : "Identité et connexion Discord"}</h3>${worker ? `<div class="voice-explainer"><span>🎭</span><p><b>L’identité n’est pas définie ici.</b><br>Choisissez le nom et la photo visibles sur Discord dans <b>Voix et Présences → Affectations</b>.</p></div>` : ""}<div class="form-grid">${select(
     "Type de bot",
     "bot_type",
     payload.bot_type || "text",
@@ -3430,7 +3449,7 @@ function renderBotFields(payload) {
       ["text", "Bot textuel"],
       ["voice", "Voice Worker"],
     ],
-  )}${input("Variable de l’Application ID", "application_id_env", payload.application_id_env || "")}${input("Variable du token", "token_env", payload.token_env || "KINGDOM_CORE_TOKEN")}${input("Identifiant du serveur", "guild_id", payload.guild_id || "")}${input("Présence Discord", "presence", payload.presence || "")}</div><div class="checks">${check("Bot activé", "enabled", !!payload.enabled)}${check("Connexion vocale automatique", "auto_join", payload.auto_join !== false)}</div><section class="audio-assignment"><h3>Attribution au bâtiment</h3><p class="field-note">Le salon vocal est récupéré automatiquement depuis le bâtiment provisionné. Le worker reste générique et peut être réaffecté à tout moment.</p>${select("Bâtiment pris en charge", "building_key", payload.building_key || "", catalogOptions("building", payload.building_key || ""))}</section><details class="advanced"><summary>Réglages vocaux avancés</summary><div class="advanced-content form-grid">${input("Identifiant du salon (secours)", "voice_channel_id", payload.voice_channel_id || 0)}${input("Variable du salon (secours)", "voice_channel_env", payload.voice_channel_env || "")}${input("Déconnexion après (secondes)", "leave_delay", payload.leave_delay || 10, "number")}${input("Volume voix", "volume_voice", payload.volume?.voice ?? 0.8, "number", 'min="0" max="1" step="0.05"')}${input("Volume musique", "volume_music", payload.volume?.music ?? 0.05, "number", 'min="0" max="1" step="0.05"')}${input("Volume ambiance", "volume_ambience", payload.volume?.ambience ?? 0.35, "number", 'min="0" max="1" step="0.05"')}${input("Volume effets", "volume_sfx", payload.volume?.sfx ?? 0.2, "number", 'min="0" max="1" step="0.05"')}</div></details></section>`;
+  )}${input("Variable de l’Application ID", "application_id_env", payload.application_id_env || "")}${input("Variable du token", "token_env", payload.token_env || "KINGDOM_CORE_TOKEN")}${input("Identifiant du serveur", "guild_id", payload.guild_id || "")}${input("Présence Discord", "presence", payload.presence || "")}</div><div class="checks">${check("Bot activé", "enabled", !!payload.enabled)}${check("Connexion vocale automatique", "auto_join", payload.auto_join !== false)}</div>${worker ? `<details class="advanced"><summary>Réglages techniques avancés</summary><div class="advanced-content form-grid">${input("Identifiant du salon (secours)", "voice_channel_id", payload.voice_channel_id || 0)}${input("Variable du salon (secours)", "voice_channel_env", payload.voice_channel_env || "")}${input("Déconnexion après (secondes)", "leave_delay", payload.leave_delay || 10, "number")}${input("Volume voix", "volume_voice", payload.volume?.voice ?? 0.8, "number", 'min="0" max="1" step="0.05"')}${input("Volume musique", "volume_music", payload.volume?.music ?? 0.05, "number", 'min="0" max="1" step="0.05"')}${input("Volume ambiance", "volume_ambience", payload.volume?.ambience ?? 0.35, "number", 'min="0" max="1" step="0.05"')}${input("Volume effets", "volume_sfx", payload.volume?.sfx ?? 0.2, "number", 'min="0" max="1" step="0.05"')}</div></details>` : ""}</section>`;
 }
 
 async function uploadBotAvatar(key) {

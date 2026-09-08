@@ -146,6 +146,7 @@ app = FastAPI(title="Kingdom Studio", version="2.0.0", lifespan=lifespan)
 STATIC = Path(__file__).with_name("static")
 KINGDOM_DATA_ROOT = persistent_data_root()
 BOT_AVATAR_ASSETS = KINGDOM_DATA_ROOT / "assets" / "bot-avatars"
+PRESENCE_AVATAR_ASSETS = KINGDOM_DATA_ROOT / "assets" / "presence-avatars"
 MAP_ASSETS = KINGDOM_DATA_ROOT / "assets" / "maps"
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
@@ -1244,5 +1245,50 @@ async def upload_bot_avatar(key: str, request: Request, file: UploadFile = File(
                     raise HTTPException(413, "L’avatar ne doit pas dépasser 8 Mo.")
                 output.write(chunk)
         return {"avatar_path": target.relative_to(KINGDOM_DATA_ROOT).as_posix(), "size_bytes": total}
+    finally:
+        await file.close()
+
+
+@app.post("/api/voice-presences/{key}/avatar", dependencies=[Depends(authorize)])
+async def upload_voice_presence_avatar(key: str, request: Request, file: UploadFile = File(...)):
+    """Associe une photo Discord à l'identité, jamais au worker technique."""
+    try:
+        entity = store.get("voice_presence", key)
+    except NotFoundError as exc:
+        await file.close()
+        raise HTTPException(404, str(exc)) from exc
+    extension = Path(file.filename or "").suffix.lower()
+    if extension not in {".png", ".jpg", ".jpeg", ".webp"} or (
+        file.content_type and not file.content_type.startswith("image/")
+    ):
+        await file.close()
+        raise HTTPException(422, "Choisissez une image PNG, JPG ou WEBP.")
+    slug = str(getattr(request.state, "serveur", {}).get("slug") or "principal")
+    target_dir = (PRESENCE_AVATAR_ASSETS / slug / key).resolve()
+    root = PRESENCE_AVATAR_ASSETS.resolve()
+    if root not in target_dir.parents:
+        await file.close()
+        raise HTTPException(422, "Destination de photo invalide.")
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / f"avatar{extension}"
+    total = 0
+    try:
+        with target.open("wb") as output:
+            while chunk := await file.read(1024 * 1024):
+                total += len(chunk)
+                if total > 8 * 1024 * 1024:
+                    output.close()
+                    target.unlink(missing_ok=True)
+                    raise HTTPException(413, "La photo ne doit pas dépasser 8 Mo.")
+                output.write(chunk)
+        payload = dict(entity["payload"])
+        payload["avatar_path"] = target.relative_to(KINGDOM_DATA_ROOT).as_posix()
+        draft = store.save(
+            "voice_presence", key, payload, "studio-presence-avatar", entity["version"]
+        )
+        published = store.publish(
+            "voice_presence", key, draft["version"], "studio-presence-avatar"
+        )
+        return {"avatar_path": payload["avatar_path"], "version": published["version"]}
     finally:
         await file.close()

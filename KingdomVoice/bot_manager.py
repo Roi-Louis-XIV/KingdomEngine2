@@ -86,13 +86,30 @@ class ManagedVoiceBot(discord.Client):
         Le username global n'est jamais modifié. L'avatar serveur reste une
         capacité future car il dépend des droits et capacités Discord du bot.
         """
-        identity = f"{presence.key}:{presence.name}"
+        guild_id = int(self.config.get("guild_id") or 0)
+        identity = f"{guild_id}:{presence.key}:{presence.name}:{presence.avatar_url}"
         if identity == self._applied_identity:
             return
-        for guild in self.guilds:
+        guilds = [self.get_guild(guild_id)] if guild_id else list(self.guilds)
+        for guild in (item for item in guilds if item is not None):
             member = guild.me
-            if member and member.nick != presence.name:
-                try: await member.edit(nick=presence.name[:32], reason="Affectation Voice Presence KingdomEngine")
+            if member:
+                try:
+                    changes: dict[str, Any] = {
+                        "reason": "Affectation Voice Presence KingdomEngine"
+                    }
+                    if member.nick != presence.name:
+                        changes["nick"] = presence.name[:32]
+                    if presence.avatar_url:
+                        avatar_path = (self.assets_root / presence.avatar_url).resolve()
+                        if self.assets_root.resolve() in avatar_path.parents and avatar_path.is_file():
+                            changes["avatar"] = avatar_path.read_bytes()
+                    else:
+                        # Une nouvelle présence sans portrait ne doit jamais
+                        # conserver celui de l'affectation précédente.
+                        changes["avatar"] = None
+                    if len(changes) > 1:
+                        await member.edit(**changes)
                 except (discord.Forbidden, discord.HTTPException) as exc:
                     print(f"[KingdomVoice] identité de présence non appliquée pour {self.key} : {exc}")
         self._applied_identity = identity
@@ -421,7 +438,21 @@ class VoiceBotManager:
         client = self.clients.get(worker.key)
         if client:
             await asyncio.gather(*(voice.disconnect(force=False) for voice in client.voice_clients), return_exceptions=True)
+            client._applied_identity = ""
         self.pool.release(presence_key=presence_key)
+
+    def _channel_has_humans(self, guild_id: str, channel_id: str) -> bool:
+        """Observe un salon sans lier cette lecture à un worker particulier."""
+        try:
+            expected_guild, expected_channel = int(guild_id), int(channel_id)
+        except (TypeError, ValueError):
+            return False
+        for client in self.clients.values():
+            guild = client.get_guild(expected_guild)
+            channel = client.get_channel(expected_channel)
+            if guild is not None and channel is not None and channel.guild.id == guild.id:
+                return any(not member.bot for member in channel.members)
+        return False
 
     def _published_presences(self) -> dict[str, VoicePresence]:
         presences: dict[str, VoicePresence] = {}
@@ -444,7 +475,7 @@ class VoiceBotManager:
                     name=str(payload.get("name", entity["entity_key"])),
                     presence_type=str(payload.get("presence_type", "custom")),
                     source_key=str(payload.get("source_key", "")),
-                    avatar_url=str(payload.get("avatar_url", "")),
+                    avatar_url=str(payload.get("avatar_path") or payload.get("avatar_url", "")),
                     voice_profile_key=str(payload.get("voice_profile_key", "")),
                     scene_key=str(payload.get("scene_key", "")),
                     priority=int(payload.get("priority", 0)),
@@ -473,6 +504,15 @@ class VoiceBotManager:
     async def _sync_automatic_presences(self) -> None:
         presences = self._published_presences()
         self.pool.sweep(presences)
+        # Une présence automatique ne monopolise une capacité que pendant la
+        # présence réelle de joueurs dans son salon. Le même worker peut ainsi
+        # passer de la mine au château et recevoir la nouvelle identité.
+        for worker in list(self.pool.workers.values()):
+            if not worker.presence_key:
+                continue
+            presence = presences.get(worker.presence_key)
+            if presence is None or not self._channel_has_humans(worker.guild_id, worker.channel_id):
+                await self.release_presence(worker.presence_key)
         assigned = {worker.presence_key for worker in self.pool.workers.values() if worker.presence_key}
         for presence in sorted(presences.values(), key=lambda item: item.priority, reverse=True):
             if presence.key in assigned:
@@ -481,9 +521,12 @@ class VoiceBotManager:
             if not channel_id:
                 print(f"[KingdomVoice] présence {presence.key} en attente : aucun salon vocal provisionné pour son lieu.")
                 continue
+            guild_id = str(presence.metadata.get("guild_id") or os.getenv("KINGDOM_GUILD_ID", ""))
+            if not self._channel_has_humans(guild_id, channel_id):
+                continue
             await self.assign_presence(
                 presence,
-                guild_id=str(presence.metadata.get("guild_id") or os.getenv("KINGDOM_GUILD_ID", "")),
+                guild_id=guild_id,
                 channel_id=channel_id,
                 building_key=building_key,
                 world_store=self._presence_stores.get(presence.key, self.store),
