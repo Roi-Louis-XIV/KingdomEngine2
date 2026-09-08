@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from KingdomData import ConflictError, ContentStore, NotFoundError, ValidationError, SERVER_SETTINGS_KEY, get_server_settings
 from KingdomData.audio_storage import audio_key, safe_audio_path, store_audio_file
 from KingdomData.paths import persistent_data_root
-from KingdomData.world_presets import PRESET_CATALOG, world_preset
+from KingdomData.official_content import OfficialContentStore
 from import_v1 import import_v1, seed_legacy_audio_catalog
 from kingdomCore.provisioner import managed_bot_permissions, required_bot_permissions
 from KingdomWeb.supervision import AdministrationService, ServiceSupervisor
@@ -109,6 +109,7 @@ class MagasinsServeurs:
 magasin_principal = ContentStore()
 store = MagasinsServeurs(magasin_principal)
 comptes = RegistreComptes(magasin_principal.path)
+contenus_officiels = OfficialContentStore(magasin_principal.path)
 _inscriptions_recentes: dict[str, list[float]] = {}
 
 
@@ -137,7 +138,12 @@ def _configured_environment(config: dict[str, Any], primary: str, legacy: str) -
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    global contenus_officiels
     comptes.initialiser()
+    # Les tests et les déploiements multi-instance peuvent remplacer le
+    # registre : le catalogue suit toujours la base plateforme active.
+    contenus_officiels = OfficialContentStore(comptes.chemin)
+    contenus_officiels.migrate_legacy_presets()
     store.initialize()
     store.seed(DEFINITIONS)
     import_v1(store)
@@ -661,7 +667,14 @@ def retirer_acces_compte(account_id: int, server_slug: str):
 
 @app.get("/api/world-presets", dependencies=[Depends(authenticate_account)])
 def modeles_de_monde():
-    return {"presets": PRESET_CATALOG}
+    published = contenus_officiels.list(content_type="world_template", published_only=True)
+    presets = [{"key": "blank", "name": "Monde vierge", "emoji": "◇", "description": "Une configuration propre, sans lieu ni mécanique imposée.", "tone": "neutral", "version": 1}]
+    presets.extend({
+        "key": item["key"], "name": item["name"], "emoji": item["emoji"],
+        "description": item["description"], "tone": (item["tags"] or ["emerald"])[0],
+        "version": item["version"], "entity_count": item["entity_count"],
+    } for item in published)
+    return {"presets": presets}
 
 
 @app.post("/api/servers", dependencies=[Depends(authenticate_account)])
@@ -680,17 +693,44 @@ def creer_serveur(request: Request, body: dict[str, Any]):
             if administres >= limite:
                 raise ValueError(f"Limite de {limite} serveurs administrés atteinte.")
         preset_key = str(body.get("preset", "blank")).strip() or "blank"
-        definitions = world_preset(preset_key)
+        if preset_key == "blank":
+            from KingdomData.world_presets import world_preset
+            definitions = world_preset("blank")
+            template_version = 1
+        else:
+            template = contenus_officiels.get(preset_key, published_only=True)
+            definitions = template["entities"]
+            template_version = template["version"]
+            for definition in definitions:
+                definition["payload"].setdefault("official_source", {
+                    "template_key": preset_key, "template_version": template_version,
+                    "entity_key": definition["key"],
+                })
         serveur = comptes.creer_serveur(str(body.get("name", "")), str(body.get("guild_id", "")), int(request.state.compte["id"]))
         magasin = ContentStore(serveur["database_path"])
         magasin.initialize()
         magasin.seed(definitions)
+        comptes.definir_source_modele(str(serveur["slug"]), preset_key, template_version)
         store._magasins[str(magasin.path.resolve())] = magasin
-        return {**serveur, "preset": preset_key, "seeded_entities": len(definitions)}
+        return {**serveur, "preset": preset_key, "preset_version": template_version,
+                "seeded_entities": len(definitions), "discord_provision": {
+                    "requested": False,
+                    "next_step": "install",
+                    "message": "Installez d'abord l'application Discord ; la synchronisation complète sera alors lancée.",
+                }}
     except (ValueError, ConflictError) as exc:
         if serveur:
             comptes.archiver_serveur(str(serveur["slug"]))
         raise HTTPException(422, str(exc)) from exc
+    except (LookupError, ValidationError) as exc:
+        if serveur:
+            comptes.archiver_serveur(str(serveur["slug"]))
+        raise HTTPException(422, str(exc)) from exc
+    except Exception as exc:
+        if serveur:
+            comptes.archiver_serveur(str(serveur["slug"]))
+        logger.exception("Échec de création du monde KingdomEngine")
+        raise HTTPException(500, f"Le monde n'a pas pu être initialisé ({type(exc).__name__}). Consultez les logs KingdomWeb.") from exc
 
 
 @app.delete("/api/accounts/{account_id}", dependencies=[Depends(_administrateur_plateforme)])
@@ -699,14 +739,81 @@ def supprimer_compte_client(account_id: int, request: Request):
         return comptes.supprimer_compte(account_id, int(request.state.compte["id"]))
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    except Exception as exc:
-        if serveur:
-            comptes.archiver_serveur(str(serveur["slug"]))
-        logger.exception("Échec de création du monde KingdomEngine")
-        raise HTTPException(
-            500,
-            f"Le monde n'a pas pu être initialisé ({type(exc).__name__}). Consultez les logs KingdomWeb.",
-        ) from exc
+
+
+# ==============================
+# CONTENU OFFICIEL PAYEN STUDIO
+# ==============================
+
+@app.get("/api/official/templates", dependencies=[Depends(authenticate_account)])
+def official_templates(search: str = ""):
+    return {"templates": contenus_officiels.list(content_type="world_template", published_only=True, search=search)}
+
+
+@app.get("/api/official/templates/{key}", dependencies=[Depends(authenticate_account)])
+def official_template(key: str):
+    try:
+        return contenus_officiels.get(key, published_only=True)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@app.get("/api/platform/official", dependencies=[Depends(_administrateur_plateforme)])
+def platform_official_content(content_type: str | None = None, search: str = ""):
+    return {"content": contenus_officiels.list(content_type=content_type, search=search)}
+
+
+@app.get("/api/platform/official/{key}", dependencies=[Depends(_administrateur_plateforme)])
+def platform_official_detail(key: str, version: int | None = None, content_type: str = "world_template"):
+    try:
+        return contenus_officiels.get(key, version=version, content_type=content_type)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@app.post("/api/platform/official", dependencies=[Depends(_administrateur_plateforme)])
+def platform_official_create(request: Request, body: dict[str, Any]):
+    try:
+        result = contenus_officiels.save(body)
+        return result
+    except (ValueError, ValidationError, KeyError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.put("/api/platform/official/{key}", dependencies=[Depends(_administrateur_plateforme)])
+def platform_official_update(key: str, body: dict[str, Any]):
+    try:
+        return contenus_officiels.save(body, key=key)
+    except (ValueError, ValidationError, KeyError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/api/platform/official/{key}/duplicate", dependencies=[Depends(_administrateur_plateforme)])
+def platform_official_duplicate(key: str, body: dict[str, Any]):
+    try:
+        return contenus_officiels.duplicate(key, str(body.get("key", "")), str(body.get("name", "")), content_type=str(body.get("content_type", "world_template")))
+    except (ValueError, ValidationError, LookupError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/api/platform/official/{key}/{action}", dependencies=[Depends(_administrateur_plateforme)])
+def platform_official_status(key: str, action: str, body: dict[str, Any]):
+    statuses = {"publish": "published", "unpublish": "draft", "archive": "archived"}
+    if action not in statuses:
+        raise HTTPException(404, "Action inconnue.")
+    try:
+        return contenus_officiels.set_status(key, statuses[action], version=body.get("version"), content_type=str(body.get("content_type", "world_template")))
+    except (ValueError, ValidationError, LookupError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.delete("/api/platform/official/{key}/versions/{version}", dependencies=[Depends(_administrateur_plateforme)])
+def platform_official_delete_draft(key: str, version: int, content_type: str = "world_template"):
+    try:
+        contenus_officiels.delete_draft(key, version, content_type=content_type)
+        return {"ok": True}
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.get("/api/content", dependencies=[Depends(authorize)])
@@ -1174,7 +1281,6 @@ def bot_statuses(request: Request):
     runtime_by_key = {
         str(worker.get("key", "")): worker
         for worker in runtime.get("workers", [])
-        if str(worker.get("guild_id", "")) == selected_guild
     }
     # La page Connexion Discord est aussi un outil de préparation : un bot en
     # brouillon doit donc signaler ses variables manquantes avant publication.
@@ -1194,7 +1300,11 @@ def bot_statuses(request: Request):
             "token_configured": bool(token),
             "channel_configured": bool(config.get("building_key") or config.get("voice_channel_id") or (config.get("voice_channel_env") and os.getenv(str(config["voice_channel_env"])))),
             "worker_kind": config.get("worker_kind", "custom"),
-            "connected": bool(worker_runtime.get("connected")),
+            "connected": bool(
+                worker_runtime.get("connected")
+                and str(worker_runtime.get("guild_id", "")) == selected_guild
+            ),
+            "installed_on_server": selected_guild in worker_runtime.get("guild_ids", []),
             "runtime_state": worker_runtime.get("state", "offline"),
             "presence_key": worker_runtime.get("presence_key", ""),
         })
@@ -1214,7 +1324,11 @@ def bot_statuses(request: Request):
             "token_configured": True,
             "channel_configured": False,
             "worker_kind": "platform",
-            "connected": bool(worker_runtime.get("connected")),
+            "connected": bool(
+                worker_runtime.get("connected")
+                and str(worker_runtime.get("guild_id", "")) == selected_guild
+            ),
+            "installed_on_server": selected_guild in worker_runtime.get("guild_ids", []),
             "runtime_state": worker_runtime.get("state", "offline"),
             "presence_key": worker_runtime.get("presence_key", ""),
         })

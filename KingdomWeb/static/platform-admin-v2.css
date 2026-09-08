@@ -619,3 +619,26 @@ body > main {
     grid-column: 1 / -1;
   }
 }
+
+/* ==============================
+   CONTENU OFFICIEL PAYEN STUDIO
+   ============================== */
+
+.official-studio { margin: 20px 0; padding: 24px; border: 1px solid #2c3a4e; border-radius: 20px; background: linear-gradient(135deg, #121a24, #101a17); }
+.official-studio > header, .official-toolbar, .official-card, .official-editor-shell > header, .official-entity summary, .official-entities > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.official-studio h2, .official-studio p { margin: 4px 0; }
+.official-toolbar { margin: 20px 0; }
+.official-toolbar input { flex: 1; }
+.official-toolbar input, .official-toolbar select, .official-editor-shell input, .official-editor-shell select, .official-editor-shell textarea { width: 100%; padding: 11px 12px; border: 1px solid #344157; border-radius: 9px; color: #eef7f1; background: #0b111a; }
+.official-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.official-card { min-height: 128px; padding: 18px; text-align: left; color: inherit; border: 1px solid #2c3a4e; border-radius: 14px; background: #111923; }
+.official-card:hover { border-color: #4bd9a1; transform: translateY(-1px); }
+.official-card > span { font-size: 32px; }.official-card > div { flex: 1; }.official-card b, .official-card small { display: block; }.official-card strong { font-size: 12px; color: #8ca09a; }
+.official-status { align-self: flex-start; padding: 5px 8px; border-radius: 999px; font-size: 10px; font-style: normal; text-transform: uppercase; }.official-status.published { color: #4bd9a1; background: #123b2b; }.official-status.draft { color: #f9c65b; background: #3d3014; }
+.official-editor-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 24px; background: #02070bdd; backdrop-filter: blur(5px); }
+.official-editor-shell { width: min(1500px, 96vw); height: min(930px, 94vh); overflow: hidden; border: 1px solid #344157; border-radius: 20px; background: #0e151f; box-shadow: 0 30px 80px #000a; }
+.official-editor-shell > header { height: 84px; padding: 18px 24px; border-bottom: 1px solid #293547; }.official-editor-shell > nav { display: flex; gap: 6px; padding: 10px 24px; border-bottom: 1px solid #293547; }.official-editor-shell > nav button.active { color: #07120d; background: #4bd9a1; }
+#official-form { display: grid; grid-template-columns: 340px 1fr; grid-template-rows: 1fr 72px; height: calc(100% - 133px); }#official-form > aside, #official-form > main { padding: 22px; overflow: auto; }#official-form > aside { border-right: 1px solid #293547; background: #101824; }#official-form label { display: grid; gap: 6px; margin-bottom: 14px; color: #9cabbc; font-size: 12px; }.official-two { display: grid; grid-template-columns: 90px 1fr; gap: 10px; }
+#official-form > footer { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 22px; border-top: 1px solid #293547; background: #111925; }#official-form > footer > div { display: flex; gap: 8px; }.official-validation { padding: 15px; border: 1px solid #285d49; border-radius: 12px; background: #10271f; }.official-validation span { float: right; }.official-validation .error { color: #ff7588; }.official-validation .warning { color: #f9c65b; }
+.official-entities { margin-top: 18px; }.official-entity { margin-top: 10px; border: 1px solid #293547; border-radius: 12px; background: #111923; }.official-entity summary { padding: 14px; cursor: pointer; }.official-entity summary > div { flex: 1; }.official-entity summary b, .official-entity summary small { display: block; }.official-entity > div { display: grid; grid-template-columns: 180px 1fr; gap: 12px; padding: 0 14px 14px; }.official-entity > div label:last-child { grid-column: 1 / -1; }.official-entity textarea { font: 12px/1.5 ui-monospace, Consolas, monospace; }.publish { color: #07120d !important; background: #4bd9a1 !important; }
+@media (max-width: 800px) { #official-form { grid-template-columns: 1fr; overflow: auto; }#official-form > aside, #official-form > main { overflow: visible; }#official-form > footer { position: sticky; bottom: 0; }.official-editor-shell { height: 96vh; overflow: auto; }.official-cards { grid-template-columns: 1fr; } }

@@ -69,6 +69,7 @@ class VoiceWorkerPool:
     def __init__(self, workers: list[VoiceWorkerState] | None = None, *, max_concurrent_voice_presences: int | None = None) -> None:
         self.workers = {worker.key: worker for worker in (workers or [])}
         self._lock = RLock()
+        self._allocation_cursor = 0
         physical_capacity = len(self.workers)
         requested = physical_capacity if max_concurrent_voice_presences is None else max(0, int(max_concurrent_voice_presences))
         self.max_concurrent_voice_presences = min(physical_capacity, requested)
@@ -111,10 +112,16 @@ class VoiceWorkerPool:
             active = sum(not worker.free for worker in self.workers.values())
             if active >= self.max_concurrent_voice_presences:
                 return None
-            worker = next(
-                (candidate for candidate in self.workers.values() if candidate.free and eligible(candidate)),
-                None,
-            )
+            ordered = list(self.workers.values())
+            worker = None
+            if ordered:
+                for offset in range(len(ordered)):
+                    index = (self._allocation_cursor + offset) % len(ordered)
+                    candidate = ordered[index]
+                    if candidate.free and eligible(candidate):
+                        worker = candidate
+                        self._allocation_cursor = (index + 1) % len(ordered)
+                        break
             if worker is None:
                 return None
             worker.state = "assigned"; worker.presence_key = presence.key; worker.guild_id = guild_id

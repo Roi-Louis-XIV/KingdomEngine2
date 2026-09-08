@@ -1,5 +1,17 @@
 # KingdomEngine 2
 
+> Le catalogue de contenus officiels est désormais administré depuis **Payen Studio Admin → Contenu officiel**. Les modèles publiés apparaissent automatiquement lors de l'ajout d'un serveur. Leur installation copie une révision complète dans le nouveau monde : les modifications ultérieures du modèle ne changent jamais les mondes clients existants.
+
+## Gérer les modèles officiels
+
+1. Connectez-vous avec le compte `platform_admin`, puis ouvrez `/platform-admin`.
+2. Dans **Bibliothèque Payen Studio**, ouvrez un modèle ou créez un contenu.
+3. Modifiez l'identité et les entités du pack, puis enregistrez le brouillon.
+4. Corrigez les erreurs indiquées dans **Validation**. Les avertissements restent informatifs.
+5. Publiez la révision. Une seule version publiée est proposée aux utilisateurs ; les précédentes sont archivées et les mondes déjà installés restent inchangés.
+
+Les anciens préréglages `medieval_kingdom` et `space_station` sont importés automatiquement et une seule fois dans cette bibliothèque au démarrage. Cette migration est additive et ne modifie aucune base de monde existante.
+
 V2 modulaire de KingdomEngine : un moteur de jeu no-code conçu pour Discord. Les bâtiments, interfaces, objets, événements, bots et réactions audio sont versionnés dans `KingdomData` et administrables depuis **Kingdom Studio**.
 
 ## Les cinq modules
@@ -215,6 +227,14 @@ Une présence vocale publiée en mode **automatique** est affectée par KingdomV
 Les compteurs **connexions vocales réelles** de KingdomWeb et **Capacité vocale** de Payen Studio Admin sont alimentés par l’état runtime de KingdomVoice, actualisé toutes les cinq secondes dans `KINGDOM_DATA_DIR/runtime/voice-status.json`. Ce fichier ne contient aucun token. Un état âgé de plus de vingt secondes est considéré hors ligne afin de ne jamais conserver une connexion fantôme après l’arrêt du service.
 
 Tant qu’au moins un joueur reste dans le salon vocal affecté, KingdomVoice rafraîchit l’activité du worker à chaque cycle de surveillance. Le délai de libération ne peut donc plus provoquer une succession de déconnexions et reconnexions ; le worker est libéré lorsque le dernier joueur quitte réellement le salon.
+
+L’allocation des capacités utilise une rotation équitable. Lorsqu’un joueur quitte la mine pour le château, le worker de la mine est rapidement déconnecté et libéré, puis le prochain worker disponible prend le relais au château. Le premier worker reste disponible pour un autre joueur ou une prochaine présence au lieu de suivre systématiquement le même testeur de bâtiment en bâtiment. Cette règle s’applique automatiquement à tous les workers présents et futurs.
+
+Le Studio distingue désormais un worker dont le token est configuré d’un worker réellement **installé sur le serveur Discord sélectionné**. Seuls les workers membres de ce serveur entrent dans sa capacité disponible et dans la rotation. Chaque application Voice Worker supplémentaire doit être autorisée une fois avec **Connexion Discord → Ajouter à Discord**.
+
+Une photo de présence accepte les formats PNG, JPG/JPEG et WEBP jusqu’à 8 Mo. Le formulaire vérifie le fichier avant l’envoi, affiche l’avancement ou l’erreur directement dans la fenêtre et réactive toujours **Enregistrer et activer** après un échec corrigible.
+
+Le bouton **Enregistrer et activer** utilise une action de clic explicite, indépendante de la soumission implicite du navigateur. Les champs manquants sont signalés dans la fenêtre et le champ concerné reçoit immédiatement le focus.
 
 La synchronisation Discord accorde aussi aux Voice Workers la permission **Changer de pseudo**, nécessaire pour afficher le nom d’une présence. Sur un serveur installé avant cette correction, relancez **Installer / synchroniser le serveur Discord** ; si le bot a été invité sans cette permission, ouvrez de nouveau son lien d’invitation depuis **Connexion Discord**.
 

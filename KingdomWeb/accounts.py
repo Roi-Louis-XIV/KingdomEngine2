@@ -68,6 +68,11 @@ class RegistreComptes:
     def initialiser(self) -> None:
         with self.connexion() as base:
             base.executescript(SCHEMA_COMPTES)
+            world_columns = {row[1] for row in base.execute("PRAGMA table_info(worlds)")}
+            if "template_key" not in world_columns:
+                base.execute("ALTER TABLE worlds ADD COLUMN template_key TEXT NOT NULL DEFAULT 'blank'")
+            if "template_version" not in world_columns:
+                base.execute("ALTER TABLE worlds ADD COLUMN template_version INTEGER NOT NULL DEFAULT 1")
         self._creer_administrateur_initial()
         self._creer_serveur_initial()
         self._migrer_fondations_produit()
@@ -104,6 +109,14 @@ class RegistreComptes:
         with self.connexion() as base:
             row = base.execute("SELECT role FROM account_platform_roles WHERE account_id=?", (compte_id,)).fetchone()
         return str(row["role"]) if row else ""
+
+    def definir_source_modele(self, world_slug: str, template_key: str, template_version: int) -> None:
+        """Mémorise la provenance sans créer de dépendance vers le modèle."""
+        with self.connexion() as base:
+            base.execute(
+                "UPDATE worlds SET template_key=?,template_version=?,updated_at=? WHERE slug=?",
+                (template_key, int(template_version), _maintenant(), world_slug),
+            )
 
     def definir_role_plateforme(self, compte_id: int, role: str) -> None:
         if role not in {"", "support", "platform_admin"}: raise ValueError("Rôle plateforme invalide.")
@@ -592,7 +605,7 @@ CREATE TABLE IF NOT EXISTS platform_plans(
  plan_key TEXT PRIMARY KEY,name TEXT NOT NULL,entitlements_json TEXT NOT NULL DEFAULT '[]',quotas_json TEXT NOT NULL DEFAULT '{}',active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS worlds(
- id INTEGER PRIMARY KEY AUTOINCREMENT,slug TEXT NOT NULL UNIQUE,name TEXT NOT NULL,organization_id INTEGER NOT NULL,plan_key TEXT NOT NULL DEFAULT 'standard',status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL,updated_at TEXT NOT NULL,
+ id INTEGER PRIMARY KEY AUTOINCREMENT,slug TEXT NOT NULL UNIQUE,name TEXT NOT NULL,organization_id INTEGER NOT NULL,plan_key TEXT NOT NULL DEFAULT 'standard',status TEXT NOT NULL DEFAULT 'active',template_key TEXT NOT NULL DEFAULT 'blank',template_version INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,
  FOREIGN KEY(organization_id) REFERENCES organizations(id),FOREIGN KEY(plan_key) REFERENCES platform_plans(plan_key)
 );
 CREATE TABLE IF NOT EXISTS world_discord_servers(
@@ -613,5 +626,37 @@ CREATE TABLE IF NOT EXISTS support_grants(
 CREATE TABLE IF NOT EXISTS platform_audit(
  id INTEGER PRIMARY KEY AUTOINCREMENT,actor_account_id INTEGER,action TEXT NOT NULL,target_type TEXT NOT NULL,target_id TEXT NOT NULL,details_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL,
  FOREIGN KEY(actor_account_id) REFERENCES web_accounts(id) ON DELETE SET NULL
+);
+CREATE TABLE IF NOT EXISTS official_content_packs(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ pack_key TEXT NOT NULL,
+ content_type TEXT NOT NULL,
+ version INTEGER NOT NULL,
+ status TEXT NOT NULL DEFAULT 'draft',
+ name TEXT NOT NULL,
+ description TEXT NOT NULL DEFAULT '',
+ category TEXT NOT NULL DEFAULT '',
+ emoji TEXT NOT NULL DEFAULT '◇',
+ illustration_path TEXT NOT NULL DEFAULT '',
+ tags_json TEXT NOT NULL DEFAULT '[]',
+ author TEXT NOT NULL DEFAULT 'Payen Studio',
+ origin TEXT NOT NULL DEFAULT 'platform',
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ published_at TEXT,
+ UNIQUE(pack_key, content_type, version)
+);
+CREATE INDEX IF NOT EXISTS official_content_pack_status
+ ON official_content_packs(content_type,status,updated_at);
+CREATE TABLE IF NOT EXISTS official_content_entities(
+ pack_id INTEGER NOT NULL,
+ entity_type TEXT NOT NULL,
+ entity_key TEXT NOT NULL,
+ payload_json TEXT NOT NULL,
+ sort_order INTEGER NOT NULL DEFAULT 0,
+ source_entity_key TEXT NOT NULL DEFAULT '',
+ source_version INTEGER,
+ PRIMARY KEY(pack_id,entity_type,entity_key),
+ FOREIGN KEY(pack_id) REFERENCES official_content_packs(id) ON DELETE CASCADE
 );
 """

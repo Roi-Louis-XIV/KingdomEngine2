@@ -3021,6 +3021,7 @@ async function loadVoicePresenceStudio() {
     (item) => item.type === "voice" && item.enabled && item.token_configured,
   );
   const activeWorkers = voiceBots.filter((item) => item.connected);
+  const installedWorkers = voiceBots.filter((item) => item.installed_on_server);
   const activePresenceKeys = new Set(
     activeWorkers.map((item) => item.presence_key).filter(Boolean),
   );
@@ -3062,7 +3063,7 @@ async function loadVoicePresenceStudio() {
     )
     .join("");
   $("#admin-view").innerHTML =
-    `<div class="voice-studio" data-tutorial="voice-presence-studio"><section class="voice-studio-hero"><div><small>BOTS AUDIO</small><h2>Une ambiance dans chaque bâtiment</h2><p>Choisissez simplement un bâtiment et une scène sonore. KingdomVoice affecte automatiquement un Voice Worker disponible lorsque des joueurs entrent dans le vocal.</p></div><button type="button" class="primary" data-new-presence>＋ Affecter un bot audio</button></section><section class="voice-quick-guide"><strong>Configuration en 3 étapes</strong><span><b>1</b> Ajouter les Voice Workers à Discord</span><span><b>2</b> Choisir un bâtiment et une ambiance</span><span><b>3</b> Redémarrer KingdomVoice après la première configuration</span></section><section class="voice-capacity"><div><span>${activeWorkers.length}</span><b>/ ${voiceBots.length}</b><small>connexions vocales réelles / workers avec token</small></div><progress max="${Math.max(1, voiceBots.length)}" value="${activeWorkers.length}"></progress><p>${voiceBots.length ? `${Math.max(0, voiceBots.length - activeWorkers.length)} capacité(s) disponible(s)` : "Aucun Voice Worker opérationnel. Vérifiez les tokens dans Connexion Discord."}</p></section><nav class="section-tabs voice-tabs"><button class="active" data-voice-tab="presences">Affectations <b>${presences.length}</b></button><button data-voice-tab="profiles">Profils vocaux <b>${profiles.length}</b></button><button data-voice-tab="capacity">Voice Workers</button></nav><section data-voice-panel="presences"><div class="voice-panel-head"><div><h2>Bâtiments sonorisés</h2><p>Chaque fiche relie un bâtiment à une identité et une scène audio.</p></div></div><div class="voice-presence-grid">${cards || `<div class="product-empty"><span>◉</span><h3>Aucun bâtiment sonorisé</h3><p>Choisissez un bâtiment, puis l’ambiance que son bot doit diffuser.</p><button type="button" class="primary" data-new-presence>Affecter mon premier bot audio</button></div>`}</div></section><section data-voice-panel="profiles" hidden><div class="voice-panel-head"><div><h2>Profils vocaux</h2><p>Regroupez les clips, la langue, le volume et le fallback d’une voix.</p></div><button type="button" data-new-profile>＋ Nouveau profil</button></div><div class="voice-profile-list">${profileCards || `<div class="product-empty"><span>◖</span><h3>Aucun profil vocal</h3><p>Un profil est facultatif pour une ambiance, mais recommandé pour un personnage.</p></div>`}</div></section><section data-voice-panel="capacity" hidden><div class="capacity-grid">${voiceBots.map((bot, index) => `<article><span>●</span><div><small>VOICE WORKER ${index + 1}</small><h3>${escapeHtml(bot.name || "Capacité disponible")}</h3><p>${bot.connected ? `Connecté · présence ${escapeHtml(bot.presence_key || "active")}` : "Disponible · ajoutez aussi cette application au serveur depuis Connexion Discord."}</p></div></article>`).join("") || `<div class="product-empty"><span>◌</span><h3>Audio indisponible</h3><p>Configurez au moins un token Voice Worker puis ajoutez son application au serveur.</p><button data-go="bot">Ouvrir Connexion Discord</button></div>`}</div></section></div>`;
+    `<div class="voice-studio" data-tutorial="voice-presence-studio"><section class="voice-studio-hero"><div><small>BOTS AUDIO</small><h2>Une ambiance dans chaque bâtiment</h2><p>Choisissez simplement un bâtiment et une scène sonore. KingdomVoice affecte automatiquement un Voice Worker disponible lorsque des joueurs entrent dans le vocal.</p></div><button type="button" class="primary" data-new-presence>＋ Affecter un bot audio</button></section><section class="voice-quick-guide"><strong>Configuration en 3 étapes</strong><span><b>1</b> Ajouter les Voice Workers à Discord</span><span><b>2</b> Choisir un bâtiment et une ambiance</span><span><b>3</b> Redémarrer KingdomVoice après la première configuration</span></section><section class="voice-capacity"><div><span>${activeWorkers.length}</span><b>/ ${installedWorkers.length}</b><small>connexions réelles / workers installés sur ce serveur</small></div><progress max="${Math.max(1, installedWorkers.length)}" value="${activeWorkers.length}"></progress><p>${installedWorkers.length ? `${Math.max(0, installedWorkers.length - activeWorkers.length)} capacité(s) installée(s) disponible(s)` : "Aucun Voice Worker installé sur ce serveur. Utilisez Connexion Discord."}</p></section><nav class="section-tabs voice-tabs"><button class="active" data-voice-tab="presences">Affectations <b>${presences.length}</b></button><button data-voice-tab="profiles">Profils vocaux <b>${profiles.length}</b></button><button data-voice-tab="capacity">Voice Workers</button></nav><section data-voice-panel="presences"><div class="voice-panel-head"><div><h2>Bâtiments sonorisés</h2><p>Chaque fiche relie un bâtiment à une identité et une scène audio.</p></div></div><div class="voice-presence-grid">${cards || `<div class="product-empty"><span>◉</span><h3>Aucun bâtiment sonorisé</h3><p>Choisissez un bâtiment, puis l’ambiance que son bot doit diffuser.</p><button type="button" class="primary" data-new-presence>Affecter mon premier bot audio</button></div>`}</div></section><section data-voice-panel="profiles" hidden><div class="voice-panel-head"><div><h2>Profils vocaux</h2><p>Regroupez les clips, la langue, le volume et le fallback d’une voix.</p></div><button type="button" data-new-profile>＋ Nouveau profil</button></div><div class="voice-profile-list">${profileCards || `<div class="product-empty"><span>◖</span><h3>Aucun profil vocal</h3><p>Un profil est facultatif pour une ambiance, mais recommandé pour un personnage.</p></div>`}</div></section><section data-voice-panel="capacity" hidden><div class="capacity-grid">${voiceBots.map((bot, index) => `<article><span>●</span><div><small>VOICE WORKER ${index + 1}</small><h3>${escapeHtml(bot.name || "Capacité disponible")}</h3><p>${bot.connected ? `Connecté · présence ${escapeHtml(bot.presence_key || "active")}` : bot.installed_on_server ? "Installé sur ce serveur · disponible" : "Non installé sur ce serveur · ajoutez-le depuis Connexion Discord."}</p></div></article>`).join("") || `<div class="product-empty"><span>◌</span><h3>Audio indisponible</h3><p>Configurez au moins un token Voice Worker puis ajoutez son application au serveur.</p><button data-go="bot">Ouvrir Connexion Discord</button></div>`}</div></section></div>`;
   bindVoiceStudio();
 }
 
@@ -3219,9 +3220,10 @@ function openVoicePresenceDialog(entity = null) {
         </details>
       </div>
       <div class="actions">
+        <span class="voice-save-feedback" data-voice-save-feedback role="status"></span>
         <button type="button" data-close>Annuler</button>
         ${entity ? '<button type="button" class="danger" data-delete>Supprimer</button>' : ""}
-        <button class="primary">Enregistrer et activer</button>
+        <button type="button" class="primary" data-voice-save>Enregistrer et activer</button>
       </div>
     </form>`;
   dialog.showModal();
@@ -3243,9 +3245,11 @@ function openVoicePresenceDialog(entity = null) {
   dialog
     .querySelectorAll("[data-close]")
     .forEach((button) => (button.onclick = () => dialog.close()));
-  dialog.querySelector("form").onsubmit = async (event) => {
-    event.preventDefault();
-    const form = event.currentTarget,
+  const presenceForm = dialog.querySelector("form");
+  const savePresence = async () => {
+    const form = presenceForm,
+      saveButton = form.querySelector("[data-voice-save]"),
+      feedback = form.querySelector("[data-voice-save-feedback]"),
       buildingKey = form.elements.building_key.value,
       building = state.catalogs.building.find(
         (item) => item.entity_key === buildingKey,
@@ -3268,28 +3272,78 @@ function openVoicePresenceDialog(entity = null) {
           building_key: buildingKey,
         },
       };
-    const presenceKey = entity?.entity_key ||
-      technicalKey(form.elements.key.value || payload.name, "presence");
-    await saveAndPublishEntity(
-      "voice_presence",
-      presenceKey,
-      payload,
-      entity?.version,
-    );
-    const avatar = form.elements.avatar.files?.[0];
-    if (avatar) {
-      const upload = new FormData();
-      upload.append("file", avatar);
-      const response = await fetch(
-        `/api/voice-presences/${encodeURIComponent(presenceKey)}/avatar`,
-        { method: "POST", headers: multipartHeaders(), body: upload },
-      );
-      if (!response.ok)
-        throw Error((await response.json()).detail || "Import de la photo impossible.");
+    if (!buildingKey) {
+      feedback.textContent = "Choisissez le bâtiment dans lequel le bot doit venir.";
+      feedback.dataset.state = "error";
+      form.elements.building_key.focus();
+      return;
     }
-    dialog.close();
-    await loadVoicePresenceStudio();
+    if (!payload.name) {
+      feedback.textContent = "Indiquez le nom affiché sur Discord.";
+      feedback.dataset.state = "error";
+      form.elements.name.focus();
+      return;
+    }
+    const avatar = form.elements.avatar.files?.[0];
+    if (avatar && avatar.size > 8 * 1024 * 1024) {
+      feedback.textContent = "La photo dépasse la limite de 8 Mo.";
+      feedback.dataset.state = "error";
+      return;
+    }
+    if (
+      avatar &&
+      !["image/png", "image/jpeg", "image/webp"].includes(avatar.type)
+    ) {
+      feedback.textContent = "Choisissez une image PNG, JPG ou WEBP.";
+      feedback.dataset.state = "error";
+      return;
+    }
+    saveButton.disabled = true;
+    saveButton.textContent = avatar ? "Enregistrement de la photo…" : "Enregistrement…";
+    feedback.textContent = "Enregistrement en cours…";
+    feedback.dataset.state = "saving";
+    try {
+      const presenceKey = entity?.entity_key ||
+        technicalKey(form.elements.key.value || payload.name, "presence");
+      const savedPresence = await saveAndPublishEntity(
+        "voice_presence",
+        presenceKey,
+        payload,
+        entity?.version,
+      );
+      // Si l'upload échoue ensuite, une nouvelle tentative doit repartir de la
+      // version qui vient réellement d'être publiée et non de l'ancienne fiche.
+      if (entity) entity.version = savedPresence.version;
+      if (avatar) {
+        const upload = new FormData();
+        upload.append("file", avatar);
+        const response = await fetch(
+          `/api/voice-presences/${encodeURIComponent(presenceKey)}/avatar`,
+          { method: "POST", headers: multipartHeaders(), body: upload },
+        );
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          throw Error(error.detail || "Import de la photo impossible.");
+        }
+      }
+      feedback.textContent = "Présence enregistrée et activée.";
+      feedback.dataset.state = "success";
+      dialog.close();
+      await loadVoicePresenceStudio();
+    } catch (error) {
+      console.error("Enregistrement de la présence impossible", error);
+      feedback.textContent = error.message || "Enregistrement impossible.";
+      feedback.dataset.state = "error";
+    } finally {
+      saveButton.disabled = false;
+      saveButton.textContent = "Enregistrer et activer";
+    }
   };
+  presenceForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    savePresence();
+  });
+  presenceForm.querySelector("[data-voice-save]").onclick = savePresence;
   dialog
     .querySelector("[data-delete]")
     ?.addEventListener("click", () =>

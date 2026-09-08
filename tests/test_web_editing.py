@@ -643,7 +643,44 @@ def test_voice_presence_has_a_real_client_ui_and_hides_worker_details():
     assert ".voice-presence-grid" in styles
     assert ".voice-assignment-step" in styles
     assert ".voice-kind-choice" in styles
+    assert "data-voice-save-feedback" in script
+    assert "avatar.size > 8 * 1024 * 1024" in script
+    assert "saveButton.disabled = false" in script
+    assert 'type="button" class="primary" data-voice-save' in script
+    assert 'querySelector("[data-voice-save]").onclick = savePresence' in script
+    assert "Choisissez le bâtiment dans lequel le bot doit venir." in script
     assert "@media(max-width:760px)" in "".join(styles.split())
+
+
+def test_voice_presence_avatar_upload_publishes_the_new_image(tmp_path, monkeypatch):
+    store = ContentStore(tmp_path / "voice-avatar.db")
+    store.initialize()
+    draft = store.save(
+        "voice_presence",
+        "castle_guide",
+        {"name": "Guide du château", "presence_type": "npc"},
+    )
+    store.publish("voice_presence", "castle_guide", draft["version"])
+    data_root = tmp_path / "data"
+    monkeypatch.setattr(web, "store", store)
+    monkeypatch.setattr(web, "KINGDOM_DATA_ROOT", data_root)
+    monkeypatch.setattr(
+        web, "PRESENCE_AVATAR_ASSETS", data_root / "assets" / "presence-avatars"
+    )
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+
+    with TestClient(web.app) as client:
+        response = client.post(
+            "/api/voice-presences/castle_guide/avatar",
+            headers={"Authorization": "Bearer change-me"},
+            files={"file": ("portrait.png", b"\x89PNG\r\n\x1a\nportrait", "image/png")},
+        )
+
+    assert response.status_code == 200
+    published = store.get("voice_presence", "castle_guide", published=True)
+    assert published["payload"]["avatar_path"].endswith("castle_guide/avatar.png")
+    assert (data_root / published["payload"]["avatar_path"]).is_file()
 
 
 def test_platform_admin_exposes_copyable_systemd_service_logs():

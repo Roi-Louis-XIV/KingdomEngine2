@@ -144,16 +144,17 @@ async function synchronizeWithGithub(button) {
 }
 
 async function load() {
-  const response = await fetch("/api/platform/overview", {
-    credentials: "same-origin",
-    cache: "no-store",
-  });
+  const [response, officialResponse] = await Promise.all([
+    fetch("/api/platform/overview", { credentials: "same-origin", cache: "no-store" }),
+    fetch("/api/platform/official", { credentials: "same-origin", cache: "no-store" }),
+  ]);
   if (!response.ok) {
     root.innerHTML =
       '<section class="access-denied"><span>◇</span><h2>Administration protégée</h2><p>Cette interface est exclusivement réservée aux administrateurs Payen Studio.</p><a href="/">Retour à KingdomWeb</a></section>';
     return;
   }
   const data = await response.json(),
+    official = officialResponse.ok ? (await officialResponse.json()).content : [],
     m = data.metrics,
     services = data.services || [],
     deployment = data.deployment || {},
@@ -198,7 +199,7 @@ async function load() {
           `<article class="ops-timeline"><i></i><div><b>${esc(item.action)}</b><small>${esc(item.target_type)} · ${esc(item.target_id)}</small></div><time>${relative(item.created_at)}</time></article>`,
       )
       .join("") || '<p class="ops-empty">Aucune opération auditée.</p>';
-  root.innerHTML = `<section class="ops-hero"><div><small>CENTRE D’EXPLOITATION</small><h2>${incidents ? "Attention requise" : "Plateforme opérationnelle"}</h2><p>${healthy}/${services.length} services disponibles · dernière vérification à l’instant</p></div><span class="ops-global ${incidents ? "warning" : "healthy"}"><i></i>${incidents ? `${incidents} incident(s)` : "Tous les systèmes sont stables"}</span></section><section class="ops-metrics"><article><span>♙</span><small>UTILISATEURS</small><strong>${m.users}</strong><p>${m.organizations} organisation(s)</p></article><article><span>◇</span><small>MONDES ACTIFS</small><strong>${m.worlds}</strong><p>Environnements clients</p></article><article><span>◖</span><small>CAPACITÉ VOCALE</small><strong>${(data.voice_worlds || []).reduce((sum, w) => sum + w.active, 0)} / ${(data.voice_worlds || []).reduce((sum, w) => sum + w.capacity, 0)}</strong><p>Allocations actives</p></article><article><span>⌁</span><small>SUPPORT ACTIF</small><strong>${m.active_support}</strong><p>Accès consentis</p></article></section><section class="ops-services"><div class="ops-title"><div><small>SANTÉ PLATEFORME</small><h2>Services de production</h2></div><button type="button" id="refresh-platform">↻ Rafraîchir</button></div><div>${services.map(serviceCard).join("")}</div></section>${panel("Journaux système", serviceLogPanels(serviceLogs, services), "Sorties réelles de KingdomWeb, KingdomCore et KingdomVoice. Le journal Core contient les interactions Discord.", "system-logs")}<div class="ops-grid">${panel("Clients et mondes", accounts, "Comptes autorisés sur la plateforme.", "clients")}${panel("Capacité Voice", voice, "Allocations et présences par monde.", "voice")}${panel("Support Mode", support, "Consentements temporaires et périmètres.", "support")}${panel("Déploiement", `<article class="deployment-card"><span>${deployment.status === "success" ? "✓" : "◇"}</span><div><small>${esc(deployment.environment || "Production")}</small><h3>${esc(deployment.commit || "inconnu")}</h3><p>${esc(deployment.message || "Aucun rapport disponible.")}</p><div class="deployment-actions"><button type="button" id="sync-github">↻ Synchroniser avec GitHub</button><small id="deployment-feedback" class="deployment-feedback"></small></div></div><time>${relative(deployment.deployed_at)}</time></article>`, "Version actuellement déployée.", "deployment")}${panel("Journal d’exploitation", audit, "Actions administratives récentes.", "audit")}</div>`;
+  root.innerHTML = `<section class="ops-hero"><div><small>CENTRE D’EXPLOITATION</small><h2>${incidents ? "Attention requise" : "Plateforme opérationnelle"}</h2><p>${healthy}/${services.length} services disponibles · dernière vérification à l’instant</p></div><span class="ops-global ${incidents ? "warning" : "healthy"}"><i></i>${incidents ? `${incidents} incident(s)` : "Tous les systèmes sont stables"}</span></section><section class="ops-metrics"><article><span>♙</span><small>UTILISATEURS</small><strong>${m.users}</strong><p>${m.organizations} organisation(s)</p></article><article><span>◇</span><small>MONDES ACTIFS</small><strong>${m.worlds}</strong><p>Environnements clients</p></article><article><span>◖</span><small>CAPACITÉ VOCALE</small><strong>${(data.voice_worlds || []).reduce((sum, w) => sum + w.active, 0)} / ${(data.voice_worlds || []).reduce((sum, w) => sum + w.capacity, 0)}</strong><p>Allocations actives</p></article><article><span>⌁</span><small>SUPPORT ACTIF</small><strong>${m.active_support}</strong><p>Accès consentis</p></article></section>${officialContentPanel(official)}<section class="ops-services"><div class="ops-title"><div><small>SANTÉ PLATEFORME</small><h2>Services de production</h2></div><button type="button" id="refresh-platform">↻ Rafraîchir</button></div><div>${services.map(serviceCard).join("")}</div></section>${panel("Journaux système", serviceLogPanels(serviceLogs, services), "Sorties réelles de KingdomWeb, KingdomCore et KingdomVoice. Le journal Core contient les interactions Discord.", "system-logs")}<div class="ops-grid">${panel("Clients et mondes", accounts, "Comptes autorisés sur la plateforme.", "clients")}${panel("Capacité Voice", voice, "Allocations et présences par monde.", "voice")}${panel("Support Mode", support, "Consentements temporaires et périmètres.", "support")}${panel("Déploiement", `<article class="deployment-card"><span>${deployment.status === "success" ? "✓" : "◇"}</span><div><small>${esc(deployment.environment || "Production")}</small><h3>${esc(deployment.commit || "inconnu")}</h3><p>${esc(deployment.message || "Aucun rapport disponible.")}</p><div class="deployment-actions"><button type="button" id="sync-github">↻ Synchroniser avec GitHub</button><small id="deployment-feedback" class="deployment-feedback"></small></div></div><time>${relative(deployment.deployed_at)}</time></article>`, "Version actuellement déployée.", "deployment")}${panel("Journal d’exploitation", audit, "Actions administratives récentes.", "audit")}</div>`;
   document.querySelector("#refresh-platform").onclick = load;
   document.querySelector("#sync-github").onclick = (event) =>
     synchronizeWithGithub(event.currentTarget);
@@ -241,5 +242,60 @@ async function load() {
         await load();
       }),
   );
+  bindOfficialContent();
+}
+
+// ==============================
+// CONTENU OFFICIEL
+// ==============================
+
+function officialContentPanel(items) {
+  const cards = items.map((item) => `<button class="official-card" type="button" data-official-key="${esc(item.key)}" data-official-version="${item.version}" data-official-type="${esc(item.content_type)}">
+    <span>${esc(item.emoji)}</span><div><small>${esc(item.category || item.content_type)}</small><b>${esc(item.name)}</b><p>${esc(item.description)}</p></div>
+    <i class="official-status ${esc(item.status)}">${esc(item.status)} · v${item.version}</i><strong>${item.entity_count || 0} entités</strong>
+  </button>`).join("");
+  return `<section class="official-studio"><header><div><small>CONTENU OFFICIEL</small><h2>Bibliothèque Payen Studio</h2><p>Modèles versionnés proposés aux créateurs de mondes.</p></div><button type="button" id="new-official">+ Nouveau contenu</button></header><div class="official-toolbar"><input id="official-search" type="search" placeholder="Rechercher un modèle, un tag…"><select id="official-filter"><option value="">Tous les contenus</option><option value="world_template">Modèles de monde</option><option value="building_preset">Bâtiments</option><option value="npc_preset">PNJ</option><option value="event_preset">Events</option><option value="calendar_preset">Calendriers</option><option value="audio_pack">Audio</option><option value="item_preset">Objets</option><option value="activity_preset">Activités</option><option value="example">Exemples</option></select></div><div class="official-cards">${cards || '<p class="ops-empty">Aucun contenu officiel.</p>'}</div><div id="official-editor"></div></section>`;
+}
+
+async function openOfficialEditor(key = "", version = "", contentType = "world_template") {
+  let item = { key: "", name: "", description: "", category: "", emoji: "◇", tags: [], content_type: "world_template", version: 1, status: "draft", entities: [], validation: { errors: [], warnings: [], coverage: { represented: [], count: 0, total: 17 } } };
+  if (key) {
+    const response = await fetch(`/api/platform/official/${encodeURIComponent(key)}?version=${encodeURIComponent(version)}&content_type=${encodeURIComponent(contentType)}`, { credentials: "same-origin", cache: "no-store" });
+    if (!response.ok) return alert("Impossible d’ouvrir ce contenu.");
+    item = await response.json();
+  }
+  const validation = item.validation || { errors: [], warnings: [], coverage: { represented: [] } };
+  document.querySelector("#official-editor").innerHTML = `<div class="official-editor-backdrop"><section class="official-editor-shell"><header><div><small>ÉDITEUR DE CONTENU OFFICIEL</small><h2>${esc(item.name || "Nouveau contenu")}</h2></div><button type="button" data-close-official>×</button></header><nav><button class="active">Identité</button><button>Structure</button><button>Validation</button><button>Version v${item.version}</button></nav><form id="official-form"><aside><label>Type<select name="content_type"><option value="world_template">Modèle de monde</option><option value="building_preset">Bâtiment</option><option value="npc_preset">PNJ</option><option value="event_preset">Event</option><option value="calendar_preset">Calendrier</option><option value="audio_pack">Pack audio</option><option value="item_preset">Objet</option><option value="activity_preset">Activité</option><option value="example">Exemple</option></select></label><label>Clé stable<input name="key" value="${esc(item.key)}" ${key ? "readonly" : ""}></label><label>Nom<input name="name" value="${esc(item.name)}" required></label><label>Description<textarea name="description">${esc(item.description)}</textarea></label><div class="official-two"><label>Icône<input name="emoji" value="${esc(item.emoji)}"></label><label>Catégorie<input name="category" value="${esc(item.category)}"></label></div><label>Tags<input name="tags" value="${esc((item.tags || []).join(", "))}"></label></aside><main><div class="official-validation"><b>${validation.errors.length ? "Publication bloquée" : "Structure exploitable"}</b><span>${validation.coverage?.count || 0}/${validation.coverage?.total || 17} fonctionnalités représentées</span>${validation.errors.map(error => `<p class="error">${esc(error)}</p>`).join("")}${validation.warnings.map(warning => `<p class="warning">${esc(warning)}</p>`).join("")}</div><div class="official-entities"><header><h3>Entités du modèle</h3><button type="button" data-add-official-entity>+ Ajouter</button></header><div data-official-entities>${item.entities.map((entity, index) => officialEntityEditor(entity, index)).join("") || '<p class="ops-empty">Ajoutez les briques de contenu de ce modèle.</p>'}</div></div></main><footer><span>${esc(item.status)} · version ${item.version}</span><div><button type="button" data-close-official>Annuler</button>${key ? '<button type="button" data-duplicate-official>Dupliquer</button>' : ""}${key && item.status === "published" ? '<button type="button" data-archive-official>Archiver</button>' : ""}${key && item.status === "draft" ? '<button type="button" class="danger" data-delete-official>Supprimer le brouillon</button>' : ""}<button type="submit">Enregistrer le brouillon</button>${key && item.status !== "published" ? '<button type="button" class="publish" data-publish-official>Publier</button>' : ""}</div></footer></form></section></div>`;
+  document.querySelector('[name="content_type"]').value = item.content_type;
+  bindOfficialEditor(item);
+}
+
+function officialEntityEditor(entity, index) {
+  return `<details class="official-entity" open data-entity-index="${index}"><summary><span>${esc(entity.payload?.emoji || "◇")}</span><div><b>${esc(entity.payload?.name || entity.key)}</b><small>${esc(entity.type)} · ${esc(entity.key)}</small></div><button type="button" data-remove-official-entity>Supprimer</button></summary><div><label>Type<input data-entity-type value="${esc(entity.type)}"></label><label>Clé<input data-entity-key value="${esc(entity.key)}"></label><label>Configuration de cette entité<textarea data-entity-payload rows="12">${esc(JSON.stringify(entity.payload || {}, null, 2))}</textarea></label></div></details>`;
+}
+
+function collectOfficialForm(form) {
+  const entities = [...form.querySelectorAll(".official-entity")].map(node => ({ type: node.querySelector("[data-entity-type]").value.trim(), key: node.querySelector("[data-entity-key]").value.trim(), payload: JSON.parse(node.querySelector("[data-entity-payload]").value) }));
+  return { key: form.key.value, content_type: form.content_type.value, name: form.name.value, description: form.description.value, category: form.category.value, emoji: form.emoji.value, tags: form.tags.value.split(",").map(value => value.trim()).filter(Boolean), entities };
+}
+
+function bindOfficialEditor(item) {
+  document.querySelectorAll("[data-close-official]").forEach(button => button.onclick = () => document.querySelector("#official-editor").replaceChildren());
+  document.querySelector("[data-add-official-entity]").onclick = () => { const target = document.querySelector("[data-official-entities]"); if (target.querySelector(".ops-empty")) target.replaceChildren(); target.insertAdjacentHTML("beforeend", officialEntityEditor({ type: "item", key: "new_item", payload: { name: "Nouvel objet", emoji: "◇", description: "", category: "other" } }, target.children.length)); bindOfficialEditor(item); };
+  document.querySelectorAll("[data-remove-official-entity]").forEach(button => button.onclick = event => { event.preventDefault(); button.closest(".official-entity").remove(); });
+  const form = document.querySelector("#official-form");
+  form.onsubmit = async event => { event.preventDefault(); try { const body = collectOfficialForm(form), response = await fetch(item.key ? `/api/platform/official/${encodeURIComponent(item.key)}` : "/api/platform/official", { method: item.key ? "PUT" : "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const result = await response.json(); if (!response.ok) throw new Error(result.detail); await load(); await openOfficialEditor(result.key, result.version, result.content_type); } catch (error) { alert(error.message); } };
+  document.querySelector("[data-publish-official]")?.addEventListener("click", async () => { const response = await fetch(`/api/platform/official/${encodeURIComponent(item.key)}/publish`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ version: item.version, content_type: item.content_type }) }); const result = await response.json(); if (!response.ok) return alert(result.detail); await load(); });
+  document.querySelector("[data-delete-official]")?.addEventListener("click", async () => { if (!confirm("Supprimer définitivement ce brouillon ?")) return; const response = await fetch(`/api/platform/official/${encodeURIComponent(item.key)}/versions/${item.version}?content_type=${encodeURIComponent(item.content_type)}`, { method: "DELETE", credentials: "same-origin" }); if (!response.ok) return alert((await response.json()).detail); await load(); });
+  document.querySelector("[data-archive-official]")?.addEventListener("click", async () => { const response = await fetch(`/api/platform/official/${encodeURIComponent(item.key)}/archive`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ version: item.version, content_type: item.content_type }) }); if (!response.ok) return alert((await response.json()).detail); await load(); });
+  document.querySelector("[data-duplicate-official]")?.addEventListener("click", async () => { const copyKey = prompt("Clé de la copie", `${item.key}_copy`); if (!copyKey) return; const response = await fetch(`/api/platform/official/${encodeURIComponent(item.key)}/duplicate`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: copyKey, name: `Copie de ${item.name}`, content_type: item.content_type }) }); const result = await response.json(); if (!response.ok) return alert(result.detail); await load(); await openOfficialEditor(result.key, result.version, result.content_type); });
+}
+
+function bindOfficialContent() {
+  document.querySelector("#new-official").onclick = () => openOfficialEditor();
+  document.querySelectorAll("[data-official-key]").forEach(card => card.onclick = () => openOfficialEditor(card.dataset.officialKey, card.dataset.officialVersion, card.dataset.officialType));
+  const apply = () => { const term = document.querySelector("#official-search").value.toLowerCase(), type = document.querySelector("#official-filter").value; document.querySelectorAll(".official-card").forEach(card => { const matches = card.textContent.toLowerCase().includes(term) && (!type || card.dataset.officialType === type); card.hidden = !matches; }); };
+  document.querySelector("#official-search").oninput = apply;
+  document.querySelector("#official-filter").onchange = apply;
 }
 load();

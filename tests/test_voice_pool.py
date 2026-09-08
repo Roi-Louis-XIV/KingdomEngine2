@@ -56,6 +56,19 @@ def test_worker_pool_reallocates_a_presence_from_an_ineligible_worker():
     assert pool.workers["worker_01"].free is True
 
 
+def test_worker_pool_rotates_workers_between_successive_buildings():
+    pool = VoiceWorkerPool(
+        [VoiceWorkerState("worker_01"), VoiceWorkerState("worker_02")],
+        max_concurrent_voice_presences=2,
+    )
+    mine = VoicePresence("mine", "Mine", "ambience")
+    castle = VoicePresence("castle", "Château", "npc")
+    assert pool.allocate(mine).key == "worker_01"
+    pool.release(presence_key="mine")
+    assert pool.allocate(castle).key == "worker_02"
+    assert pool.workers["worker_01"].free is True
+
+
 def test_voice_presence_and_profile_are_generic():
     profile = VoiceProfile("radio_fr", provider="files", language="fr", categories={"alerts": ["clip_01"]})
     assert profile.provider == "files"

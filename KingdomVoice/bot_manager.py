@@ -569,6 +569,7 @@ class VoiceBotManager:
         active = 0
         for worker in snapshot["workers"]:
             client = self.clients.get(worker["key"])
+            worker["guild_ids"] = [str(guild.id) for guild in client.guilds] if client else []
             connected = bool(
                 client
                 and any(
