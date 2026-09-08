@@ -417,9 +417,29 @@ class VoiceBotManager:
         world_store: ContentStore | None = None,
     ) -> ManagedVoiceBot | None:
         """Affecte une présence sans rendre le gameplay dépendant de l'audio."""
-        worker = self.pool.allocate(presence, guild_id=guild_id, channel_id=channel_id)
+        try:
+            expected_guild = int(guild_id)
+        except (TypeError, ValueError):
+            expected_guild = 0
+        eligible_workers = {
+            key
+            for key, client in self.clients.items()
+            if not expected_guild or client.get_guild(expected_guild) is not None
+        }
+        worker = self.pool.allocate(
+            presence,
+            guild_id=guild_id,
+            channel_id=channel_id,
+            eligible_worker_keys=eligible_workers,
+        )
         if worker is None:
-            print(f"[KingdomVoice] aucune capacité disponible pour la présence {presence.key}; le monde reste jouable sans audio.")
+            if expected_guild and not eligible_workers:
+                print(
+                    f"[KingdomVoice] aucun Voice Worker installé sur le serveur {guild_id} "
+                    f"pour la présence {presence.key}. Ajoutez-en un depuis Connexion Discord."
+                )
+            else:
+                print(f"[KingdomVoice] aucune capacité disponible pour la présence {presence.key}; le monde reste jouable sans audio.")
             return None
         client = self.clients.get(worker.key)
         if client is None:

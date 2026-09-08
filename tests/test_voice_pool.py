@@ -26,6 +26,36 @@ def test_worker_pool_quota_degrades_to_no_audio_instead_of_raising():
     assert pool.snapshot()["available"] == 0
 
 
+def test_worker_pool_only_allocates_a_worker_installed_on_the_target_server():
+    pool = VoiceWorkerPool(
+        [VoiceWorkerState("worker_01"), VoiceWorkerState("worker_02")],
+        max_concurrent_voice_presences=2,
+    )
+    presence = VoicePresence("mine_ambience", "Ambiance de la mine", "ambience")
+    worker = pool.allocate(
+        presence,
+        guild_id="123",
+        channel_id="456",
+        eligible_worker_keys={"worker_02"},
+    )
+    assert worker is not None
+    assert worker.key == "worker_02"
+    assert pool.workers["worker_01"].free is True
+
+
+def test_worker_pool_reallocates_a_presence_from_an_ineligible_worker():
+    pool = VoiceWorkerPool(
+        [VoiceWorkerState("worker_01"), VoiceWorkerState("worker_02")],
+        max_concurrent_voice_presences=2,
+    )
+    presence = VoicePresence("castle_npc", "Edgar", "npc")
+    assert pool.allocate(presence).key == "worker_01"
+    replacement = pool.allocate(presence, eligible_worker_keys={"worker_02"})
+    assert replacement is not None
+    assert replacement.key == "worker_02"
+    assert pool.workers["worker_01"].free is True
+
+
 def test_voice_presence_and_profile_are_generic():
     profile = VoiceProfile("radio_fr", provider="files", language="fr", categories={"alerts": ["clip_01"]})
     assert profile.provider == "files"

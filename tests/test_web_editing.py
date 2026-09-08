@@ -607,6 +607,10 @@ def test_voice_presence_has_a_real_client_ui_and_hides_worker_details():
     assert "openVoiceProfileDialog" in script
     assert "Une ambiance dans chaque bâtiment" in script
     assert "Affecter un bot audio" in script
+    assert "Que voulez-vous créer ?" in script
+    assert "Une ambiance sonore" in script
+    assert "Un personnage / PNJ" in script
+    assert "data-presence-kind-help" in script
     assert 'name="building_key" required' in script
     assert "building_key: buildingKey" in script
     assert 'name="avatar" type="file"' in script
@@ -617,6 +621,7 @@ def test_voice_presence_has_a_real_client_ui_and_hides_worker_details():
     assert "worker_01" not in script
     assert ".voice-presence-grid" in styles
     assert ".voice-assignment-step" in styles
+    assert ".voice-kind-choice" in styles
     assert "@media(max-width:760px)" in "".join(styles.split())
 
 

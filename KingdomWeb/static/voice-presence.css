@@ -395,6 +395,31 @@
   line-height: 1.45;
 }
 
+.voice-kind-choice {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(300px, 1.2fr);
+  gap: 18px;
+  align-items: end;
+  width: 100%;
+}
+
+.voice-kind-help {
+  min-height: 46px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(75, 211, 157, 0.22);
+  border-radius: 10px;
+  background: rgba(75, 211, 157, 0.07);
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+@media (max-width: 760px) {
+  .voice-kind-choice {
+    grid-template-columns: 1fr;
+  }
+}
+
 .voice-assignment-fields {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(240px, 1fr);

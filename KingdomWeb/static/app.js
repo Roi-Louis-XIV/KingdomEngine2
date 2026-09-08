@@ -3134,6 +3134,20 @@ function openVoicePresenceDialog(entity = null) {
       <div class="voice-editor-body">
         <section class="voice-assignment-step">
           <div class="voice-step-number">1</div>
+          <div class="voice-kind-choice">
+            <label>
+              Que voulez-vous créer ?
+              <select name="presence_type" data-presence-kind>
+                <option value="ambience" ${p.presence_type === "ambience" || !p.presence_type ? "selected" : ""}>Une ambiance sonore</option>
+                <option value="npc" ${p.presence_type === "npc" ? "selected" : ""}>Un personnage / PNJ</option>
+                <option value="custom" ${p.presence_type === "custom" ? "selected" : ""}>Une présence personnalisée</option>
+              </select>
+            </label>
+            <p class="voice-kind-help" data-presence-kind-help></p>
+          </div>
+        </section>
+        <section class="voice-assignment-step">
+          <div class="voice-step-number">2</div>
           <label>
             Dans quel bâtiment le bot doit-il venir ?
             <select name="building_key" required>
@@ -3149,7 +3163,7 @@ function openVoicePresenceDialog(entity = null) {
           </label>
         </section>
         <section class="voice-assignment-step">
-          <div class="voice-step-number">2</div>
+          <div class="voice-step-number">3</div>
           <label>
             Que doit-il diffuser ?
             <select name="scene_key">
@@ -3163,7 +3177,7 @@ function openVoicePresenceDialog(entity = null) {
           </label>
         </section>
         <section class="voice-assignment-step">
-          <div class="voice-step-number">3</div>
+          <div class="voice-step-number">4</div>
           <div class="voice-assignment-fields">
             <label>
               Nom affiché sur Discord
@@ -3191,7 +3205,6 @@ function openVoicePresenceDialog(entity = null) {
         <details>
           <summary>Options avancées</summary>
           <div class="form-grid">
-            <label>Type<select name="presence_type"><option value="ambience" ${p.presence_type === "ambience" || !p.presence_type ? "selected" : ""}>Ambiance</option><option value="npc" ${p.presence_type === "npc" ? "selected" : ""}>Personnage</option><option value="custom" ${p.presence_type === "custom" ? "selected" : ""}>Personnalisée</option></select></label>
             <label>Personnage associé<select name="source_key">${entityOptions(state.catalogs.npc, p.source_key, "Aucun personnage")}</select></label>
             <label>Profil vocal<select name="voice_profile_key">${entityOptions(state.catalogs.voice_profile, p.voice_profile_key, "Aucun profil")}</select></label>
             <label>Priorité<input name="priority" type="number" min="-100" max="100" value="${Number(p.priority || 0)}"></label>
@@ -3207,6 +3220,21 @@ function openVoicePresenceDialog(entity = null) {
       </div>
     </form>`;
   dialog.showModal();
+  const presenceKind = dialog.querySelector("[data-presence-kind]");
+  const presenceKindHelp = dialog.querySelector("[data-presence-kind-help]");
+  const refreshPresenceKindHelp = () => {
+    const help = {
+      ambience:
+        "Ambiance : diffuse un décor sonore (pluie, forêt, forge, musique) sans incarner de personnage.",
+      npc:
+        "Personnage : le Voice Worker incarne un PNJ avec son nom, sa photo et, si besoin, un profil vocal.",
+      custom:
+        "Présence personnalisée : comportement libre pour les usages avancés et les actions du moteur.",
+    };
+    presenceKindHelp.textContent = help[presenceKind.value] || help.custom;
+  };
+  presenceKind.addEventListener("change", refreshPresenceKindHelp);
+  refreshPresenceKindHelp();
   dialog
     .querySelectorAll("[data-close]")
     .forEach((button) => (button.onclick = () => dialog.close()));

@@ -79,16 +79,42 @@ class VoiceWorkerPool:
             if self.max_concurrent_voice_presences == 0:
                 self.max_concurrent_voice_presences = len(self.workers)
 
-    def allocate(self, presence: VoicePresence, *, guild_id: str = "", channel_id: str = "") -> VoiceWorkerState | None:
+    def allocate(
+        self,
+        presence: VoicePresence,
+        *,
+        guild_id: str = "",
+        channel_id: str = "",
+        eligible_worker_keys: set[str] | None = None,
+    ) -> VoiceWorkerState | None:
         with self._lock:
-            existing = next((worker for worker in self.workers.values() if worker.presence_key == presence.key), None)
+            eligible = lambda worker: eligible_worker_keys is None or worker.key in eligible_worker_keys
+            stale = next(
+                (
+                    worker
+                    for worker in self.workers.values()
+                    if worker.presence_key == presence.key and not eligible(worker)
+                ),
+                None,
+            )
+            if stale:
+                stale.state = "free"
+                stale.presence_key = ""
+                stale.guild_id = ""
+                stale.channel_id = ""
+                stale.last_activity = _now()
+                stale.error = ""
+            existing = next((worker for worker in self.workers.values() if worker.presence_key == presence.key and eligible(worker)), None)
             if existing:
                 existing.guild_id = guild_id or existing.guild_id; existing.channel_id = channel_id or existing.channel_id; existing.last_activity = _now()
                 return existing
             active = sum(not worker.free for worker in self.workers.values())
             if active >= self.max_concurrent_voice_presences:
                 return None
-            worker = next((candidate for candidate in self.workers.values() if candidate.free), None)
+            worker = next(
+                (candidate for candidate in self.workers.values() if candidate.free and eligible(candidate)),
+                None,
+            )
             if worker is None:
                 return None
             worker.state = "assigned"; worker.presence_key = presence.key; worker.guild_id = guild_id
