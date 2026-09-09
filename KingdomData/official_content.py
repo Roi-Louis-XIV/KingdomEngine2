@@ -62,9 +62,39 @@ class OfficialContentStore:
                     "SELECT 1 FROM official_content_packs WHERE pack_key=? AND content_type='world_template'",
                     (key,),
                 ).fetchone()
-                if exists:
+                deleted = db.execute(
+                    "SELECT 1 FROM official_content_tombstones WHERE pack_key=? AND content_type='world_template'",
+                    (key,),
+                ).fetchone()
+                if deleted:
                     continue
                 meta = catalog[key]
+                if exists:
+                    current = db.execute(
+                        "SELECT id,origin FROM official_content_packs WHERE pack_key=? AND content_type='world_template' "
+                        "AND status='published' ORDER BY version DESC LIMIT 1", (key,),
+                    ).fetchone()
+                    settings_row = current and db.execute(
+                        "SELECT payload_json FROM official_content_entities WHERE pack_id=? "
+                        "AND entity_type='server_settings' AND entity_key='kingdom_server' LIMIT 1",
+                        (current["id"],),
+                    ).fetchone()
+                    current_revision = int(json.loads(settings_row[0]).get("template_revision", 0)) if settings_row else 0
+                    has_audio = current and db.execute(
+                        "SELECT 1 FROM official_content_entities WHERE pack_id=? AND entity_type='audio' LIMIT 1",
+                        (current["id"],),
+                    ).fetchone()
+                    needs_bundled_update = current_revision < 2 if key == "royal_festival" else not has_audio
+                    # Migration ciblée des seuls presets livrés avec le code.
+                    # Les copies et contenus créés par les administrateurs ne
+                    # sont jamais réécrits par un démarrage de KingdomWeb.
+                    if current and current["origin"] == "legacy_world_presets" and needs_bundled_update:
+                        self._replace_entities(db, int(current["id"]), world_preset(key))
+                        db.execute(
+                            "UPDATE official_content_packs SET updated_at=? WHERE id=?",
+                            (_now(), current["id"]),
+                        )
+                    continue
                 now = _now()
                 cursor = db.execute(
                     "INSERT INTO official_content_packs(pack_key,content_type,version,status,name,description,category,emoji,tags_json,author,origin,created_at,updated_at,published_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -141,8 +171,25 @@ class OfficialContentStore:
             pass
         version = int(source["version"] + 1) if source and source["status"] != "draft" else int(source["version"] if source else 1)
         entities = deepcopy(data.get("entities", source.get("entities", []) if source else []))
+        if content_type == "building_preset" and not any(item.get("type") == "building" for item in entities):
+            entities.append({
+                "type": "building",
+                "key": f"{pack_key}_building"[:64],
+                "payload": {
+                    "name": str(data.get("name") or "Nouveau bâtiment"),
+                    "emoji": str(data.get("emoji") or "🏰"),
+                    "description": str(data.get("description") or "Bâtiment prêt à configurer."),
+                    "entity_kind": "institution", "modules": {}, "actions": [],
+                },
+            })
         now = _now()
         with self.connection() as db:
+            # Une recréation explicite depuis l'administration lève la pierre
+            # tombale posée par une suppression antérieure du même identifiant.
+            db.execute(
+                "DELETE FROM official_content_tombstones WHERE pack_key=? AND content_type=?",
+                (pack_key, content_type),
+            )
             row = db.execute(
                 "SELECT id FROM official_content_packs WHERE pack_key=? AND content_type=? AND version=?",
                 (pack_key, content_type, version),
@@ -173,6 +220,32 @@ class OfficialContentStore:
             self._replace_entities(db, pack_id, entities)
             db.commit()
         return self.get(pack_key, version=version, content_type=content_type)
+
+    def delete(self, key: str, *, content_type: str = "world_template") -> list[str]:
+        """Supprime toutes les révisions et empêche le retour d'un preset historique."""
+        with self.connection() as db:
+            workspaces = [str(row[0]) for row in db.execute(
+                "SELECT w.database_path FROM official_edit_workspaces w "
+                "JOIN official_content_packs p ON p.id=w.pack_id "
+                "WHERE p.pack_key=? AND p.content_type=?", (key, content_type),
+            ).fetchall()]
+            cursor = db.execute(
+                "DELETE FROM official_content_packs WHERE pack_key=? AND content_type=?",
+                (key, content_type),
+            )
+            if not cursor.rowcount:
+                raise LookupError("Template introuvable.")
+            db.execute(
+                "INSERT INTO official_content_tombstones(pack_key,content_type,deleted_at) VALUES(?,?,?) "
+                "ON CONFLICT(pack_key,content_type) DO UPDATE SET deleted_at=excluded.deleted_at",
+                (key, content_type, _now()),
+            )
+            db.commit()
+        for value in workspaces:
+            path = Path(value)
+            if path.name and path.parent.name == "official-workspaces":
+                path.unlink(missing_ok=True)
+        return workspaces
 
     def duplicate(self, key: str, new_key: str, name: str = "", *, content_type: str = "world_template") -> dict[str, Any]:
         source = self.get(key, content_type=content_type)
@@ -314,8 +387,11 @@ def validate_official_pack(pack: dict[str, Any]) -> dict[str, Any]:
             if profession and profession not in keys.get("profession", set()): errors.append(f"{key} référence le métier absent {profession}.")
         if kind == "location" and payload.get("parent_key") and payload["parent_key"] not in keys.get("location", set()):
             errors.append(f"{key} référence le lieu parent absent {payload['parent_key']}.")
-    if not keys.get("building"): warnings.append("Ce modèle ne contient aucun bâtiment.")
-    if not keys.get("server_settings"): errors.append("Les paramètres généraux du monde sont absents.")
+    content_type = str(pack.get("content_type", "world_template"))
+    if content_type in {"world_template", "building_preset"} and not keys.get("building"):
+        errors.append("Ce modèle doit contenir au moins un bâtiment.")
+    if content_type == "world_template" and not keys.get("server_settings"):
+        errors.append("Les paramètres généraux du monde sont absents.")
     represented = _feature_coverage(entities)
     return {"valid": not errors, "errors": errors, "warnings": warnings,
             "coverage": {"represented": represented, "supported": list(FEATURES),

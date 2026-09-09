@@ -1,8 +1,8 @@
 # KingdomEngine 2
 
-> Mise à jour Live Ops du 9 septembre 2026 : **Monde en direct** possède désormais quatre vues stables — Carte Live, Progression, Activité et Santé. Les joueurs positionnés sont cliquables sur la carte ; leur fiche affiche les courbes argent/énergie/XP, les diagnostics déterministes et deux interventions auditées : déplacement logique et réparation limitée des états bloquants. L'initialisation concurrente de l'horloge a également été sécurisée afin d'éviter l'erreur 500 au premier chargement.
+> Mise à jour Live Ops du 9 septembre 2026 : **Monde en direct** possède désormais quatre vues stables — Carte Live, Progression, Activité et Santé. Les joueurs positionnés sont cliquables sur la carte ; leur fiche prend alors explicitement le contrôle de la navigation et ne peut plus être remplacée par un rafraîchissement Live Ops. Elle affiche les courbes argent/énergie/XP, les diagnostics déterministes et deux interventions auditées : déplacement logique et réparation limitée des états bloquants. L'initialisation concurrente de l'horloge a également été sécurisée afin d'éviter l'erreur 500 au premier chargement.
 
-> Le catalogue officiel inclut maintenant **La Fête du Royaume**, premier monde de démonstration tiré du GDD : huit bâtiments jouables, six objectifs coopératifs et une timeline de neuf jalons sur trois heures. Comme les autres modèles, il est composé uniquement de contenus no-code versionnés et sa copie reste indépendante après installation.
+> Le template officiel existant **La Fête du Royaume** est complété depuis le GDD : sept bâtiments scénarisés, cinq métiers, 32 objets, six PNJ reliés à leurs Voice Presences, six objectifs coopératifs et une timeline de neuf jalons sur trois heures. Les voix encore absentes portent la mention `À fournir` et toutes les valeurs d'équilibrage provisoires sont marquées `BALANCE_DRAFT / À VALIDER`. Comme les autres modèles, il reste composé uniquement de contenus no-code versionnés et sa copie reste indépendante après installation.
 
 > Mise à jour du 9 septembre 2026 : le lien **Personnage → réactions sonores → présence → Voice Worker** est maintenant explicite dans KingdomWeb. Pour faire parler un PNJ, associez un son à une variante de réaction, puis créez une présence de type « Personnage » liée à ce PNJ et à son bâtiment. Le profil vocal organise une bibliothèque de sons ; il ne déclenche pas à lui seul leur lecture.
 
@@ -21,6 +21,10 @@
 L'atelier occupe tout l'écran et reste utilisable sur tablette et mobile. Il permet de filtrer les entités d'un pack, les réordonner, les supprimer, contrôler la couverture fonctionnelle, valider sans enregistrer, dupliquer, archiver et publier une révision.
 
 Pour un modèle de monde, **Ouvrir le Studio complet** crée un atelier isolé qui réutilise toutes les pages normales de KingdomWeb : carte, lieux, bâtiments, métiers, objets, personnages, événements, calendrier, météo, sons et présences. Le bouton **Enregistrer comme nouvelle révision** capture l'état complet de cet atelier sans toucher à Discord ni aux mondes déjà installés.
+
+Un contenu de type **Bâtiment** crée automatiquement une fiche de bâtiment minimale. Après le premier enregistrement, **Configurer dans le Builder** ouvre directement le grand éditeur normal de KingdomWeb dans un atelier isolé : identité, métiers, activités, actions, interface Discord, relations et audio se configurent visuellement, sans JSON obligatoire. **Supprimer le template** efface toutes ses révisions ; un modèle historique supprimé ne sera pas recréé au prochain démarrage.
+
+Les modèles Royaume médiéval, Fête du Royaume et Station spatiale installent également leur banque sonore, leurs groupes d'ambiance et leurs présences automatiques. Les chemins pointent vers les médias fournis avec KingdomEngine, tandis que les nouvelles versions et les uploads restent stockés dans `KINGDOM_DATA_DIR`. Après l'installation Discord, invitez au moins un Voice Worker depuis **Connexion Discord** : il rejoint automatiquement le bâtiment occupé et joue la scène livrée avec le modèle.
 
 Chaque créateur peut également ouvrir **Compte & serveurs → Bibliothèque communautaire** et publier un instantané de son monde. Lors de la création d'un serveur, KingdomWeb distingue les modèles **Officiels Payen Studio** et ceux de la **Communauté**. Dans les deux cas, le nouveau monde reçoit une copie indépendante.
 
@@ -58,13 +62,15 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 - éditeur d’objets en plein écran avec formulaire élargi et fiche métier permettant la suppression directe des définitions autonomes ;
 - métiers, zones, niveaux, outils, durabilité, expérience, cooldowns et activités temporisées ;
 - objets, inventaires joueur et bâtiment, recettes, commerce, productions, livraisons et objectifs collectifs ;
-- modèles de départ jouables : **Royaume médiéval** et **Station spatiale** fournissent chacun 5 bâtiments avec pages Discord, métiers reliés, outils, actions, inventaires et chaînes de production ; **La Fête du Royaume** ajoute une démonstration coopérative de 3 heures avec 8 bâtiments, 6 objectifs et 9 jalons Live Ops ;
+- modèles de départ jouables : **Royaume médiéval** et **Station spatiale** fournissent chacun 5 bâtiments avec pages Discord, métiers reliés, outils, actions, inventaires et chaînes de production ; **La Fête du Royaume** ajoute une démonstration coopérative de 3 heures avec 7 bâtiments, 6 objectifs et 9 jalons Live Ops ;
+- **La Fête du Royaume** relie aussi les métiers de la ferme et de la taverne, leurs conditions, récompenses, objectifs, impacts Event et scènes sonores ;
 - **Connexion Discord** regroupe KingdomCore et tous les bots audio KingdomVoice, y compris les connexions désactivées ou incomplètes. Elles sont toutes incluses actuellement ; l'affichage est prêt à accueillir de futurs droits d'abonnement ;
 - Payen Studio Admin peut supprimer un compte client inactif après confirmation. Ses sessions et accès sont retirés, mais les bases de ses mondes sont conservées ; un serveur Discord archivé et devenu sans propriétaire peut ensuite être repris et réinstallé avec le même identifiant ;
 - le parcours d'arrivée Discord est propre à chaque monde : serment médiéval, accréditation d'équipage ou accueil générique. Son titre, son salon, son bouton, sa confirmation, sa dotation et le nom de sa monnaie restent modifiables dans **Configuration du monde → Arrivée des joueurs** ;
 - les anciens messages d'arrivée sont reconnus et leur bouton est automatiquement remis au format persistant actuel au redémarrage de KingdomCore ;
 - résultats aléatoires pondérés contenant plusieurs effets génériques ;
 - événements, modificateurs du monde, calendrier autonome, saisons, météo et cycle jour/nuit ;
+- éditeur d’événements complet avec déclenchement, durée, portée, ciblage, résultats ordonnés, impacts temporaires, ambiances et propriétés avancées conservées ;
 - lieux, connexions, voyages, exploration Discord et monde vivant ;
 - bots Discord et pool de workers vocaux : les présences, profils et affectations sont des données génériques, sans identité globale imposée par bâtiment ;
 - banque sonore no-code avec préécoute, ambiances, musiques, voix et SFX déclenchés par les actions ;
@@ -74,7 +80,7 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 - import idempotent des contenus V1 : Mine, Forêt, Construction, Forge, Taverne, objets et sons historiques ;
 - publication versionnée, contrôle de concurrence, synchronisation live et historique des changements ;
 - Académie interactive avec bulles ancrées sur les vrais contrôles, progression par compte et serveur, reprise, saut d’étape et rejeu à volonté.
-- dotation en écus des nouveaux joueurs configurable dans **Paramètres → Serment**, versée une seule fois lors du serment.
+- dotation des nouveaux joueurs configurable dans **Configuration du monde → Arrivée des joueurs**, versée une seule fois lors du serment ou de l'accréditation dans la base du serveur Discord concerné.
 - bibliothèque visuelle d’emojis avec recherche et catégories pour choisir rapidement l’icône des bâtiments et des objets, tout en conservant la saisie libre.
 
 ### Organisation du frontend KingdomWeb
@@ -577,6 +583,8 @@ La gestion audio propose maintenant trois espaces distincts :
 Les anciens groupes enregistrés directement dans les bâtiments restent pris en charge. Les nouveaux groupes autonomes sont versionnés dans KingdomData et peuvent être partagés entre plusieurs bâtiments sans dupliquer leur configuration.
 
 Dans la fiche d’un bâtiment, l’onglet **Gestion sonore** compose des groupes de musique, ambiance, SFX et voix. Un groupe général démarre quand des joueurs entrent dans le vocal. Une action ou un résultat aléatoire peut jouer un son ponctuel ou changer de groupe, et une règle événementielle peut basculer l’ambiance. Ces demandes transitent par la file SQLite `audio_queue`, afin que KingdomCore et KingdomVoice restent fiables lorsqu’ils tournent dans des processus séparés.
+
+La **Banque sonore** accepte les fichiers MP3, WAV, OGG, FLAC, M4A, AAC et OPUS jusqu’à 100 Mo par défaut (`KINGDOM_AUDIO_MAX_BYTES`). Le répertoire `KINGDOM_DATA_DIR` doit être accessible en écriture par l’utilisateur du service `kingdom-web`. Si un proxy refuse le formulaire complet avec une erreur HTTP 413, KingdomWeb reprend automatiquement l’envoi par blocs de 512 Ko. Un proxy ou un stockage indisponible produit désormais un diagnostic lisible au lieu d’un message de parsing JSON.
 
 Au premier lancement du Studio, les 48 objets, les cinq profils vocaux, les cinq lieux historiques et leurs cinq interfaces présents dans `KingdomEngine` V1 sont importés et publiés automatiquement : Mine, Forêt, Forge, Taverne et chantier du Pont royal. Les marchés de livraison et le catalogue de rumeurs sont également repris. L’import est idempotent : une définition V2 existante n’est jamais écrasée.
 

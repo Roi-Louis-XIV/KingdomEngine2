@@ -2965,6 +2965,49 @@ main.app-main {
   line-height: 1.5;
 }
 
+.event-editor-index {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.event-editor-index a {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--text-soft);
+  text-decoration: none;
+}
+
+.event-editor-index a:hover,
+.event-editor-index a:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.event-mode .event-advanced-section textarea {
+  min-height: 240px;
+  font-family: Consolas, "Courier New", monospace;
+  line-height: 1.5;
+}
+
+.event-mode #event-trigger,
+.event-mode #event-effects,
+.event-mode #event-modifiers,
+.event-mode #event-audio,
+.event-mode #event-advanced {
+  scroll-margin-top: 72px;
+}
+
 .event-mode .event-trigger-section > .form-grid {
   grid-template-columns: repeat(3, minmax(180px, 1fr));
   gap: 12px;
@@ -3053,6 +3096,12 @@ main.app-main {
 
   .event-section-heading .secondary {
     width: 100%;
+  }
+
+  .event-editor-index {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

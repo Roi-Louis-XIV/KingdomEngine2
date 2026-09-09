@@ -11,6 +11,7 @@ from typing import Any
 
 from .server_settings import default_server_settings
 from .interfaces import interface_from_building
+from .royal_festival_content import enrich_royal_festival
 
 
 PRESET_CATALOG = [
@@ -25,7 +26,52 @@ def world_preset(key: str) -> list[dict[str, Any]]:
     builders = {"blank": _blank, "medieval_kingdom": _medieval, "royal_festival": _royal_festival, "space_station": _space}
     if key not in builders:
         raise ValueError("Modèle de monde inconnu.")
-    return deepcopy(_make_playable(builders[key]()))
+    definitions = builders[key]()
+    if key != "blank":
+        _add_packaged_audio(definitions, key)
+    if key == "royal_festival":
+        enrich_royal_festival(definitions)
+    playable = _make_playable(definitions)
+    # Ordre déterministe compatible avec la validation stricte de ContentStore.
+    # Il exprime uniquement les dépendances génériques entre catalogues.
+    rank = {"audio_group": 1, "voice_profile": 1, "voice_presence": 2,
+            "building": 3, "npc": 4, "event": 4, "bot": 5}
+    return deepcopy(sorted(playable, key=lambda row: rank.get(row["type"], 0)))
+
+
+def _add_packaged_audio(definitions: list[dict[str, Any]], preset_key: str) -> None:
+    """Ajoute des oreilles jouables au modèle sans dépendre d'un upload client."""
+    assignments = ({
+        "market_square": ("village", "Village vivant", "assets/village/ambience/ambiance_village.mp3"),
+        "forester_lodge": ("forest", "Forêt vivante", "assets/forest/ambience/ambiance_foret.mp3"),
+        "deep_mine": ("mine", "Galeries de la mine", "assets/mine/ambience/ambiance mine.mp3"),
+        "royal_forge": ("forge", "Feu de la forge", "assets/forge/ambience/sound_ambiance.mp3"),
+        "edgar_tavern": ("tavern", "Taverne animée", "assets/tavern/ambience/ambiance_taverne.mp3"),
+        "festival_farm": ("farm", "Campagne du royaume", "assets/village_normal_jour/source.mp3"),
+        "festival_esplanade": ("festival", "Place en fête", "assets/tavern/music/music_fete_1.mp3"),
+    } if preset_key in {"medieval_kingdom", "royal_festival"} else {
+        "command_deck": ("command", "Systèmes de bord", "assets/forge/ambience/sound_ambiance.mp3"),
+        "engineering_bay": ("engineering", "Baie technique", "assets/forge/music/Ambiance_forge_1.mp3"),
+        "expedition_airlock": ("airlock", "Sas extérieur", "assets/mine/ambience/ambiance mine.mp3"),
+        "hydroponics_lab": ("hydroponics", "Serres calmes", "assets/village/ambience/ambiance_village.mp3"),
+        "xenoscience_lab": ("xenoscience", "Laboratoire xéno", "assets/forest/ambience/ambiance_foret.mp3"),
+    })
+    buildings = {row["key"]: row["payload"] for row in definitions if row["type"] == "building"}
+    for building_key, (short_key, name, source) in assignments.items():
+        if building_key not in buildings:
+            continue
+        audio_key, group_key = f"preset_{short_key}_ambience", f"preset_{short_key}_scene"
+        definitions.extend([
+            {"type":"audio","key":audio_key,"payload":{"name":name,"emoji":"🔊","description":"Ambiance fournie avec le modèle.","storage_path":source,"audio_type":"ambience","volume":0.55,"loop":True,"tags":[preset_key,building_key]}},
+            {"type":"audio_group","key":group_key,"payload":{"name":name,"emoji":"🎧","description":f"Ambiance automatique de {building_key}.","volume":1,"building_keys":[building_key],"layers":[{"audio_key":audio_key,"role":"ambience","volume":1}],"transitions":{"fade_in_seconds":1,"fade_out_seconds":1,"crossfade_seconds":1}}},
+            {"type":"voice_presence","key":f"presence_{building_key}"[:64],"payload":{"name":name,"emoji":"🎙️","description":"Présence d'ambiance attribuée automatiquement.","presence_type":"ambience","scene_key":group_key,"assignment_mode":"automatic","release_timeout_seconds":8,"metadata":{"building_key":building_key}}},
+        ])
+        sound = buildings[building_key].setdefault("modules", {}).setdefault("audio", {})
+        sound["default_group_key"] = group_key
+        sound.setdefault("groups", []).append({
+            "key": group_key, "name": name, "volume": 1,
+            "tracks": {"music": [], "ambience": [audio_key], "sfx": [], "voice": []},
+        })
 
 
 def _make_playable(definitions: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -94,6 +140,18 @@ def _make_playable(definitions: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 {"id": f"hero_shop_{key}"[:64], "type": "hero", "props": {"title": f"Comptoir · {building.get('name', key)}", "subtitle": "Choisissez un produit disponible dans le stock commun.", "emoji": "🛒"}},
                 {"id": f"products_{key}"[:64], "type": "dynamic_product_selector", "slot": 0, "props": {"placeholder": "Choisir un produit…"}},
                 {"id": f"back_shop_{key}"[:64], "type": "button", "slot": 5, "props": {"label": "Retour", "emoji": "↩️", "style": "secondary"}, "interaction": {"type": "navigate", "page": "home"}},
+            ]})
+        for section_index, section in enumerate(building.get("interface_sections", [])):
+            page_key = str(section.get("key", f"section_{section_index}"))[:64]
+            if page_key in {page["key"] for page in interface["pages"]}:
+                continue
+            home.append({"id": f"nav_{key}_{page_key}"[:64], "type": "button",
+                         "slot": next_slot + 2 + section_index,
+                         "props": {"label": section.get("name", page_key), "emoji": section.get("emoji", "📖"), "style": "secondary"},
+                         "interaction": {"type": "navigate", "page": page_key}})
+            interface["pages"].append({"key": page_key, "name": section.get("name", page_key), "components": [
+                {"id": f"hero_{key}_{page_key}"[:64], "type": "hero", "props": {"title": section.get("name", page_key), "subtitle": section.get("description", ""), "emoji": section.get("emoji", "📖")}},
+                {"id": f"back_{key}_{page_key}"[:64], "type": "button", "slot": 0, "props": {"label": "Retour", "emoji": "↩️", "style": "secondary"}, "interaction": {"type": "navigate", "page": "home"}},
             ]})
         building["interface"] = interface
     return definitions
@@ -207,15 +265,17 @@ def _royal_festival() -> list[dict[str, Any]]:
     by_key[("building", "deep_mine")].update({"name": "Mine de Roland", "description": "Galeries qui fournissent minerai et combustible aux préparatifs."})
     by_key[("building", "royal_forge")].update({"name": "Forge de Wagner", "description": "Atelier de fabrication des braseros et structures de fête."})
     definitions.extend([
-        {"type":"building","key":"edgar_tavern","payload":{"name":"Taverne d'Edgar","emoji":"🍺","description":"Prépare boissons et banquet pour les habitants.","location_key":"riverhold","entity_kind":"institution","color":"9a6b32","modules":{"products":[{"item_key":"royal_ale","price":8,"initial_stock":20},{"item_key":"roast_meat","price":12,"initial_stock":15}]},"actions":[{"key":"prepare_drinks","name":"Préparer les boissons","emoji":"🍺","effects":[{"type":"cost","resource":"energy","amount":3},{"type":"reward","resource":"royal_ale","amount":2},{"type":"message","text":"Deux boissons sont prêtes pour la fête."}]}]}},
-        {"type":"building","key":"festival_farm","payload":{"name":"Ferme du Royaume","emoji":"🌾","description":"Produit les vivres nécessaires au banquet.","location_key":"riverhold","entity_kind":"institution","color":"6b8e23","actions":[{"key":"harvest_wheat","name":"Récolter le blé","emoji":"🌾","effects":[{"type":"cost","resource":"energy","amount":4},{"type":"reward","resource":"wheat_sack","amount":3}]}]}},
+        {"type":"profession","key":"innkeeper","payload":{"name":"Tavernier","emoji":"🍺","description":"Prépare boissons et repas de fête.","max_level":20,"experience_per_level":100,"required_item":"royal_ale","grant_required_item":False}},
+        {"type":"profession","key":"farmer","payload":{"name":"Cultivateur","emoji":"🌾","description":"Produit les vivres du banquet.","max_level":20,"experience_per_level":100,"required_item":"simple_axe","grant_required_item":False}},
+        {"type":"building","key":"edgar_tavern","payload":{"name":"Taverne d'Edgar","emoji":"🍺","description":"Prépare boissons et banquet pour les habitants.","location_key":"riverhold","entity_kind":"institution","color":"9a6b32","relations":{"primary_profession_key":"innkeeper"},"modules":{"products":[{"item_key":"royal_ale","price":8,"initial_stock":20},{"item_key":"roast_meat","price":12,"initial_stock":15}]},"actions":[{"key":"join_innkeepers","name":"Devenir tavernier","emoji":"🍺","conditions":{"type":"no_active_profession"},"effects":[{"type":"profession_join","profession":"innkeeper"}]},{"key":"prepare_drinks","name":"Préparer les boissons","emoji":"🍺","conditions":{"type":"profession_active","profession":"innkeeper"},"effects":[{"type":"cost","resource":"energy","amount":3},{"type":"reward","resource":"royal_ale","amount":2},{"type":"profession_experience","profession":"innkeeper","amount":8},{"type":"message","text":"Deux boissons sont prêtes pour la fête."}]}]}},
+        {"type":"building","key":"festival_farm","payload":{"name":"Ferme du Royaume","emoji":"🌾","description":"Produit les vivres nécessaires au banquet.","location_key":"riverhold","entity_kind":"institution","color":"6b8e23","relations":{"primary_profession_key":"farmer"},"actions":[{"key":"join_farmers","name":"Devenir cultivateur","emoji":"🌾","conditions":{"type":"no_active_profession"},"effects":[{"type":"profession_join","profession":"farmer"}]},{"key":"harvest_wheat","name":"Récolter le blé","emoji":"🌾","conditions":{"type":"profession_active","profession":"farmer"},"effects":[{"type":"cost","resource":"energy","amount":4},{"type":"reward","resource":"wheat_sack","amount":3},{"type":"profession_experience","profession":"farmer","amount":8}]}]}},
         {"type":"building","key":"festival_esplanade","payload":{"name":"Esplanade de la Fête","emoji":"🎪","description":"Lieu final où convergent les préparatifs du royaume.","location_key":"riverhold","entity_kind":"place","color":"c3913a","actions":[{"key":"inspect_preparations","name":"Inspecter les préparatifs","emoji":"📋","effects":[{"type":"message","text":"Les objectifs collectifs sont affichés dans le Monde en direct."}]}]}},
     ])
     definitions.extend({"type":"event","key":key,"payload":{"name":name,"emoji":emoji,"description":description,"trigger":{"type":"manual"},"enabled":False,"modifiers":modifiers,"effects":[]}} for key,name,emoji,description,modifiers in [
-        ("festival_rain","Pluie sur Valbrume","🌧️","La pluie ralentit temporairement les travaux extérieurs.",[{"property":"activity.duration","operator":"multiply","value":1.2,"scope":"world"}]),
-        ("mine_incident","Incident à la mine","⛏️","Un incident perturbe les extractions de Roland.",[{"property":"availability","operator":"set","value":0,"scope":"building","targets":["deep_mine"]}]),
-        ("edgar_round","Tournée d'Edgar","🍺","Edgar encourage les équipes pendant les préparatifs.",[{"property":"profession.experience","operator":"multiply","value":1.15,"scope":"world"}]),
-        ("festival_storm","Tempête du Royaume","⛈️","Une tempête met à l'épreuve la coordination des habitants.",[{"property":"activity.duration","operator":"multiply","value":1.4,"scope":"world"}]),
+        ("festival_rain","Pluie sur Valbrume","🌧️","La pluie ralentit temporairement les travaux extérieurs.",[{"property":"activity.duration","operator":"multiply","value":1.2,"target":{"type":"kingdom","key":""}}]),
+        ("mine_incident","Incident à la mine","⛏️","Un incident perturbe les extractions de Roland.",[{"property":"availability","operator":"set","value":0,"target":{"type":"building","key":"deep_mine"}}]),
+        ("edgar_round","Tournée d'Edgar","🍺","Edgar encourage les équipes pendant les préparatifs.",[{"property":"profession.experience","operator":"multiply","value":1.15,"target":{"type":"kingdom","key":""}}]),
+        ("festival_storm","Tempête du Royaume","⛈️","Une tempête met à l'épreuve la coordination des habitants.",[{"property":"activity.duration","operator":"multiply","value":1.4,"target":{"type":"kingdom","key":""}}]),
         ("festival_opening","Ouverture de la Fête","🎉","La fête commence si les objectifs collectifs sont atteints.",[]),
     ])
     return definitions

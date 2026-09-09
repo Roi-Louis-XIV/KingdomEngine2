@@ -266,7 +266,21 @@ async function openOfficialEditor(key = "", version = "", contentType = "world_t
   }
   const validation = item.validation || { errors: [], warnings: [], coverage: { represented: [] } };
   document.querySelector("#official-editor").innerHTML = `<div class="official-editor-backdrop"><section class="official-editor-shell"><header><div><small>ÉDITEUR DE CONTENU OFFICIEL</small><h2>${esc(item.name || "Nouveau contenu")}</h2><p>Composez un pack complet sans toucher aux mondes déjà installés.</p></div>${key && item.content_type === "world_template" ? '<button type="button" class="publish official-full-studio" data-open-full-studio>Ouvrir le Studio complet →</button>' : ""}<button type="button" class="official-close" data-close-official aria-label="Fermer">×</button></header><form id="official-form"><aside class="official-identity"><div class="official-section-title"><span>1</span><div><b>Identité du contenu</b><small>Présentation dans la bibliothèque</small></div></div><label>Type<select name="content_type"><option value="world_template">Modèle de monde</option><option value="building_preset">Bâtiment</option><option value="npc_preset">PNJ</option><option value="event_preset">Event</option><option value="calendar_preset">Calendrier</option><option value="audio_pack">Pack audio</option><option value="item_preset">Objet</option><option value="activity_preset">Activité</option><option value="example">Exemple</option></select></label><label>Clé stable<input name="key" value="${esc(item.key)}" ${key ? "readonly" : ""}></label><label>Nom<input name="name" value="${esc(item.name)}" required></label><label>Description<textarea name="description" rows="4">${esc(item.description)}</textarea></label><div class="official-two"><label>Icône<input name="emoji" value="${esc(item.emoji)}"></label><label>Catégorie<input name="category" value="${esc(item.category)}"></label></div><label>Illustration ou ressource<input name="illustration_path" value="${esc(item.illustration_path || "")}" placeholder="Chemin de l’illustration"></label><label>Tags<input name="tags" value="${esc((item.tags || []).join(", "))}" placeholder="médiéval, débutant, économie"></label><div class="official-version-card"><small>RÉVISION ACTIVE</small><strong>v${item.version}</strong><span class="official-status ${esc(item.status)}">${esc(item.status)}</span></div></aside><main class="official-structure"><div class="official-validation"></div><div class="official-entities"><header><div><div class="official-section-title"><span>2</span><div><b>Structure du pack</b><small>${item.entities.length} entité(s) configurée(s)</small></div></div><div class="official-entity-filters" role="tablist"><button type="button" class="active" data-entity-filter="">Tout</button>${["building","location","profession","item","event","npc","environment","audio","voice_presence"].map(type => `<button type="button" data-entity-filter="${type}">${type}</button>`).join("")}</div></div><div class="official-structure-actions"><button type="button" data-validate-official>✓ Valider maintenant</button><button type="button" class="publish" data-add-official-entity>+ Ajouter une entité</button></div></header><div data-official-entities>${item.entities.map((entity, index) => officialEntityEditor(entity, index)).join("") || '<p class="ops-empty">Ajoutez les briques de contenu de ce modèle.</p>'}</div></div></main><footer><span>${esc(item.status)} · version ${item.version}</span><div><button type="button" data-close-official>Fermer</button>${key ? '<button type="button" data-duplicate-official>Dupliquer</button>' : ""}${key && item.status === "published" ? '<button type="button" data-archive-official>Archiver</button>' : ""}${key && item.status === "draft" ? '<button type="button" class="danger" data-delete-official>Supprimer</button>' : ""}<button type="submit">Enregistrer le brouillon</button>${key && item.status !== "published" ? '<button type="button" class="publish" data-publish-official>Publier</button>' : ""}</div></footer></form></section></div>`;
+  if (key && item.content_type === "building_preset") {
+    const close = document.querySelector(".official-editor-shell .official-close");
+    close.insertAdjacentHTML(
+      "beforebegin",
+      '<button type="button" class="publish official-full-studio" data-open-full-studio>Configurer dans le Builder →</button>',
+    );
+  }
   document.querySelector('[name="content_type"]').value = item.content_type;
+  if (key) {
+    const save = document.querySelector('#official-form button[type="submit"]');
+    save.insertAdjacentHTML(
+      "beforebegin",
+      '<button type="button" class="danger" data-delete-template>Supprimer le template</button>',
+    );
+  }
   renderOfficialValidation(validation);
   bindOfficialEditor(item);
 }
@@ -306,12 +320,24 @@ function bindOfficialEditor(item) {
   if (publishButton) publishButton.onclick = async () => { publishButton.disabled = true; const response = await fetch(`/api/platform/official/${encodeURIComponent(item.key)}/publish`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ version: item.version, content_type: item.content_type }) }); const result = await response.json(); if (!response.ok) { publishButton.disabled = false; return alert(result.detail); } await load(); };
   const deleteButton = document.querySelector("[data-delete-official]");
   if (deleteButton) deleteButton.onclick = async () => { if (!confirm("Supprimer définitivement ce brouillon ?")) return; deleteButton.disabled = true; const response = await fetch(`/api/platform/official/${encodeURIComponent(item.key)}/versions/${item.version}?content_type=${encodeURIComponent(item.content_type)}`, { method: "DELETE", credentials: "same-origin" }); if (!response.ok) { deleteButton.disabled = false; return alert((await response.json()).detail); } await load(); };
+  const deleteTemplateButton = document.querySelector("[data-delete-template]");
+  if (deleteTemplateButton) deleteTemplateButton.onclick = async () => {
+    if (!confirm(`Supprimer définitivement « ${item.name} » et toutes ses versions ?`)) return;
+    deleteTemplateButton.disabled = true;
+    const response = await fetch(`/api/platform/official/${encodeURIComponent(item.key)}?content_type=${encodeURIComponent(item.content_type)}`, { method: "DELETE", credentials: "same-origin" });
+    if (!response.ok) {
+      deleteTemplateButton.disabled = false;
+      return alert((await response.json()).detail);
+    }
+    document.querySelector("#official-editor").replaceChildren();
+    await load();
+  };
   const archiveButton = document.querySelector("[data-archive-official]");
   if (archiveButton) archiveButton.onclick = async () => { archiveButton.disabled = true; const response = await fetch(`/api/platform/official/${encodeURIComponent(item.key)}/archive`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ version: item.version, content_type: item.content_type }) }); if (!response.ok) { archiveButton.disabled = false; return alert((await response.json()).detail); } await load(); };
   const duplicateButton = document.querySelector("[data-duplicate-official]");
   if (duplicateButton) duplicateButton.onclick = async () => { const copyKey = prompt("Clé de la copie", `${item.key}_copy`); if (!copyKey) return; duplicateButton.disabled = true; const response = await fetch(`/api/platform/official/${encodeURIComponent(item.key)}/duplicate`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: copyKey, name: `Copie de ${item.name}`, content_type: item.content_type }) }); const result = await response.json(); if (!response.ok) { duplicateButton.disabled = false; return alert(result.detail); } await load(); await openOfficialEditor(result.key, result.version, result.content_type); };
   const fullStudioButton = document.querySelector("[data-open-full-studio]");
-  if (fullStudioButton) fullStudioButton.onclick = async () => { fullStudioButton.disabled = true; fullStudioButton.textContent = "Préparation du monde…"; const response = await fetch(`/api/platform/official/${encodeURIComponent(item.key)}/workspace`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ version: item.version, content_type: item.content_type }) }); const result = await response.json(); if (!response.ok) { fullStudioButton.disabled = false; fullStudioButton.textContent = "Ouvrir le Studio complet →"; return alert(result.detail); } window.location.assign(result.url); };
+  if (fullStudioButton) fullStudioButton.onclick = async () => { fullStudioButton.disabled = true; const initialLabel = fullStudioButton.textContent; fullStudioButton.textContent = "Préparation de l’atelier…"; const response = await fetch(`/api/platform/official/${encodeURIComponent(item.key)}/workspace`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ version: item.version, content_type: item.content_type }) }); const result = await response.json(); if (!response.ok) { fullStudioButton.disabled = false; fullStudioButton.textContent = initialLabel; return alert(result.detail); } window.location.assign(result.url); };
 }
 
 function renderOfficialValidation(validation) {

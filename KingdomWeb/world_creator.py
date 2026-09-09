@@ -162,13 +162,23 @@ class WorldCreatorService:
         with self.store.connection() as db:
             action_rows = db.execute("SELECT action_key,COUNT(*) count FROM action_log GROUP BY action_key").fetchall()
             action_counts = {str(row["action_key"]): int(row["count"]) for row in action_rows}
+            contribution_rows = db.execute(
+                "SELECT objective_key,SUM(amount) amount FROM collective_contributions GROUP BY objective_key"
+            ).fetchall()
+            contribution_totals = {str(row["objective_key"]): int(row["amount"] or 0) for row in contribution_rows}
             first_action = db.execute("SELECT MIN(created_at) FROM action_log").fetchone()[0]
             player_ids = [str(row[0]) for row in db.execute("SELECT discord_id FROM players")]
             activity_count = int(db.execute("SELECT COUNT(*) FROM scheduled_actions WHERE status='pending'").fetchone()[0])
             cooldown_count = int(db.execute("SELECT COUNT(*) FROM action_cooldowns WHERE ready_at<=?", (__import__("time").time(),)).fetchone()[0])
         for objective in objectives:
             sources = objective.get("action_keys", [])
-            objective["current"] = sum(action_counts.get(str(source), 0) for source in sources) * int(objective.get("increment", 1))
+            # Les contributions sont la source de vérité quand le scénario les
+            # utilise. Le comptage d'actions conserve la compatibilité des
+            # anciens mondes, sans aucune règle liée à un univers particulier.
+            objective["current"] = contribution_totals.get(
+                str(objective.get("key", "")),
+                sum(action_counts.get(str(source), 0) for source in sources) * int(objective.get("increment", 1)),
+            )
             objective["progress"] = min(100, round(objective["current"] / max(1, int(objective.get("target", 1))) * 100))
         elapsed_minutes = 0
         if first_action:

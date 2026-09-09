@@ -311,7 +311,15 @@ class ContentStore:
         # la validation stricte soit également applicable aux imports V1.
         # Les catalogues précèdent les bâtiments, puis les bots qui peuvent
         # désormais référencer explicitement un bâtiment provisionné.
-        rank = {"building": 1, "bot": 2}
+        rank = {
+            "audio_group": 1,
+            "voice_profile": 1,
+            "voice_presence": 2,
+            "building": 3,
+            "npc": 4,
+            "event": 4,
+            "bot": 5,
+        }
         ordered = sorted(enumerate(definitions), key=lambda pair: (rank.get(pair[1]["type"], 0), pair[0]))
         for _, item in ordered:
             try: self.get(item["type"], item["key"])

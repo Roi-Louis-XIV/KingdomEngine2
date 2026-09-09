@@ -565,6 +565,91 @@ def test_interactive_tutorial_supports_real_actions_and_stable_building_targets(
     assert 'pointer-events:auto!important' in "".join(styles.split())
 
 
+def test_event_editor_exposes_complete_definition_sections_and_preserves_extensions():
+    static = Path(web.__file__).with_name("static")
+    script = (static / "app.js").read_text(encoding="utf-8")
+    styles = (static / "brand-system.css").read_text(encoding="utf-8")
+    compact = "".join(script.split())
+
+    assert 'id="event-trigger"' in script
+    assert 'id="event-effects"' in script
+    assert 'id="event-modifiers"' in script
+    assert 'id="event-audio"' in script
+    assert 'id="event-advanced"' in script
+    assert 'data-field="event_advanced_json"' in script
+    assert '"duration_seconds", payload.duration_seconds' in script
+    assert '"event_scope_type", eventScope.type' in script
+    assert '["cron","Expressioncalendrier"]' in compact
+    assert 'Object.assign(payload,advancedEvent)' in compact
+    assert '...(payload.trigger||{})' in compact
+    assert '.event-editor-index' in styles
+
+
+def test_audio_upload_returns_json_and_publishes_the_file_metadata(tmp_path, monkeypatch):
+    store = ContentStore(tmp_path / "audio-upload.db")
+    store.initialize()
+    monkeypatch.setattr(web, "store", store)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+    monkeypatch.setattr(
+        web,
+        "store_audio_file",
+        lambda stream, key, filename, namespace: {
+            "storage_path": f"assets/audio/{key}/source.mp3",
+            "file_name": filename,
+            "size_bytes": len(stream.read()),
+            "checksum_sha256": "test",
+        },
+    )
+
+    with TestClient(web.app) as client:
+        response = client.post(
+            "/api/audio/upload",
+            headers={"Authorization": "Bearer change-me"},
+            data={"name": "Ambiance forge", "audio_type": "ambience", "tags": "forge"},
+            files={"file": ("forge.mp3", b"fake mp3", "audio/mpeg")},
+        )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json()["payload"]["storage_path"].endswith("source.mp3")
+    assert response.json()["payload"]["audio_type"] == "ambience"
+
+
+def test_audio_upload_supports_proxy_safe_chunks(tmp_path, monkeypatch):
+    store = ContentStore(tmp_path / "chunked-audio.db")
+    store.initialize()
+    data_root = tmp_path / "kingdom-data"
+    monkeypatch.setattr(web, "store", store)
+    monkeypatch.setattr(web, "KINGDOM_DATA_ROOT", data_root)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+    monkeypatch.setattr(
+        web,
+        "store_audio_file",
+        lambda stream, key, filename, namespace: {
+            "storage_path": f"assets/audio/{key}/source.mp3",
+            "file_name": filename,
+            "size_bytes": len(stream.read()),
+            "checksum_sha256": "chunked-test",
+        },
+    )
+    headers = {"Authorization": "Bearer change-me"}
+
+    with TestClient(web.app) as client:
+        first = client.post("/api/audio/upload/chunk/testupload/0", headers=headers, content=b"abc")
+        second = client.post("/api/audio/upload/chunk/testupload/1", headers=headers, content=b"def")
+        completed = client.post(
+            "/api/audio/upload/complete/testupload",
+            headers=headers,
+            json={"file_name": "forge.mp3", "name": "Forge", "audio_type": "ambience"},
+        )
+
+    assert first.status_code == second.status_code == 200
+    assert completed.status_code == 200
+    assert completed.json()["payload"]["size_bytes"] == 6
+
+
 def test_reference_building_is_an_isolated_rich_academy_demo():
     from seed import DEFINITIONS, REFERENCE_BUILDING
 
@@ -823,3 +908,8 @@ def test_profession_delete_detaches_its_building_mechanics(tmp_path, monkeypatch
     assert updated["modules"]["activities"] == []
     assert [action["key"] for action in updated["actions"]] == ["look"]
     assert updated["relations"]["primary_profession_key"] == ""
+def test_world_settings_expose_visual_live_ops_editor():
+    script = (Path(web.__file__).parent / "static" / "app.js").read_text(encoding="utf-8")
+    assert "Scénario & objectifs" in script
+    assert "data-live-objective" in script
+    assert "data-live-timeline" in script

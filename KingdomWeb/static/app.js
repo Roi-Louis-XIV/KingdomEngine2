@@ -4,6 +4,8 @@
 const officialWorkspaceToken = new URLSearchParams(window.location.search).get(
   "official_workspace",
 );
+const officialWorkspaceType = new URLSearchParams(window.location.search).get("official_type");
+const officialWorkspaceKey = new URLSearchParams(window.location.search).get("official_key");
 const state = {
   type: "dashboard",
   items: [],
@@ -1586,6 +1588,16 @@ async function initializeAccount() {
   $("#login-screen").hidden = true;
   await loadCatalogs();
   await load();
+  if (officialWorkspaceToken && officialWorkspaceType && officialWorkspaceKey) {
+    const entity = state.catalogs[officialWorkspaceType]?.find(
+      (item) => item.entity_key === officialWorkspaceKey,
+    );
+    if (entity) {
+      state.type = officialWorkspaceType;
+      activateNavigation($(`#nav [data-type="${officialWorkspaceType}"]`));
+      await openEditor(entity);
+    }
+  }
   await KingdomTutorials.initialize();
   return true;
 }
@@ -3566,8 +3578,29 @@ async function uploadAudio(event) {
       headers: multipartHeaders(),
       body: new FormData(form),
     });
-    const data = await response.json();
-    if (!response.ok) throw Error(data.detail || "Import impossible.");
+    const contentType = response.headers.get("content-type") || "";
+    const raw = await response.text();
+    let data = {};
+    if (contentType.includes("application/json")) {
+      try {
+        data = JSON.parse(raw);
+      } catch (_error) {
+        data = {};
+      }
+    }
+    if (response.status === 413) {
+      data = await uploadAudioInChunks(form, status);
+    } else if (!contentType.includes("application/json")) {
+      const message =
+        response.status === 413
+          ? "Le fichier dépasse la limite autorisée par le serveur web."
+          : response.status === 502 || response.status === 504
+            ? "KingdomWeb n’a pas répondu pendant l’import. Vérifiez le service et l’espace KingdomData."
+            : `Le serveur a renvoyé une réponse invalide pendant l’import (HTTP ${response.status}).`;
+      throw Error(message);
+    }
+    if (response.status !== 413 && !response.ok)
+      throw Error(data.detail || "Import impossible.");
     status.textContent = "Son publié.";
     await loadCatalogs();
     await loadAudioBank();
@@ -3655,6 +3688,44 @@ function renderBotFields(payload) {
   )}${input("Variable de l’Application ID", "application_id_env", payload.application_id_env || "")}${input("Variable du token", "token_env", payload.token_env || "KINGDOM_CORE_TOKEN")}${input("Identifiant du serveur", "guild_id", payload.guild_id || "")}${input("Présence Discord", "presence", payload.presence || "")}</div><div class="checks">${check("Bot activé", "enabled", !!payload.enabled)}${check("Connexion vocale automatique", "auto_join", payload.auto_join !== false)}</div>${worker ? `<details class="advanced"><summary>Réglages techniques avancés</summary><div class="advanced-content form-grid">${input("Identifiant du salon (secours)", "voice_channel_id", payload.voice_channel_id || 0)}${input("Variable du salon (secours)", "voice_channel_env", payload.voice_channel_env || "")}${input("Déconnexion après (secondes)", "leave_delay", payload.leave_delay || 10, "number")}${input("Volume voix", "volume_voice", payload.volume?.voice ?? 0.8, "number", 'min="0" max="1" step="0.05"')}${input("Volume musique", "volume_music", payload.volume?.music ?? 0.05, "number", 'min="0" max="1" step="0.05"')}${input("Volume ambiance", "volume_ambience", payload.volume?.ambience ?? 0.35, "number", 'min="0" max="1" step="0.05"')}${input("Volume effets", "volume_sfx", payload.volume?.sfx ?? 0.2, "number", 'min="0" max="1" step="0.05"')}</div></details>` : ""}</section>`;
 }
 
+async function uploadAudioInChunks(form, status) {
+  const file = form.elements.file.files[0];
+  if (!file) throw Error("Choisissez un fichier audio.");
+  const uploadId = crypto.randomUUID().replaceAll("-", "");
+  const chunkSize = 512 * 1024;
+  const count = Math.ceil(file.size / chunkSize);
+  for (let index = 0; index < count; index += 1) {
+    status.textContent = `Téléchargement sécurisé… ${index + 1}/${count}`;
+    const response = await fetch(`/api/audio/upload/chunk/${uploadId}/${index}`, {
+      method: "POST",
+      headers: multipartHeaders(),
+      body: file.slice(index * chunkSize, Math.min(file.size, (index + 1) * chunkSize)),
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}));
+      throw Error(detail.detail || `Échec du bloc ${index + 1}.`);
+    }
+  }
+  const fields = new FormData(form);
+  const response = await fetch(`/api/audio/upload/complete/${uploadId}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      file_name: file.name,
+      name: fields.get("name"),
+      audio_type: fields.get("audio_type"),
+      speaker_bot_key: fields.get("speaker_bot_key"),
+      description: fields.get("description"),
+      tags: fields.get("tags"),
+      volume: Number(fields.get("volume") || 0.5),
+      loop: fields.get("loop") === "on",
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw Error(data.detail || "Finalisation de l’import impossible.");
+  return data;
+}
+
 async function publishCommunityTemplate(event) {
   event.preventDefault();
   const form = event.currentTarget,
@@ -3673,7 +3744,7 @@ async function publishCommunityTemplate(event) {
     status.textContent = `Modèle communautaire publié · version ${result.version}.`;
     form.reset();
   } catch (error) {
-    status.textContent = error.message;
+    status.textContent = error.message || "Import audio impossible.";
   } finally {
     button.disabled = false;
   }
@@ -4347,7 +4418,13 @@ function renderFields(payload) {
   }
   if (state.type === "event") {
     $(".wizard-panel").classList.add("event-mode");
-    root.innerHTML = `<section class="event-editor-intro"><div><small>KINGDOMEVENT · ORCHESTRATEUR DU ROYAUME</small><h3>Construisez un événement à grande échelle</h3><p>Définissez son déclenchement, puis composez autant de résultats et d’impacts que nécessaire.</p></div><span>✦</span></section><section class="form-section event-trigger-section"><div class="event-section-heading"><span>1</span><div><h3>Quand commence-t-il ?</h3><p>Choisissez le déclencheur, la période de validité et sa priorité face aux autres événements.</p></div></div><div class="form-grid">${select(
+    const eventScope = payload.scope || {};
+    const eventAdvanced = Object.fromEntries(
+      Object.entries(payload).filter(
+        ([key]) => !["name", "description", "emoji", "trigger", "starts_at", "ends_at", "duration_seconds", "priority", "enabled", "active", "scope", "effects", "modifiers", "audio_layers"].includes(key),
+      ),
+    );
+    root.innerHTML = `<section class="event-editor-intro"><div><small>KINGDOMEVENT · ORCHESTRATEUR DU MONDE</small><h3>Construisez un événement à grande échelle</h3><p>Tous les paramètres de la définition sont réunis ici : déclenchement, portée, résultats, impacts, ambiance et options avancées.</p></div><span>✦</span></section><nav class="event-editor-index" aria-label="Sections de l’événement"><a href="#event-trigger">1 · Déclenchement</a><a href="#event-effects">2 · Résultats</a><a href="#event-modifiers">3 · Impacts</a><a href="#event-audio">4 · Ambiance</a><a href="#event-advanced">5 · Avancé</a></nav><section class="form-section event-trigger-section" id="event-trigger"><div class="event-section-heading"><span>1</span><div><h3>Quand et où commence-t-il ?</h3><p>Choisissez le déclencheur, la durée, la période de validité, la portée et la priorité.</p></div></div><div class="form-grid">${select(
       "Type",
       "trigger_type",
       payload.trigger?.type || "manual",
@@ -4357,8 +4434,14 @@ function renderFields(payload) {
         ["recurring", "Récurrent"],
         ["action", "Action de jeu"],
         ["players", "Nombre de joueurs"],
+        ["condition", "Condition"],
+        ["interval", "Intervalle"],
+        ["cron", "Expression calendrier"],
+        ["world_time", "Date du monde"],
+        ["discord", "Événement Discord"],
+        ["webhook", "Webhook / API"],
       ],
-    )}${input("Expression / valeur", "trigger_value", payload.trigger?.value || "")}${input("Début", "starts_at", payload.starts_at || "", "datetime-local")}${input("Fin", "ends_at", payload.ends_at || "", "datetime-local")}${input("Priorité", "priority", payload.priority || 0, "number")}</div><div class="checks">${check("Événement activé", "enabled", payload.enabled !== false)}</div></section><section class="form-section event-effects-section"><div class="section-head event-section-heading"><span>2</span><div><h3>Que se passe-t-il ?</h3><p>Les résultats sont exécutés dans l’ordre. Ils peuvent récompenser, retirer, diffuser un message, jouer un son ou déclencher un autre événement.</p></div><button type="button" class="secondary" id="add-effect">＋ Ajouter un résultat</button></div><div id="effects"></div></section><section class="form-section event-audio-section"><div class="section-head event-section-heading"><span>3</span><div><h3>Quelle atmosphère règne pendant l’Event ?</h3><p>Appliquez un groupe d’ambiance réutilisable à tout le royaume ou seulement aux bâtiments cochés.</p></div><button type="button" class="secondary" id="add-event-audio-layer">＋ Ajouter une ambiance</button></div><div id="event-audio-layers"></div></section>`;
+    )}${input("Expression / valeur", "trigger_value", payload.trigger?.value || "")}${input("Début", "starts_at", payload.starts_at || "", "datetime-local")}${input("Fin", "ends_at", payload.ends_at || "", "datetime-local")}${input("Durée d’une occurrence (secondes)", "duration_seconds", payload.duration_seconds ?? 3600, "number", 'min="0"')}${input("Priorité", "priority", payload.priority || 0, "number")}${select("Portée", "event_scope_type", eventScope.type || "kingdom", [["kingdom", "Tout le monde"], ["location", "Un lieu"], ["building", "Un bâtiment"], ["profession", "Un métier"], ["players", "Des joueurs"]])}<label data-event-scope-target>Élément ciblé<select data-field="event_scope_key">${modifierTargetOptions(eventScope.type || "kingdom", eventScope.key || "").map(([key, label]) => `<option value="${escapeHtml(key)}" ${key === (eventScope.key || "") ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select></label>${input("Tags de ciblage", "event_scope_tags", (eventScope.tags || []).join(", "))}</div><div class="checks">${check("Définition activée", "enabled", payload.enabled !== false)}${check("Actif immédiatement (mode manuel)", "active", !!payload.active)}</div><p class="field-note">La durée sert aux activations immédiates et programmées. La portée limite les impacts sans dupliquer l’événement.</p></section><section class="form-section event-effects-section" id="event-effects"><div class="section-head event-section-heading"><span>2</span><div><h3>Que se passe-t-il ?</h3><p>Ajoutez autant de résultats que nécessaire. Ils sont exécutés dans l’ordre affiché.</p></div><button type="button" class="secondary" id="add-effect">＋ Ajouter un résultat</button></div><div id="effects"></div></section><section class="form-section event-modifiers-section" id="event-modifiers"><div class="section-head event-section-heading"><span>3</span><div><h3>Comment le monde est-il transformé ?</h3><p>Les impacts modifient temporairement les règles sans écraser les valeurs de base.</p></div><button type="button" class="secondary" id="add-world-modifier">＋ Ajouter un impact</button></div><div id="world-modifiers"></div></section><section class="form-section event-audio-section" id="event-audio"><div class="section-head event-section-heading"><span>4</span><div><h3>Quelle atmosphère règne pendant l’événement ?</h3><p>Appliquez une ambiance à tout le monde ou seulement aux bâtiments sélectionnés.</p></div><button type="button" class="secondary" id="add-event-audio-layer">＋ Ajouter une ambiance</button></div><div id="event-audio-layers"></div></section><section class="form-section event-advanced-section" id="event-advanced"><div class="event-section-heading"><span>5</span><div><h3>Paramètres avancés</h3><p>Les propriétés spécifiques ou futures restent modifiables sans être perdues par l’éditeur visuel.</p></div></div><details class="advanced"><summary>Afficher les propriétés supplémentaires (JSON)</summary><div class="advanced-content"><p class="field-note">Ce bloc complète les champs visuels ci-dessus. Il ne crée pas un second événement.</p><label>Propriétés supplémentaires<textarea data-field="event_advanced_json" rows="12" spellcheck="false">${escapeHtml(JSON.stringify(eventAdvanced, null, 2))}</textarea></label></div></details></section>`;
     (payload.effects || []).forEach((effect) =>
       addEffect($("#effects"), effect),
     );
@@ -4366,24 +4449,22 @@ function renderFields(payload) {
       addEventAudioLayer($("#event-audio-layers"), layer),
     );
     $("#add-effect").onclick = () => addEffect($("#effects"), {});
-    $("#add-event-audio-layer").onclick = () =>
-      addEventAudioLayer($("#event-audio-layers"), {});
-    $("#help-title").textContent = "Comprendre un grand événement";
-    $("#help-text").textContent =
-      "Construisez-le de haut en bas : déclencheur, résultats immédiats, puis impacts temporaires sur le monde.";
-    $("#help-list").innerHTML =
-      "<li>Les résultats exécutent des actions concrètes.</li><li>Les ambiances Event durent tant que l’occurrence est active.</li><li>La priorité départage les événements concurrents.</li><li>Enregistrez d’abord en brouillon avant de publier.</li>";
-  }
-  if (state.type === "event") {
-    root.insertAdjacentHTML(
-      "beforeend",
-      '<section class="form-section event-modifiers-section"><div class="section-head event-section-heading"><span>3</span><div><h3>Comment le Royaume est-il transformé ?</h3><p>Les modificateurs changent temporairement les règles sans écraser les configurations de base.</p></div><button type="button" class="secondary" id="add-world-modifier">＋ Ajouter un impact</button></div><div id="world-modifiers"></div></section>',
-    );
     (payload.modifiers || []).forEach((item) =>
       addWorldModifier($("#world-modifiers"), item),
     );
     $("#add-world-modifier").onclick = () =>
       addWorldModifier($("#world-modifiers"), {});
+    $("#add-event-audio-layer").onclick = () =>
+      addEventAudioLayer($("#event-audio-layers"), {});
+    root.querySelector('[data-field="event_scope_type"]').onchange = (event) => {
+      const target = root.querySelector("[data-event-scope-target]");
+      target.innerHTML = `Élément ciblé<select data-field="event_scope_key">${modifierTargetOptions(event.target.value).map(([key, label]) => `<option value="${escapeHtml(key)}">${escapeHtml(label)}</option>`).join("")}</select>`;
+    };
+    $("#help-title").textContent = "Comprendre un grand événement";
+    $("#help-text").textContent =
+      "Construisez-le de haut en bas : déclencheur, résultats immédiats, puis impacts temporaires sur le monde.";
+    $("#help-list").innerHTML =
+      "<li>Les résultats exécutent des actions concrètes.</li><li>Les ambiances Event durent tant que l’occurrence est active.</li><li>La priorité départage les événements concurrents.</li><li>Enregistrez d’abord en brouillon avant de publier.</li>";
   }
   if (state.type === "npc") {
     root.innerHTML = `<section class="form-section"><h3>Identité du personnage</h3><p class="field-note">Un PNJ est un personnage logique. L'agent vocal de son espace parlera pour lui si une variante possède une voix.</p><div class="form-grid">${input("Rôle", "npc_role", payload.role || "")}${select("Lieu", "npc_location", payload.location_key || "", locationOptions(payload.location_key || ""))}${select("Bâtiment", "npc_building", payload.building_key || "", catalogOptions("building", payload.building_key || ""))}${input("Tags", "npc_tags", (payload.tags || []).join(", "))}</div></section><section class="form-section"><div class="section-head"><div><h3>Réactions contextuelles</h3><p class="field-note">La priorité la plus élevée gagne. Le texte et la voix d'une variante restent toujours associés.</p></div><button type="button" class="secondary" id="add-npc-reaction">＋ Ajouter une réaction</button></div><div id="npc-reactions"></div></section>`;
@@ -9349,21 +9430,39 @@ function buildPayload() {
         ).value,
       })),
     });
-  if (state.type === "event")
+  if (state.type === "event") {
+    let advancedEvent = {};
+    try {
+      advancedEvent = JSON.parse(fieldValue("event_advanced_json") || "{}");
+    } catch (_error) {
+      throw Error("Les paramètres avancés de l’événement contiennent un JSON invalide.");
+    }
+    if (!advancedEvent || Array.isArray(advancedEvent) || typeof advancedEvent !== "object")
+      throw Error("Les paramètres avancés de l’événement doivent former un objet JSON.");
+    Object.assign(payload, advancedEvent);
     Object.assign(payload, {
       trigger: {
+        ...(payload.trigger || {}),
         type: fieldValue("trigger_type"),
         value: fieldValue("trigger_value"),
       },
       starts_at: fieldValue("starts_at") || null,
       ends_at: fieldValue("ends_at") || null,
+      duration_seconds: fieldValue("duration_seconds") || 0,
       priority: fieldValue("priority"),
       enabled: fieldValue("enabled"),
-      active: fieldValue("enabled"),
+      active: fieldValue("active"),
+      scope: {
+        ...(payload.scope || {}),
+        type: fieldValue("event_scope_type") || "kingdom",
+        key: fieldValue("event_scope_key") || undefined,
+        tags: (fieldValue("event_scope_tags") || "").split(",").map((value) => value.trim()).filter(Boolean),
+      },
       effects: readEffects($("#effects")),
       modifiers: readWorldModifiers(),
       audio_layers: readEventAudioLayers(),
     });
+  }
   if (state.type === "npc")
     Object.assign(payload, {
       role: fieldValue("npc_role") || "",
@@ -9972,11 +10071,11 @@ function renderSettings(
   const settingsTabs = $(".section-tabs");
   settingsTabs.insertAdjacentHTML(
     "beforeend",
-    `<button data-settings-tab="channels" class="${state.settingsTab === "channels" ? "active" : ""}">Doublons Discord</button>`,
+    `<button data-settings-tab="scenario" class="${state.settingsTab === "scenario" ? "active" : ""}">Scénario & objectifs</button><button data-settings-tab="channels" class="${state.settingsTab === "channels" ? "active" : ""}">Doublons Discord</button>`,
   );
   $(".settings-grid").insertAdjacentHTML(
     "beforeend",
-    `<section class="admin-section settings-card discord-audit" data-settings-panel="channels"><h3>🧹 Doublons de salons Discord</h3><p>KingdomWeb compare les salons réels aux bâtiments publiés. Rien ne sera supprimé sans votre sélection et une confirmation.</p><button type="button" class="primary" id="audit-discord-channels">Analyser les salons</button><div id="discord-channel-audit" class="discord-audit-results"><p class="field-note">L’analyse protège les salons manuels et les catégories qui en contiennent.</p></div></section>`,
+    `<section class="admin-section settings-card" data-settings-panel="scenario"><h3>🎯 Scénario et objectifs collectifs</h3><div class="form-grid">${settingField("Durée du scénario (minutes)", "live_ops.scenario_duration_minutes", settings.live_ops?.scenario_duration_minutes || 0, "number")}${settingField("État du scénario", "live_ops.status", settings.live_ops?.status || "configuration")}</div><div class="section-head"><b>Objectifs collectifs</b><button type="button" class="secondary" id="add-live-objective">＋ Ajouter</button></div><div id="live-objectives">${(settings.live_ops?.objectives || []).map(liveObjectiveEditor).join("")}</div><div class="section-head"><b>Chronologie</b><button type="button" class="secondary" id="add-live-timeline">＋ Ajouter</button></div><div id="live-timeline">${(settings.live_ops?.timeline || []).map(liveTimelineEditor).join("")}</div><p class="field-note">Ces champs sont génériques et restent utilisables dans n’importe quel univers.</p></section><section class="admin-section settings-card discord-audit" data-settings-panel="channels"><h3>🧹 Doublons de salons Discord</h3><p>KingdomWeb compare les salons réels aux bâtiments publiés. Rien ne sera supprimé sans votre sélection et une confirmation.</p><button type="button" class="primary" id="audit-discord-channels">Analyser les salons</button><div id="discord-channel-audit" class="discord-audit-results"><p class="field-note">L’analyse protège les salons manuels et les catégories qui en contiennent.</p></div></section>`,
   );
   $$("[data-settings-panel]").forEach(
     (panel) =>
@@ -9999,6 +10098,27 @@ function renderSettings(
   $("#save-settings").onclick = saveSettings;
   $("#audit-discord-channels").onclick = loadDiscordChannelAudit;
   $("#install-discord-server").onclick = requestServerProvision;
+  bindLiveOpsEditors();
+}
+
+function liveObjectiveEditor(objective = {}) {
+  return `<article class="form-section" data-live-objective><div class="form-grid">${input("Clé", "objective_key", objective.key || "objective")}${input("Nom", "objective_name", objective.name || "Nouvel objectif")}${input("Cible", "objective_target", objective.target || 1, "number", "min=1")}${input("Unité", "objective_unit", objective.unit || "unités")}${input("Incrément", "objective_increment", objective.increment || 1, "number", "min=1")}${input("État", "objective_state", objective.state || "active")}${input("Actions liées (virgules)", "objective_actions", (objective.action_keys || []).join(", "))}</div><button type="button" class="danger" data-remove-live>Supprimer</button></article>`;
+}
+
+function liveTimelineEditor(step = {}) {
+  return `<article class="form-section" data-live-timeline><div class="form-grid">${input("Minute", "timeline_minute", step.minute || 0, "number", "min=0")}${input("Libellé", "timeline_label", step.label || "Nouveau jalon")}${input("Événement lié", "timeline_event", step.event_key || "")}</div><button type="button" class="danger" data-remove-live>Supprimer</button></article>`;
+}
+
+function bindLiveOpsEditors() {
+  $("#add-live-objective")?.addEventListener("click", () => {
+    $("#live-objectives").insertAdjacentHTML("beforeend", liveObjectiveEditor());
+    bindLiveOpsEditors();
+  }, { once: true });
+  $("#add-live-timeline")?.addEventListener("click", () => {
+    $("#live-timeline").insertAdjacentHTML("beforeend", liveTimelineEditor());
+    bindLiveOpsEditors();
+  }, { once: true });
+  $$('[data-remove-live]').forEach((button) => button.onclick = () => button.closest("article").remove());
 }
 
 async function requestServerProvision() {
@@ -10180,6 +10300,26 @@ async function saveSettings() {
       field.type === "checkbox" ? field.checked : field.value,
     ),
   );
+  payload.live_ops ||= {};
+  payload.live_ops.objectives = $$("[data-live-objective]").map((row) => ({
+    key: fieldValue("objective_key", row),
+    name: fieldValue("objective_name", row),
+    target: Number(fieldValue("objective_target", row)) || 1,
+    unit: fieldValue("objective_unit", row),
+    increment: Number(fieldValue("objective_increment", row)) || 1,
+    state: fieldValue("objective_state", row) || "active",
+    action_keys: fieldValue("objective_actions", row)
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+  }));
+  payload.live_ops.timeline = $$("[data-live-timeline]").map((row) => ({
+    minute: Number(fieldValue("timeline_minute", row)) || 0,
+    label: fieldValue("timeline_label", row),
+    ...(fieldValue("timeline_event", row)
+      ? { event_key: fieldValue("timeline_event", row) }
+      : {}),
+  }));
   button.disabled = true;
   button.textContent = "Enregistrement…";
   const response = await fetch("/api/server/settings", {
@@ -10462,6 +10602,23 @@ function playerTelemetryMarkup(points, metric) {
 }
 
 async function openPlayer(id) {
+  // Une fiche ouverte depuis la carte Live devient une vraie vue Joueurs.
+  // Elle invalide explicitement les requêtes et timers de Monde en direct,
+  // sinon leur prochain cycle reconstruirait #admin-view sous la fiche.
+  if (state.type !== "players") {
+    state.type = "players";
+    state.viewRequest++;
+    const playerNavigation = $('#nav [data-type="players"]');
+    if (playerNavigation) activateNavigation(playerNavigation);
+    if ($("#title")) $("#title").textContent = labels.players;
+  }
+  clearInterval(state.adminTimer);
+  state.adminTimer = null;
+  if (state.liveAbort) {
+    state.liveAbort.abort();
+    state.liveAbort = null;
+  }
+  state.playerId = String(id);
   playerSystemView();
   const response = await fetch(`/api/admin/players/${encodeURIComponent(id)}`, {
     headers,

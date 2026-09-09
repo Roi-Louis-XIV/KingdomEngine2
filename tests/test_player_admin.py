@@ -166,6 +166,17 @@ def test_player_cards_keep_v1_ergonomics_and_live_refresh():
     assert "@media(max-width:1100px)" in "".join(styles.split())
 
 
+def test_player_detail_takes_ownership_from_live_world_refresh():
+    from pathlib import Path
+    script=(Path(__file__).parents[1]/"KingdomWeb"/"static"/"app.js").read_text(encoding="utf-8")
+    start=script.index("async function openPlayer(id)")
+    section=script[start:script.index("function showPlayerMutation", start)]
+    assert 'state.type = "players"' in section
+    assert "state.viewRequest++" in section
+    assert "clearInterval(state.adminTimer)" in section
+    assert "state.liveAbort.abort()" in section
+
+
 def test_oath_grants_configured_coins_once_and_saves_discord_identity(tmp_path):
     from types import SimpleNamespace
     from kingdomCore.discord_bot import grant_oath_reward

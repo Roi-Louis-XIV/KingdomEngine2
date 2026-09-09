@@ -831,9 +831,11 @@ def platform_official_workspace(key: str, request: Request, body: dict[str, Any]
             key, int(request.state.compte["id"]), KINGDOM_DATA_ROOT,
             version=body.get("version"), content_type=str(body.get("content_type", "world_template")),
         )
+        building = next((item["key"] for item in workspace["template"].get("entities", []) if item["type"] == "building"), "")
+        query = f"&official_type=building&official_key={building}" if workspace["template"]["content_type"] == "building_preset" and building else ""
         return {"workspace_token": workspace["workspace_token"],
                 "server_slug": workspace["server_slug"],
-                "url": f"/?official_workspace={workspace['workspace_token']}"}
+                "url": f"/?official_workspace={workspace['workspace_token']}{query}"}
     except (LookupError, ValueError, ValidationError) as exc:
         raise HTTPException(422, str(exc)) from exc
 
@@ -915,6 +917,15 @@ def platform_official_delete_draft(key: str, version: int, content_type: str = "
         return {"ok": True}
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+
+
+@app.delete("/api/platform/official/{key}", dependencies=[Depends(_administrateur_plateforme)])
+def platform_official_delete(key: str, content_type: str = "world_template"):
+    try:
+        contenus_officiels.delete(key, content_type=content_type)
+        return {"ok": True}
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
 
 
 @app.get("/api/content", dependencies=[Depends(authorize)])
@@ -1028,6 +1039,34 @@ def request_discord_provision(request: Request, body: dict[str, Any] | None = No
 def changes(after: int = 0): return store.changes(after)
 
 
+def _available_audio_key(name: str) -> str:
+    base = audio_key(name or "audio")
+    key, suffix = base, 2
+    while True:
+        try:
+            store.get("audio", key)
+        except NotFoundError:
+            return key
+        key, suffix = f"{base[:58]}_{suffix}", suffix + 1
+
+
+def _publish_audio_stream(stream, *, filename: str, name: str, audio_type: str,
+                          speaker_bot_key: str = "", description: str = "",
+                          tags: str = "", volume: float = 0.5, loop: bool = False,
+                          server_slug: str = "") -> dict[str, Any]:
+    key = _available_audio_key(name or filename)
+    metadata = store_audio_file(stream, key, filename or f"{key}.mp3", server_slug)
+    payload = {
+        "name": name.strip(), "description": description.strip(), "emoji": "🔊",
+        "audio_type": audio_type, "channel": audio_type,
+        "speaker_bot_key": speaker_bot_key.strip(),
+        "tags": [tag.strip() for tag in tags.split(",") if tag.strip()],
+        "volume": volume, "loop": loop, "triggers": [], **metadata,
+    }
+    draft = store.save("audio", key, payload, "studio-audio")
+    return store.publish("audio", key, draft["version"], "studio-audio")
+
+
 @app.post("/api/audio/upload", dependencies=[Depends(authorize)])
 async def upload_audio(
     request: Request,
@@ -1041,27 +1080,22 @@ async def upload_audio(
     loop: bool = Form(False),
 ):
     """Importe le binaire dans KingdomData et publie sa fiche dans la banque sonore."""
-    base = audio_key(name or file.filename or "audio")
-    key, suffix = base, 2
-    while True:
-        try:
-            store.get("audio", key)
-        except NotFoundError:
-            break
-        key, suffix = f"{base[:58]}_{suffix}", suffix + 1
     try:
         serveur_slug = str(getattr(request.state, "serveur", {}).get("slug", ""))
-        metadata = store_audio_file(file.file, key, file.filename or f"{key}.mp3", serveur_slug)
-        payload = {
-            "name": name.strip(), "description": description.strip(), "emoji": "🔊",
-            "audio_type": audio_type, "channel": audio_type, "speaker_bot_key": speaker_bot_key.strip(),
-            "tags": [tag.strip() for tag in tags.split(",") if tag.strip()],
-            "volume": volume, "loop": loop, "triggers": [], **metadata,
-        }
-        draft = store.save("audio", key, payload, "studio-audio")
-        return store.publish("audio", key, draft["version"], "studio-audio")
+        return _publish_audio_stream(
+            file.file, filename=file.filename or "audio.mp3", name=name,
+            audio_type=audio_type, speaker_bot_key=speaker_bot_key,
+            description=description, tags=tags, volume=volume, loop=loop,
+            server_slug=serveur_slug,
+        )
     except (ValidationError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from exc
+    except OSError as exc:
+        logger.exception("Échec d'écriture du fichier audio dans KingdomData")
+        raise HTTPException(
+            507,
+            "KingdomData n'est pas accessible en écriture ou ne dispose plus d'espace libre.",
+        ) from exc
     finally:
         await file.close()
 
@@ -1149,6 +1183,63 @@ async def upload_world_map_background(request: Request, file: UploadFile = File(
         return {**configuration, "background_url": "/api/world/map/background"}
     finally:
         await file.close()
+
+
+@app.post("/api/audio/upload/chunk/{upload_id}/{index}", dependencies=[Depends(authorize)])
+async def upload_audio_chunk(upload_id: str, index: int, request: Request):
+    """Reçoit un petit bloc afin de traverser les proxys limitant les gros formulaires."""
+    if not upload_id or len(upload_id) > 64 or not upload_id.replace("-", "").isalnum():
+        raise HTTPException(422, "Identifiant d'import invalide.")
+    if index < 0 or index > 4096:
+        raise HTTPException(422, "Numéro de bloc invalide.")
+    content = await request.body()
+    if not content or len(content) > 768 * 1024:
+        raise HTTPException(413, "Chaque bloc audio doit faire au maximum 768 Ko.")
+    directory = (KINGDOM_DATA_ROOT / "tmp" / "audio-uploads" / upload_id).resolve()
+    root = KINGDOM_DATA_ROOT.resolve()
+    if root not in directory.parents:
+        raise HTTPException(422, "Chemin d'import invalide.")
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / f"{index:06d}.part").write_bytes(content)
+    except OSError as exc:
+        logger.exception("Échec d'écriture d'un bloc audio dans KingdomData")
+        raise HTTPException(507, "KingdomData n'est pas accessible en écriture ou ne dispose plus d'espace libre.") from exc
+    return {"ok": True, "index": index}
+
+
+@app.post("/api/audio/upload/complete/{upload_id}", dependencies=[Depends(authorize)])
+def complete_audio_upload(upload_id: str, request: Request, body: dict[str, Any]):
+    if not upload_id or len(upload_id) > 64 or not upload_id.replace("-", "").isalnum():
+        raise HTTPException(422, "Identifiant d'import invalide.")
+    directory = (KINGDOM_DATA_ROOT / "tmp" / "audio-uploads" / upload_id).resolve()
+    parts = sorted(directory.glob("*.part")) if directory.is_dir() else []
+    if not parts or any(path.name != f"{position:06d}.part" for position, path in enumerate(parts)):
+        raise HTTPException(422, "Import audio incomplet.")
+    assembled = directory / "assembled.upload"
+    try:
+        with assembled.open("wb") as output:
+            for part in parts:
+                with part.open("rb") as source:
+                    shutil.copyfileobj(source, output)
+        with assembled.open("rb") as stream:
+            return _publish_audio_stream(
+                stream, filename=str(body.get("file_name") or "audio.mp3"),
+                name=str(body.get("name") or "Audio"),
+                audio_type=str(body.get("audio_type") or "sfx"),
+                speaker_bot_key=str(body.get("speaker_bot_key") or ""),
+                description=str(body.get("description") or ""),
+                tags=str(body.get("tags") or ""), volume=float(body.get("volume", 0.5)),
+                loop=bool(body.get("loop", False)),
+                server_slug=str(getattr(request.state, "serveur", {}).get("slug", "")),
+            )
+    except (ValidationError, ValueError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except OSError as exc:
+        logger.exception("Échec d'assemblage du fichier audio dans KingdomData")
+        raise HTTPException(507, "KingdomData n'est pas accessible en écriture ou ne dispose plus d'espace libre.") from exc
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
 
 
 @app.get("/api/bots/{key}/avatar", dependencies=[Depends(authorize)])

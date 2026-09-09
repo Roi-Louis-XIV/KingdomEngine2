@@ -524,6 +524,12 @@ class VoiceBotManager:
 
     async def _sync_automatic_presences(self) -> None:
         presences = self._published_presences()
+        # Un worker dont la connexion précédente a échoué ne doit pas bloquer
+        # indéfiniment la présence : il redevient disponible et le tourniquet
+        # essaiera la capacité suivante au cycle courant.
+        for worker in list(self.pool.workers.values()):
+            if worker.state == "error":
+                self.pool.recover(worker.key)
         # Un joueur toujours présent constitue une activité réelle. Sans ce
         # heartbeat, le délai d'inactivité libérait puis réallouait le worker
         # en boucle alors que personne n'avait quitté le salon.
@@ -554,13 +560,24 @@ class VoiceBotManager:
             guild_id = str(presence.metadata.get("guild_id") or os.getenv("KINGDOM_GUILD_ID", ""))
             if not self._channel_has_humans(guild_id, channel_id):
                 continue
-            await self.assign_presence(
-                presence,
-                guild_id=guild_id,
-                channel_id=channel_id,
-                building_key=building_key,
-                world_store=self._presence_stores.get(presence.key, self.store),
-            )
+            try:
+                client = await self.assign_presence(
+                    presence,
+                    guild_id=guild_id,
+                    channel_id=channel_id,
+                    building_key=building_key,
+                    world_store=self._presence_stores.get(presence.key, self.store),
+                )
+                if client is not None and not any(voice.is_connected() for voice in client.voice_clients):
+                    self.pool.fail(client.key, "Connexion au salon vocal refusée ou indisponible")
+            except (discord.DiscordException, OSError, RuntimeError) as exc:
+                worker = next(
+                    (item for item in self.pool.workers.values() if item.presence_key == presence.key),
+                    None,
+                )
+                if worker:
+                    self.pool.fail(worker.key, exc)
+                print(f"[KingdomVoice] présence {presence.key} impossible à connecter : {exc}")
         self._publish_runtime_status()
 
     def _publish_runtime_status(self) -> None:
@@ -631,7 +648,12 @@ class VoiceBotManager:
             now=asyncio.get_running_loop().time()
             if now-self._last_scene_check>=5:
                 self._last_scene_check=now
-                await self._sync_automatic_presences()
+                try:
+                    await self._sync_automatic_presences()
+                except Exception as exc:
+                    # Une application Discord mal invitée ne doit jamais tuer
+                    # le répartiteur des autres Voice Workers.
+                    print(f"[KingdomVoice] synchronisation automatique différée : {exc}")
                 await asyncio.gather(*(client.sync_effective_scene() for client in self.clients.values()),return_exceptions=True)
             for world_store, _guild_id in self.worlds:
                 for command in world_store.pending_audio():

@@ -80,6 +80,11 @@ class RegistreComptes:
                 base.execute("ALTER TABLE official_content_packs ADD COLUMN owner_account_id INTEGER")
             if "source_world_slug" not in official_columns:
                 base.execute("ALTER TABLE official_content_packs ADD COLUMN source_world_slug TEXT NOT NULL DEFAULT ''")
+            base.execute(
+                "CREATE TABLE IF NOT EXISTS official_content_tombstones("
+                "pack_key TEXT NOT NULL,content_type TEXT NOT NULL,deleted_at TEXT NOT NULL,"
+                "PRIMARY KEY(pack_key,content_type))"
+            )
         self._creer_administrateur_initial()
         self._creer_serveur_initial()
         self._migrer_fondations_produit()
@@ -678,5 +683,9 @@ CREATE TABLE IF NOT EXISTS official_edit_workspaces(
  updated_at TEXT NOT NULL,
  FOREIGN KEY(pack_id) REFERENCES official_content_packs(id) ON DELETE CASCADE,
  FOREIGN KEY(account_id) REFERENCES web_accounts(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS official_content_tombstones(
+ pack_key TEXT NOT NULL,content_type TEXT NOT NULL,deleted_at TEXT NOT NULL,
+ PRIMARY KEY(pack_key,content_type)
 );
 """

@@ -91,3 +91,26 @@ def test_community_catalog_is_separate_from_official_catalog(official):
 
     assert not any(item["key"] == community["key"] for item in official.list(catalog_scope="official"))
     assert any(item["key"] == community["key"] for item in official.list(catalog_scope="community", published_only=True))
+
+
+def test_published_template_can_be_deleted_without_legacy_resurrection(official):
+    official.delete("royal_festival", content_type="world_template")
+    with pytest.raises(LookupError):
+        official.get("royal_festival", content_type="world_template")
+    official.migrate_legacy_presets()
+    with pytest.raises(LookupError):
+        official.get("royal_festival", content_type="world_template")
+
+
+def test_building_preset_opens_with_a_real_editable_building(official, tmp_path):
+    preset = official.save({
+        "key": "watchtower", "name": "Tour de garde",
+        "content_type": "building_preset", "entities": [],
+    })
+    assert preset["validation"]["valid"]
+    building = next(item for item in preset["entities"] if item["type"] == "building")
+    workspace = official.create_workspace(
+        preset["key"], 1, tmp_path, content_type="building_preset"
+    )
+    world = ContentStore(workspace["database_path"])
+    assert world.get("building", building["key"])["payload"]["name"] == "Tour de garde"

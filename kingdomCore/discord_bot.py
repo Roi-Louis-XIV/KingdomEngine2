@@ -754,7 +754,12 @@ class OathView(discord.ui.View):
         self.handled_interactions.add(interaction.id)
         if not interaction.response.is_done():
             await interaction.response.defer(ephemeral=True, thinking=True)
-        settings = get_server_settings(self.store)
+        oath_store = (
+            managed_store_for_guild(self.store, interaction.guild_id)
+            if interaction.guild_id
+            else self.store
+        )
+        settings = get_server_settings(oath_store)
         action_name = str(settings["onboarding"].get("action_name", "validation d'arrivée"))
         if not isinstance(interaction.user, discord.Member):
             await interaction.followup.send(f"Cette {action_name} doit être effectuée depuis le serveur.", ephemeral=True)
@@ -779,7 +784,7 @@ class OathView(discord.ui.View):
                 return
             if role not in interaction.user.roles:
                 await interaction.user.add_roles(role, reason=action_name[:512])
-            granted = grant_oath_reward(self.store, interaction.user)
+            granted = grant_oath_reward(oath_store, interaction.user)
             confirmation = settings["onboarding"]["confirmation"]
             if granted:
                 amount = int(settings["onboarding"].get("starting_money", 100))
