@@ -1,5 +1,6 @@
 from KingdomData import ContentStore, default_server_settings, get_server_settings
 from KingdomData.world_presets import PRESET_CATALOG, world_preset
+from KingdomWeb.world_creator import WorldCreatorService
 
 
 def _seed(tmp_path, key):
@@ -11,7 +12,7 @@ def _seed(tmp_path, key):
 
 def test_catalog_exposes_blank_medieval_and_space_starters():
     assert [preset["key"] for preset in PRESET_CATALOG] == [
-        "blank", "medieval_kingdom", "space_station",
+        "blank", "medieval_kingdom", "royal_festival", "space_station",
     ]
     assert all(preset["name"] and preset["description"] for preset in PRESET_CATALOG)
 
@@ -62,6 +63,23 @@ def test_space_preset_uses_the_same_generic_engine_primitives(tmp_path):
     assert onboarding["title"] == "Protocole d'intégration de l'équipage"
     assert onboarding["button_label"] == "Valider mon accréditation"
     assert onboarding["currency_label"] == "crédits orbitaux"
+
+
+def test_royal_festival_matches_the_playable_demo_brief(tmp_path):
+    store = _seed(tmp_path, "royal_festival")
+    settings = get_server_settings(store)
+    live_ops = settings["live_ops"]
+    assert len(live_ops["objectives"]) == 6
+    assert live_ops["scenario_duration_minutes"] == 180
+    assert [step["minute"] for step in live_ops["timeline"]] == [0,45,70,90,110,125,135,170,180]
+    assert len(store.list("building", published=True)) == 8
+    assert {"edgar_tavern","festival_farm","festival_esplanade"} <= {row["entity_key"] for row in store.list("building", published=True)}
+    with store.connection() as db:
+        db.execute("INSERT INTO players(discord_id,money,energy,updated_at,display_name,created_at) VALUES('42',100,80,'now','Louis','now')")
+        db.execute("INSERT INTO action_log(interaction_id,discord_id,building_key,action_key,result_json,created_at) VALUES('festival-1','42','edgar_tavern','prepare_drinks','{}','2026-09-09T12:00:00+00:00')")
+    live_ops = WorldCreatorService(store).live_operations()
+    drinks = next(item for item in live_ops["objectives"] if item["key"] == "drinks")
+    assert drinks["current"] == 2 and len(live_ops["timeline"]) == 9
 
 
 def test_playable_presets_link_pages_professions_tools_and_actions(tmp_path):

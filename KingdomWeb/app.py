@@ -286,6 +286,10 @@ def world_effective(body: dict[str, Any]):
 def world_state(): return WorldCreatorService(store).world_state()
 
 
+@app.get("/api/world/live-operations", dependencies=[Depends(authorize_player_view)])
+def world_live_operations(): return WorldCreatorService(store).live_operations()
+
+
 @app.get("/api/world/impacts", dependencies=[Depends(authorize)])
 def world_impacts(): return WorldCreatorService(store).impacts()
 
@@ -1346,6 +1350,19 @@ def mutate_player_activity(player_id: str, activity_id: int, body: dict[str, Any
 @app.post("/api/admin/players/{player_id}/cooldowns/reset", dependencies=[Depends(authorize_player_edit)])
 def reset_player_cooldown(player_id: str, body: dict[str, Any], x_kingdom_admin: str | None = Header(None)):
     try: return PlayerAdministrationService(store).reset_cooldown(player_id, body, _admin_id(x_kingdom_admin))
+    except (NotFoundError, ValidationError, ValueError, TypeError) as exc: raise _player_error(exc) from exc
+
+
+@app.post("/api/admin/players/{player_id}/blocking-state/reset", dependencies=[Depends(authorize_player_edit)])
+def reset_player_blocking_state(player_id: str, body: dict[str, Any], x_kingdom_admin: str | None = Header(None)):
+    """Répare uniquement les états transitoires reconnus et journalise l'action."""
+    try: return PlayerAdministrationService(store).reset_blocking_state(player_id, body, _admin_id(x_kingdom_admin))
+    except (NotFoundError, ValidationError, ValueError, TypeError) as exc: raise _player_error(exc) from exc
+
+
+@app.post("/api/admin/players/{player_id}/position", dependencies=[Depends(authorize_player_edit)])
+def move_admin_player(player_id: str, body: dict[str, Any], x_kingdom_admin: str | None = Header(None)):
+    try: return PlayerAdministrationService(store).move_player(player_id, body, _admin_id(x_kingdom_admin))
     except (NotFoundError, ValidationError, ValueError, TypeError) as exc: raise _player_error(exc) from exc
 
 

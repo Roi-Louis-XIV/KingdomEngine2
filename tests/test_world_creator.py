@@ -4,6 +4,8 @@ from KingdomWeb.world_creator import WorldCreatorService
 from kingdomCore.engine import GameEngine
 from kingdomEvent import EventBus
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from kingdomEvent.runtime import WorldClock
 
 
 def publish(store, entity_type, key, payload):
@@ -41,6 +43,16 @@ def test_environment_precedes_events_and_exposes_day_night(tmp_path):
     result = WorldCreatorService(store).effective(10, "activity.duration", {})
     assert result["effective"] == 12
     assert WorldCreatorService(store).world_state()["time_of_day"] == "night"
+
+
+def test_world_clock_initialization_is_safe_under_concurrent_reads(tmp_path):
+    store = ContentStore(tmp_path / "concurrent-clock.db"); store.initialize()
+    publish(store, "environment", "world_environment", {"name": "Monde", "day": 1, "hour": 9, "speed": 1})
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        states = list(pool.map(lambda _: WorldClock(store).state(), range(24)))
+    assert len(states) == 24
+    with store.connection() as db:
+        assert db.execute("SELECT COUNT(*) FROM world_runtime WHERE runtime_key='realm_clock'").fetchone()[0] == 1
 
 
 def test_locations_and_connections_are_persistent(tmp_path):

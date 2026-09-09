@@ -1,5 +1,9 @@
 # KingdomEngine 2
 
+> Mise à jour Live Ops du 9 septembre 2026 : **Monde en direct** possède désormais quatre vues stables — Carte Live, Progression, Activité et Santé. Les joueurs positionnés sont cliquables sur la carte ; leur fiche affiche les courbes argent/énergie/XP, les diagnostics déterministes et deux interventions auditées : déplacement logique et réparation limitée des états bloquants. L'initialisation concurrente de l'horloge a également été sécurisée afin d'éviter l'erreur 500 au premier chargement.
+
+> Le catalogue officiel inclut maintenant **La Fête du Royaume**, premier monde de démonstration tiré du GDD : huit bâtiments jouables, six objectifs coopératifs et une timeline de neuf jalons sur trois heures. Comme les autres modèles, il est composé uniquement de contenus no-code versionnés et sa copie reste indépendante après installation.
+
 > Mise à jour du 9 septembre 2026 : le lien **Personnage → réactions sonores → présence → Voice Worker** est maintenant explicite dans KingdomWeb. Pour faire parler un PNJ, associez un son à une variante de réaction, puis créez une présence de type « Personnage » liée à ce PNJ et à son bâtiment. Le profil vocal organise une bibliothèque de sons ; il ne déclenche pas à lui seul leur lecture.
 
 > Audio des bâtiments : l’ambiance de fond se choisit dans la fiche **Bâtiment → Audio**, à partir des sons et groupes préparés dans **Voix & audio**. Les paroles restent indépendantes sur la fiche du **Personnage → Réactions contextuelles**. Une réaction « Activité réussie », éventuellement limitée par la condition « Action précise du bâtiment », permet au PNJ présent de réagir automatiquement à une action du joueur. Les Voice Workers sont alloués automatiquement : aucun bot ne doit être associé directement depuis la fiche Bâtiment.
@@ -20,7 +24,7 @@ Pour un modèle de monde, **Ouvrir le Studio complet** crée un atelier isolé q
 
 Chaque créateur peut également ouvrir **Compte & serveurs → Bibliothèque communautaire** et publier un instantané de son monde. Lors de la création d'un serveur, KingdomWeb distingue les modèles **Officiels Payen Studio** et ceux de la **Communauté**. Dans les deux cas, le nouveau monde reçoit une copie indépendante.
 
-Les anciens préréglages `medieval_kingdom` et `space_station` sont importés automatiquement et une seule fois dans cette bibliothèque au démarrage. Cette migration est additive et ne modifie aucune base de monde existante.
+Les préréglages officiels `medieval_kingdom`, `royal_festival` et `space_station` sont importés automatiquement et une seule fois dans cette bibliothèque au démarrage. Cette migration est additive et ne modifie aucune base de monde existante.
 
 V2 modulaire de KingdomEngine : un moteur de jeu no-code conçu pour Discord. Les bâtiments, interfaces, objets, événements, bots et réactions audio sont versionnés dans `KingdomData` et administrables depuis **Kingdom Studio**.
 
@@ -54,7 +58,7 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 - éditeur d’objets en plein écran avec formulaire élargi et fiche métier permettant la suppression directe des définitions autonomes ;
 - métiers, zones, niveaux, outils, durabilité, expérience, cooldowns et activités temporisées ;
 - objets, inventaires joueur et bâtiment, recettes, commerce, productions, livraisons et objectifs collectifs ;
-- modèles de départ jouables : **Royaume médiéval** et **Station spatiale** fournissent chacun 5 bâtiments avec pages Discord, métiers reliés, outils, actions, inventaires et chaînes de production, ainsi que leurs objets, événements, géographie, environnement et bot principal entièrement modifiables ;
+- modèles de départ jouables : **Royaume médiéval** et **Station spatiale** fournissent chacun 5 bâtiments avec pages Discord, métiers reliés, outils, actions, inventaires et chaînes de production ; **La Fête du Royaume** ajoute une démonstration coopérative de 3 heures avec 8 bâtiments, 6 objectifs et 9 jalons Live Ops ;
 - **Connexion Discord** regroupe KingdomCore et tous les bots audio KingdomVoice, y compris les connexions désactivées ou incomplètes. Elles sont toutes incluses actuellement ; l'affichage est prêt à accueillir de futurs droits d'abonnement ;
 - Payen Studio Admin peut supprimer un compte client inactif après confirmation. Ses sessions et accès sont retirés, mais les bases de ses mondes sont conservées ; un serveur Discord archivé et devenu sans propriétaire peut ensuite être repris et réinstallé avec le même identifiant ;
 - le parcours d'arrivée Discord est propre à chaque monde : serment médiéval, accréditation d'équipage ou accueil générique. Son titre, son salon, son bouton, sa confirmation, sa dotation et le nom de sa monnaie restent modifiables dans **Configuration du monde → Arrivée des joueurs** ;

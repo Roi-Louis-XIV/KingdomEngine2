@@ -23,7 +23,7 @@ def official(tmp_path):
 def test_legacy_presets_are_migrated_idempotently(official):
     official.migrate_legacy_presets()
     items = official.list(content_type="world_template", published_only=True)
-    assert {item["key"] for item in items} == {"medieval_kingdom", "space_station"}
+    assert {item["key"] for item in items} == {"medieval_kingdom", "royal_festival", "space_station"}
     medieval = official.get("medieval_kingdom", published_only=True)
     assert medieval["validation"]["valid"]
     assert {"buildings", "items", "professions", "events", "calendar"} <= set(medieval["validation"]["coverage"]["represented"])

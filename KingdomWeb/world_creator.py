@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from KingdomData import NotFoundError
+from KingdomData import NotFoundError, get_server_settings
 from kingdomEvent.modifiers import ModifierEngine, explain
 from kingdomEvent.runtime import WorldClock, event_is_active
 from kingdomEvent.lifecycle import EventLifecycle
@@ -133,6 +133,14 @@ class WorldCreatorService:
             world_engine.get_travel_state(player_id)  # finalise les arrivées échues
         with self.store.connection() as db:
             positions = [dict(row) for row in db.execute("SELECT location_key,COUNT(*) players FROM player_world_state WHERE location_key<>'' GROUP BY location_key")]
+            players = [dict(row) for row in db.execute(
+                """SELECT state.discord_id,state.location_key,state.active_building_key,
+                state.updated_at,players.display_name,players.avatar_url,presence.online
+                FROM player_world_state state
+                LEFT JOIN players ON players.discord_id=state.discord_id
+                LEFT JOIN player_presence presence ON presence.discord_id=state.discord_id
+                WHERE state.location_key<>'' ORDER BY players.display_name,state.discord_id"""
+            )]
             travels = [dict(row) for row in db.execute("SELECT travel.discord_id,travel.origin_key,travel.destination_key,travel.arrives_at,players.display_name FROM player_travel_state travel LEFT JOIN players ON players.discord_id=travel.discord_id ORDER BY travel.arrives_at")]
         now = __import__("time").time()
         for travel in travels: travel["remaining_seconds"] = max(0, int(float(travel["arrives_at"]) - now + .999))
@@ -140,7 +148,50 @@ class WorldCreatorService:
         for row in self.store.list("event", published=True):
             payload = row["payload"]
             if payload.get("starts_at") and not event_is_active(payload): upcoming.append({"key": row["entity_key"], "name": payload.get("name", row["entity_key"]), "emoji": payload.get("emoji", "✦"), "starts_at": payload["starts_at"]})
-        return {**state, "world": geography["counts"], "player_positions": positions, "travels": travels, "upcoming_events": sorted(upcoming, key=lambda item: item["starts_at"])[:5]}
+        npcs = [{"key": row["entity_key"], **row["payload"]} for row in self.store.list("npc", published=True)]
+        presences = [{"key": row["entity_key"], **row["payload"]} for row in self.store.list("voice_presence", published=True)]
+        return {**state, "world": geography["counts"], "player_positions": positions,
+                "players": players, "npcs": npcs, "voice_presences": presences,
+                "travels": travels, "upcoming_events": sorted(upcoming, key=lambda item: item["starts_at"])[:5]}
+
+    def live_operations(self) -> dict[str, Any]:
+        """Projection générique destinée au cockpit Live Ops."""
+        settings = get_server_settings(self.store)
+        configuration = settings.get("live_ops", {})
+        objectives = copy.deepcopy(configuration.get("objectives", []))
+        with self.store.connection() as db:
+            action_rows = db.execute("SELECT action_key,COUNT(*) count FROM action_log GROUP BY action_key").fetchall()
+            action_counts = {str(row["action_key"]): int(row["count"]) for row in action_rows}
+            first_action = db.execute("SELECT MIN(created_at) FROM action_log").fetchone()[0]
+            player_ids = [str(row[0]) for row in db.execute("SELECT discord_id FROM players")]
+            activity_count = int(db.execute("SELECT COUNT(*) FROM scheduled_actions WHERE status='pending'").fetchone()[0])
+            cooldown_count = int(db.execute("SELECT COUNT(*) FROM action_cooldowns WHERE ready_at<=?", (__import__("time").time(),)).fetchone()[0])
+        for objective in objectives:
+            sources = objective.get("action_keys", [])
+            objective["current"] = sum(action_counts.get(str(source), 0) for source in sources) * int(objective.get("increment", 1))
+            objective["progress"] = min(100, round(objective["current"] / max(1, int(objective.get("target", 1))) * 100))
+        elapsed_minutes = 0
+        if first_action:
+            try:
+                from datetime import datetime, timezone
+                started = datetime.fromisoformat(str(first_action).replace("Z", "+00:00"))
+                if started.tzinfo is None: started = started.replace(tzinfo=timezone.utc)
+                elapsed_minutes = max(0, int((datetime.now(timezone.utc) - started).total_seconds() / 60))
+            except ValueError:
+                elapsed_minutes = 0
+        timeline = [{**step, "status": "past" if int(step.get("minute", 0)) < elapsed_minutes else "current" if int(step.get("minute", 0)) == elapsed_minutes else "upcoming"} for step in configuration.get("timeline", [])]
+        diagnostics = []
+        if player_ids:
+            from KingdomWeb.player_admin import PlayerAdministrationService
+            player_service = PlayerAdministrationService(self.store)
+            diagnostics = [{"player_id": player_id, "issues": player_service.diagnostics(player_id)} for player_id in player_ids]
+            diagnostics = [entry for entry in diagnostics if entry["issues"]]
+        return {
+            "configured": bool(configuration), "objectives": objectives, "timeline": timeline,
+            "elapsed_minutes": elapsed_minutes, "scenario_duration_minutes": int(configuration.get("scenario_duration_minutes", 0)),
+            "activity": {"actions": sum(action_counts.values()), "pending": activity_count},
+            "health": {"players_checked": len(player_ids), "players_with_issues": len(diagnostics), "expired_cooldowns": cooldown_count, "diagnostics": diagnostics},
+        }
 
     def impacts(self) -> dict[str, Any]:
         """Expose seulement des valeurs que le moteur consomme réellement."""

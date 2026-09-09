@@ -534,3 +534,192 @@ progress {
     border-bottom: 1px solid var(--line);
   }
 }
+
+/* ==============================
+   LIVE OPS — JOUEURS ET DIAGNOSTIC
+   ============================== */
+.world-player-marker {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 160px;
+  padding: 5px 8px;
+  border: 1px solid #59d89a;
+  border-radius: 999px;
+  background: #07120ee8;
+  color: #effff8;
+  box-shadow: 0 5px 18px #0008;
+}
+
+.world-player-marker img {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+
+.world-player-marker span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.diagnostic-count {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #133326;
+  color: #79e4aa;
+}
+
+.diagnostic-count.has-issues {
+  background: #40291a;
+  color: #ffc46c;
+}
+
+.diagnostic-list article {
+  display: grid;
+  gap: 5px;
+  margin: 8px 0;
+  padding: 12px;
+  border-left: 3px solid #ffc46c;
+  background: #17140f;
+}
+
+.diagnostic-list article small,
+.audit-row small {
+  display: block;
+}
+
+.player-telemetry {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.player-telemetry > h3 {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.player-telemetry article {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.player-telemetry b {
+  display: block;
+  margin-top: 4px;
+}
+
+.player-telemetry svg {
+  width: 100%;
+  height: 58px;
+}
+
+.player-telemetry polyline {
+  fill: none;
+  stroke: #59d89a;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+@media (max-width: 760px) {
+  .player-telemetry {
+    grid-template-columns: 1fr;
+  }
+}
+
+.live-ops-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  margin-bottom: 14px;
+  background: var(--panel, #11151c);
+}
+
+.live-ops-panels {
+  min-height: 520px;
+  padding: clamp(18px, 3vw, 36px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel, #11151c);
+}
+
+.live-ops-heading,
+.objective-grid article > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.objective-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.objective-grid article,
+.scenario-timeline article,
+[data-health-player] {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #0d1218;
+}
+
+.objective-grid progress {
+  width: 100%;
+  margin: 14px 0 4px;
+}
+
+.scenario-timeline {
+  display: grid;
+  gap: 9px;
+  margin-top: 24px;
+}
+
+.scenario-timeline article {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 16px;
+  border-left: 3px solid #556071;
+}
+
+.scenario-timeline article.past { border-left-color: #59d89a; }
+.scenario-timeline article.current { border-left-color: #e7c164; }
+
+.health-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 24px 0;
+}
+
+[data-health-player] {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  margin-top: 8px;
+  color: inherit;
+}
+
+@media (max-width: 760px) {
+  .objective-grid,
+  .health-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .live-ops-tabs {
+    overflow-x: auto;
+  }
+}

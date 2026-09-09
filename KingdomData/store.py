@@ -471,4 +471,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS delivery_interaction_line ON delivery_log(inte
 CREATE TABLE IF NOT EXISTS action_log(id INTEGER PRIMARY KEY AUTOINCREMENT,interaction_id TEXT UNIQUE NOT NULL,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,action_key TEXT NOT NULL,result_json TEXT NOT NULL,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS admin_audit_log(id INTEGER PRIMARY KEY AUTOINCREMENT,admin_id TEXT NOT NULL,player_id TEXT NOT NULL,action TEXT NOT NULL,target TEXT NOT NULL,old_value_json TEXT NOT NULL,new_value_json TEXT NOT NULL,reason TEXT NOT NULL,created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS admin_audit_player ON admin_audit_log(player_id,created_at DESC);
+CREATE TABLE IF NOT EXISTS player_telemetry(id INTEGER PRIMARY KEY AUTOINCREMENT,discord_id TEXT NOT NULL,metric_key TEXT NOT NULL,value REAL NOT NULL,metadata_json TEXT NOT NULL DEFAULT '{}',recorded_at REAL NOT NULL,created_at TEXT NOT NULL,FOREIGN KEY(discord_id) REFERENCES players(discord_id));
+CREATE INDEX IF NOT EXISTS player_telemetry_metric ON player_telemetry(discord_id,metric_key,recorded_at DESC);
 """

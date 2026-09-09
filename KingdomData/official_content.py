@@ -57,7 +57,7 @@ class OfficialContentStore:
         """Importe une seule fois les modèles historiques sans les modifier."""
         catalog = {item["key"]: item for item in PRESET_CATALOG}
         with self.connection() as db:
-            for key in ("medieval_kingdom", "space_station"):
+            for key in (item["key"] for item in PRESET_CATALOG if item["key"] != "blank"):
                 exists = db.execute(
                     "SELECT 1 FROM official_content_packs WHERE pack_key=? AND content_type='world_template'",
                     (key,),

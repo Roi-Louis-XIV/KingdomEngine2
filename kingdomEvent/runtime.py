@@ -81,8 +81,13 @@ class WorldClock:
                 "weather_transition": 0,
                 "config_version": config,
             }
-            db.execute("INSERT INTO world_runtime VALUES(?,?,?)", (self.KEY, json.dumps(value, ensure_ascii=False), _iso_now()))
-            return value
+            # Plusieurs vues (dashboard, Live Ops, Discord) peuvent demander
+            # l'état au même instant lors du premier démarrage. L'initialisation
+            # doit donc être atomique et le perdant de la course relit l'ancre
+            # réellement enregistrée.
+            db.execute("INSERT OR IGNORE INTO world_runtime VALUES(?,?,?)", (self.KEY, json.dumps(value, ensure_ascii=False), _iso_now()))
+            stored = db.execute("SELECT value_json FROM world_runtime WHERE runtime_key=?", (self.KEY,)).fetchone()
+            return json.loads(stored[0]) if stored else value
 
     def state(self, now: float | None = None) -> dict[str, Any]:
         now = time.time() if now is None else float(now)

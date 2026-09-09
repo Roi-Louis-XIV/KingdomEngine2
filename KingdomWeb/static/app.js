@@ -19,6 +19,7 @@ const state = {
   supervisionTab: "overview",
   settingsTab: "onboarding",
   playerTab: "overview",
+  liveOpsTab: "map",
   playerId: null,
   playerPage: 1,
   itemFilters: { search: "", category: "", building: "", sort: "name_asc" },
@@ -793,6 +794,14 @@ function worldMapMarkup(geography, options = {}) {
   const background = settings.background_path
     ? "background-image:linear-gradient(#06100b44,#06100b44)"
     : "";
+  const playerMarkers = (options.players || [])
+    .map((player, index) => {
+      const point = positions.get(player.location_key);
+      if (!point) return "";
+      const offset = index % 5;
+      return `<button type="button" class="world-player-marker" data-map-player="${escapeHtml(player.discord_id)}" style="left:${point.x + 18 + offset * 24}px;top:${point.y + 94 + Math.floor(index / 5) * 24}px" title="Ouvrir la fiche de ${escapeHtml(player.display_name || player.discord_id)}">${player.avatar_url ? `<img src="${escapeHtml(player.avatar_url)}" alt="">` : "👤"}<span>${escapeHtml(player.display_name || player.discord_id)}</span></button>`;
+    })
+    .join("");
   const map = `<div class="world-map ${options.interactive ? "is-editable" : ""}" data-map-width="${width}" data-map-height="${height}" style="width:${width}px;height:${height}px;${background}"><svg viewBox="0 0 ${width} ${height}" aria-label="Relations et chemins du monde">${hierarchy}${routes}</svg>${nodes
     .map((node) => {
       const point = positions.get(node.key),
@@ -811,7 +820,7 @@ function worldMapMarkup(geography, options = {}) {
           : ""
       }</button>`;
     })
-    .join("")}</div>`;
+    .join("")}${playerMarkers}</div>`;
   const zoom = options.interactive ? state.worldMapZoom : 1;
   return `<div class="world-map-zoom-shell" style="width:${width * zoom}px;height:${height * zoom}px"><div class="world-map-transform" style="transform:scale(${zoom})">${map}</div></div>`;
 }
@@ -1219,6 +1228,11 @@ async function loadLiveWorld(background = false) {
         cache: "no-store",
         signal: controller.signal,
       }),
+      fetch("/api/world/live-operations", {
+        headers,
+        cache: "no-store",
+        signal: controller.signal,
+      }),
     ]);
   } catch (error) {
     if (controller.signal.aborted) return;
@@ -1230,7 +1244,7 @@ async function loadLiveWorld(background = false) {
     requestId !== state.viewRequest
   )
     return;
-  const [stateResponse, geoResponse, settingsResponse] = responses;
+  const [stateResponse, geoResponse, settingsResponse, operationsResponse] = responses;
   if (!stateResponse.ok || !geoResponse.ok || !settingsResponse.ok) {
     if (!background)
       $("#admin-view").innerHTML =
@@ -1239,7 +1253,8 @@ async function loadLiveWorld(background = false) {
   }
   const world = await stateResponse.json(),
     geography = await geoResponse.json(),
-    settingsEntity = await settingsResponse.json();
+    settingsEntity = await settingsResponse.json(),
+    operations = operationsResponse.ok ? await operationsResponse.json() : { configured: false };
   if (
     controller.signal.aborted ||
     state.type !== "live_world" ||
@@ -1265,8 +1280,11 @@ async function loadLiveWorld(background = false) {
         (sum, item) => sum + item.players,
         0,
       ),
-    )}</section><div class="dashboard-columns"><section class="royal-panel"><div class="royal-panel-title"><small>ÉVÉNEMENTS ACTIFS ET À VENIR</small></div>${(world.active_events || []).map((event) => `<article class="dashboard-event"><span>${escapeHtml(event.emoji)}</span><div><b>${escapeHtml(event.name)}</b><small>${event.ends_at ? `Jusqu’au ${formatDate(event.ends_at)}` : "Actif"}</small></div></article>`).join("")}${(world.upcoming_events || []).map((event) => `<article class="dashboard-event"><span>${escapeHtml(event.emoji)}</span><div><b>${escapeHtml(event.name)}</b><small>Débute ${formatDate(event.starts_at)}</small></div></article>`).join("") || (!(world.active_events || []).length ? '<p class="empty-admin">Aucun événement actif ou imminent.</p>' : "")}</section><section class="royal-panel"><div class="royal-panel-title"><small>VOYAGES EN COURS</small></div>${(world.travels || []).map((travel) => `<p><b>${escapeHtml(travel.display_name || travel.discord_id)}</b><br>${escapeHtml(geography.nodes.find((node) => node.key === travel.origin_key)?.name || travel.origin_key)} → ${escapeHtml(geography.nodes.find((node) => node.key === travel.destination_key)?.name || travel.destination_key)} · ${travel.remaining_seconds} s</p>`).join("") || '<p class="empty-admin">Aucun voyage en cours.</p>'}</section></div><section class="royal-panel world-impacts"><div class="royal-panel-title"><small>IMPACTS ACTUELS</small><span>${impactData.impacts.length} valeur(s) modifiée(s)</span></div>${impactData.impacts.map((impact) => `<article class="impact-row"><div><b>${escapeHtml(impact.building_name)} · ${escapeHtml(impact.subject_name)}</b><small>${escapeHtml(impact.label)}</small></div><span>Base ${impact.base} → <strong>${impact.effective}</strong></span><small>${impact.modifiers.map((modifier) => `${escapeHtml(modifier.source)} ${escapeHtml(modifier.operator)} ${modifier.value}`).join(" · ")}</small></article>`).join("") || '<p class="empty-admin">Aucune valeur gameplay n’est actuellement modifiée.</p>'}</section><section class="world-map-panel"><div class="royal-panel-title"><small>CARTE DU MONDE</small><button data-go="location">Modifier la carte</button></div><div class="world-map-scroll">${worldMapMarkup(geography, { settings: mapSettings })}</div></section></div>`;
+    )}</section><div class="dashboard-columns"><section class="royal-panel"><div class="royal-panel-title"><small>ÉVÉNEMENTS ACTIFS ET À VENIR</small></div>${(world.active_events || []).map((event) => `<article class="dashboard-event"><span>${escapeHtml(event.emoji)}</span><div><b>${escapeHtml(event.name)}</b><small>${event.ends_at ? `Jusqu’au ${formatDate(event.ends_at)}` : "Actif"}</small></div></article>`).join("")}${(world.upcoming_events || []).map((event) => `<article class="dashboard-event"><span>${escapeHtml(event.emoji)}</span><div><b>${escapeHtml(event.name)}</b><small>Débute ${formatDate(event.starts_at)}</small></div></article>`).join("") || (!(world.active_events || []).length ? '<p class="empty-admin">Aucun événement actif ou imminent.</p>' : "")}</section><section class="royal-panel"><div class="royal-panel-title"><small>VOYAGES EN COURS</small></div>${(world.travels || []).map((travel) => `<p><b>${escapeHtml(travel.display_name || travel.discord_id)}</b><br>${escapeHtml(geography.nodes.find((node) => node.key === travel.origin_key)?.name || travel.origin_key)} → ${escapeHtml(geography.nodes.find((node) => node.key === travel.destination_key)?.name || travel.destination_key)} · ${travel.remaining_seconds} s</p>`).join("") || '<p class="empty-admin">Aucun voyage en cours.</p>'}</section></div><section class="royal-panel world-impacts"><div class="royal-panel-title"><small>IMPACTS ACTUELS</small><span>${impactData.impacts.length} valeur(s) modifiée(s)</span></div>${impactData.impacts.map((impact) => `<article class="impact-row"><div><b>${escapeHtml(impact.building_name)} · ${escapeHtml(impact.subject_name)}</b><small>${escapeHtml(impact.label)}</small></div><span>Base ${impact.base} → <strong>${impact.effective}</strong></span><small>${impact.modifiers.map((modifier) => `${escapeHtml(modifier.source)} ${escapeHtml(modifier.operator)} ${modifier.value}`).join(" · ")}</small></article>`).join("") || '<p class="empty-admin">Aucune valeur gameplay n’est actuellement modifiée.</p>'}</section><section class="world-map-panel"><div class="royal-panel-title"><small>CARTE LIVE · JOUEURS CLIQUABLES</small><button data-go="location">Modifier la carte</button></div><div class="world-map-scroll">${worldMapMarkup(geography, { settings: mapSettings, players: world.players || [] })}</div></section></div>`;
   bindNavigationShortcuts();
+  $$('[data-map-player]').forEach((button) => {
+    button.onclick = () => openPlayer(button.dataset.mapPlayer);
+  });
   applyWorldMapBackground(mapSettings, ".live-world .world-map").catch(
     (error) => console.warn("Paysage du monde indisponible", error),
   );
@@ -1303,6 +1321,7 @@ async function loadLiveWorld(background = false) {
       .join("");
     metrics.before(strip);
   }
+  installLiveOperationsTabs(operations);
   impactPromise
     .then(async (response) => {
       if (
@@ -1682,6 +1701,34 @@ function worldPresetPicker() {
     },
   ];
   return `<fieldset class="world-preset-picker"><legend>Choisissez votre point de départ</legend><p>Comparez les modèles officiels Payen Studio et les créations partagées par la communauté. La copie installée restera entièrement indépendante.</p><div class="world-preset-grid">${presets.map((preset, index) => `<label class="world-preset-card tone-${escapeHtml(preset.tone || "neutral")}"><input type="radio" name="preset" value="${escapeHtml(preset.key)}" ${index === 0 ? "checked" : ""}><span class="world-preset-icon">${escapeHtml(preset.emoji)}</span><span><em>${preset.catalog_scope === "community" ? "COMMUNAUTÉ" : preset.key === "blank" ? "VIERGE" : "OFFICIEL PAYEN STUDIO"}</em><b>${escapeHtml(preset.name)}</b><small>${escapeHtml(preset.description)}</small>${preset.author ? `<small>Par ${escapeHtml(preset.author)} · v${preset.version || 1}</small>` : ""}</span><i>Choisir</i></label>`).join("")}</div></fieldset>`;
+}
+
+function installLiveOperationsTabs(operations) {
+  const root = $("#admin-view .live-world");
+  if (!root) return;
+  [...root.children].forEach((child) => child.classList.add("live-ops-base"));
+  const navigation = document.createElement("nav");
+  navigation.className = "section-tabs live-ops-tabs";
+  navigation.innerHTML = [["map", "Carte Live"], ["progress", "Progression"], ["activity", "Activité"], ["health", "Santé"]]
+    .map(([key, label]) => `<button type="button" data-live-ops-tab="${key}" class="${state.liveOpsTab === key ? "active" : ""}">${label}</button>`)
+    .join("");
+  const panels = document.createElement("section");
+  panels.className = "live-ops-panels";
+  panels.hidden = true;
+  const objectives = operations.objectives || [], timeline = operations.timeline || [], health = operations.health || {};
+  panels.innerHTML = `<div data-live-ops-panel="progress"><div class="live-ops-heading"><div><small>OBJECTIFS COLLECTIFS</small><h2>Progression du monde</h2></div><b>${operations.elapsed_minutes || 0} / ${operations.scenario_duration_minutes || "—"} min</b></div>${objectives.length ? `<div class="objective-grid">${objectives.map((objective) => `<article><div><span>${escapeHtml(objective.name)}</span><b>${objective.current} / ${objective.target} ${escapeHtml(objective.unit || "")}</b></div><progress max="100" value="${objective.progress}"></progress><small>${objective.progress} %</small></article>`).join("")}</div>` : '<p class="empty-admin">Ce monde ne définit pas encore d’objectifs Live Ops.</p>'}</div><div data-live-ops-panel="activity" hidden><div class="live-ops-heading"><div><small>TIMELINE</small><h2>Déroulé du scénario</h2></div><b>${operations.activity?.actions || 0} actions journalisées</b></div><div class="scenario-timeline">${timeline.map((step) => `<article class="${escapeHtml(step.status)}"><time>H+${Math.floor(Number(step.minute) / 60)}:${String(Number(step.minute) % 60).padStart(2, "0")}</time><span>${escapeHtml(step.label)}</span></article>`).join("") || '<p class="empty-admin">Aucune timeline configurée.</p>'}</div></div><div data-live-ops-panel="health" hidden><div class="live-ops-heading"><div><small>DIAGNOSTICS</small><h2>Santé du gameplay</h2></div><b>${health.players_with_issues || 0} joueur(s) à vérifier</b></div><div class="health-summary">${metricCard("JOUEURS CONTRÔLÉS", health.players_checked || 0)}${metricCard("ÉTATS À VÉRIFIER", health.players_with_issues || 0)}${metricCard("COOLDOWNS EXPIRÉS", health.expired_cooldowns || 0)}${metricCard("ACTIVITÉS EN COURS", operations.activity?.pending || 0)}</div>${(health.diagnostics || []).map((entry) => `<button type="button" data-health-player="${escapeHtml(entry.player_id)}"><b>Joueur ${escapeHtml(entry.player_id)}</b><span>${entry.issues.length} anomalie(s) · ouvrir la fiche</span></button>`).join("") || '<p class="success-box">Aucun état bloquant déterministe détecté.</p>'}</div>`;
+  root.prepend(navigation);
+  root.append(panels);
+  const select = (key) => {
+    state.liveOpsTab = key;
+    $$("[data-live-ops-tab]", navigation).forEach((button) => button.classList.toggle("active", button.dataset.liveOpsTab === key));
+    $$(".live-ops-base", root).forEach((element) => { element.hidden = key !== "map"; });
+    panels.hidden = key === "map";
+    $$("[data-live-ops-panel]", panels).forEach((panel) => { panel.hidden = panel.dataset.liveOpsPanel !== key; });
+  };
+  $$("[data-live-ops-tab]", navigation).forEach((button) => { button.onclick = () => select(button.dataset.liveOpsTab); });
+  $$("[data-health-player]", panels).forEach((button) => { button.onclick = () => openPlayer(button.dataset.healthPlayer); });
+  select(state.liveOpsTab);
 }
 
 function communityTemplateMarkup(hasServer) {
@@ -10389,7 +10436,29 @@ function playerPanel(data) {
     return `<section class="admin-section"><h3>Activités persistantes</h3>${data.activities.map((x) => `<article class="activity-row"><div><b>${escapeHtml(x.building_key)} · ${escapeHtml(x.action_key)}</b><small>${escapeHtml(x.category || "activité")} · ${escapeHtml(x.status)} · ${formatDate(x.created_at)}</small></div>${x.status === "pending" ? `<div><button data-activity="${x.id}" data-operation="finish">Terminer maintenant</button><button class="danger" data-activity="${x.id}" data-operation="cancel">Annuler</button></div>` : ""}</article>`).join("") || '<p class="muted">Aucune activité.</p>'}</section>`;
   if (state.playerTab === "history")
     return `<section class="admin-section"><h3>Historique réellement journalisé</h3><div class="table-scroll"><table class="player-table"><thead><tr><th>Date</th><th>Origine</th><th>Résumé</th></tr></thead><tbody>${historyRows(data)}</tbody></table></div></section>`;
-  return `<section class="admin-section"><h3>Administration</h3><p class="warning-box">Toutes les opérations nécessitent un motif et sont enregistrées dans le journal.</p><div class="admin-actions"><button class="primary" data-mutation="resource" data-resource="money">Modifier l’argent</button><button class="primary" data-mutation="resource" data-resource="energy">Modifier l’énergie</button><button data-mutation="inventory">Modifier l’inventaire</button><button data-mutation="profession">Gérer un métier / XP</button><button data-mutation="tool">Gérer un outil</button></div><h3>Journal administratif</h3>${data.history.administration.map((x) => `<article class="audit-row"><b>${escapeHtml(x.admin_id)}</b> · ${escapeHtml(x.action)} sur ${escapeHtml(x.target)}<small>${formatDate(x.created_at)} — ${escapeHtml(x.reason)}</small></article>`).join("") || '<p class="muted">Aucune correction administrative.</p>'}</section>`;
+  const issues = data.diagnostics || [],
+    locationOptions = optionList(data.catalogs.locations || []),
+    telemetry = ["money", "energy", "profession_xp"]
+      .map((metric) => playerTelemetryMarkup(data.telemetry || [], metric))
+      .join("");
+  return `<section class="admin-section player-assistance"><div class="admin-section-head"><div><small>ASSISTANCE AUDITÉE</small><h3>Diagnostic et intervention</h3></div><span class="diagnostic-count ${issues.length ? "has-issues" : ""}">${issues.length ? `${issues.length} anomalie(s)` : "Aucun blocage détecté"}</span></div><div class="diagnostic-list">${issues.map((issue) => `<article class="diagnostic-${escapeHtml(issue.severity)}"><b>${escapeHtml(issue.reason)}</b><small>${escapeHtml(issue.recommendation)}</small></article>`).join("") || '<p class="success-box">Les états persistants contrôlés sont cohérents.</p>'}</div><div class="admin-actions"><button class="primary" data-mutation="resource" data-resource="money">Modifier l’argent</button><button class="primary" data-mutation="resource" data-resource="energy">Modifier l’énergie</button><button data-mutation="inventory">Modifier l’inventaire</button><button data-mutation="profession">Gérer un métier / XP</button><button data-mutation="tool">Gérer un outil</button><button data-mutation="move">Déplacer le joueur</button>${issues.length ? '<button class="danger" data-mutation="blocking-reset">Réparer les états bloquants</button>' : ""}</div><div class="player-telemetry"><h3>Évolution récente</h3>${telemetry || '<p class="muted">Les courbes apparaîtront après les prochaines actions de jeu.</p>'}</div><h3>Journal administratif</h3>${data.history.administration.map((x) => `<article class="audit-row"><b>${escapeHtml(x.admin_id)}</b> · ${escapeHtml(x.action)} sur ${escapeHtml(x.target)}<small>${formatDate(x.created_at)} — ${escapeHtml(x.reason)}</small></article>`).join("") || '<p class="muted">Aucune correction administrative.</p>'}<template data-location-options>${locationOptions}</template></section>`;
+}
+
+function playerTelemetryMarkup(points, metric) {
+  const values = points
+    .filter((point) => point.metric_key === metric)
+    .slice(0, 40)
+    .reverse();
+  if (!values.length) return "";
+  const numbers = values.map((point) => Number(point.value)),
+    minimum = Math.min(...numbers),
+    maximum = Math.max(...numbers),
+    range = Math.max(1, maximum - minimum),
+    path = numbers
+      .map((value, index) => `${(index / Math.max(1, numbers.length - 1)) * 100},${35 - ((value - minimum) / range) * 30}`)
+      .join(" "),
+    labels = { money: "Argent", energy: "Énergie", profession_xp: "XP métier" };
+  return `<article><div><small>${labels[metric] || escapeHtml(metric)}</small><b>${numbers.at(-1).toLocaleString("fr-FR")}</b></div><svg viewBox="0 0 100 40" preserveAspectRatio="none" aria-label="Courbe ${labels[metric] || metric}"><polyline points="${path}"/></svg></article>`;
 }
 
 async function openPlayer(id) {
@@ -10486,6 +10555,10 @@ function showPlayerMutation(data, type, resource = null, preset = {}) {
     fields = `<input type="hidden" name="operation" value="${preset.operation}"><p class="warning-box">${preset.operation === "cancel" ? "Les coûts consommés ne seront pas remboursés." : "L’activité deviendra immédiatement récupérable."}</p>`;
   if (type === "cooldown")
     fields = `<p>Réinitialiser ${escapeHtml(preset.building_key)} / ${escapeHtml(preset.action_key)} ?</p>`;
+  if (type === "move")
+    fields = `<label>Nouveau lieu<select name="location_key" required>${optionList(data.catalogs.locations || [])}</select></label><p class="field-note">Le déplacement corrige la position logique. Il ne force pas le salon vocal Discord.</p>`;
+  if (type === "blocking-reset")
+    fields = `<p class="warning-box">Seuls les voyages achevés, cooldowns expirés, activités fantômes et métiers actifs en doublon seront corrigés. Aucun inventaire ni progression ne sera effacé.</p>`;
   dialog.innerHTML = `<form method="dialog" id="player-mutation-form"><div class="dialog-head"><div><small>OPÉRATION ADMINISTRATIVE</small><h2>${escapeHtml(playerName(data.player))}</h2></div><button value="cancel">×</button></div><div class="mutation-fields">${fields}<label>Motif de la modification<textarea name="reason" minlength="3" required placeholder="Ex. correction après un blocage"></textarea></label><div id="player-mutation-error"></div></div><div class="actions"><button value="cancel">Annuler</button><button value="confirm" class="primary">Confirmer</button></div></form>`;
   dialog.showModal();
   dialog.querySelector("form").onsubmit = async (event) => {
@@ -10506,6 +10579,10 @@ function showPlayerMutation(data, type, resource = null, preset = {}) {
     const path =
       type === "activity"
         ? `activities/${preset.id}`
+        : type === "move"
+          ? "position"
+          : type === "blocking-reset"
+            ? "blocking-state/reset"
         : type === "cooldown"
           ? "cooldowns/reset"
           : type === "resource"
@@ -10517,7 +10594,7 @@ function showPlayerMutation(data, type, resource = null, preset = {}) {
                 : "inventory";
     const destructive =
       ["remove", "leave", "cancel", "reset"].includes(body.operation) ||
-      type === "cooldown";
+      type === "cooldown" || type === "blocking-reset";
     if (
       destructive &&
       !confirm("Confirmer cette opération difficilement réversible ?")

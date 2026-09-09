@@ -1,4 +1,5 @@
 import json
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -80,6 +81,31 @@ def test_api_permissions(tmp_path, monkeypatch):
         assert client.post("/api/admin/players/42/resources",json={"resource":"money","operation":"add","amount":1,"reason":"Sans permission"}).status_code == 401
         response=client.post("/api/admin/players/42/resources",headers={"Authorization":"Bearer change-me","X-Kingdom-Admin":"louis"},json={"resource":"money","operation":"add","amount":1,"reason":"Test autorisé"})
         assert response.status_code == 200
+
+
+def test_diagnostics_and_safe_reset_are_audited(tmp_path):
+    store=prepared_store(tmp_path); service=PlayerAdministrationService(store)
+    with store.connection() as db:
+        db.execute("INSERT INTO scheduled_actions(discord_id,building_key,action_key,ready_at,effects_json,status,created_at) VALUES(?,?,?,?,?,'pending',?)",("42","test_workshop","stuck",time.time()-600,"[]","2026-08-15"))
+        db.execute("INSERT INTO action_cooldowns(scope,building_key,action_key,ready_at) VALUES(?,?,?,?)",("42","test_workshop","stuck",time.time()-60))
+        db.execute("INSERT INTO player_professions VALUES('42','tester',4,320,1)")
+        db.execute("INSERT INTO player_professions VALUES('42','other',2,90,1)")
+    codes={issue["code"] for issue in service.diagnostics("42")}
+    assert {"ghost_activity","expired_cooldown","multiple_professions"} <= codes
+    result=service.reset_blocking_state("42",{"reason":"Déblocage contrôlé"},"admin")
+    assert result["remaining"] == []
+    detail=service.player("42")
+    assert detail["activities"][0]["status"] == "cancelled"
+    assert sum(job["active"] for job in detail["professions"]) == 1
+    assert detail["history"]["administration"][0]["action"] == "blocking_state.reset"
+
+
+def test_player_telemetry_is_returned_as_structured_data(tmp_path):
+    store=prepared_store(tmp_path)
+    with store.connection() as db:
+        db.execute("INSERT INTO player_telemetry(discord_id,metric_key,value,metadata_json,recorded_at,created_at) VALUES(?,?,?,?,?,?)",("42","money",125,'{"action_key":"sell"}',123.0,"2026-08-15"))
+    point=PlayerAdministrationService(store).player("42")["telemetry"][0]
+    assert point["metric_key"] == "money" and point["metadata"]["action_key"] == "sell"
 
 
 def test_live_snapshot_unifies_tool_inventory_and_presence(tmp_path):

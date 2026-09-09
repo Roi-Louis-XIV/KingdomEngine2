@@ -16,12 +16,13 @@ from .interfaces import interface_from_building
 PRESET_CATALOG = [
     {"key": "blank", "name": "Monde vierge", "emoji": "◇", "description": "Une configuration propre, sans lieu ni mécanique imposée.", "tone": "neutral"},
     {"key": "medieval_kingdom", "name": "Royaume médiéval", "emoji": "🏰", "description": "Village, forêt, mine, métiers, économie, météo et événement saisonnier.", "tone": "emerald"},
+    {"key": "royal_festival", "name": "La Fête du Royaume", "emoji": "🎉", "description": "Démonstration coopérative complète : préparation d'une fête en trois heures, métiers, objectifs, incidents et ambiance.", "tone": "gold"},
     {"key": "space_station", "name": "Station spatiale", "emoji": "🛰️", "description": "Pont de commandement, hydroponie, exploration, crédits et météo spatiale.", "tone": "violet"},
 ]
 
 
 def world_preset(key: str) -> list[dict[str, Any]]:
-    builders = {"blank": _blank, "medieval_kingdom": _medieval, "space_station": _space}
+    builders = {"blank": _blank, "medieval_kingdom": _medieval, "royal_festival": _royal_festival, "space_station": _space}
     if key not in builders:
         raise ValueError("Modèle de monde inconnu.")
     return deepcopy(_make_playable(builders[key]()))
@@ -162,6 +163,61 @@ def _medieval() -> list[dict[str, Any]]:
         {"type":"event","key":"deep_fog","payload":{"name":"Brume profonde","emoji":"🌫️","description":"La brume ralentit les expéditions extérieures.","trigger":{"type":"manual"},"enabled":False,"modifiers":[{"property":"activity.duration","operator":"multiply","value":1.3,"scope":"world"}],"effects":[]}},
         {"type":"event","key":"forge_blessing","payload":{"name":"Bénédiction de la forge","emoji":"🔥","description":"Les artisans travaillent avec une efficacité exceptionnelle.","trigger":{"type":"manual"},"enabled":False,"modifiers":[{"property":"production.duration","operator":"multiply","value":0.75,"scope":"building","targets":["royal_forge"]}],"effects":[]}},
     ]
+    return definitions
+
+
+def _royal_festival() -> list[dict[str, Any]]:
+    """Premier monde de démonstration issu du GDD Fête du Royaume.
+
+    Le scénario reste constitué exclusivement des primitives publiques du
+    moteur. Les objectifs et jalons servent également au futur tableau Live
+    Ops, sans introduire de logique médiévale dans le runtime.
+    """
+    definitions = _medieval()
+    by_key = {(row["type"], row["key"]): row["payload"] for row in definitions}
+    settings = by_key[("server_settings", "kingdom_server")]
+    settings.update({
+        "name": "La Fête du Royaume",
+        "description": "Monde coopératif de démonstration pour 6 à 8 joueurs, jouable en environ trois heures.",
+        "live_ops": {
+            "scenario_duration_minutes": 180,
+            "objectives": [
+                {"key": "banquet", "name": "Préparer le banquet", "target": 50, "unit": "plats", "action_keys": ["harvest_wheat"], "increment": 3},
+                {"key": "braziers", "name": "Alimenter les braseros", "target": 12, "unit": "braseros", "action_keys": ["smelt_iron_action"]},
+                {"key": "decorations", "name": "Installer les décorations", "target": 40, "unit": "éléments", "action_keys": ["saw_planks"]},
+                {"key": "drinks", "name": "Réunir les boissons", "target": 30, "unit": "fûts", "action_keys": ["prepare_drinks"], "increment": 2},
+                {"key": "wood", "name": "Constituer la réserve de bois", "target": 80, "unit": "unités", "action_keys": ["gather_timber"], "increment": 2},
+                {"key": "treasury", "name": "Financer la fête", "target": 500, "unit": "écus", "action_keys": ["welcome_gift"], "increment": 10},
+            ],
+            "timeline": [
+                {"minute": 0, "label": "Ouverture des préparatifs"},
+                {"minute": 45, "label": "Pluie sur Valbrume", "event_key": "festival_rain"},
+                {"minute": 70, "label": "Incident à la mine", "event_key": "mine_incident"},
+                {"minute": 90, "label": "Retour au calme"},
+                {"minute": 110, "label": "Tournée d'Edgar", "event_key": "edgar_round"},
+                {"minute": 125, "label": "Préparatifs visibles"},
+                {"minute": 135, "label": "Tempête", "event_key": "festival_storm"},
+                {"minute": 170, "label": "Ouverture conditionnelle de la fête", "event_key": "festival_opening"},
+                {"minute": 180, "label": "Convocation royale"},
+            ],
+        },
+    })
+    by_key[("building", "market_square")].update({"name": "Place Royale et Intendance", "description": "Centre des objectifs collectifs et de la coordination de la fête."})
+    by_key[("building", "forester_lodge")].update({"name": "Camp de Sylvain", "description": "Camp forestier chargé de la réserve de bois et des décorations."})
+    by_key[("building", "deep_mine")].update({"name": "Mine de Roland", "description": "Galeries qui fournissent minerai et combustible aux préparatifs."})
+    by_key[("building", "royal_forge")].update({"name": "Forge de Wagner", "description": "Atelier de fabrication des braseros et structures de fête."})
+    definitions.extend([
+        {"type":"building","key":"edgar_tavern","payload":{"name":"Taverne d'Edgar","emoji":"🍺","description":"Prépare boissons et banquet pour les habitants.","location_key":"riverhold","entity_kind":"institution","color":"9a6b32","modules":{"products":[{"item_key":"royal_ale","price":8,"initial_stock":20},{"item_key":"roast_meat","price":12,"initial_stock":15}]},"actions":[{"key":"prepare_drinks","name":"Préparer les boissons","emoji":"🍺","effects":[{"type":"cost","resource":"energy","amount":3},{"type":"reward","resource":"royal_ale","amount":2},{"type":"message","text":"Deux boissons sont prêtes pour la fête."}]}]}},
+        {"type":"building","key":"festival_farm","payload":{"name":"Ferme du Royaume","emoji":"🌾","description":"Produit les vivres nécessaires au banquet.","location_key":"riverhold","entity_kind":"institution","color":"6b8e23","actions":[{"key":"harvest_wheat","name":"Récolter le blé","emoji":"🌾","effects":[{"type":"cost","resource":"energy","amount":4},{"type":"reward","resource":"wheat_sack","amount":3}]}]}},
+        {"type":"building","key":"festival_esplanade","payload":{"name":"Esplanade de la Fête","emoji":"🎪","description":"Lieu final où convergent les préparatifs du royaume.","location_key":"riverhold","entity_kind":"place","color":"c3913a","actions":[{"key":"inspect_preparations","name":"Inspecter les préparatifs","emoji":"📋","effects":[{"type":"message","text":"Les objectifs collectifs sont affichés dans le Monde en direct."}]}]}},
+    ])
+    definitions.extend({"type":"event","key":key,"payload":{"name":name,"emoji":emoji,"description":description,"trigger":{"type":"manual"},"enabled":False,"modifiers":modifiers,"effects":[]}} for key,name,emoji,description,modifiers in [
+        ("festival_rain","Pluie sur Valbrume","🌧️","La pluie ralentit temporairement les travaux extérieurs.",[{"property":"activity.duration","operator":"multiply","value":1.2,"scope":"world"}]),
+        ("mine_incident","Incident à la mine","⛏️","Un incident perturbe les extractions de Roland.",[{"property":"availability","operator":"set","value":0,"scope":"building","targets":["deep_mine"]}]),
+        ("edgar_round","Tournée d'Edgar","🍺","Edgar encourage les équipes pendant les préparatifs.",[{"property":"profession.experience","operator":"multiply","value":1.15,"scope":"world"}]),
+        ("festival_storm","Tempête du Royaume","⛈️","Une tempête met à l'épreuve la coordination des habitants.",[{"property":"activity.duration","operator":"multiply","value":1.4,"scope":"world"}]),
+        ("festival_opening","Ouverture de la Fête","🎉","La fête commence si les objectifs collectifs sont atteints.",[]),
+    ])
     return definitions
 
 

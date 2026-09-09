@@ -72,6 +72,7 @@ class GameEngine:
                         "UPDATE action_log SET result_json=? WHERE interaction_id=?",
                         (json.dumps(result, ensure_ascii=False), interaction_id),
                     )
+                self._record_player_telemetry(discord_id, building_key, action_key)
             return result
         except Exception as exc:
             try:
@@ -81,6 +82,45 @@ class GameEngine:
             except Exception:
                 pass
             raise
+
+    def _record_player_telemetry(self, discord_id: str, building_key: str, action_key: str) -> None:
+        """Échantillonne les jauges métier après une action, pas chaque clic UI."""
+        recorded_at = time.time()
+        metadata = json.dumps(
+            {"building_key": building_key, "action_key": action_key},
+            ensure_ascii=False,
+        )
+        with self.store.connection() as db:
+            player = db.execute(
+                "SELECT money,energy FROM players WHERE discord_id=?",
+                (discord_id,),
+            ).fetchone()
+            if not player:
+                return
+            rows = [
+                (discord_id, "money", float(player["money"]), metadata, recorded_at, _now()),
+                (discord_id, "energy", float(player["energy"]), metadata, recorded_at, _now()),
+            ]
+            for profession in db.execute(
+                "SELECT profession_key,level,experience FROM player_professions WHERE discord_id=? AND active=1",
+                (discord_id,),
+            ):
+                profession_metadata = json.dumps(
+                    {
+                        "building_key": building_key,
+                        "action_key": action_key,
+                        "profession_key": profession["profession_key"],
+                    },
+                    ensure_ascii=False,
+                )
+                rows.extend([
+                    (discord_id, f"profession:{profession['profession_key']}:xp", float(profession["experience"]), profession_metadata, recorded_at, _now()),
+                    (discord_id, f"profession:{profession['profession_key']}:level", float(profession["level"]), profession_metadata, recorded_at, _now()),
+                ])
+            db.executemany(
+                "INSERT INTO player_telemetry(discord_id,metric_key,value,metadata_json,recorded_at,created_at) VALUES(?,?,?,?,?,?)",
+                rows,
+            )
 
     def _react_npcs_to_action(
         self,

@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from kingdomCore.engine import GameEngine
+from kingdomCore.world import WorldEngine
 from KingdomData import ContentStore, NotFoundError, ValidationError
 
 
@@ -33,7 +34,8 @@ class PlayerAdministrationService:
                 key = str(profession.get("key", ""))
                 if key:
                     professions[key] = {"key": key, "name": profession.get("name", key.replace("_", " ").title()), "emoji": profession.get("emoji", "🛠️"), "experience_per_level": max(1, int(profession.get("experience_per_level", 100)))}
-        return {"items": sorted(items, key=lambda x: x["name"].casefold()), "professions": sorted(professions.values(), key=lambda x: x["name"].casefold())}
+        locations = [{"key": row["entity_key"], "name": row["payload"].get("name", row["entity_key"]), "emoji": row["payload"].get("emoji", "📍")} for row in self.store.list("location", published=True)]
+        return {"items": sorted(items, key=lambda x: x["name"].casefold()), "professions": sorted(professions.values(), key=lambda x: x["name"].casefold()), "locations": sorted(locations, key=lambda x: x["name"].casefold())}
 
     def list_players(self, search: str = "", profession: str = "", status: str = "", sort: str = "recent", page: int = 1, page_size: int = 25) -> dict[str, Any]:
         page, page_size = max(1, page), min(100, max(1, page_size))
@@ -115,7 +117,57 @@ class PlayerAdministrationService:
             deliveries = [dict(row) for row in db.execute("SELECT source_building building_key,'delivery' action_key,total_payment,resource_key,quantity,created_at FROM delivery_log WHERE discord_id=? ORDER BY id DESC LIMIT 100", (player_id,))]
             audits = [dict(row) for row in db.execute("SELECT * FROM admin_audit_log WHERE player_id=? ORDER BY id DESC LIMIT 100", (player_id,))]
             states = [{"key": row[0], "value": json.loads(row[1])} for row in db.execute("SELECT state_key,value_json FROM player_state WHERE discord_id=? ORDER BY state_key", (player_id,))]
-        return {"player": dict(player), "inventory": inventory, "professions": jobs, "tools": tools, "activities": activities, "cooldowns": cooldowns, "states": states, "history": {"actions": actions, "deliveries": deliveries, "administration": audits}, "catalogs": catalogs}
+            telemetry = [{**dict(row), "metadata": json.loads(row["metadata_json"] or "{}")} for row in db.execute("SELECT metric_key,value,metadata_json,recorded_at,created_at FROM player_telemetry WHERE discord_id=? ORDER BY recorded_at DESC LIMIT 400", (player_id,))]
+        result = {"player": dict(player), "inventory": inventory, "professions": jobs, "tools": tools, "activities": activities, "cooldowns": cooldowns, "states": states, "history": {"actions": actions, "deliveries": deliveries, "administration": audits}, "telemetry": telemetry, "catalogs": catalogs}
+        result["diagnostics"] = self.diagnostics(player_id)
+        result["world_state"] = WorldEngine(self.store).player_state(player_id)
+        result["travel"] = WorldEngine(self.store).get_travel_state(player_id)
+        return result
+
+    def diagnostics(self, player_id: str) -> list[dict[str, str]]:
+        """Signaux simples et déterministes sur les seuls états sûrs à corriger."""
+        now = time.time(); issues: list[dict[str, str]] = []
+        locations = {row["entity_key"] for row in self.store.list("location", published=True)}
+        with self.store.connection() as db:
+            activities = db.execute("SELECT id,building_key,action_key,ready_at FROM scheduled_actions WHERE discord_id=? AND status='pending'", (player_id,)).fetchall()
+            cooldowns = db.execute("SELECT building_key,action_key,ready_at FROM action_cooldowns WHERE scope=? OR scope LIKE ?", (player_id, f"{player_id}:%")).fetchall()
+            travel = db.execute("SELECT arrives_at,destination_key FROM player_travel_state WHERE discord_id=?", (player_id,)).fetchone()
+            world = db.execute("SELECT location_key FROM player_world_state WHERE discord_id=?", (player_id,)).fetchone()
+            active_jobs = int(db.execute("SELECT COUNT(*) FROM player_professions WHERE discord_id=? AND active=1", (player_id,)).fetchone()[0])
+        for row in activities:
+            if float(row["ready_at"]) < now - 300:
+                issues.append({"code": "ghost_activity", "severity": "warning", "reason": f"Activité {row['building_key']}/{row['action_key']} terminée depuis plus de 5 minutes.", "recommendation": "Rendre la récompense disponible ou annuler l’activité."})
+        if any(float(row["ready_at"]) <= now for row in cooldowns):
+            issues.append({"code": "expired_cooldown", "severity": "info", "reason": "Un cooldown expiré est encore stocké.", "recommendation": "Nettoyer les cooldowns expirés."})
+        if travel and float(travel["arrives_at"]) <= now:
+            issues.append({"code": "completed_travel", "severity": "warning", "reason": "Le voyage est arrivé mais son verrou persiste.", "recommendation": "Finaliser le voyage."})
+        if active_jobs > 1:
+            issues.append({"code": "multiple_professions", "severity": "warning", "reason": f"{active_jobs} métiers sont simultanément actifs.", "recommendation": "Conserver un seul métier actif."})
+        if world and world["location_key"] and str(world["location_key"]) not in locations:
+            issues.append({"code": "missing_location", "severity": "error", "reason": "La position pointe vers un lieu supprimé.", "recommendation": "Déplacer le joueur vers un lieu publié."})
+        return issues
+
+    def reset_blocking_state(self, player_id: str, body: dict[str, Any], admin_id: str) -> dict[str, Any]:
+        reason = self._reason(body); before = self.diagnostics(player_id); now = time.time()
+        WorldEngine(self.store).get_travel_state(player_id, now=now)
+        with self.store.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if not db.execute("SELECT 1 FROM players WHERE discord_id=?", (player_id,)).fetchone(): raise NotFoundError("Joueur introuvable.")
+            db.execute("DELETE FROM action_cooldowns WHERE (scope=? OR scope LIKE ?) AND ready_at<=?", (player_id, f"{player_id}:%", now))
+            jobs = db.execute("SELECT profession_key FROM player_professions WHERE discord_id=? AND active=1 ORDER BY level DESC,experience DESC,profession_key", (player_id,)).fetchall()
+            for row in jobs[1:]: db.execute("UPDATE player_professions SET active=0 WHERE discord_id=? AND profession_key=?", (player_id, row["profession_key"]))
+            db.execute("UPDATE scheduled_actions SET status='cancelled',completed_at=? WHERE discord_id=? AND status='pending' AND ready_at<?", (_now(), player_id, now-300))
+        after = self.diagnostics(player_id)
+        with self.store.connection() as db:
+            db.execute("INSERT INTO admin_audit_log(admin_id,player_id,action,target,old_value_json,new_value_json,reason,created_at) VALUES(?,?,?,?,?,?,?,?)", (admin_id,player_id,"blocking_state.reset","safe-known-states",json.dumps(before,ensure_ascii=False),json.dumps(after,ensure_ascii=False),reason,_now()))
+        return {"ok": True, "resolved": before, "remaining": after}
+
+    def move_player(self, player_id: str, body: dict[str, Any], admin_id: str) -> dict[str, Any]:
+        reason = self._reason(body); location = str(body.get("location_key", "")); old = WorldEngine(self.store).player_state(player_id)
+        new = WorldEngine(self.store).place(player_id, location)
+        with self.store.connection() as db:
+            db.execute("INSERT INTO admin_audit_log(admin_id,player_id,action,target,old_value_json,new_value_json,reason,created_at) VALUES(?,?,?,?,?,?,?,?)", (admin_id,player_id,"world.move",location,json.dumps(old,ensure_ascii=False),json.dumps(new,ensure_ascii=False),reason,_now()))
+        return {"ok": True, "old_value": old, "new_value": new}
 
     @staticmethod
     def _reason(body: dict[str, Any]) -> str:
