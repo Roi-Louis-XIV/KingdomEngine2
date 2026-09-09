@@ -1,5 +1,9 @@
 # KingdomEngine 2
 
+> Mise à jour du 9 septembre 2026 : le lien **Personnage → réactions sonores → présence → Voice Worker** est maintenant explicite dans KingdomWeb. Pour faire parler un PNJ, associez un son à une variante de réaction, puis créez une présence de type « Personnage » liée à ce PNJ et à son bâtiment. Le profil vocal organise une bibliothèque de sons ; il ne déclenche pas à lui seul leur lecture.
+
+> Audio des bâtiments : l’ambiance de fond se choisit dans la fiche **Bâtiment → Audio**, à partir des sons et groupes préparés dans **Voix & audio**. Les paroles restent indépendantes sur la fiche du **Personnage → Réactions contextuelles**. Une réaction « Activité réussie », éventuellement limitée par la condition « Action précise du bâtiment », permet au PNJ présent de réagir automatiquement à une action du joueur. Les Voice Workers sont alloués automatiquement : aucun bot ne doit être associé directement depuis la fiche Bâtiment.
+
 > Le catalogue de contenus officiels est désormais administré depuis **Payen Studio Admin → Contenu officiel**. Les modèles publiés apparaissent automatiquement lors de l'ajout d'un serveur. Leur installation copie une révision complète dans le nouveau monde : les modifications ultérieures du modèle ne changent jamais les mondes clients existants.
 
 ## Gérer les modèles officiels
@@ -9,6 +13,12 @@
 3. Modifiez l'identité et les entités du pack, puis enregistrez le brouillon.
 4. Corrigez les erreurs indiquées dans **Validation**. Les avertissements restent informatifs.
 5. Publiez la révision. Une seule version publiée est proposée aux utilisateurs ; les précédentes sont archivées et les mondes déjà installés restent inchangés.
+
+L'atelier occupe tout l'écran et reste utilisable sur tablette et mobile. Il permet de filtrer les entités d'un pack, les réordonner, les supprimer, contrôler la couverture fonctionnelle, valider sans enregistrer, dupliquer, archiver et publier une révision.
+
+Pour un modèle de monde, **Ouvrir le Studio complet** crée un atelier isolé qui réutilise toutes les pages normales de KingdomWeb : carte, lieux, bâtiments, métiers, objets, personnages, événements, calendrier, météo, sons et présences. Le bouton **Enregistrer comme nouvelle révision** capture l'état complet de cet atelier sans toucher à Discord ni aux mondes déjà installés.
+
+Chaque créateur peut également ouvrir **Compte & serveurs → Bibliothèque communautaire** et publier un instantané de son monde. Lors de la création d'un serveur, KingdomWeb distingue les modèles **Officiels Payen Studio** et ceux de la **Communauté**. Dans les deux cas, le nouveau monde reçoit une copie indépendante.
 
 Les anciens préréglages `medieval_kingdom` et `space_station` sont importés automatiquement et une seule fois dans cette bibliothèque au démarrage. Cette migration est additive et ne modifie aucune base de monde existante.
 

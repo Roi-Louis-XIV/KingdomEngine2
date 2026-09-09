@@ -1,6 +1,9 @@
 /* ==============================
    ÉTAT GLOBAL ET CONFIGURATION
    ============================== */
+const officialWorkspaceToken = new URLSearchParams(window.location.search).get(
+  "official_workspace",
+);
 const state = {
   type: "dashboard",
   items: [],
@@ -46,7 +49,9 @@ const state = {
   viewRequest: 0,
   token: "",
   profile: null,
-  server: localStorage.getItem("kingdomServer") || "",
+  server: officialWorkspaceToken
+    ? `official--${officialWorkspaceToken}`
+    : localStorage.getItem("kingdomServer") || "",
   editorDirty: false,
   referencePreview: false,
   referenceReturnType: null,
@@ -1555,7 +1560,8 @@ async function initializeAccount() {
     (server) => server.slug === state.server,
   );
   state.server = accessible ? state.server : state.profile.current_server;
-  localStorage.setItem("kingdomServer", state.server);
+  if (!officialWorkspaceToken)
+    localStorage.setItem("kingdomServer", state.server);
   syncServerHeaders();
   renderAccountShell();
   $("#login-screen").hidden = true;
@@ -1675,7 +1681,12 @@ function worldPresetPicker() {
       tone: "violet",
     },
   ];
-  return `<fieldset class="world-preset-picker"><legend>Choisissez votre point de départ</legend><p>Tout le contenu du modèle restera modifiable dans le Studio no-code.</p><div class="world-preset-grid">${presets.map((preset, index) => `<label class="world-preset-card tone-${escapeHtml(preset.tone || "neutral")}"><input type="radio" name="preset" value="${escapeHtml(preset.key)}" ${index === 0 ? "checked" : ""}><span class="world-preset-icon">${escapeHtml(preset.emoji)}</span><span><b>${escapeHtml(preset.name)}</b><small>${escapeHtml(preset.description)}</small></span><i>Choisir</i></label>`).join("")}</div></fieldset>`;
+  return `<fieldset class="world-preset-picker"><legend>Choisissez votre point de départ</legend><p>Comparez les modèles officiels Payen Studio et les créations partagées par la communauté. La copie installée restera entièrement indépendante.</p><div class="world-preset-grid">${presets.map((preset, index) => `<label class="world-preset-card tone-${escapeHtml(preset.tone || "neutral")}"><input type="radio" name="preset" value="${escapeHtml(preset.key)}" ${index === 0 ? "checked" : ""}><span class="world-preset-icon">${escapeHtml(preset.emoji)}</span><span><em>${preset.catalog_scope === "community" ? "COMMUNAUTÉ" : preset.key === "blank" ? "VIERGE" : "OFFICIEL PAYEN STUDIO"}</em><b>${escapeHtml(preset.name)}</b><small>${escapeHtml(preset.description)}</small>${preset.author ? `<small>Par ${escapeHtml(preset.author)} · v${preset.version || 1}</small>` : ""}</span><i>Choisir</i></label>`).join("")}</div></fieldset>`;
+}
+
+function communityTemplateMarkup(hasServer) {
+  if (!hasServer || officialWorkspaceToken) return "";
+  return `<section class="accounts-panel community-template-panel"><div class="accounts-title"><div><small>BIBLIOTHÈQUE COMMUNAUTAIRE</small><h3>Partager l’état actuel de mon monde</h3><p>Créez un instantané indépendant. Les joueurs qui choisiront ce modèle recevront leurs propres données et ne modifieront jamais votre monde.</p></div></div><form id="community-template-form" class="community-template-form"><label>Nom du modèle<input name="name" required minlength="3" placeholder="Ex. Royaume marchand complet"></label><label>Description<textarea name="description" required placeholder="Expliquez les mécaniques et le niveau de préparation du monde."></textarea></label><label>Icône<input name="emoji" value="🌍" maxlength="8"></label><label>Catégorie<input name="category" value="Communauté"></label><label>Tags<input name="tags" placeholder="médiéval, économie, débutant"></label><button type="submit" class="primary">Publier cet instantané</button><small data-community-status></small></form></section>`;
 }
 
 async function loadProfile() {
@@ -1713,7 +1724,7 @@ async function loadProfile() {
   const hasServer = state.profile.servers.length > 0;
   const firstServer = `<section class="accounts-panel first-server-panel ${hasServer ? "additional-server-panel" : ""}"><div><small>${hasServer ? "NOUVEAU MONDE" : "PREMIÈRE ÉTAPE"}</small><h3>${hasServer ? "Ajouter un autre serveur" : "Ajouter votre serveur Discord"}</h3><p>${hasServer ? "Créez un espace indépendant et choisissez sa base de départ." : "Vous en deviendrez automatiquement propriétaire. Choisissez un modèle, puis installez KingdomEngine sur Discord."}</p></div><form id="self-create-server-form" class="first-server-form"><label>Nom du serveur<input name="name" required minlength="3" placeholder="Ex. Royaume de Valbrume"></label><label>Identifiant du serveur Discord<input name="guild_id" required inputmode="numeric" pattern="[0-9]+" placeholder="123456789…"></label>${worldPresetPicker()}<button type="submit" class="primary">${hasServer ? "Ajouter ce serveur" : "Créer mon monde"}</button><small data-form-status></small></form><details><summary>Où trouver l’identifiant Discord ?</summary><p>Activez le mode développeur dans Discord, faites un clic droit sur l’icône du serveur puis choisissez « Copier l’identifiant du serveur ».</p></details></section>`;
   $("#admin-view").innerHTML =
-    `<div class="profile-page"><section class="profile-hero"><div class="profile-avatar">${escapeHtml((account.display_name || account.username).charAt(0).toUpperCase())}</div><div><small>${account.is_admin ? "ADMINISTRATEUR KINGDOM" : "COMPTE KINGDOM"}</small><h2>${escapeHtml(account.display_name || account.username)}</h2><p>@${escapeHtml(account.username)}${account.email ? ` · ${escapeHtml(account.email)}` : ""}</p></div><button class="secondary" id="logout-account">Se déconnecter</button></section>${firstServer}<section><div class="admin-section-head"><div><h2>Mes mondes et serveurs Discord</h2><p>Un monde conserve ses données ; sa connexion Discord peut être installée ou remplacée.</p></div></div><div class="profile-grid">${state.profile.servers.map(serverProfileCard).join("") || '<p class="pending-server-copy">Ajoutez votre premier monde ci-dessus pour ouvrir le Studio.</p>'}</div></section>${supportModeMarkup(foundations.worlds, support)}<section class="accounts-panel"><h3>Sécurité du compte</h3><form id="password-form" class="profile-actions"><input name="current_password" type="password" placeholder="Mot de passe actuel" required><input name="new_password" type="password" minlength="8" placeholder="Nouveau mot de passe" required><button class="secondary">Modifier le mot de passe</button></form></section>${account.is_admin ? adminAccountsPanel(accounts) : ""}</div>`;
+    `<div class="profile-page"><section class="profile-hero"><div class="profile-avatar">${escapeHtml((account.display_name || account.username).charAt(0).toUpperCase())}</div><div><small>${account.is_admin ? "ADMINISTRATEUR KINGDOM" : "COMPTE KINGDOM"}</small><h2>${escapeHtml(account.display_name || account.username)}</h2><p>@${escapeHtml(account.username)}${account.email ? ` · ${escapeHtml(account.email)}` : ""}</p></div><button class="secondary" id="logout-account">Se déconnecter</button></section>${firstServer}<section><div class="admin-section-head"><div><h2>Mes mondes et serveurs Discord</h2><p>Un monde conserve ses données ; sa connexion Discord peut être installée ou remplacée.</p></div></div><div class="profile-grid">${state.profile.servers.map(serverProfileCard).join("") || '<p class="pending-server-copy">Ajoutez votre premier monde ci-dessus pour ouvrir le Studio.</p>'}</div></section>${communityTemplateMarkup(hasServer)}${supportModeMarkup(foundations.worlds, support)}<section class="accounts-panel"><h3>Sécurité du compte</h3><form id="password-form" class="profile-actions"><input name="current_password" type="password" placeholder="Mot de passe actuel" required><input name="new_password" type="password" minlength="8" placeholder="Nouveau mot de passe" required><button class="secondary">Modifier le mot de passe</button></form></section>${account.is_admin ? adminAccountsPanel(accounts) : ""}</div>`;
   $("#logout-account").onclick = logoutAccount;
   $$("[data-select-server]").forEach(
     (button) =>
@@ -1743,6 +1754,8 @@ async function loadProfile() {
   $("#password-form").onsubmit = changePassword;
   if ($("#self-create-server-form"))
     $("#self-create-server-form").onsubmit = createManagedServer;
+  if ($("#community-template-form"))
+    $("#community-template-form").onsubmit = publishCommunityTemplate;
   if (account.platform_role === "platform_admin") bindAccountAdministration();
   else if (account.is_admin)
     $("#admin-view .accounts-panel:last-child")?.remove();
@@ -3031,6 +3044,9 @@ async function loadVoicePresenceStudio() {
   const locationName = (key) =>
     state.catalogs.location.find((item) => item.entity_key === key)?.payload
       .name || "À la demande";
+  const npcName = (key) =>
+    state.catalogs.npc.find((item) => item.entity_key === key)?.payload.name ||
+    "Aucun personnage";
   const buildingName = (payload) => {
     const key = payload.metadata?.building_key || "";
     return (
@@ -3053,7 +3069,7 @@ async function loadVoicePresenceStudio() {
             : p.current_state === "error"
               ? "Indisponible"
               : "Prête";
-      return `<article class="voice-presence-card" data-state="${isActive ? "active" : escapeHtml(p.current_state || "ready")}"><header><span>${p.presence_type === "npc" ? "♙" : p.presence_type === "ambience" ? "◖" : "◉"}</span><div><small>${escapeHtml(typeLabel[p.presence_type] || "Personnalisée")}</small><h3>${escapeHtml(p.name)}</h3></div><i>${stateLabel}</i></header><dl><div><dt>Bâtiment affecté</dt><dd>${escapeHtml(buildingName(p))}</dd></div><div><dt>Scène sonore</dt><dd>${escapeHtml(state.catalogs.audio_group.find((item) => item.entity_key === p.scene_key)?.payload.name || "Ambiance du bâtiment")}</dd></div><div><dt>Connexion</dt><dd>${p.assignment_mode === "automatic" ? "Automatique avec les joueurs" : p.assignment_mode === "follow_source" ? "Suit sa source" : "Déclenchée par une action"}</dd></div><div><dt>Profil</dt><dd>${escapeHtml(profileName(p.voice_profile_key))}</dd></div></dl><footer><span>${entity.status === "published" ? "Publié" : entity.status === "draft" ? "Brouillon" : entity.status}</span><button type="button" data-edit-presence="${escapeHtml(entity.entity_key)}">Configurer</button></footer></article>`;
+      return `<article class="voice-presence-card" data-state="${isActive ? "active" : escapeHtml(p.current_state || "ready")}"><header><span>${p.presence_type === "npc" ? "♙" : p.presence_type === "ambience" ? "◖" : "◉"}</span><div><small>${escapeHtml(typeLabel[p.presence_type] || "Personnalisée")}</small><h3>${escapeHtml(p.name)}</h3></div><i>${stateLabel}</i></header>${p.presence_type === "npc" ? `<p class="voice-card-link ${p.source_key ? "is-linked" : "is-missing"}">Personnage source : <b>${escapeHtml(npcName(p.source_key))}</b></p>` : ""}<dl><div><dt>Bâtiment affecté</dt><dd>${escapeHtml(buildingName(p))}</dd></div><div><dt>Scène sonore</dt><dd>${escapeHtml(state.catalogs.audio_group.find((item) => item.entity_key === p.scene_key)?.payload.name || "Ambiance du bâtiment")}</dd></div><div><dt>Connexion</dt><dd>${p.assignment_mode === "automatic" ? "Automatique avec les joueurs" : p.assignment_mode === "follow_source" ? "Suit sa source" : "Déclenchée par une action"}</dd></div><div><dt>Profil</dt><dd>${escapeHtml(profileName(p.voice_profile_key))}</dd></div></dl><footer><span>${entity.status === "published" ? "Publié" : entity.status === "draft" ? "Brouillon" : entity.status}</span><button type="button" data-edit-presence="${escapeHtml(entity.entity_key)}">Configurer</button></footer></article>`;
     })
     .join("");
   const profileCards = profiles
@@ -3063,7 +3079,7 @@ async function loadVoicePresenceStudio() {
     )
     .join("");
   $("#admin-view").innerHTML =
-    `<div class="voice-studio" data-tutorial="voice-presence-studio"><section class="voice-studio-hero"><div><small>BOTS AUDIO</small><h2>Une ambiance dans chaque bâtiment</h2><p>Choisissez simplement un bâtiment et une scène sonore. KingdomVoice affecte automatiquement un Voice Worker disponible lorsque des joueurs entrent dans le vocal.</p></div><button type="button" class="primary" data-new-presence>＋ Affecter un bot audio</button></section><section class="voice-quick-guide"><strong>Configuration en 3 étapes</strong><span><b>1</b> Ajouter les Voice Workers à Discord</span><span><b>2</b> Choisir un bâtiment et une ambiance</span><span><b>3</b> Redémarrer KingdomVoice après la première configuration</span></section><section class="voice-capacity"><div><span>${activeWorkers.length}</span><b>/ ${installedWorkers.length}</b><small>connexions réelles / workers installés sur ce serveur</small></div><progress max="${Math.max(1, installedWorkers.length)}" value="${activeWorkers.length}"></progress><p>${installedWorkers.length ? `${Math.max(0, installedWorkers.length - activeWorkers.length)} capacité(s) installée(s) disponible(s)` : "Aucun Voice Worker installé sur ce serveur. Utilisez Connexion Discord."}</p></section><nav class="section-tabs voice-tabs"><button class="active" data-voice-tab="presences">Affectations <b>${presences.length}</b></button><button data-voice-tab="profiles">Profils vocaux <b>${profiles.length}</b></button><button data-voice-tab="capacity">Voice Workers</button></nav><section data-voice-panel="presences"><div class="voice-panel-head"><div><h2>Bâtiments sonorisés</h2><p>Chaque fiche relie un bâtiment à une identité et une scène audio.</p></div></div><div class="voice-presence-grid">${cards || `<div class="product-empty"><span>◉</span><h3>Aucun bâtiment sonorisé</h3><p>Choisissez un bâtiment, puis l’ambiance que son bot doit diffuser.</p><button type="button" class="primary" data-new-presence>Affecter mon premier bot audio</button></div>`}</div></section><section data-voice-panel="profiles" hidden><div class="voice-panel-head"><div><h2>Profils vocaux</h2><p>Regroupez les clips, la langue, le volume et le fallback d’une voix.</p></div><button type="button" data-new-profile>＋ Nouveau profil</button></div><div class="voice-profile-list">${profileCards || `<div class="product-empty"><span>◖</span><h3>Aucun profil vocal</h3><p>Un profil est facultatif pour une ambiance, mais recommandé pour un personnage.</p></div>`}</div></section><section data-voice-panel="capacity" hidden><div class="capacity-grid">${voiceBots.map((bot, index) => `<article><span>●</span><div><small>VOICE WORKER ${index + 1}</small><h3>${escapeHtml(bot.name || "Capacité disponible")}</h3><p>${bot.connected ? `Connecté · présence ${escapeHtml(bot.presence_key || "active")}` : bot.installed_on_server ? "Installé sur ce serveur · disponible" : "Non installé sur ce serveur · ajoutez-le depuis Connexion Discord."}</p></div></article>`).join("") || `<div class="product-empty"><span>◌</span><h3>Audio indisponible</h3><p>Configurez au moins un token Voice Worker puis ajoutez son application au serveur.</p><button data-go="bot">Ouvrir Connexion Discord</button></div>`}</div></section></div>`;
+    `<div class="voice-studio" data-tutorial="voice-presence-studio"><section class="voice-studio-hero"><div><small>VOIX ET PRÉSENCE</small><h2>Des personnages et des ambiances dans vos bâtiments</h2><p>Une présence relie un personnage ou une ambiance à un bâtiment. Lorsqu’un joueur entre dans son vocal, KingdomVoice attribue un Voice Worker libre, applique son identité et lit la scène ou les réactions configurées.</p></div><button type="button" class="primary" data-new-presence>＋ Créer une présence</button></section><section class="voice-quick-guide"><strong>Le lien en 3 étapes</strong><span><b>1</b> Créer le personnage et ses réactions sonores</span><span><b>2</b> Créer une présence « Personnage » et le sélectionner</span><span><b>3</b> Un Voice Worker libre l’incarne dans le bâtiment</span></section><section class="voice-capacity"><div><span>${activeWorkers.length}</span><b>/ ${installedWorkers.length}</b><small>connexions réelles / workers installés sur ce serveur</small></div><progress max="${Math.max(1, installedWorkers.length)}" value="${activeWorkers.length}"></progress><p>${installedWorkers.length ? `${Math.max(0, installedWorkers.length - activeWorkers.length)} capacité(s) installée(s) disponible(s)` : "Aucun Voice Worker installé sur ce serveur. Utilisez Connexion Discord."}</p></section><nav class="section-tabs voice-tabs"><button class="active" data-voice-tab="presences">Affectations <b>${presences.length}</b></button><button data-voice-tab="profiles">Profils vocaux <b>${profiles.length}</b></button><button data-voice-tab="capacity">Voice Workers</button></nav><section data-voice-panel="presences"><div class="voice-panel-head"><div><h2>Présences dans les bâtiments</h2><p>Personnage = identité et réactions parlées. Ambiance = décor sonore continu, sans personnage.</p></div></div><div class="voice-presence-grid">${cards || `<div class="product-empty"><span>◉</span><h3>Aucune présence configurée</h3><p>Choisissez un personnage ou une ambiance, puis son bâtiment.</p><button type="button" class="primary" data-new-presence>Créer ma première présence</button></div>`}</div></section><section data-voice-panel="profiles" hidden><div class="voice-panel-head"><div><h2>Profils vocaux</h2><p>Une bibliothèque réutilisable de clips. La lecture se déclenche depuis les réactions du personnage.</p></div><button type="button" data-new-profile>＋ Nouveau profil</button></div><div class="voice-profile-list">${profileCards || `<div class="product-empty"><span>◖</span><h3>Aucun profil vocal</h3><p>Un profil est facultatif pour une ambiance, mais recommandé pour un personnage.</p></div>`}</div></section><section data-voice-panel="capacity" hidden><div class="capacity-grid">${voiceBots.map((bot, index) => `<article><span>●</span><div><small>VOICE WORKER ${index + 1}</small><h3>${escapeHtml(bot.name || "Capacité disponible")}</h3><p>${bot.connected ? `Connecté · présence ${escapeHtml(bot.presence_key || "active")}` : bot.installed_on_server ? "Installé sur ce serveur · disponible" : "Non installé sur ce serveur · ajoutez-le depuis Connexion Discord."}</p></div></article>`).join("") || `<div class="product-empty"><span>◌</span><h3>Audio indisponible</h3><p>Configurez au moins un token Voice Worker puis ajoutez son application au serveur.</p><button data-go="bot">Ouvrir Connexion Discord</button></div>`}</div></section></div>`;
   bindVoiceStudio();
 }
 
@@ -3122,6 +3138,28 @@ function entityOptions(items, value, empty = "Aucun") {
   return `<option value="">${empty}</option>${items.map((item) => `<option value="${escapeHtml(item.entity_key)}" ${item.entity_key === value ? "selected" : ""}>${escapeHtml(item.payload.emoji || "")} ${escapeHtml(item.payload.name)}</option>`).join("")}`;
 }
 
+function voiceLinkState(npcPayload = {}) {
+  const profile = state.catalogs.voice_profile.find(
+    (item) => item.entity_key === npcPayload.voice_profile_key,
+  );
+  const presence = state.catalogs.voice_presence.find(
+    (item) => item.entity_key === npcPayload.voice_presence_key,
+  );
+  const variants = (npcPayload.reactions || []).flatMap(
+    (reaction) => reaction.variants || [],
+  );
+  return {
+    profile,
+    presence,
+    audioCount: variants.filter((variant) => variant.audio_key).length,
+    linkedBothWays: Boolean(
+      presence &&
+        presence.payload.presence_type === "npc" &&
+        presence.payload.source_key === state.editing?.entity_key,
+    ),
+  };
+}
+
 function openVoicePresenceDialog(entity = null) {
   if (mobileCreationBlocked())
     return showDesktopRequired("L’affectation d’un bot audio");
@@ -3150,6 +3188,15 @@ function openVoicePresenceDialog(entity = null) {
               </select>
             </label>
             <p class="voice-kind-help" data-presence-kind-help></p>
+            <div class="voice-character-link" data-character-link>
+              <strong>Chaîne du personnage</strong>
+              <span>Personnage → réactions sonores → présence → Voice Worker</span>
+              <div class="form-grid">
+                <label>Personnage associé<select name="source_key">${entityOptions(state.catalogs.npc, p.source_key, "Choisir le personnage…")}</select></label>
+                <label>Profil vocal (bibliothèque)<select name="voice_profile_key">${entityOptions(state.catalogs.voice_profile, p.voice_profile_key, "Aucun profil")}</select></label>
+              </div>
+              <small>Les sons réellement joués se choisissent dans les variantes de réaction du personnage. Le profil organise sa bibliothèque ; la présence indique où et sous quelle identité le Voice Worker vient les lire.</small>
+            </div>
           </div>
         </section>
         <section class="voice-assignment-step">
@@ -3211,8 +3258,6 @@ function openVoicePresenceDialog(entity = null) {
         <details>
           <summary>Options avancées</summary>
           <div class="form-grid">
-            <label>Personnage associé<select name="source_key">${entityOptions(state.catalogs.npc, p.source_key, "Aucun personnage")}</select></label>
-            <label>Profil vocal<select name="voice_profile_key">${entityOptions(state.catalogs.voice_profile, p.voice_profile_key, "Aucun profil")}</select></label>
             <label>Priorité<input name="priority" type="number" min="-100" max="100" value="${Number(p.priority || 0)}"></label>
             <label>Libérer après inactivité (s)<input name="release_timeout_seconds" type="number" min="0" value="${Number(p.release_timeout_seconds ?? 30)}"></label>
             <label>Identifiant technique<input name="key" value="${escapeHtml(entity?.entity_key || "")}" ${entity ? "readonly" : ""} placeholder="Généré depuis le nom"></label>
@@ -3229,6 +3274,7 @@ function openVoicePresenceDialog(entity = null) {
   dialog.showModal();
   const presenceKind = dialog.querySelector("[data-presence-kind]");
   const presenceKindHelp = dialog.querySelector("[data-presence-kind-help]");
+  const characterLink = dialog.querySelector("[data-character-link]");
   const refreshPresenceKindHelp = () => {
     const help = {
       ambience:
@@ -3239,6 +3285,9 @@ function openVoicePresenceDialog(entity = null) {
         "Présence personnalisée : comportement libre pour les usages avancés et les actions du moteur.",
     };
     presenceKindHelp.textContent = help[presenceKind.value] || help.custom;
+    characterLink.hidden = presenceKind.value !== "npc";
+    characterLink.querySelector('[name="source_key"]').required =
+      presenceKind.value === "npc";
   };
   presenceKind.addEventListener("change", refreshPresenceKindHelp);
   refreshPresenceKindHelp();
@@ -3311,6 +3360,26 @@ function openVoicePresenceDialog(entity = null) {
         payload,
         entity?.version,
       );
+      if (payload.presence_type === "npc" && payload.source_key) {
+        const linkedNpc = state.catalogs.npc.find(
+          (item) => item.entity_key === payload.source_key,
+        );
+        if (linkedNpc) {
+          await saveAndPublishEntity(
+            "npc",
+            linkedNpc.entity_key,
+            {
+              ...clone(linkedNpc.payload),
+              voice_presence_key: presenceKey,
+              voice_profile_key:
+                payload.voice_profile_key ||
+                linkedNpc.payload.voice_profile_key ||
+                "",
+            },
+            linkedNpc.version,
+          );
+        }
+      }
       // Si l'upload échoue ensuite, une nouvelle tentative doit repartir de la
       // version qui vient réellement d'être publiée et non de l'ancienne fiche.
       if (entity) entity.version = savedPresence.version;
@@ -3537,6 +3606,51 @@ function renderBotFields(payload) {
       ["voice", "Voice Worker"],
     ],
   )}${input("Variable de l’Application ID", "application_id_env", payload.application_id_env || "")}${input("Variable du token", "token_env", payload.token_env || "KINGDOM_CORE_TOKEN")}${input("Identifiant du serveur", "guild_id", payload.guild_id || "")}${input("Présence Discord", "presence", payload.presence || "")}</div><div class="checks">${check("Bot activé", "enabled", !!payload.enabled)}${check("Connexion vocale automatique", "auto_join", payload.auto_join !== false)}</div>${worker ? `<details class="advanced"><summary>Réglages techniques avancés</summary><div class="advanced-content form-grid">${input("Identifiant du salon (secours)", "voice_channel_id", payload.voice_channel_id || 0)}${input("Variable du salon (secours)", "voice_channel_env", payload.voice_channel_env || "")}${input("Déconnexion après (secondes)", "leave_delay", payload.leave_delay || 10, "number")}${input("Volume voix", "volume_voice", payload.volume?.voice ?? 0.8, "number", 'min="0" max="1" step="0.05"')}${input("Volume musique", "volume_music", payload.volume?.music ?? 0.05, "number", 'min="0" max="1" step="0.05"')}${input("Volume ambiance", "volume_ambience", payload.volume?.ambience ?? 0.35, "number", 'min="0" max="1" step="0.05"')}${input("Volume effets", "volume_sfx", payload.volume?.sfx ?? 0.2, "number", 'min="0" max="1" step="0.05"')}</div></details>` : ""}</section>`;
+}
+
+async function publishCommunityTemplate(event) {
+  event.preventDefault();
+  const form = event.currentTarget,
+    button = form.querySelector('button[type="submit"]'),
+    status = form.querySelector("[data-community-status]"),
+    values = Object.fromEntries(new FormData(form));
+  values.tags = String(values.tags || "").split(",").map(tag => tag.trim()).filter(Boolean);
+  button.disabled = true;
+  status.textContent = "Validation et création de l’instantané…";
+  try {
+    const response = await fetch("/api/community/templates/from-world", {
+      method: "POST", headers, body: JSON.stringify(values),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "Publication impossible.");
+    status.textContent = `Modèle communautaire publié · version ${result.version}.`;
+    form.reset();
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function saveOfficialWorkspace() {
+  if (!officialWorkspaceToken) return;
+  const button = $("#official-workspace-save"),
+    status = $("#official-workspace-status");
+  button.disabled = true;
+  status.textContent = "Création de la nouvelle révision…";
+  try {
+    const response = await fetch(
+      `/api/platform/official-workspaces/${encodeURIComponent(officialWorkspaceToken)}/save`,
+      { method: "POST", headers },
+    );
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "Enregistrement impossible.");
+    status.textContent = `Brouillon v${result.version} enregistré. Vous pouvez continuer à travailler.`;
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function uploadBotAvatar(key) {
@@ -3866,6 +3980,14 @@ function npcConditionOptions(type, current = "") {
   else if (type === "location" || type === "location_discovered")
     return locationOptions(current);
   else if (type === "building") return catalogOptions("building", current);
+  else if (type === "action") {
+    rows = state.catalogs.building.flatMap((building) =>
+      (building.payload.actions || []).map((action) => [
+        action.key,
+        `${building.payload.name || building.entity_key} · ${action.name || action.key}`,
+      ]),
+    );
+  }
   else if (type === "event_active") return catalogOptions("event", current);
   else if (type === "item") return catalogOptions("item", current);
   else if (type === "profession")
@@ -3890,6 +4012,7 @@ function addNpcCondition(root, condition = {}) {
     ["event_active", "Event actif"],
     ["location", "Lieu actuel"],
     ["building", "Bâtiment actuel"],
+    ["action", "Action précise du bâtiment"],
     ["first_meeting", "Première rencontre"],
     ["npc_met", "PNJ déjà rencontré"],
     ["item", "Objet possédé"],
@@ -4344,9 +4467,42 @@ function renderFields(payload) {
       });
   }
   if (state.type === "npc") {
+    const link = voiceLinkState(payload);
+    const linkStatus = !link.presence
+      ? "À compléter : aucune présence ne sait dans quel bâtiment incarner ce personnage."
+      : !link.linkedBothWays
+        ? "À vérifier : la présence choisie n’est pas reliée à ce personnage dans les deux sens."
+        : link.audioCount === 0
+          ? "À compléter : ajoutez un son à au moins une variante de réaction."
+          : "Prêt : personnage, réactions sonores et présence sont correctement reliés.";
     $("#type-fields").insertAdjacentHTML(
       "afterbegin",
-      `<section class="form-section npc-voice-links"><h3>Voix et présence</h3><p class="field-note">Le personnage reste indépendant de Discord. Ces liens lui donnent une voix ou une présence uniquement lorsque le monde en a besoin.</p><div class="form-grid">${select("Profil vocal", "npc_voice_profile", payload.voice_profile_key || "", [["", "Aucun profil"], ...state.catalogs.voice_profile.map((item) => [item.entity_key, item.payload.name])])}${select("Présence vocale", "npc_voice_presence", payload.voice_presence_key || "", [["", "Aucune présence"], ...state.catalogs.voice_presence.map((item) => [item.entity_key, item.payload.name])])}${input("État initial", "npc_state", payload.state || "disponible")}${input("Comportement", "npc_behavior", payload.behavior || "contextuel")}</div><button type="button" class="secondary" data-go="voice_presence">Gérer les présences vocales</button></section>`,
+      `<section class="form-section npc-voice-links">
+        <div class="section-head">
+          <div>
+            <h3>Voix et présence</h3>
+            <p class="field-note">Le personnage contient ses dialogues et leurs sons. La présence place son identité dans un bâtiment. Un Voice Worker libre l’incarne automatiquement sur Discord.</p>
+          </div>
+          <button type="button" class="secondary" data-go="voice_presence">Gérer dans Voix et présence</button>
+        </div>
+        <div class="npc-voice-flow" aria-label="Fonctionnement de la voix du personnage">
+          <span><b>1</b> Personnage<small>${escapeHtml(payload.name || "Sans nom")}</small></span>
+          <i>→</i>
+          <span><b>2</b> Sons des réactions<small>${link.audioCount} variante(s) sonorisée(s)</small></span>
+          <i>→</i>
+          <span><b>3</b> Présence<small>${escapeHtml(link.presence?.payload.name || "Non reliée")}</small></span>
+          <i>→</i>
+          <span><b>4</b> Voice Worker<small>Alloué automatiquement</small></span>
+        </div>
+        <p class="npc-voice-status" data-ready="${link.linkedBothWays && link.audioCount > 0}">${escapeHtml(linkStatus)}</p>
+        <div class="form-grid">
+          ${select("Profil vocal (bibliothèque)", "npc_voice_profile", payload.voice_profile_key || "", [["", "Aucun profil"], ...state.catalogs.voice_profile.map((item) => [item.entity_key, item.payload.name])])}
+          ${select("Présence (identité + bâtiment)", "npc_voice_presence", payload.voice_presence_key || "", [["", "Aucune présence"], ...state.catalogs.voice_presence.map((item) => [item.entity_key, item.payload.name])])}
+          ${input("État initial", "npc_state", payload.state || "disponible")}
+          ${input("Comportement", "npc_behavior", payload.behavior || "contextuel")}
+        </div>
+        <p class="field-note"><b>Important :</b> sélectionner un son dans un profil ne déclenche pas sa lecture. Pour faire parler le personnage, choisissez le son dans une variante de la section « Réactions contextuelles ».</p>
+      </section>`,
     );
     bindNavigationShortcuts();
   }
@@ -5597,7 +5753,7 @@ function derivedBuildingRelationsMarkup(modules) {
 
 function buildingOverviewMarkup(payload, buildingKey, modules) {
   const professions = modules.professions || [],
-    bot = state.catalogs.bot.find(
+    npcs = state.catalogs.npc.filter(
       (item) => item.payload.building_key === buildingKey,
     ),
     ambienceKey = payload.relations?.ambience_audio_key || "",
@@ -5611,18 +5767,13 @@ function buildingOverviewMarkup(payload, buildingKey, modules) {
     pages = state.interfaceDraft?.pages?.length || 0;
   const metric = (icon, label, value, empty = "Non configuré") =>
     `<article><span>${icon}</span><small>${label}</small><b>${escapeHtml(value || empty)}</b></article>`;
-  return `<section class="building-overview"><div class="building-overview-grid">${metric("🛠️", "Métier principal", professions.find((item) => item.key === payload.relations?.primary_profession_key)?.name || professions[0]?.name)}${metric("🤖", "Bot / PNJ", bot?.payload.name)}${metric("🔊", "Ambiance", ambience?.payload.name)}${metric("📦", "Productions", String(productions), "0")}${metric("⚡", "Actions", String(actions), "0")}${metric("🧩", "Pages Discord", String(pages), "0")}</div><div class="building-overview-actions"><button type="button" data-open-building-tab="mechanics">⚙️ Configurer le fonctionnement</button><button type="button" data-open-building-tab="visual">🧩 Modifier Discord</button><button type="button" data-open-building-tab="sound">🔊 Gérer l’audio</button><button type="button" data-open-building-tab="relations">↔ Gérer les relations</button></div></section>`;
+  return `<section class="building-overview"><div class="building-overview-grid">${metric("🛠️", "Métier principal", professions.find((item) => item.key === payload.relations?.primary_profession_key)?.name || professions[0]?.name)}${metric("🧙", "Personnages présents", npcs.map((item) => item.payload.name).join(", "))}${metric("🔊", "Ambiance", ambience?.payload.name)}${metric("📦", "Productions", String(productions), "0")}${metric("⚡", "Actions", String(actions), "0")}${metric("🧩", "Pages Discord", String(pages), "0")}</div><div class="building-overview-actions"><button type="button" data-open-building-tab="mechanics">⚙️ Configurer le fonctionnement</button><button type="button" data-open-building-tab="visual">🧩 Modifier Discord</button><button type="button" data-open-building-tab="sound">🔊 Gérer l’audio</button><button type="button" data-open-building-tab="relations">↔ Gérer les relations</button></div></section>`;
 }
 
 function simpleAudioMarkup(payload, buildingKey, modules) {
   const ambienceKey = payload.relations?.ambience_audio_key || "",
     ambience = state.catalogs.audio.find(
       (item) => item.entity_key === ambienceKey,
-    ),
-    bots = state.catalogs.bot.filter(
-      (item) =>
-        item.payload.bot_type === "voice" &&
-        item.payload.building_key === buildingKey,
     ),
     actions = (payload.actions || [])
       .map((action, index) => ({
@@ -5633,7 +5784,7 @@ function simpleAudioMarkup(payload, buildingKey, modules) {
         ),
       }))
       .filter((item) => !item.action.key.startsWith("claim_"));
-  return `<section class="simple-audio-panel"><div class="simple-section-head"><div><small>AUDIO DU BÂTIMENT</small><h3>Ce qu’entendent les joueurs</h3><p>Une ambiance globale pour le salon vocal et des sons liés aux actions.</p></div><button type="button" data-open-audio-advanced>⚙ Audio avancé</button></div><div class="simple-audio-grid"><article><span>🌲</span><small>AMBIANCE GLOBALE</small><h4>${escapeHtml(ambience?.payload.name || "Aucune ambiance")}</h4><p>Groupe moteur : global_ambience</p><div><button type="button" data-change-ambience>Changer</button><button type="button" class="danger-link" data-remove-simple-ambience ${ambienceKey ? "" : "disabled"}>Retirer</button></div></article><article><span>🤖</span><small>BOT AUDIO</small><h4>${bots.length ? bots.map((bot) => escapeHtml(bot.payload.name)).join(", ") : "Aucun bot audio"}</h4><p>Salon vocal : ${escapeHtml(payload.name || buildingKey)}</p><button type="button" data-open-related="bot">${bots.length ? "Ouvrir le bot" : "Associer un bot"}</button></article></div><section class="simple-audio-actions"><div class="simple-section-head compact"><div><small>SONS DU GAMEPLAY</small><h3>Actions sonorisées</h3></div></div>${actions.map(({ action, index, sounds }) => `<article><span>${escapeHtml(action.emoji || "🔊")}</span><div><b>${escapeHtml(action.name || action.key)}</b><small>${sounds.length ? `${sounds.length} son(s) configuré(s)` : "Aucun son"}</small></div><button type="button" data-simple-sfx="${index}">${sounds.length ? "Modifier" : "Associer un son"}</button></article>`).join("") || '<p class="simple-empty">Aucune action pouvant recevoir un SFX.</p>'}</section></section>`;
+  return `<section class="simple-audio-panel"><div class="simple-section-head"><div><small>AUDIO DU BÂTIMENT</small><h3>Ambiance et sons du lieu</h3><p>L’ambiance appartient au bâtiment. Les répliques appartiennent aux personnages et restent configurées dans leurs réactions.</p></div><button type="button" data-open-audio-advanced>⚙ Bibliothèque et groupes audio</button></div><div class="simple-audio-grid"><article class="building-ambience-card"><span>🌲</span><small>AMBIANCE DU BÂTIMENT</small><h4>${escapeHtml(ambience?.payload.name || "Aucune ambiance")}</h4><p>Créez vos sons et groupes dans « Voix & audio », puis sélectionnez ici le fond sonore joué dans le vocal de ${escapeHtml(payload.name || buildingKey)}.</p><div><button type="button" data-change-ambience>Choisir une ambiance</button><button type="button" class="danger-link" data-remove-simple-ambience ${ambienceKey ? "" : "disabled"}>Retirer</button></div></article></div><section class="simple-audio-actions"><div class="simple-section-head compact"><div><small>SONS DU GAMEPLAY</small><h3>Effets propres aux actions</h3><p>Ces effets accompagnent l’action. Pour faire réagir un PNJ, configurez une réaction « Activité réussie » sur sa fiche, avec éventuellement la condition « Action précise du bâtiment ».</p></div></div>${actions.map(({ action, index, sounds }) => `<article><span>${escapeHtml(action.emoji || "🔊")}</span><div><b>${escapeHtml(action.name || action.key)}</b><small>${sounds.length ? `${sounds.length} son(s) configuré(s)` : "Aucun son"}</small></div><button type="button" data-simple-sfx="${index}">${sounds.length ? "Modifier" : "Associer un son"}</button></article>`).join("") || '<p class="simple-empty">Aucune action pouvant recevoir un SFX.</p>'}</section></section>`;
 }
 
 function openSimpleSfxEditor(index) {
@@ -10862,6 +11013,12 @@ $("#nav").addEventListener("click", (event) => {
   }
 });
 initializeAccount();
+if (officialWorkspaceToken) {
+  const workspaceBar = $("#official-workspace-bar");
+  workspaceBar.hidden = false;
+  document.body.classList.add("official-workspace-mode");
+  $("#official-workspace-save").onclick = saveOfficialWorkspace;
+}
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && state.type === "players") loadPlayers(true);
 });

@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from KingdomData import ConflictError, ContentStore, NotFoundError, ValidationError, SERVER_SETTINGS_KEY, get_server_settings
 from KingdomData.audio_storage import audio_key, safe_audio_path, store_audio_file
 from KingdomData.paths import persistent_data_root
-from KingdomData.official_content import OfficialContentStore
+from KingdomData.official_content import OfficialContentStore, validate_official_pack
 from import_v1 import import_v1, seed_legacy_audio_catalog
 from kingdomCore.provisioner import managed_bot_permissions, required_bot_permissions
 from KingdomWeb.supervision import AdministrationService, ServiceSupervisor
@@ -196,12 +196,30 @@ def _autoriser(request: Request, authorization: str | None, royaume_session: str
     if expected and supplied and secrets.compare_digest(supplied, expected):
         compte = {"id": 0, "username": "legacy-admin", "display_name": "Administrateur", "is_admin": True}
         serveurs = comptes.lister_serveurs(0, True)
+        est_plateforme = False
     else:
         compte = comptes.compte_session(royaume_session or "")
         if not compte:
             raise HTTPException(401, "Connectez-vous à KingdomWeb.")
         est_plateforme = comptes.role_plateforme(int(compte["id"])) == "platform_admin"
         serveurs = comptes.lister_serveurs(int(compte["id"]), est_plateforme)
+    if x_kingdom_server and x_kingdom_server.startswith("official--"):
+        if not est_plateforme:
+            raise HTTPException(403, "Atelier officiel réservé à Payen Studio.")
+        token = x_kingdom_server.removeprefix("official--")
+        try:
+            workspace = contenus_officiels.workspace(token, int(compte["id"]))
+        except LookupError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        serveur = {
+            "slug": x_kingdom_server, "name": f"Atelier · {workspace['name']}",
+            "guild_id": "", "database_path": workspace["database_path"],
+            "role": "proprietaire", "permissions": ["*"], "bot_installed": False,
+            "official_workspace": True, "template_key": workspace["pack_key"],
+        }
+        store.selectionner(serveur)
+        request.state.compte, request.state.serveur = compte, serveur
+        return compte
     try:
         serveur = next((item for item in serveurs if item["slug"] == x_kingdom_server), None) if x_kingdom_server else (serveurs[0] if serveurs else None)
         if not serveur:
@@ -469,6 +487,17 @@ def profil(request: Request, x_kingdom_server: str | None = Header(None)):
     compte = {**compte, "platform_role": comptes.role_plateforme(int(compte["id"])) if int(compte["id"]) else ""}
     est_plateforme = bool(int(compte["id"]) and compte.get("platform_role") == "platform_admin")
     serveurs = comptes.lister_serveurs(int(compte["id"]), est_plateforme) if int(compte["id"]) else comptes.lister_serveurs(0, True)
+    if est_plateforme and x_kingdom_server and x_kingdom_server.startswith("official--"):
+        try:
+            workspace = contenus_officiels.workspace(x_kingdom_server.removeprefix("official--"), int(compte["id"]))
+            serveurs = [{
+                "slug": x_kingdom_server, "name": f"Atelier · {workspace['name']}",
+                "guild_id": "", "database_path": workspace["database_path"],
+                "bot_installed": False, "active": True, "role": "proprietaire",
+                "permissions": ["*"], "official_workspace": True,
+            }]
+        except LookupError:
+            pass
     bots = _bots_disponibles()
     return {
         "account": compte,
@@ -671,8 +700,10 @@ def modeles_de_monde():
     presets = [{"key": "blank", "name": "Monde vierge", "emoji": "◇", "description": "Une configuration propre, sans lieu ni mécanique imposée.", "tone": "neutral", "version": 1}]
     presets.extend({
         "key": item["key"], "name": item["name"], "emoji": item["emoji"],
-        "description": item["description"], "tone": (item["tags"] or ["emerald"])[0],
+        "description": item["description"],
+        "tone": "violet" if item.get("catalog_scope") == "community" else (item["tags"] or ["emerald"])[0],
         "version": item["version"], "entity_count": item["entity_count"],
+        "catalog_scope": item.get("catalog_scope", "official"), "author": item.get("author", ""),
     } for item in published)
     return {"presets": presets}
 
@@ -778,6 +809,72 @@ def platform_official_create(request: Request, body: dict[str, Any]):
         return result
     except (ValueError, ValidationError, KeyError) as exc:
         raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/api/platform/official-validation", dependencies=[Depends(_administrateur_plateforme)])
+def platform_official_validate(body: dict[str, Any]):
+    """Valide le formulaire sans créer de version ni modifier la bibliothèque."""
+    try:
+        return validate_official_pack(body)
+    except (ValueError, ValidationError, KeyError, TypeError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/api/platform/official/{key}/workspace", dependencies=[Depends(_administrateur_plateforme)])
+def platform_official_workspace(key: str, request: Request, body: dict[str, Any]):
+    try:
+        workspace = contenus_officiels.create_workspace(
+            key, int(request.state.compte["id"]), KINGDOM_DATA_ROOT,
+            version=body.get("version"), content_type=str(body.get("content_type", "world_template")),
+        )
+        return {"workspace_token": workspace["workspace_token"],
+                "server_slug": workspace["server_slug"],
+                "url": f"/?official_workspace={workspace['workspace_token']}"}
+    except (LookupError, ValueError, ValidationError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/api/platform/official-workspaces/{token}/save", dependencies=[Depends(_administrateur_plateforme)])
+def platform_save_official_workspace(token: str, request: Request):
+    try:
+        return contenus_officiels.save_workspace(token, int(request.state.compte["id"]))
+    except (LookupError, ValueError, ValidationError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/api/community/templates/from-world", dependencies=[Depends(authorize)])
+def publish_community_template(request: Request, body: dict[str, Any]):
+    """Capture l'état actuel d'un monde comme modèle communautaire indépendant."""
+    account_id = int(request.state.compte["id"])
+    if account_id <= 0:
+        raise HTTPException(403, "Un compte utilisateur est nécessaire.")
+    entities = [{"type": row["entity_type"], "key": row["entity_key"], "payload": row["payload"]} for row in store.list()]
+    key = f"community_{account_id}_{secrets.token_hex(5)}"
+    try:
+        draft = contenus_officiels.save({
+            "key": key, "content_type": "world_template",
+            "catalog_scope": "community", "owner_account_id": account_id,
+            "source_world_slug": request.state.serveur["slug"],
+            "name": str(body.get("name") or f"Modèle de {request.state.serveur['name']}"),
+            "description": str(body.get("description", "")),
+            "category": str(body.get("category", "Communauté")),
+            "emoji": str(body.get("emoji", "🌍")),
+            "tags": list(body.get("tags") or []), "author": request.state.compte["display_name"],
+            "origin": "community_world_snapshot", "entities": entities,
+        })
+        return contenus_officiels.set_status(key, "published", version=draft["version"])
+    except (ValueError, ValidationError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.get("/api/templates", dependencies=[Depends(authenticate_account)])
+def template_catalog(scope: str = "all", search: str = ""):
+    if scope not in {"all", "official", "community"}:
+        raise HTTPException(422, "Catalogue inconnu.")
+    return {"templates": contenus_officiels.list(
+        content_type="world_template", published_only=True, search=search,
+        catalog_scope=None if scope == "all" else scope,
+    )}
 
 
 @app.put("/api/platform/official/{key}", dependencies=[Depends(_administrateur_plateforme)])

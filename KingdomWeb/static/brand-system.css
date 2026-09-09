@@ -3072,3 +3072,68 @@ main.app-main {
   margin-right: auto;
   color: var(--muted);
 }
+/* ==============================
+   ATELIER DE MODÈLE OFFICIEL
+   ============================== */
+
+.official-workspace-bar {
+  position: sticky;
+  z-index: 40;
+  top: 0;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 22px;
+  color: #eafff6;
+  border-bottom: 1px solid #2d7c5e;
+  background: linear-gradient(90deg, #10281f, #11182a);
+  box-shadow: 0 8px 24px #0005;
+}
+
+.official-workspace-bar[hidden] {
+  display: none;
+}
+
+.official-workspace-bar small,
+.official-workspace-bar b {
+  display: block;
+}
+
+.official-workspace-bar small {
+  color: #55e4ab;
+  letter-spacing: 0.12em;
+}
+
+.official-workspace-bar span {
+  color: #a9b9b1;
+}
+
+.official-workspace-bar button {
+  color: #07120d;
+  background: #50d8a3;
+}
+
+.official-workspace-bar a {
+  color: #dce9e3;
+  text-decoration: none;
+}
+
+@media (max-width: 760px) {
+  .official-workspace-bar {
+    position: relative;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .official-workspace-bar span {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .official-workspace-bar button {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+}

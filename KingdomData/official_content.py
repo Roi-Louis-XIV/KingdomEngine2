@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 import json
 import re
 import sqlite3
+import secrets
 from pathlib import Path
 from typing import Any
 
@@ -75,12 +76,17 @@ class OfficialContentStore:
             db.commit()
 
     def list(self, *, content_type: str | None = None, published_only: bool = False,
-             search: str = "") -> list[dict[str, Any]]:
+             search: str = "", catalog_scope: str | None = None,
+             owner_account_id: int | None = None) -> list[dict[str, Any]]:
         clauses, args = [], []
         if content_type:
             clauses.append("p.content_type=?"); args.append(content_type)
         if published_only:
             clauses.append("p.status='published'")
+        if catalog_scope:
+            clauses.append("p.catalog_scope=?"); args.append(catalog_scope)
+        if owner_account_id is not None:
+            clauses.append("p.owner_account_id=?"); args.append(int(owner_account_id))
         if search:
             clauses.append("(p.name LIKE ? OR p.description LIKE ? OR p.tags_json LIKE ?)")
             term = f"%{search}%"; args.extend([term, term, term])
@@ -93,13 +99,16 @@ class OfficialContentStore:
         return [self._pack(row) for row in rows]
 
     def get(self, key: str, *, version: int | None = None,
-            published_only: bool = False, content_type: str = "world_template") -> dict[str, Any]:
+            published_only: bool = False, content_type: str = "world_template",
+            catalog_scope: str | None = None) -> dict[str, Any]:
         clauses = ["pack_key=?", "content_type=?"]
         args: list[Any] = [key, content_type]
         if version is not None:
             clauses.append("version=?"); args.append(version)
         if published_only:
             clauses.append("status='published'")
+        if catalog_scope:
+            clauses.append("catalog_scope=?"); args.append(catalog_scope)
         with self.connection() as db:
             row = db.execute(
                 f"SELECT * FROM official_content_packs WHERE {' AND '.join(clauses)} ORDER BY version DESC LIMIT 1",
@@ -151,9 +160,14 @@ class OfficialContentStore:
                 pack_id = int(row["id"])
                 db.execute("UPDATE official_content_packs SET name=?,description=?,category=?,emoji=?,illustration_path=?,tags_json=?,author=?,updated_at=? WHERE id=?", (*values, pack_id))
             else:
+                scope = str(data.get("catalog_scope", source.get("catalog_scope", "official") if source else "official"))
+                if scope not in {"official", "community"}:
+                    raise ValueError("Catalogue invalide.")
                 cursor = db.execute(
-                    "INSERT INTO official_content_packs(pack_key,content_type,version,status,name,description,category,emoji,illustration_path,tags_json,author,origin,created_at,updated_at) VALUES(?,?,?,'draft',?,?,?,?,?,?,?,?,?,?)",
-                    (pack_key, content_type, version, *values[:-1], str(data.get("origin", "platform")), now, now),
+                    "INSERT INTO official_content_packs(pack_key,content_type,version,status,name,description,category,emoji,illustration_path,tags_json,author,origin,catalog_scope,owner_account_id,source_world_slug,created_at,updated_at) VALUES(?,?,?,'draft',?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (pack_key, content_type, version, *values[:-1], str(data.get("origin", "platform")), scope,
+                     data.get("owner_account_id", source.get("owner_account_id") if source else None),
+                     str(data.get("source_world_slug", source.get("source_world_slug", "") if source else "")), now, now),
                 )
                 pack_id = int(cursor.lastrowid)
             self._replace_entities(db, pack_id, entities)
@@ -187,6 +201,73 @@ class OfficialContentStore:
             db.commit()
         if not cursor.rowcount:
             raise ValueError("Seul un brouillon peut être supprimé définitivement.")
+
+    def create_workspace(self, key: str, account_id: int, root: str | Path, *,
+                         version: int | None = None,
+                         content_type: str = "world_template") -> dict[str, Any]:
+        """Crée un monde de travail isolé à partir d'une révision officielle."""
+        from .store import ContentStore
+
+        pack = self.get(key, version=version, content_type=content_type)
+        token = secrets.token_urlsafe(18).replace("-", "_")
+        workspace_root = Path(root) / "official-workspaces"
+        workspace_root.mkdir(parents=True, exist_ok=True)
+        path = workspace_root / f"{token}.db"
+        world = ContentStore(path)
+        world.initialize()
+        world.seed(pack["entities"])
+        now = _now()
+        with self.connection() as db:
+            db.execute(
+                "INSERT INTO official_edit_workspaces(workspace_token,pack_id,account_id,database_path,created_at,updated_at) VALUES(?,?,?,?,?,?)",
+                (token, pack["id"], int(account_id), str(path), now, now),
+            )
+            db.commit()
+        return {"workspace_token": token, "server_slug": f"official--{token}",
+                "database_path": str(path), "template": pack}
+
+    def workspace(self, token: str, account_id: int) -> dict[str, Any]:
+        with self.connection() as db:
+            row = db.execute(
+                "SELECT w.*,p.pack_key,p.content_type,p.version,p.name,p.description,p.category,p.emoji,p.illustration_path,p.tags_json,p.author,p.origin "
+                "FROM official_edit_workspaces w JOIN official_content_packs p ON p.id=w.pack_id "
+                "WHERE w.workspace_token=? AND w.account_id=?",
+                (token, int(account_id)),
+            ).fetchone()
+        if not row:
+            raise LookupError("Atelier officiel introuvable ou expiré.")
+        result = dict(row)
+        result["tags"] = json.loads(result.pop("tags_json") or "[]")
+        return result
+
+    def save_workspace(self, token: str, account_id: int) -> dict[str, Any]:
+        """Capture tout le Studio comme nouvelle révision officielle."""
+        from .store import ContentStore
+
+        workspace = self.workspace(token, account_id)
+        world = ContentStore(workspace["database_path"])
+        world.initialize()
+        entities = [
+            {"type": row["entity_type"], "key": row["entity_key"], "payload": row["payload"]}
+            for row in world.list()
+        ]
+        result = self.save({
+            "key": workspace["pack_key"],
+            "content_type": workspace["content_type"],
+            "name": workspace["name"],
+            "description": workspace["description"],
+            "category": workspace["category"],
+            "emoji": workspace["emoji"],
+            "illustration_path": workspace["illustration_path"],
+            "tags": workspace["tags"],
+            "author": workspace["author"],
+            "origin": f"workspace:{token}",
+            "entities": entities,
+        }, key=workspace["pack_key"])
+        with self.connection() as db:
+            db.execute("UPDATE official_edit_workspaces SET pack_id=?,updated_at=? WHERE workspace_token=?", (result["id"], _now(), token))
+            db.commit()
+        return result
 
     @staticmethod
     def _replace_entities(db: sqlite3.Connection, pack_id: int, entities: list[dict[str, Any]]) -> None:

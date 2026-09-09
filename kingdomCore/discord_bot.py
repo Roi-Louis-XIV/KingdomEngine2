@@ -85,7 +85,15 @@ async def execute_action(engine: GameEngine, interaction: discord.Interaction, b
     await interaction.response.defer(ephemeral=True, thinking=True)
     try:
         result = await engine.execute(str(interaction.user.id), building, action, str(interaction.id), interaction_context(interaction))
-        await interaction.followup.send("\n".join(result["messages"]) or "Action effectuée.", ephemeral=True)
+        npc_lines = [
+            f"**{item['npc']['name']} :** {item['variant'].get('text', '')}"
+            for item in result.get("npc_reactions", [])
+            if item.get("variant", {}).get("text")
+        ]
+        await interaction.followup.send(
+            "\n".join([*result["messages"], *npc_lines]) or "Action effectuée.",
+            ephemeral=True,
+        )
     except Exception as exc:
         await interaction.followup.send(str(exc), ephemeral=True)
 
@@ -626,7 +634,12 @@ class InterfaceView(discord.ui.View):
             result = await self.engine.execute(
                 str(interaction.user.id), str(target["building"]), str(target["action"]), str(interaction.id), context
             )
-            self.notice = "\n".join(result["messages"]) or "Action effectuée."
+            npc_lines = [
+                f"**{item['npc']['name']} :** {item['variant'].get('text', '')}"
+                for item in result.get("npc_reactions", [])
+                if item.get("variant", {}).get("text")
+            ]
+            self.notice = "\n".join([*result["messages"], *npc_lines]) or "Action effectuée."
             if target.get("on_success_page"):
                 self.page_key = str(target["on_success_page"])
                 self.page_started_at = time.time()

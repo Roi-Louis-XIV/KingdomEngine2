@@ -14,6 +14,7 @@ def official(tmp_path):
     path = tmp_path / "platform.db"
     with sqlite3.connect(path) as db:
         db.executescript(SCHEMA_COMPTES)
+        db.execute("INSERT INTO web_accounts(id,username,display_name,email,password_salt,password_hash,is_admin,active,created_at) VALUES(1,'platform','Payen Studio','','salt','hash',1,1,'now')")
     store = OfficialContentStore(path)
     store.migrate_legacy_presets()
     return store
@@ -58,3 +59,35 @@ def test_publication_is_blocked_for_missing_world_settings(official):
     assert not draft["validation"]["valid"]
     with pytest.raises(Exception, match="Publication bloquée"):
         official.set_status("broken_world", "published")
+
+
+def test_full_studio_workspace_creates_a_new_independent_revision(official, tmp_path):
+    workspace = official.create_workspace("medieval_kingdom", 1, tmp_path)
+    world = ContentStore(workspace["database_path"])
+    current = world.get("building", "market_square")
+    changed = dict(current["payload"])
+    changed["name"] = "Place du modèle éditée"
+    world.save("building", "market_square", changed, expected_version=current["version"])
+
+    revision = official.save_workspace(workspace["workspace_token"], 1)
+
+    assert revision["status"] == "draft"
+    assert revision["version"] == 2
+    assert next(entity for entity in revision["entities"] if entity["key"] == "market_square")["payload"]["name"] == "Place du modèle éditée"
+    assert official.get("medieval_kingdom", published_only=True)["version"] == 1
+
+
+def test_community_catalog_is_separate_from_official_catalog(official):
+    source = official.get("space_station", published_only=True)
+    community = official.save({
+        **source,
+        "key": "community_crew_world",
+        "name": "Monde de l'équipage",
+        "catalog_scope": "community",
+        "owner_account_id": 1,
+        "source_world_slug": "aurora-live",
+    })
+    official.set_status(community["key"], "published", version=community["version"])
+
+    assert not any(item["key"] == community["key"] for item in official.list(catalog_scope="official"))
+    assert any(item["key"] == community["key"] for item in official.list(catalog_scope="community", published_only=True))

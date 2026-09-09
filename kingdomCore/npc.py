@@ -35,13 +35,17 @@ class NpcEngine:
         else: variant=random.Random(f"{npc_key}:{player_id}:{reaction.get('key')}:{int(time.time())}").choice(available)
         self.set_memory(npc_key,player_id,"npc_met",True); self.set_memory(npc_key,player_id,f"last_variant:{reaction.get('key','reaction')}",str(variant.get("key","")))
         voice=self.voice_agent(npc); audio_key=str(variant.get("audio_key", ""))
-        if audio_key and voice.get("bot_key") and voice.get("building_key"):
-            with self.store.connection() as db:self.store.queue_audio(db,"play",voice["building_key"],audio_key=audio_key,bot_key=voice["bot_key"],context={"source":"npc","npc_key":npc_key,"reaction_key":reaction.get("key"),"text":variant.get("text","")})
+        # Les Voice Workers sont maintenant attribués dynamiquement à une
+        # présence. Une réaction PNJ ne doit donc plus dépendre d'un ancien bot
+        # vocal fixé au bâtiment : KingdomVoice retrouvera le worker actif à
+        # partir du bâtiment au moment de dépiler la commande.
+        if audio_key and voice.get("building_key") and voice.get("configured"):
+            with self.store.connection() as db:self.store.queue_audio(db,"play",voice["building_key"],audio_key=audio_key,context={"source":"npc","npc_key":npc_key,"presence_key":voice.get("presence_key"),"reaction_key":reaction.get("key"),"text":variant.get("text","")})
         return {"npc":{"key":npc_key,"name":npc.get("name")},"reaction_key":reaction.get("key"),"variant":variant,"context":context,"voice_agent":voice}
     def _conditions(self,conditions,context,player_id):
         for c in conditions or []:
             kind,value=c.get("type"),c.get("value",c.get("key")); invert=bool(c.get("not")); actual=False
-            if kind in {"period","weather","season","location","building"}:actual=context.get({"location":"location_key","building":"building_key"}.get(kind,kind))==value
+            if kind in {"period","weather","season","location","building","action"}:actual=context.get({"location":"location_key","building":"building_key","action":"action_key"}.get(kind,kind))==value
             elif kind=="event_active":actual=value in context["events"]
             elif kind in {"first_meeting","npc_met"}:actual=bool(context["npc_met"])==(kind=="npc_met")
             elif kind=="memory":actual=context["memory"].get(str(c.get("key")))==c.get("value")
@@ -63,12 +67,21 @@ class NpcEngine:
             db.execute("INSERT INTO npc_player_memory(npc_key,discord_id,memory_key,value_json,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(npc_key,discord_id,memory_key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at",(npc_key,str(player_id),key,json.dumps(value,ensure_ascii=False),_now()))
     def voice_agent(self,npc):
         building_key=str(npc.get("building_key", "")); location_key=str(npc.get("location_key", ""))
+        presence_key=str(npc.get("voice_presence_key", "")); presence=None
+        if presence_key:
+            try: presence=self.store.get("voice_presence",presence_key,published=True)
+            except KeyError: presence=None
+        if presence:
+            metadata=presence["payload"].get("metadata") or {}
+            building_key=str(metadata.get("building_key") or building_key)
+            location_key=str(presence["payload"].get("location_key") or location_key)
         if not building_key and location_key:
             matches=[row for row in self.store.list("building",published=True) if row["payload"].get("location_key")==location_key]
             if len(matches)==1:building_key=matches[0]["entity_key"]
         bots=[row for row in self.store.list("bot",published=True) if row["payload"].get("bot_type")=="voice" and row["payload"].get("building_key")==building_key and row["payload"].get("enabled")]
         channels=self.store.building_channels(building_key) if building_key else {}; bot=bots[0] if bots else None
-        return {"bot_key":bot["entity_key"] if bot else None,"bot_name":bot["payload"].get("name") if bot else None,"building_key":building_key or None,"voice_channel_id":channels.get("voice_channel_id"),"configured":bool(bot),"consistent":bool(bot and channels.get("voice_channel_id"))}
+        configured=bool(presence or bot)
+        return {"bot_key":bot["entity_key"] if bot else None,"bot_name":bot["payload"].get("name") if bot else None,"presence_key":presence_key or None,"presence_name":presence["payload"].get("name") if presence else None,"building_key":building_key or None,"voice_channel_id":channels.get("voice_channel_id"),"configured":configured,"consistent":bool(configured and channels.get("voice_channel_id"))}
 
     def dialogue(self,npc_key,player_id,node_key=""):
         npc=self.get(npc_key); dialogues=list(npc.get("dialogues") or [])

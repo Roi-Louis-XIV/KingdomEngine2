@@ -62,7 +62,17 @@ class GameEngine:
             # Toute écriture de l'horloge/météo est effectuée avant la
             # transaction gameplay afin d'éviter deux écrivains SQLite.
             self._world_snapshot = self.world_clock.state()
-            return await self._execute(discord_id, building_key, action_key, interaction_id, context or {})
+            result = await self._execute(discord_id, building_key, action_key, interaction_id, context or {})
+            if "npc_reactions" not in result:
+                result["npc_reactions"] = self._react_npcs_to_action(
+                    discord_id, building_key, action_key, context or {}, "activity_success"
+                )
+                with self.store.connection() as db:
+                    db.execute(
+                        "UPDATE action_log SET result_json=? WHERE interaction_id=?",
+                        (json.dumps(result, ensure_ascii=False), interaction_id),
+                    )
+            return result
         except Exception as exc:
             try:
                 action = next(item for item in self.building(building_key)["payload"].get("actions", []) if item.get("key") == action_key)
@@ -71,6 +81,39 @@ class GameEngine:
             except Exception:
                 pass
             raise
+
+    def _react_npcs_to_action(
+        self,
+        discord_id: str,
+        building_key: str,
+        action_key: str,
+        context: dict[str, Any],
+        trigger: str,
+    ) -> list[dict[str, Any]]:
+        """Déclenche les PNJ présents sans confondre voix et ambiance du lieu."""
+        from kingdomCore.npc import NpcEngine, NpcError
+
+        reactions: list[dict[str, Any]] = []
+        npc_engine = NpcEngine(self.store)
+        for entity in self.store.list("npc", published=True):
+            npc = entity["payload"]
+            if str(npc.get("building_key", "")) != building_key:
+                continue
+            try:
+                reaction = npc_engine.react(
+                    entity["entity_key"],
+                    discord_id,
+                    trigger,
+                    {
+                        **context,
+                        "building_key": building_key,
+                        "action_key": action_key,
+                    },
+                )
+            except NpcError:
+                continue
+            reactions.append(reaction)
+        return reactions
 
     async def execute_local_activity(self, discord_id: str, building_key: str, action_key: str,
                                      interaction_id: str, context: dict[str, Any] | None = None) -> dict[str, Any]:

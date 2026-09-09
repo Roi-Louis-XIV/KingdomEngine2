@@ -626,8 +626,10 @@ def test_voice_presence_has_a_real_client_ui_and_hides_worker_details():
     assert "loadVoicePresenceStudio" in script
     assert "openVoicePresenceDialog" in script
     assert "openVoiceProfileDialog" in script
-    assert "Une ambiance dans chaque bâtiment" in script
-    assert "Affecter un bot audio" in script
+    assert "Des personnages et des ambiances dans vos bâtiments" in script
+    assert "Personnage → réactions sonores → présence → Voice Worker" in script
+    assert "Créer une présence" in script
+    assert "voiceLinkState" in script
     assert "Que voulez-vous créer ?" in script
     assert "Une ambiance sonore" in script
     assert "Un personnage / PNJ" in script
@@ -638,7 +640,7 @@ def test_voice_presence_has_a_real_client_ui_and_hides_worker_details():
     assert "/api/voice-presences/" in script
     assert "VOICE WORKER DE BASE" in script
     assert "L’identité n’est pas définie ici" in script
-    assert "Aucun bâtiment sonorisé" in script
+    assert "Aucune présence configurée" in script
     assert "worker_01" not in script
     assert ".voice-presence-grid" in styles
     assert ".voice-assignment-step" in styles

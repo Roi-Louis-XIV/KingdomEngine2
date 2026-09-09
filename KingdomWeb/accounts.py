@@ -73,6 +73,13 @@ class RegistreComptes:
                 base.execute("ALTER TABLE worlds ADD COLUMN template_key TEXT NOT NULL DEFAULT 'blank'")
             if "template_version" not in world_columns:
                 base.execute("ALTER TABLE worlds ADD COLUMN template_version INTEGER NOT NULL DEFAULT 1")
+            official_columns = {row[1] for row in base.execute("PRAGMA table_info(official_content_packs)")}
+            if "catalog_scope" not in official_columns:
+                base.execute("ALTER TABLE official_content_packs ADD COLUMN catalog_scope TEXT NOT NULL DEFAULT 'official'")
+            if "owner_account_id" not in official_columns:
+                base.execute("ALTER TABLE official_content_packs ADD COLUMN owner_account_id INTEGER")
+            if "source_world_slug" not in official_columns:
+                base.execute("ALTER TABLE official_content_packs ADD COLUMN source_world_slug TEXT NOT NULL DEFAULT ''")
         self._creer_administrateur_initial()
         self._creer_serveur_initial()
         self._migrer_fondations_produit()
@@ -641,6 +648,9 @@ CREATE TABLE IF NOT EXISTS official_content_packs(
  tags_json TEXT NOT NULL DEFAULT '[]',
  author TEXT NOT NULL DEFAULT 'Payen Studio',
  origin TEXT NOT NULL DEFAULT 'platform',
+ catalog_scope TEXT NOT NULL DEFAULT 'official',
+ owner_account_id INTEGER,
+ source_world_slug TEXT NOT NULL DEFAULT '',
  created_at TEXT NOT NULL,
  updated_at TEXT NOT NULL,
  published_at TEXT,
@@ -658,5 +668,15 @@ CREATE TABLE IF NOT EXISTS official_content_entities(
  source_version INTEGER,
  PRIMARY KEY(pack_id,entity_type,entity_key),
  FOREIGN KEY(pack_id) REFERENCES official_content_packs(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS official_edit_workspaces(
+ workspace_token TEXT PRIMARY KEY,
+ pack_id INTEGER NOT NULL,
+ account_id INTEGER NOT NULL,
+ database_path TEXT NOT NULL UNIQUE,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ FOREIGN KEY(pack_id) REFERENCES official_content_packs(id) ON DELETE CASCADE,
+ FOREIGN KEY(account_id) REFERENCES web_accounts(id) ON DELETE CASCADE
 );
 """

@@ -642,3 +642,294 @@ body > main {
 #official-form > footer { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 22px; border-top: 1px solid #293547; background: #111925; }#official-form > footer > div { display: flex; gap: 8px; }.official-validation { padding: 15px; border: 1px solid #285d49; border-radius: 12px; background: #10271f; }.official-validation span { float: right; }.official-validation .error { color: #ff7588; }.official-validation .warning { color: #f9c65b; }
 .official-entities { margin-top: 18px; }.official-entity { margin-top: 10px; border: 1px solid #293547; border-radius: 12px; background: #111923; }.official-entity summary { padding: 14px; cursor: pointer; }.official-entity summary > div { flex: 1; }.official-entity summary b, .official-entity summary small { display: block; }.official-entity > div { display: grid; grid-template-columns: 180px 1fr; gap: 12px; padding: 0 14px 14px; }.official-entity > div label:last-child { grid-column: 1 / -1; }.official-entity textarea { font: 12px/1.5 ui-monospace, Consolas, monospace; }.publish { color: #07120d !important; background: #4bd9a1 !important; }
 @media (max-width: 800px) { #official-form { grid-template-columns: 1fr; overflow: auto; }#official-form > aside, #official-form > main { overflow: visible; }#official-form > footer { position: sticky; bottom: 0; }.official-editor-shell { height: 96vh; overflow: auto; }.official-cards { grid-template-columns: 1fr; } }
+
+/* Atelier officiel plein écran — surclasse les règles génériques de <main>. */
+.official-editor-backdrop {
+  padding: clamp(8px, 1.5vw, 24px);
+}
+
+.official-editor-shell {
+  width: min(1840px, 99vw);
+  height: min(1080px, 98vh);
+  border-radius: 18px;
+}
+
+.official-editor-shell > header {
+  height: 92px;
+  padding: 18px clamp(18px, 2vw, 34px);
+}
+
+.official-editor-shell > header h2,
+.official-editor-shell > header p {
+  margin: 3px 0;
+}
+
+.official-editor-shell > header p {
+  color: #95a5b7;
+  font-size: 13px;
+}
+
+.official-close {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 26px;
+}
+
+.official-full-studio {
+  margin-left: auto;
+  padding: 12px 18px;
+  white-space: nowrap;
+}
+
+#official-form {
+  grid-template-columns: minmax(300px, 390px) minmax(0, 1fr);
+  height: calc(100% - 92px);
+}
+
+#official-form > main.official-structure {
+  width: auto;
+  max-width: none;
+  margin: 0;
+  padding: clamp(18px, 2vw, 32px);
+}
+
+.official-identity {
+  padding: 26px !important;
+}
+
+.official-section-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.official-section-title > span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border-radius: 10px;
+  color: #07120d;
+  background: #4bd9a1;
+  font-weight: 900;
+}
+
+.official-section-title b,
+.official-section-title small {
+  display: block;
+}
+
+.official-section-title small {
+  margin-top: 3px;
+  color: #8f9eaf;
+}
+
+.official-version-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 24px;
+  padding: 15px;
+  border: 1px solid #2e4050;
+  border-radius: 12px;
+  background: #0a1119;
+}
+
+.official-version-card small {
+  grid-column: 1 / -1;
+  color: #7d91a7;
+}
+
+.official-version-card strong {
+  font-size: 24px;
+}
+
+.official-validation {
+  min-height: 74px;
+}
+
+.official-validation > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.official-validation.invalid {
+  border-color: #824150;
+  background: #29151b;
+}
+
+.official-coverage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.official-coverage i {
+  padding: 5px 8px;
+  border: 1px solid #344157;
+  border-radius: 999px;
+  color: #718094;
+  font-size: 10px;
+  font-style: normal;
+}
+
+.official-coverage i.covered {
+  border-color: #2b795b;
+  color: #63e6b4;
+  background: #123225;
+}
+
+.official-entities > header {
+  align-items: flex-start;
+  padding: 6px 0 16px;
+}
+
+.official-structure-actions,
+.official-entity-filters,
+.official-entity-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.official-entity-filters button {
+  padding: 6px 9px;
+  color: #91a0b2;
+  border-radius: 999px;
+  font-size: 10px;
+}
+
+.official-entity-filters button.active {
+  color: #07120d;
+  border-color: #4bd9a1;
+  background: #4bd9a1;
+}
+
+[data-official-entities] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+.official-entity {
+  min-width: 0;
+  margin: 0;
+}
+
+.official-entity[open] {
+  grid-column: 1 / -1;
+  border-color: #3a8568;
+}
+
+.official-entity summary > span {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  border-radius: 10px;
+  background: #1a2532;
+  font-size: 20px;
+}
+
+.official-entity-actions {
+  margin-left: auto;
+}
+
+.official-entity-actions button {
+  padding: 7px 9px;
+}
+
+.official-entity > div {
+  grid-template-columns: minmax(180px, 0.35fr) minmax(240px, 0.65fr);
+  padding: 4px 18px 18px;
+}
+
+.official-entity textarea {
+  min-height: 280px;
+  resize: vertical;
+}
+
+#official-form > footer {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+#official-form > footer button {
+  white-space: nowrap;
+}
+
+@media (max-width: 1050px) {
+  #official-form {
+    grid-template-columns: 290px minmax(0, 1fr);
+  }
+
+  [data-official-entities] {
+    grid-template-columns: 1fr;
+  }
+
+  .official-entity[open] {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .official-editor-backdrop {
+    padding: 0;
+  }
+
+  .official-editor-shell {
+    width: 100vw;
+    height: 100vh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  #official-form {
+    display: block;
+    height: calc(100vh - 92px);
+    overflow-y: auto;
+  }
+
+  #official-form > aside,
+  #official-form > main.official-structure {
+    overflow: visible;
+  }
+
+  #official-form > footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #official-form > footer > div {
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .official-entities > header,
+  .official-validation > div:first-child {
+    display: grid;
+  }
+
+  .official-structure-actions button {
+    flex: 1;
+  }
+
+  .official-entity > div {
+    grid-template-columns: 1fr;
+  }
+
+  .official-entity > div label:last-child {
+    grid-column: auto;
+  }
+}

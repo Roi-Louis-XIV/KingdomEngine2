@@ -1,8 +1,10 @@
+import asyncio
 import json
 import time
 
 from KingdomData.store import ContentStore
 from kingdomCore.npc import NpcEngine
+from kingdomCore.engine import GameEngine
 from kingdomEvent.calendar import CalendarEngine
 from kingdomEvent.lifecycle import EventLifecycle
 from kingdomEvent.runtime import WorldClock
@@ -92,3 +94,70 @@ def test_multiple_npcs_share_one_voice_agent(tmp_path):
     store=npc_store(tmp_path); publish(store,"npc","elise",{"name":"Elise","location_key":"tavern_place","building_key":"tavern","reactions":[{"key":"hello","variants":[{"key":"one","text":"Bonjour."}]}]})
     engine=NpcEngine(store)
     assert engine.voice_agent(engine.get("gared"))["bot_key"]==engine.voice_agent(engine.get("elise"))["bot_key"]
+
+
+def test_npc_reaction_uses_dynamic_voice_presence_without_legacy_bot(tmp_path):
+    store = npc_store(tmp_path)
+    publish(store, "audio", "gared_hello", {"name": "Bonjour Gared", "source": "gared.mp3"})
+    publish(store, "voice_presence", "gared_presence", {
+        "name": "Gared",
+        "presence_type": "npc",
+        "source_key": "gared",
+        "assignment_mode": "automatic",
+        "metadata": {"building_key": "tavern"},
+    })
+    npc = store.get("npc", "gared")
+    payload = dict(npc["payload"])
+    payload["voice_presence_key"] = "gared_presence"
+    payload["reactions"] = [{
+        "key": "spoken",
+        "trigger": "talk",
+        "variants": [{"key": "hello", "text": "Bonjour.", "audio_key": "gared_hello"}],
+    }]
+    draft = store.save("npc", "gared", payload, "test", npc["version"])
+    store.publish("npc", "gared", draft["version"], "test")
+
+    result = NpcEngine(store).react("gared", "42")
+
+    assert result["voice_agent"]["presence_key"] == "gared_presence"
+    command = store.pending_audio()[0]
+    assert command["building_key"] == "tavern"
+    assert command["audio_key"] == "gared_hello"
+    assert command["bot_key"] == ""
+
+
+def test_building_action_triggers_linked_npc_reaction_and_voice(tmp_path):
+    store = npc_store(tmp_path)
+    publish(store, "audio", "gared_work", {"name": "Bien joué", "source": "work.mp3"})
+    publish(store, "voice_presence", "gared_presence", {
+        "name": "Gared",
+        "presence_type": "npc",
+        "source_key": "gared",
+        "assignment_mode": "automatic",
+        "metadata": {"building_key": "tavern"},
+    })
+    building = store.get("building", "tavern")
+    building_payload = dict(building["payload"])
+    building_payload["actions"] = [{
+        "key": "serve_drink",
+        "name": "Servir une boisson",
+        "effects": [{"type": "message", "text": "Boisson servie."}],
+    }]
+    draft = store.save("building", "tavern", building_payload, "test", building["version"])
+    store.publish("building", "tavern", draft["version"], "test")
+    npc = store.get("npc", "gared")
+    npc_payload = dict(npc["payload"])
+    npc_payload["voice_presence_key"] = "gared_presence"
+    npc_payload["reactions"] = [{
+        "key": "serve",
+        "trigger": "activity_success",
+        "conditions": [{"type": "action", "value": "serve_drink"}],
+        "variants": [{"key": "thanks", "text": "Beau service !", "audio_key": "gared_work"}],
+    }]
+    draft = store.save("npc", "gared", npc_payload, "test", npc["version"])
+    store.publish("npc", "gared", draft["version"], "test")
+
+    result = asyncio.run(GameEngine(store).execute("42", "tavern", "serve_drink", "interaction-1"))
+
+    assert result["npc_reactions"][0]["variant"]["text"] == "Beau service !"
+    assert store.pending_audio()[0]["audio_key"] == "gared_work"
