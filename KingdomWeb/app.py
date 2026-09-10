@@ -738,6 +738,7 @@ def modeles_de_monde():
             "commit": _deployment_summary()["commit"],
             "keys": [preset["key"] for preset in presets],
             "royal_festival_revision": festival_revision,
+            "royal_festival_persistence": contenus_officiels.catalog_state("royal_festival"),
         },
     }
 

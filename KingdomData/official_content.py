@@ -54,7 +54,7 @@ class OfficialContentStore:
         return db
 
     def migrate_legacy_presets(self) -> None:
-        """Importe une seule fois les modèles historiques sans les modifier."""
+        """Synchronise les modèles officiels livrés avec le produit."""
         catalog = {item["key"]: item for item in PRESET_CATALOG}
         with self.connection() as db:
             for key in (item["key"] for item in PRESET_CATALOG if item["key"] != "blank"):
@@ -67,7 +67,18 @@ class OfficialContentStore:
                     (key,),
                 ).fetchone()
                 if deleted:
-                    continue
+                    if key != "royal_festival":
+                        continue
+                    # La Fête du Royaume est un modèle officiel obligatoire.
+                    # Une tombstone issue d'une ancienne suppression empêchait
+                    # jusque-là toute resynchronisation sur les installations
+                    # existantes. Retirer uniquement ce marqueur ne touche à
+                    # aucun monde déjà instancié.
+                    db.execute(
+                        "DELETE FROM official_content_tombstones "
+                        "WHERE pack_key=? AND content_type='world_template'",
+                        (key,),
+                    )
                 meta = catalog[key]
                 if exists:
                     current = db.execute(
@@ -121,6 +132,29 @@ class OfficialContentStore:
                 )
                 self._replace_entities(db, int(cursor.lastrowid), world_preset(key))
             db.commit()
+
+    def catalog_state(self, key: str, *, content_type: str = "world_template") -> dict[str, Any]:
+        """Diagnostic en lecture seule de la persistance d'un pack officiel."""
+        with self.connection() as db:
+            versions = [
+                {"version": int(row["version"]), "status": str(row["status"]), "origin": str(row["origin"])}
+                for row in db.execute(
+                    "SELECT version,status,origin FROM official_content_packs "
+                    "WHERE pack_key=? AND content_type=? ORDER BY version",
+                    (key, content_type),
+                )
+            ]
+            tombstoned = db.execute(
+                "SELECT 1 FROM official_content_tombstones WHERE pack_key=? AND content_type=?",
+                (key, content_type),
+            ).fetchone() is not None
+            workspaces = int(db.execute(
+                "SELECT COUNT(*) FROM official_edit_workspaces w "
+                "JOIN official_content_packs p ON p.id=w.pack_id "
+                "WHERE p.pack_key=? AND p.content_type=?",
+                (key, content_type),
+            ).fetchone()[0])
+        return {"versions": versions, "tombstoned": tombstoned, "workspaces": workspaces}
 
     def list(self, *, content_type: str | None = None, published_only: bool = False,
              search: str = "", catalog_scope: str | None = None,

@@ -333,6 +333,11 @@ def test_world_preset_api_and_picker_expose_and_instantiate_royal_festival(tmp_p
         assert festival["catalog_scope"] == "official"
         assert response.json()["catalog"]["source"] == "official_content_packs"
         assert response.json()["catalog"]["royal_festival_revision"] == 3
+        assert response.json()["catalog"]["royal_festival_persistence"] == {
+            "versions": [{"version": 1, "status": "published", "origin": "legacy_world_presets"}],
+            "tombstoned": False,
+            "workspaces": 0,
+        }
         assert response.json()["catalog"]["keys"] == [
             "blank", "medieval_kingdom", "royal_festival", "space_station",
         ]

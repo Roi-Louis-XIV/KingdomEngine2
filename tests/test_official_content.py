@@ -108,13 +108,25 @@ def test_community_catalog_is_separate_from_official_catalog(official):
     assert any(item["key"] == community["key"] for item in official.list(catalog_scope="community", published_only=True))
 
 
-def test_published_template_can_be_deleted_without_legacy_resurrection(official):
+def test_required_royal_festival_is_restored_after_legacy_tombstone(official):
     official.delete("royal_festival", content_type="world_template")
     with pytest.raises(LookupError):
         official.get("royal_festival", content_type="world_template")
+    assert official.catalog_state("royal_festival")["tombstoned"] is True
+
     official.migrate_legacy_presets()
-    with pytest.raises(LookupError):
-        official.get("royal_festival", content_type="world_template")
+
+    restored = official.get("royal_festival", content_type="world_template", published_only=True)
+    settings = next(
+        entity["payload"] for entity in restored["entities"]
+        if entity["type"] == "server_settings" and entity["key"] == "kingdom_server"
+    )
+    state = official.catalog_state("royal_festival")
+    assert settings["template_revision"] == 3
+    assert state["tombstoned"] is False
+    assert state["versions"] == [{
+        "version": 1, "status": "published", "origin": "legacy_world_presets",
+    }]
 
 
 def test_building_preset_opens_with_a_real_editable_building(official, tmp_path):
