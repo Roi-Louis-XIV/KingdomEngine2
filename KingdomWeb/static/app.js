@@ -6090,7 +6090,124 @@ function simpleAudioMarkup(payload, buildingKey, modules) {
         ),
       }))
       .filter((item) => !item.action.key.startsWith("claim_"));
-  return `<section class="simple-audio-panel"><div class="simple-section-head"><div><small>AUDIO & PRÉSENCES</small><h3>Scène sonore vivante du bâtiment</h3><p>Configurez le lieu et ses personnages. KingdomVoice choisit et réutilise automatiquement les Workers nécessaires.</p></div><button type="button" data-open-audio-advanced>⚙ Bibliothèque et groupes audio</button></div><div class="simple-audio-grid"><article class="building-ambience-card"><span>🌲</span><small>AMBIANCE PRINCIPALE</small><h4>${escapeHtml(ambience?.payload.name || "Aucune ambiance")}</h4><p>Fond sonore permanent de ${escapeHtml(payload.name || buildingKey)}, conservé même quand aucun PNJ n’est présent.</p><div><button type="button" data-change-ambience>Choisir une ambiance</button><button type="button" class="danger-link" data-remove-simple-ambience ${ambienceKey ? "" : "disabled"}>Retirer</button></div></article><article class="building-ambience-card"><span>🧙</span><small>PERSONNAGES RÉSIDENTS</small><h4>${residents.length ? `${residents.length} personnage(s)` : "Aucun personnage"}</h4><label>Personnage principal<select data-field="audio_primary_npc"><option value="">Priorité automatique</option>${residents.map((item) => `<option value="${escapeHtml(item.entity_key)}" ${item.entity_key === primaryNpcKey ? "selected" : ""}>${escapeHtml(`${item.payload.emoji || "🧙"} ${item.payload.name}`)}</option>`).join("")}</select></label><p>${residents.map((item) => escapeHtml(item.payload.name)).join(" · ") || "Ajoutez un personnage puis choisissez ce bâtiment comme résidence."}</p><button type="button" data-manage-building-npcs>Gérer les personnages</button></article></div><section class="simple-audio-actions"><div class="simple-section-head compact"><div><small>SONS DU GAMEPLAY</small><h3>Effets propres aux actions</h3><p>Chaque PNJ peut réagir depuis sa propre présence, indépendamment de l’ambiance continue.</p></div></div>${actions.map(({ action, index, sounds }) => `<article><span>${escapeHtml(action.emoji || "🔊")}</span><div><b>${escapeHtml(action.name || action.key)}</b><small>${sounds.length ? `${sounds.length} son(s) configuré(s)` : "Aucun son"}</small></div><button type="button" data-simple-sfx="${index}">${sounds.length ? "Modifier" : "Associer un son"}</button></article>`).join("") || '<p class="simple-empty">Aucune action pouvant recevoir un SFX.</p>'}</section><section class="simple-audio-actions"><div class="simple-section-head compact"><div><small>SCÈNES UTILISANT CE BÂTIMENT</small><h3>Événements et déplacements</h3></div></div>${scenes.map((item) => `<article><span>${escapeHtml(item.payload.emoji || "✦")}</span><div><b>${escapeHtml(item.payload.name)}</b><small>Ambiance ou personnages liés à ce lieu</small></div></article>`).join("") || '<p class="simple-empty">Aucune scène n’utilise encore ce bâtiment.</p>'}</section></section>`;
+  const ambienceVolume = Number(modules.audio?.volume ?? 0.55);
+  const ambienceLoop = modules.audio?.loop !== false;
+  const residentCards = residents.map((item) => `
+    <article class="resident-character-card ${item.entity_key === primaryNpcKey ? "is-primary" : ""}">
+      <div class="resident-avatar">${escapeHtml(item.payload.emoji || "🧙")}</div>
+      <div><small>${item.entity_key === primaryNpcKey ? "★ PERSONNAGE PRINCIPAL" : "PERSONNAGE RÉSIDENT"}</small><h4>${escapeHtml(item.payload.name)}</h4><p>${escapeHtml(item.payload.description || "Aucune description")}</p></div>
+      <button type="button" data-edit-resident-routine="${escapeHtml(item.entity_key)}">Routine</button>
+    </article>`).join("");
+  const sfxRows = actions.map(({ action, index, sounds }) => `
+    <article><span>${escapeHtml(action.emoji || "🔊")}</span><div><b>${escapeHtml(action.name || action.key)}</b><small>${sounds.length ? sounds.map((sound) => state.catalogs.audio.find((asset) => asset.entity_key === sound.audio_key)?.payload.name || sound.audio_key).join(", ") : "Aucun son associé"}</small></div><button type="button" data-simple-sfx="${index}">${sounds.length ? "Modifier" : "Associer"}</button></article>`).join("");
+  const sceneRows = scenes.map((item) => `
+    <article><span>${escapeHtml(item.payload.emoji || "✦")}</span><div><h4>${escapeHtml(item.payload.name)}</h4><p>${escapeHtml(item.payload.trigger?.type || "manuel")} · ${(item.payload.character_moves || []).length} déplacement(s)</p></div></article>`).join("");
+  return `<section class="simple-audio-panel living-audio-editor">
+    <header class="living-audio-hero"><div><small>AUDIO & PRÉSENCES</small><h2>Donnez une vie sonore à ${escapeHtml(payload.name || buildingKey)}</h2><p>Vous configurez le monde. Les connexions techniques sont automatiques.</p></div><button type="button" data-open-audio-advanced>⚙ Réglages avancés</button></header>
+    <section class="living-audio-section"><div class="living-section-heading"><span>1</span><div><small>AMBIANCE</small><h3>Le fond sonore du bâtiment</h3><p>Cette ambiance continue même lorsqu’aucun personnage n’est présent.</p></div></div><div class="living-ambience-layout"><article class="living-audio-card ambience-feature"><div class="living-card-icon">🌲</div><div><small>ASSET ACTUEL</small><h4>${escapeHtml(ambience?.payload.name || "Aucune ambiance")}</h4><p>${escapeHtml(ambience?.payload.description || "Choisissez un son d’ambiance dans votre bibliothèque.")}</p></div><div class="living-card-actions"><button type="button" data-change-ambience>${ambience ? "Changer" : "Choisir un asset"}</button><button type="button" data-test-building-ambience ${ambience ? "" : "disabled"}>▶ Tester</button><button type="button" class="danger-link" data-remove-simple-ambience ${ambienceKey ? "" : "disabled"}>Retirer</button></div></article><div class="living-audio-controls"><label>Volume <output data-ambience-volume-output>${Math.round(ambienceVolume * 100)} %</output><input type="range" min="0" max="1" step=".05" value="${ambienceVolume}" data-field="audio_ambience_volume"></label><label class="living-toggle"><input type="checkbox" data-field="audio_ambience_loop" ${ambienceLoop ? "checked" : ""}><span>Lire en boucle</span></label></div></div></section>
+    <section class="living-audio-section"><div class="living-section-heading"><span>2</span><div><small>PERSONNAGES</small><h3>Qui vit ici ?</h3><p>Le principal porte l’ambiance. Les autres restent visibles et parlent avec leur propre voix.</p></div><button type="button" class="primary" data-add-building-character>＋ Ajouter un personnage</button></div><div class="resident-character-grid">${residentCards || '<div class="living-empty"><span>🧙</span><b>Aucun personnage</b><p>Ajoutez votre premier personnage sans quitter cet écran.</p></div>'}</div><label class="primary-character-select">Personnage principal<select data-field="audio_primary_npc"><option value="">Choix automatique selon la présence</option>${residents.map((item) => `<option value="${escapeHtml(item.entity_key)}" ${item.entity_key === primaryNpcKey ? "selected" : ""}>${escapeHtml(`${item.payload.emoji || "🧙"} ${item.payload.name}`)}</option>`).join("")}</select></label></section>
+    <section class="living-audio-section"><div class="living-section-heading"><span>3</span><div><small>SONS PONCTUELS</small><h3>Réactions aux actions</h3><p>Porte, pioche, cloche ou réplique : chaque son reçoit un déclencheur.</p></div><button type="button" data-add-building-sfx>＋ Ajouter un son</button></div><div class="simple-audio-actions living-sfx-list">${sfxRows || '<p class="simple-empty">Créez d’abord une action dans Fonctionnement.</p>'}</div></section>
+    <section class="living-audio-section"><div class="living-section-heading"><span>4</span><div><small>SCÈNES & DÉPLACEMENTS</small><h3>Quand le monde change</h3><p>Les événements remplacent temporairement les routines, puis les personnages reprennent leur journée.</p></div></div><div class="living-scenes-layout"><div class="living-scene-list">${sceneRows || '<div class="living-empty"><span>✦</span><b>Aucune scène liée</b><p>Les scènes créées dans Événements apparaîtront ici.</p></div>'}</div>${buildingAudioDiscordPreview(payload, residents, primaryNpcKey)}</div></section>
+  </section>`;
+}
+
+function buildingAudioDiscordPreview(building, residents, primaryNpcKey) {
+  const ordered = [...residents].sort((a, b) => a.entity_key === primaryNpcKey ? -1 : b.entity_key === primaryNpcKey ? 1 : 0);
+  const carrier = ordered[0]?.payload.name || building.name || "Le bâtiment";
+  const people = ordered.map((npc, index) => `<div class="discord-presence"><span>${escapeHtml(npc.payload.emoji || "🧙")}</span><b>${escapeHtml(npc.payload.name)}</b>${index === 0 ? "<em>porte l’ambiance</em>" : "<small>présent · parle à la demande</small>"}</div>`).join("");
+  return `<aside class="living-discord-preview"><header><span>APERÇU DISCORD</span><i>● EN DIRECT</i></header><h4>🔊 ${escapeHtml(building.name || "Bâtiment")}</h4><div class="discord-presence-list">${people || `<div class="discord-presence"><span>🏰</span><b>${escapeHtml(building.name || "Bâtiment")}</b><em>porte l’ambiance</em></div>`}</div><p><b>Logique automatique :</b> ${escapeHtml(carrier)} porte l’ambiance. Si cette présence part, la suivante prend le relais ; sans PNJ, le bâtiment continue seul.</p></aside>`;
+}
+
+function buildingLocationOptions(current = "") {
+  return state.catalogs.building.map((item) => [
+    item.entity_key,
+    `${item.payload.emoji || "🏰"} ${item.payload.name}`,
+  ]).map(([key, label]) => `<option value="${escapeHtml(key)}" ${key === current ? "selected" : ""}>${escapeHtml(label)}</option>`).join("");
+}
+
+function openBuildingCharacterWizard(buildingKey) {
+  const building = state.catalogs.building.find((item) => item.entity_key === buildingKey)?.payload || buildPayload();
+  const dialog = document.createElement("dialog");
+  dialog.className = "building-character-wizard";
+  dialog.innerHTML = `<form>
+    <header><div><small>NOUVEAU PERSONNAGE</small><h2>Créer un habitant de ${escapeHtml(building.name || "ce bâtiment")}</h2></div><button type="button" data-character-close>×</button></header>
+    <nav>${["Identité", "Voix", "Présence", "Comportement"].map((label, index) => `<button type="button" data-character-step-tab="${index}" class="${index === 0 ? "active" : ""}"><span>${index + 1}</span>${label}</button>`).join("")}</nav>
+    <main>
+      <section data-character-step="0"><div class="wizard-section-copy"><span>1</span><div><h3>Qui est ce personnage ?</h3><p>Cette identité sera visible dans le monde et dans le salon vocal.</p></div></div><div class="form-grid"><label>Nom<input name="name" required placeholder="Edgar"></label><label>Symbole<input name="emoji" value="🧙"></label><label class="wide">Description<textarea name="description" rows="4" placeholder="Tavernier chaleureux et fin connaisseur des rumeurs."></textarea></label><label class="wide">Avatar<input name="avatar" type="file" accept="image/png,image/jpeg,image/webp"></label></div></section>
+      <section data-character-step="1" hidden><div class="wizard-section-copy"><span>2</span><div><h3>Quelle est sa voix ?</h3><p>Choisissez des sons existants. Le profil vocal technique sera créé automatiquement.</p></div></div><div class="form-grid"><label>Voix ou clip principal<select name="voice_audio"><option value="">À fournir plus tard</option>${state.catalogs.audio.filter((item) => item.payload.audio_type === "voice").map((item) => `<option value="${escapeHtml(item.entity_key)}">${escapeHtml(`${item.payload.emoji || "🗣️"} ${item.payload.name}`)}</option>`).join("")}</select></label><label>Volume de la voix<input name="voice_volume" type="range" min="0" max="2" step=".05" value="1"></label><label>Phrase d’arrivée<textarea name="arrival_text" rows="3" placeholder="Bienvenue, voyageur."></textarea></label><label>Phrase de départ<textarea name="departure_text" rows="3" placeholder="À bientôt."></textarea></label></div></section>
+      <section data-character-step="2" hidden><div class="wizard-section-copy"><span>3</span><div><h3>Où vit-il ?</h3><p>La routine décrit sa journée normale. Une scène peut la remplacer temporairement.</p></div></div><label>Bâtiment principal<select name="home_building">${buildingLocationOptions(buildingKey)}</select></label><div class="routine-editor" data-routine-rows>${[["08:00", buildingKey], ["13:00", buildingKey], ["19:00", buildingKey], ["21:00", buildingKey]].map(([time, target]) => `<div><input type="time" name="routine_time" value="${time}"><select name="routine_building">${buildingLocationOptions(target)}</select><button type="button" data-remove-routine>×</button></div>`).join("")}</div><button type="button" data-add-routine>＋ Ajouter un horaire</button></section>
+      <section data-character-step="3" hidden><div class="wizard-section-copy"><span>4</span><div><h3>Comment réagit-il ?</h3><p>Ces règles simples pourront ensuite être enrichies dans la fiche Personnage.</p></div></div><div class="form-grid"><label>Quand un joueur arrive<select name="arrival_trigger"><option value="player_enter">Saluer le joueur</option><option value="disabled">Ne rien dire</option></select></label><label>Quand un joueur part<select name="departure_trigger"><option value="player_leave">Dire au revoir</option><option value="disabled">Ne rien dire</option></select></label></div><aside class="wizard-summary"><b>KingdomEngine configurera automatiquement :</b><span>✓ personnage et bâtiment principal</span><span>✓ bibliothèque vocale</span><span>✓ présence Discord dynamique</span><span>✓ routine et réactions</span></aside></section>
+    </main><footer><span data-character-feedback></span><button type="button" data-character-close>Annuler</button><button type="button" data-character-back hidden>← Retour</button><button type="button" class="primary" data-character-next>Continuer →</button><button type="submit" class="primary" data-character-save hidden>Créer et associer</button></footer>
+  </form>`;
+  document.body.append(dialog);
+  dialog.showModal();
+  let step = 0;
+  const renderStep = () => {
+    dialog.querySelectorAll("[data-character-step]").forEach((panel) => panel.hidden = Number(panel.dataset.characterStep) !== step);
+    dialog.querySelectorAll("[data-character-step-tab]").forEach((tab) => tab.classList.toggle("active", Number(tab.dataset.characterStepTab) === step));
+    dialog.querySelector("[data-character-back]").hidden = step === 0;
+    dialog.querySelector("[data-character-next]").hidden = step === 3;
+    dialog.querySelector("[data-character-save]").hidden = step !== 3;
+  };
+  dialog.querySelectorAll("[data-character-close]").forEach((button) => button.onclick = () => { dialog.close(); dialog.remove(); });
+  dialog.querySelector("[data-character-next]").onclick = () => { if (step === 0 && !dialog.querySelector('[name="name"]').reportValidity()) return; step = Math.min(3, step + 1); renderStep(); };
+  dialog.querySelector("[data-character-back]").onclick = () => { step = Math.max(0, step - 1); renderStep(); };
+  dialog.querySelectorAll("[data-character-step-tab]").forEach((tab) => tab.onclick = () => { step = Number(tab.dataset.characterStepTab); renderStep(); });
+  dialog.querySelector("[data-add-routine]").onclick = () => {
+    dialog.querySelector("[data-routine-rows]").insertAdjacentHTML("beforeend", `<div><input type="time" name="routine_time" value="12:00"><select name="routine_building">${buildingLocationOptions(buildingKey)}</select><button type="button" data-remove-routine>×</button></div>`);
+  };
+  dialog.onclick = (event) => { if (event.target.matches("[data-remove-routine]")) event.target.closest("div").remove(); };
+  dialog.querySelector("form").onsubmit = async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget, feedback = form.querySelector("[data-character-feedback]"), save = form.querySelector("[data-character-save]");
+    const name = form.elements.name.value.trim();
+    if (!name) return;
+    let npcKey = technicalKey(name, "personnage");
+    if (state.catalogs.npc.some((item) => item.entity_key === npcKey)) npcKey = `${npcKey}_${Date.now().toString().slice(-6)}`;
+    const profileKey = `voice_${npcKey}`, presenceKey = `presence_${npcKey}`;
+    const homeKey = form.elements.home_building.value || buildingKey;
+    const home = state.catalogs.building.find((item) => item.entity_key === homeKey)?.payload || building;
+    const routineTimes = [...form.querySelectorAll('[name="routine_time"]')];
+    const routineBuildings = [...form.querySelectorAll('[name="routine_building"]')];
+    const routine = routineTimes.map((input, index) => ({ time: input.value, building_key: routineBuildings[index]?.value || homeKey })).filter((item) => item.time);
+    const voiceAudio = form.elements.voice_audio.value;
+    const reactions = [];
+    if (form.elements.arrival_trigger.value !== "disabled" && form.elements.arrival_text.value.trim()) reactions.push({ key: "arrival", trigger: "player_enter", variants: [{ text: form.elements.arrival_text.value.trim(), audio_key: voiceAudio }] });
+    if (form.elements.departure_trigger.value !== "disabled" && form.elements.departure_text.value.trim()) reactions.push({ key: "departure", trigger: "player_leave", variants: [{ text: form.elements.departure_text.value.trim(), audio_key: voiceAudio }] });
+    save.disabled = true; feedback.textContent = "Création du personnage et de sa voix…";
+    try {
+      await saveAndPublishEntity("voice_profile", profileKey, { name: `Voix de ${name}`, provider: "files", language: "fr", volume: Number(form.elements.voice_volume.value), tags: ["personnage", npcKey], clips: voiceAudio ? [{ audio_key: voiceAudio, category: "default" }] : [], metadata: { missing_audio: voiceAudio ? "" : "À fournir" } });
+      const presence = await saveAndPublishEntity("voice_presence", presenceKey, { name, presence_type: "npc", source_key: npcKey, location_key: home.location_key || "", voice_profile_key: profileKey, scene_key: "", assignment_mode: "automatic", release_timeout_seconds: 30, metadata: { building_key: homeKey } });
+      const avatar = form.elements.avatar.files?.[0];
+      if (avatar) { const upload = new FormData(); upload.append("file", avatar); const response = await fetch(`/api/voice-presences/${encodeURIComponent(presenceKey)}/avatar`, { method: "POST", headers: multipartHeaders(), body: upload }); if (!response.ok) throw Error((await response.json().catch(() => ({}))).detail || "Avatar impossible à enregistrer."); }
+      await saveAndPublishEntity("npc", npcKey, { name, emoji: form.elements.emoji.value || "🧙", description: form.elements.description.value.trim(), location_key: home.location_key || "", building_key: homeKey, voice_profile_key: profileKey, voice_presence_key: presenceKey, routine, reactions, metadata: { created_from: "building_audio_wizard" } });
+      await loadCatalogs(); dialog.close(); dialog.remove(); refreshSimpleAudio(); markEditorDirty();
+    } catch (error) { feedback.textContent = error.message || "Création impossible."; save.disabled = false; }
+  };
+}
+
+function openBuildingSfxCreator() {
+  const actions = $$("#actions > .action-builder").map((element, index) => ({ index, name: fieldValue("action_name", element) || `Action ${index + 1}` }));
+  if (!actions.length) return alert("Créez d’abord une action dans l’onglet Fonctionnement.");
+  simpleDialog("building-sfx-creator", "SON PONCTUEL", "Ajouter un son déclenché", `<div class="simple-zone-form"><label>Déclencheur<select name="action">${actions.map((item) => `<option value="${item.index}">${escapeHtml(item.name)}</option>`).join("")}</select></label><label>Son<select name="audio">${audioOptions("", "sfx").map(([key, label]) => `<option value="${escapeHtml(key)}">${escapeHtml(label)}</option>`).join("")}</select></label><label>Volume<input name="volume" type="range" min="0" max="1" step=".05" value="1"></label></div>`, (data, current) => {
+    const action = $$("#actions > .action-builder")[Number(data.get("action"))];
+    if (action && data.get("audio")) addEffect(action.querySelector(".action-effects"), { type: "play_audio", audio_key: data.get("audio"), volume: Number(data.get("volume")) });
+    current.close(); markEditorDirty(); refreshSimpleAudio();
+  });
+}
+
+function openResidentRoutineEditor(npcKey) {
+  const entity = state.catalogs.npc.find((item) => item.entity_key === npcKey);
+  if (!entity) return;
+  const rows = entity.payload.routine?.length ? entity.payload.routine : [{ time: "08:00", building_key: entity.payload.building_key }];
+  const dialog = simpleDialog("resident-routine-dialog", "ROUTINE DU PERSONNAGE", `🕒 ${escapeHtml(entity.payload.name)}`, `<div class="routine-editor" data-routine-rows>${rows.map((row) => `<div><input type="time" name="routine_time" value="${escapeHtml(row.time || "08:00")}"><select name="routine_building">${buildingLocationOptions(row.building_key)}</select><button type="button" data-remove-routine>×</button></div>`).join("")}</div><button type="button" data-add-routine>＋ Ajouter un horaire</button><p class="field-note">Une scène active remplace temporairement cette routine.</p>`, async (data, current) => {
+    const times = [...current.querySelectorAll('[name="routine_time"]')], buildings = [...current.querySelectorAll('[name="routine_building"]')];
+    const routine = times.map((input, index) => ({ time: input.value, building_key: buildings[index].value })).filter((item) => item.time);
+    await saveAndPublishEntity("npc", npcKey, { ...clone(entity.payload), routine }, entity.version);
+    await loadCatalogs(); current.close(); refreshSimpleAudio();
+  });
+  dialog.querySelector("[data-add-routine]").onclick = () => dialog.querySelector("[data-routine-rows]").insertAdjacentHTML("beforeend", `<div><input type="time" name="routine_time" value="12:00"><select name="routine_building">${buildingLocationOptions(entity.payload.building_key)}</select><button type="button" data-remove-routine>×</button></div>`);
+  dialog.onclick = (event) => { if (event.target.matches("[data-remove-routine]")) event.target.closest("div").remove(); };
 }
 
 function openSimpleSfxEditor(index) {
@@ -6163,14 +6280,21 @@ function refreshSimpleAudio() {
   bindSimpleAudio();
 }
 function bindSimpleAudio() {
-  $("[data-manage-building-npcs]")?.addEventListener("click", () => {
-    if (state.editorDirty) {
-      alert("Enregistrez d’abord les changements de ce bâtiment.");
-      return;
-    }
-    closeEditor();
-    navigateTo("npc");
+  const buildingKey = $("#key")?.value || state.interfaceDraft?.target_building_key || "";
+  $("[data-add-building-character]")?.addEventListener("click", () => openBuildingCharacterWizard(buildingKey));
+  $("[data-add-building-sfx]")?.addEventListener("click", openBuildingSfxCreator);
+  $$('[data-edit-resident-routine]').forEach((button) => button.onclick = () => openResidentRoutineEditor(button.dataset.editResidentRoutine));
+  $("[data-test-building-ambience]")?.addEventListener("click", () => {
+    const audioKey = fieldValue("relation_ambience_key");
+    if (audioKey) previewAudio(audioKey);
   });
+  const volume = $('[data-field="audio_ambience_volume"]');
+  if (volume) volume.oninput = () => {
+    $('[data-ambience-volume-output]').textContent = `${Math.round(Number(volume.value) * 100)} %`;
+    markEditorDirty();
+  };
+  $('[data-field="audio_ambience_loop"]')?.addEventListener("change", markEditorDirty);
+  $('[data-field="audio_primary_npc"]')?.addEventListener("change", markEditorDirty);
   $("[data-change-ambience]")?.addEventListener("click", () => {
     const current = fieldValue("relation_ambience_key"),
       dialog = simpleDialog(
@@ -7877,7 +8001,7 @@ function renderBuildingFields(payload, preset = null) {
     .querySelector(".building-editor-tabs")
     .insertAdjacentHTML(
       "beforeend",
-      '<button type="button" data-building-tab="sound" data-tutorial="building-tab-audio">🔊 Audio</button><button type="button" data-building-tab="advanced">⚙ Avancé</button>',
+      '<button type="button" data-building-tab="sound" data-tutorial="building-tab-audio">🔊 Audio & Présences</button><button type="button" data-building-tab="advanced">⚙ Avancé</button>',
     );
   root
     .querySelector('[data-building-panel="relations"]')
@@ -9498,6 +9622,8 @@ function buildPayload() {
     modules.audio = {
       ...(modules.audio || {}),
       primary_npc_key: fieldValue("audio_primary_npc") || "",
+      volume: Number(fieldValue("audio_ambience_volume") || modules.audio?.volume || 0.55),
+      loop: Boolean(fieldValue("audio_ambience_loop")),
       default_group_key: simpleAmbience
         ? "global_ambience"
         : selectedAudioGroup === "global_ambience"

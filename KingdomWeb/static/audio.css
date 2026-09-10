@@ -1006,6 +1006,344 @@
   border-color: var(--accent, #39ce6a);
 }
 
+/* ==============================
+   AUDIO & PRÉSENCES DU BÂTIMENT
+   ============================== */
+
+.living-audio-editor {
+  display: grid;
+  gap: 20px;
+}
+
+.living-audio-hero,
+.living-section-heading,
+.living-audio-card,
+.resident-character-card,
+.living-scene-list article,
+.living-discord-preview header,
+.discord-presence {
+  display: flex;
+  align-items: center;
+}
+
+.living-audio-hero {
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px;
+  border: 1px solid #285840;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #10261d, #111724 65%, #241c3d);
+}
+
+.living-audio-hero h2 {
+  margin: 5px 0 8px;
+  font-size: clamp(1.55rem, 3vw, 2.4rem);
+}
+
+.living-audio-hero small,
+.living-section-heading small,
+.resident-character-card small {
+  color: #50d99c;
+  letter-spacing: .12em;
+  font-weight: 800;
+}
+
+.living-audio-section {
+  padding: 24px;
+  border: 1px solid var(--border, #2a3443);
+  border-radius: 18px;
+  background: var(--surface, #121722);
+}
+
+.living-section-heading {
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.living-section-heading > span,
+.wizard-section-copy > span {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: #07110d;
+  background: #50d99c;
+  font-weight: 900;
+}
+
+.living-section-heading > div {
+  flex: 1;
+}
+
+.living-section-heading h3,
+.living-section-heading p {
+  margin: 3px 0;
+}
+
+.living-ambience-layout,
+.living-scenes-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(260px, .7fr);
+  gap: 16px;
+}
+
+.living-audio-card,
+.living-audio-controls,
+.living-discord-preview {
+  padding: 18px;
+  border: 1px solid #2e3a48;
+  border-radius: 14px;
+  background: #0d121b;
+}
+
+.living-audio-card {
+  gap: 16px;
+}
+
+.living-audio-card > div:nth-child(2) {
+  flex: 1;
+}
+
+.living-card-icon,
+.resident-avatar {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: #193d2e;
+  font-size: 1.6rem;
+}
+
+.living-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.living-audio-controls {
+  display: grid;
+  align-content: center;
+  gap: 18px;
+}
+
+.living-audio-controls label {
+  display: grid;
+  gap: 8px;
+}
+
+.living-toggle {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+
+.resident-character-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.resident-character-card {
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #2e3a48;
+  border-radius: 14px;
+  background: #0d121b;
+}
+
+.resident-character-card.is-primary {
+  border-color: #50d99c;
+  box-shadow: inset 3px 0 #50d99c;
+}
+
+.resident-character-card > div:nth-child(2) {
+  flex: 1;
+}
+
+.resident-character-card h4,
+.resident-character-card p {
+  margin: 3px 0;
+}
+
+.primary-character-select {
+  display: grid;
+  gap: 7px;
+  max-width: 520px;
+  margin-top: 16px;
+}
+
+.living-scene-list {
+  display: grid;
+  gap: 10px;
+}
+
+.living-scene-list article {
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #0d121b;
+}
+
+.living-discord-preview header {
+  justify-content: space-between;
+  color: #aeb8c8;
+  font-size: .75rem;
+}
+
+.living-discord-preview header i,
+.discord-presence em {
+  color: #50d99c;
+  font-style: normal;
+}
+
+.discord-presence-list {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.discord-presence {
+  gap: 9px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: #171e2a;
+}
+
+.discord-presence b {
+  flex: 1;
+}
+
+.living-empty {
+  padding: 24px;
+  border: 1px dashed #394556;
+  border-radius: 14px;
+  text-align: center;
+}
+
+.building-character-wizard {
+  width: min(1060px, calc(100vw - 30px));
+  max-width: none;
+  height: min(820px, calc(100dvh - 30px));
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #344153;
+  border-radius: 20px;
+  color: var(--text, #f5f7fa);
+  background: #10151f;
+}
+
+.building-character-wizard form {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  height: 100%;
+}
+
+.building-character-wizard header,
+.building-character-wizard footer,
+.building-character-wizard nav,
+.wizard-section-copy {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.building-character-wizard header,
+.building-character-wizard footer {
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid #293443;
+}
+
+.building-character-wizard footer {
+  border-top: 1px solid #293443;
+  border-bottom: 0;
+  justify-content: flex-end;
+}
+
+.building-character-wizard footer > span {
+  margin-right: auto;
+  color: #ffad66;
+}
+
+.building-character-wizard nav {
+  padding: 12px 24px;
+  overflow-x: auto;
+}
+
+.building-character-wizard nav button.active {
+  color: #07110d;
+  border-color: #50d99c;
+  background: #50d99c;
+}
+
+.building-character-wizard main {
+  padding: 26px;
+  overflow: auto;
+}
+
+.building-character-wizard main > section {
+  max-width: 880px;
+  margin: auto;
+}
+
+.wizard-section-copy {
+  margin-bottom: 24px;
+}
+
+.routine-editor {
+  display: grid;
+  gap: 9px;
+  margin: 14px 0;
+}
+
+.routine-editor > div {
+  display: grid;
+  grid-template-columns: 130px 1fr 42px;
+  gap: 9px;
+}
+
+.wizard-summary {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid #2c7053;
+  border-radius: 14px;
+  background: #10271e;
+}
+
+@media (max-width: 760px) {
+  .living-audio-hero,
+  .living-section-heading,
+  .living-audio-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .living-ambience-layout,
+  .living-scenes-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .living-audio-section {
+    padding: 16px;
+  }
+
+  .building-character-wizard {
+    width: 100vw;
+    height: 100dvh;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .routine-editor > div {
+    grid-template-columns: 105px 1fr 38px;
+  }
+}
+
 .calendar-configuration {
   grid-template-columns: 1fr;
 }

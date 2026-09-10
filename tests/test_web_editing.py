@@ -739,6 +739,29 @@ def test_voice_presence_has_a_real_client_ui_and_hides_worker_details():
     assert "@media(max-width:760px)" in "".join(styles.split())
 
 
+def test_building_audio_tab_exposes_the_simple_living_scene_workflow():
+    static = Path(web.__file__).with_name("static")
+    page = (static / "index.html").read_text(encoding="utf-8")
+    script = SourceText((static / "app.js").read_text(encoding="utf-8"))
+    styles = (static / "audio.css").read_text(encoding="utf-8")
+
+    assert "Audio & Présences" in script
+    assert "Donnez une vie sonore" in script
+    assert "data-add-building-character" in script
+    assert "openBuildingCharacterWizard" in script
+    assert "Identité" in script and "Voix" in script and "Comportement" in script
+    assert 'data-field="audio_ambience_volume"' in script
+    assert 'data-field="audio_ambience_loop"' in script
+    assert "data-test-building-ambience" in script
+    assert "data-add-building-sfx" in script
+    assert "openResidentRoutineEditor" in script
+    assert "APERÇU DISCORD" in script
+    assert "porte l’ambiance" in script
+    assert 'data-type="voice_presence"' in page and 'aria-hidden="true"' in page
+    assert ".living-audio-editor" in styles
+    assert ".building-character-wizard" in styles
+
+
 def test_voice_presence_avatar_upload_publishes_the_new_image(tmp_path, monkeypatch):
     store = ContentStore(tmp_path / "voice-avatar.db")
     store.initialize()
