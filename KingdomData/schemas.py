@@ -376,6 +376,12 @@ def _validate_building_modules(payload: dict[str, Any]) -> None:
 
 
 def _validate_interface(payload: dict[str, Any]) -> None:
+    interactive_types = {
+        "button", "select", "dynamic_inventory_selector",
+        "dynamic_product_selector", "dynamic_consumable_selector",
+        "dynamic_game_selector",
+    }
+    full_row_types = interactive_types - {"button"}
     pages = payload.get("pages", [])
     if not isinstance(pages, list) or not pages:
         raise ValidationError("Une interface doit contenir au moins une page.")
@@ -393,22 +399,22 @@ def _validate_interface(payload: dict[str, Any]) -> None:
         reserved_slots: set[int] = set()
         reserved_rows: set[int] = set()
         for component in page.get("components", []):
-            if component.get("type") not in {"button", "select"} or "slot" not in component:
+            if component.get("type") not in interactive_types or "slot" not in component:
                 continue
             explicit_slot = int(component["slot"])
             if not 0 <= explicit_slot <= 24:
                 raise ValidationError("Chaque bouton ou menu doit occuper un emplacement entre 0 et 24.")
             explicit_row = explicit_slot // 5
-            if component.get("type") == "select":
+            if component.get("type") in full_row_types:
                 component["slot"] = explicit_row * 5
                 reserved_rows.add(explicit_row)
                 reserved_slots.update(range(explicit_row * 5, explicit_row * 5 + 5))
             else:
                 reserved_slots.add(explicit_slot)
         for component in page.get("components", []):
-            if component.get("type") not in {"button", "select"} or "slot" in component:
+            if component.get("type") not in interactive_types or "slot" in component:
                 continue
-            if component.get("type") == "select":
+            if component.get("type") in full_row_types:
                 available_row = next((row for row in range(5) if row not in reserved_rows and not any(slot // 5 == row for slot in reserved_slots)), None)
                 if available_row is None:
                     raise ValidationError("Aucune ligne n'est libre pour ce menu déroulant.")
@@ -428,18 +434,18 @@ def _validate_interface(payload: dict[str, Any]) -> None:
             if component_id in component_ids:
                 raise ValidationError(f"Composant duplique : {component_id}")
             component_ids.add(component_id)
-            if component.get("type") not in {"hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "building_inventory", "button", "select", "dynamic_inventory_selector", "dynamic_product_selector", "dynamic_consumable_selector", "dynamic_game_selector"}:
+            if component.get("type") not in {"hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "building_inventory", "world_weather", "world_calendar", "event_countdown", "collective_objective", "profession_status", *interactive_types}:
                 raise ValidationError(f"Composant inconnu : {component.get('type')}")
-            if component.get("type") in {"button", "select"}:
+            if component.get("type") in interactive_types:
                 slot = int(component.get("slot", -1))
                 if not 0 <= slot <= 24:
                     raise ValidationError("Chaque bouton ou menu doit occuper un emplacement entre 0 et 24.")
                 row = slot // 5
-                if component.get("type") == "select":
+                if component.get("type") in full_row_types:
                     if row in occupied_rows or any(candidate // 5 == row for candidate in occupied_slots):
                         raise ValidationError(f"Le menu de la ligne {row + 1} entre en conflit avec un autre composant.")
                     options = component.get("options", [])
-                    if not isinstance(options, list) or not 1 <= len(options) <= 25:
+                    if component.get("type") == "select" and (not isinstance(options, list) or not 1 <= len(options) <= 25):
                         raise ValidationError("Un menu déroulant doit proposer entre 1 et 25 options.")
                     occupied_rows.add(row)
                     occupied_slots.update(range(row * 5, row * 5 + 5))

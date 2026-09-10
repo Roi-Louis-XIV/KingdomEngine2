@@ -39,6 +39,30 @@ def test_interface_purchase_option_requires_an_item_reference():
         _validate_interaction({"type": "purchase", "item_key": ""})
 
 
+def test_builder_accepts_live_world_components_and_dynamic_presets():
+    from KingdomData.schemas import validate_entity
+
+    payload = {
+        "name": "Interface vivante",
+        "start_page": "home",
+        "pages": [{
+            "key": "home",
+            "name": "Accueil",
+            "components": [
+                {"id": "weather", "type": "world_weather", "props": {"title": "Météo"}},
+                {"id": "calendar", "type": "world_calendar", "props": {"title": "Date"}},
+                {"id": "countdown", "type": "event_countdown", "props": {"event_key": "festival"}},
+                {"id": "objective", "type": "collective_objective", "props": {"objective_key": "feast"}},
+                {"id": "profession", "type": "profession_status", "props": {}},
+                {"id": "shop", "type": "dynamic_product_selector", "slot": 0, "props": {}},
+                {"id": "sell", "type": "dynamic_inventory_selector", "slot": 5, "props": {}},
+            ],
+        }],
+    }
+
+    assert validate_entity("interface", payload)["pages"][0]["components"][5]["slot"] == 0
+
+
 def test_phase0_schema_migration_preserves_legacy_activity_table(tmp_path):
     path = tmp_path / "legacy-schema.db"
     with sqlite3.connect(path) as db:

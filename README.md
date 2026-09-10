@@ -679,6 +679,12 @@ L'interface et la mécanique sont réunies dans la même fiche **Bâtiment**. L'
 - ouvrir une autre page de la même interface ;
 - lancer n’importe quelle action publiée d’un bâtiment.
 
+Le Builder propose aussi des composants prêts à l'emploi pour la météo, le calendrier, les comptes à rebours d'événement, les objectifs collectifs, le métier et les inventaires. Les interactions courantes (acheter, vendre/livrer, prendre ou quitter un métier, lancer une activité, actualiser et fermer) peuvent être déposées directement dans la grille puis reliées à une action du bâtiment.
+
+### Audio et présences vivantes
+
+Le créateur configure les bâtiments, leurs ambiances, leurs personnages et les scènes ; il n'affecte jamais manuellement un Voice Worker. Lorsqu'un salon vocal est occupé, KingdomVoice choisit automatiquement les capacités disponibles. Le PNJ principal porte l'ambiance, les autres PNJ présents restent visibles et ne parlent que pour leurs propres réactions. Sans PNJ, une identité représentant le bâtiment maintient l'ambiance. Les événements peuvent déplacer temporairement des personnages avec `character_moves`, sans logique propre à un univers. Les anciens profils et présences vocales restent lisibles pendant la migration.
+
 Le bâtiment publié contient directement ce document visuel et il est interprété par Discord : le canvas KingdomWeb et le bot utilisent donc le même contrat, sans vue spécifique codée par bâtiment. Les anciennes entités `interface` sont migrées automatiquement et restent lisibles pour compatibilité.
 
 Le **Tableau de bord** résume la disponibilité du monde, les bâtiments, objets, stocks, joueurs, événements, tâches, alertes, classements et l’activité récente. **Santé du monde** présente les capacités utiles au client et les alertes fonctionnelles, sans exposer les processus, PID, chemins ou journaux globaux. Ces informations techniques sont réservées à l’administration séparée Payen Studio. **Paramètres serveur** centralise le serment, les règles, les rôles, les catégories, les salons, les messages d’entrée et les couleurs. Les rafraîchissements restent isolés de la navigation active.

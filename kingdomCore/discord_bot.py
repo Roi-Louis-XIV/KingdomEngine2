@@ -16,6 +16,8 @@ from discord.ext import commands
 
 from KingdomData import ContentStore, get_server_settings, interface_from_building
 from kingdomEvent import EventBus
+from kingdomEvent.lifecycle import EventLifecycle
+from kingdomEvent.runtime import WorldClock
 from import_v1 import import_v1
 from seed import DEFINITIONS
 from KingdomVoice.configuration import migrate_bot_catalog
@@ -261,6 +263,45 @@ class InterfaceView(discord.ui.View):
                 self._add_inventory(embed, str(props.get("title") or "Inventaire"))
             elif component["type"] == "building_inventory":
                 self._add_building_inventory(embed, str(props.get("building") or self._building_key()), str(props.get("title") or "Stock commun"))
+            elif component["type"] == "world_weather" and field_count < 25:
+                world = WorldClock(self.engine.store).state()
+                weather = world.get("weather", {})
+                temperature = weather.get("temperature")
+                detail = f"{weather.get('emoji', '🌦️')} **{weather.get('name') or weather.get('key') or 'Non définie'}**"
+                if temperature is not None:
+                    detail += f" · {temperature} °C"
+                embed.add_field(name=str(props.get("title") or "Météo actuelle")[:256], value=detail[:1024], inline=False)
+                field_count += 1
+            elif component["type"] == "world_calendar" and field_count < 25:
+                world = WorldClock(self.engine.store).state()
+                date = world.get("date", {})
+                month = date.get("month_name") or date.get("month_key") or "Cycle"
+                value = f"**{date.get('day', world.get('day', 1))} {month} — An {date.get('year', 1)}** · {world.get('hour', 0):02d}:{world.get('minute', 0):02d}"
+                embed.add_field(name=str(props.get("title") or "Calendrier")[:256], value=value[:1024], inline=False)
+                field_count += 1
+            elif component["type"] == "event_countdown" and field_count < 25:
+                event_key = str(props.get("event_key") or "")
+                occurrences = EventLifecycle(self.engine.store).list()
+                occurrence = next((item for item in occurrences if (not event_key or item["event_key"] == event_key) and item["status"] in {"active", "scheduled", "paused"}), None)
+                if occurrence:
+                    seconds = occurrence.get("remaining_seconds")
+                    value = occurrence["status"].capitalize() if seconds is None else str(datetime.fromtimestamp(max(0, int(seconds)), timezone.utc).strftime("%H:%M:%S"))
+                else:
+                    value = "Aucun événement en cours"
+                embed.add_field(name=str(props.get("title") or "Temps restant")[:256], value=value[:1024], inline=False)
+                field_count += 1
+            elif component["type"] == "collective_objective" and field_count < 25:
+                objective_key = str(props.get("objective_key") or "")
+                with self.engine.store.connection() as db:
+                    row = db.execute("SELECT COALESCE(SUM(amount),0) FROM collective_contributions WHERE objective_key=?", (objective_key,)).fetchone()
+                current = int(row[0]) if row else 0
+                embed.add_field(name=str(props.get("title") or "Progression collective")[:256], value=f"**{current}** contribution(s)"[:1024], inline=False)
+                field_count += 1
+            elif component["type"] == "profession_status" and self.owner_id is not None and field_count < 25:
+                professions = self.engine.player(str(self.owner_id)).get("professions", {})
+                value = "\n".join(f"**{key}** · niveau {entry.get('level', 1)} · {entry.get('experience', 0)} XP" for key, entry in professions.items()) or "Aucun métier actif"
+                embed.add_field(name=str(props.get("title") or "Votre métier")[:256], value=value[:1024], inline=False)
+                field_count += 1
         embed.description = "\n\n".join(descriptions)[:4096] or None
         return embed
 

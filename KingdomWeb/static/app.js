@@ -4679,6 +4679,46 @@ const COMPONENT_LIBRARY = {
     icon: "📦",
     props: { title: "Stock commun", building: "" },
   },
+  world_weather: {
+    name: "Météo actuelle",
+    icon: "🌦️",
+    props: { title: "Météo du monde" },
+  },
+  world_calendar: {
+    name: "Date et calendrier",
+    icon: "📅",
+    props: { title: "Calendrier" },
+  },
+  event_countdown: {
+    name: "Compte à rebours",
+    icon: "⏳",
+    props: { title: "Temps restant", event_key: "" },
+  },
+  collective_objective: {
+    name: "Objectif collectif",
+    icon: "🎯",
+    props: { title: "Progression collective", objective_key: "" },
+  },
+  profession_status: {
+    name: "Métier du joueur",
+    icon: "🛠️",
+    props: { title: "Votre métier" },
+  },
+  dynamic_product_selector: {
+    name: "Boutique / Acheter",
+    icon: "🛒",
+    props: { placeholder: "Choisir un objet à acheter…" },
+  },
+  dynamic_inventory_selector: {
+    name: "Vendre / Livrer",
+    icon: "💰",
+    props: { placeholder: "Choisir un objet à vendre ou livrer…" },
+  },
+  dynamic_consumable_selector: {
+    name: "Utiliser un consommable",
+    icon: "🍎",
+    props: { placeholder: "Choisir un consommable…" },
+  },
   button: {
     name: "Bouton",
     icon: "◉",
@@ -4701,6 +4741,34 @@ const COMPONENT_LIBRARY = {
   },
 };
 const PREDEFINED_INTERACTIONS = {
+  buy: {
+    name: "Acheter",
+    icon: "🛒",
+    component: { type: "dynamic_product_selector", props: { placeholder: "Acheter un objet…" } },
+  },
+  sell: {
+    name: "Vendre / livrer",
+    icon: "💰",
+    component: { type: "dynamic_inventory_selector", props: { placeholder: "Vendre ou livrer un objet…" } },
+  },
+  join_profession: {
+    name: "Prendre un métier",
+    icon: "🛠️",
+    action_kind: "profession_join",
+    component: { type: "button", props: { label: "Prendre ce métier", emoji: "🛠️", style: "success" }, interaction: { type: "action", building: "", action: "" } },
+  },
+  leave_profession: {
+    name: "Démissionner",
+    icon: "📜",
+    action_kind: "profession_leave",
+    component: { type: "button", props: { label: "Démissionner", emoji: "📜", style: "danger" }, interaction: { type: "action", building: "", action: "" } },
+  },
+  start_activity: {
+    name: "Lancer une activité",
+    icon: "⚡",
+    action_kind: "activity",
+    component: { type: "button", props: { label: "Commencer l’activité", emoji: "⚡", style: "primary" }, interaction: { type: "action", building: "", action: "" } },
+  },
   back: {
     name: "Retour",
     icon: "↩️",
@@ -4729,6 +4797,28 @@ const PREDEFINED_INTERACTIONS = {
     },
   },
 };
+
+const PREDEFINED_COMPONENTS = {
+  weather: { name: "Météo", icon: "🌦️", component: { type: "world_weather", props: { title: "Météo actuelle" } } },
+  calendar: { name: "Calendrier", icon: "📅", component: { type: "world_calendar", props: { title: "Date du monde" } } },
+  countdown: { name: "Compte à rebours", icon: "⏳", component: { type: "event_countdown", props: { title: "Temps restant", event_key: "" } } },
+  objective: { name: "Objectif collectif", icon: "🎯", component: { type: "collective_objective", props: { title: "Progression", objective_key: "" } } },
+  profession: { name: "Métier du joueur", icon: "🛠️", component: { type: "profession_status", props: { title: "Votre métier" } } },
+  inventory: { name: "Sac du joueur", icon: "🎒", component: { type: "player_inventory", props: { title: "Votre inventaire" } } },
+  stock: { name: "Stock du bâtiment", icon: "📦", component: { type: "building_inventory", props: { title: "Stock disponible", building: "" } } },
+};
+
+const INTERACTIVE_COMPONENT_TYPES = new Set([
+  "button",
+  "select",
+  "dynamic_product_selector",
+  "dynamic_inventory_selector",
+  "dynamic_consumable_selector",
+  "dynamic_game_selector",
+]);
+const FULL_ROW_INTERACTION_TYPES = new Set(
+  [...INTERACTIVE_COMPONENT_TYPES].filter((type) => type !== "button"),
+);
 
 /* ==============================
    BUILDER D’INTERFACE DISCORD
@@ -4781,7 +4871,7 @@ function initializeInterfaceDraft(payload = {}, buildingKey = "") {
   state.interfaceDraft.pages.forEach((page) => {
     let nextSlot = 0;
     (page.components ||= [])
-      .filter((component) => ["button", "select"].includes(component.type))
+      .filter((component) => INTERACTIVE_COMPONENT_TYPES.has(component.type))
       .forEach((component) => {
         if (!Number.isInteger(component.slot)) {
           while (
@@ -4791,13 +4881,13 @@ function initializeInterfaceDraft(payload = {}, buildingKey = "") {
           )
             nextSlot++;
           component.slot =
-            component.type === "select"
+            FULL_ROW_INTERACTION_TYPES.has(component.type)
               ? Math.floor(nextSlot / 5) * 5
               : nextSlot;
         }
-        if (component.type === "select")
+        if (FULL_ROW_INTERACTION_TYPES.has(component.type))
           component.slot = Math.floor(component.slot / 5) * 5;
-        nextSlot = component.slot + (component.type === "select" ? 5 : 1);
+        nextSlot = component.slot + (FULL_ROW_INTERACTION_TYPES.has(component.type) ? 5 : 1);
       });
   });
   state.selectedPage = state.interfaceDraft.start_page;
@@ -4814,7 +4904,7 @@ function componentTiles(types) {
 }
 function visualStudioMarkup() {
   return `<section class="visual-studio">
-    <aside class="studio-panel component-palette"><div class="studio-panel-head"><h3>Composants</h3><small>Glisser</small></div><div class="component-group"><h4>📝 Contenu de l’embed</h4><p>Éléments affichés dans le message Discord.</p><div class="component-library">${componentTiles(["hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "building_inventory"])}</div></div><div class="component-group interaction-components"><h4>🖱️ Boutons et menus</h4><p>Éléments interactifs placés dans la grille.</p><div class="component-library">${componentTiles(["button", "select"])}</div><h5>Prêts à l’emploi</h5><div class="component-library preset-library">${Object.entries(
+    <aside class="studio-panel component-palette"><div class="studio-panel-head"><h3>Composants</h3><small>Glisser</small></div><div class="component-group"><h4>📝 Contenu de l’embed</h4><p>Éléments affichés dans le message Discord.</p><div class="component-library">${componentTiles(["hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "building_inventory"])}</div><h5>Composants prêts à l’emploi</h5><div class="component-library preset-library">${Object.entries(PREDEFINED_COMPONENTS).map(([key, item]) => `<button type="button" class="component-tile preset-tile" draggable="true" data-content-preset="${key}"><span>${item.icon}</span><b>${item.name}</b></button>`).join("")}</div></div><div class="component-group interaction-components"><h4>🖱️ Boutons et menus</h4><p>Éléments interactifs placés dans la grille.</p><div class="component-library">${componentTiles(["button", "select"])}</div><h5>Boutons prêts à l’emploi</h5><div class="component-library preset-library">${Object.entries(
       PREDEFINED_INTERACTIONS,
     )
       .map(
@@ -5072,6 +5162,14 @@ function bindVisualStudio() {
       ),
     ),
   );
+  $$("[data-content-preset]").forEach((tile) =>
+    tile.addEventListener("dragstart", (event) =>
+      event.dataTransfer.setData(
+        "text/plain",
+        `contentpreset:${tile.dataset.contentPreset}`,
+      ),
+    ),
+  );
   $("#add-page").onclick = () => {
     const index = state.interfaceDraft.pages.length + 1;
     const key = technicalKey(`page_${index}`);
@@ -5104,10 +5202,23 @@ function bindVisualStudio() {
       : page.components.length;
     if (token.startsWith("new:")) {
       const type = token.slice(4);
-      if (["button", "select"].includes(type)) return;
+      if (INTERACTIVE_COMPONENT_TYPES.has(type)) return;
       const component = newComponent(type);
       page.components.splice(index, 0, component);
       state.selectedComponent = component.id;
+    }
+    if (token.startsWith("contentpreset:")) {
+      const preset = PREDEFINED_COMPONENTS[token.slice(14)];
+      if (preset) {
+        const component = clone(preset.component);
+        component.id = technicalKey(
+          `component_${token.slice(14)}_${Date.now()}`,
+        );
+        if (component.type === "building_inventory" && !component.props.building)
+          component.props.building = state.interfaceDraft.target_building_key;
+        page.components.splice(index, 0, component);
+        state.selectedComponent = component.id;
+      }
     }
     if (token.startsWith("move:")) {
       const id = token.slice(5);
@@ -5130,7 +5241,7 @@ function slotComponent(page, slot) {
     ) ||
     page.components.find(
       (component) =>
-        component.type === "select" &&
+        FULL_ROW_INTERACTION_TYPES.has(component.type) &&
         Math.floor(component.slot / 5) === Math.floor(slot / 5),
     )
   );
@@ -5139,12 +5250,12 @@ function slotComponent(page, slot) {
 function placeInteraction(type, slot) {
   const page = currentInterfacePage(),
     row = Math.floor(slot / 5);
-  if (type === "select") slot = row * 5;
+  if (FULL_ROW_INTERACTION_TYPES.has(type)) slot = row * 5;
   if (
-    type === "select" &&
+    FULL_ROW_INTERACTION_TYPES.has(type) &&
     page.components.some(
       (component) =>
-        ["button", "select"].includes(component.type) &&
+        INTERACTIVE_COMPONENT_TYPES.has(component.type) &&
         Math.floor(component.slot / 5) === row,
     )
   ) {
@@ -5167,10 +5278,12 @@ function renderInteractionGrid(page) {
   for (let row = 0; row < 5; row++) {
     const menu = page.components.find(
       (component) =>
-        component.type === "select" && Math.floor(component.slot / 5) === row,
+        FULL_ROW_INTERACTION_TYPES.has(component.type) &&
+        Math.floor(component.slot / 5) === row,
     );
     if (menu) {
-      html += `<button type="button" draggable="true" class="interaction-slot select-slot ${menu.id === state.selectedComponent ? "selected" : ""}" data-component-id="${menu.id}" data-slot="${row * 5}"><small>Ligne ${row + 1}</small><b>⌄ ${escapeHtml(menu.props?.placeholder || "Menu déroulant")}</b></button>`;
+      const icon = COMPONENT_LIBRARY[menu.type]?.icon || "⌄";
+      html += `<button type="button" draggable="true" class="interaction-slot select-slot ${menu.id === state.selectedComponent ? "selected" : ""}" data-component-id="${menu.id}" data-slot="${row * 5}"><small>Ligne ${row + 1}</small><b>${icon} ${escapeHtml(menu.props?.placeholder || COMPONENT_LIBRARY[menu.type]?.name || "Menu déroulant")}</b></button>`;
       continue;
     }
     for (let column = 0; column < 5; column++) {
@@ -5319,7 +5432,7 @@ function renderVisualStudio() {
       }),
   );
   const contentComponents = page.components.filter(
-    (component) => !["button", "select"].includes(component.type),
+    (component) => !INTERACTIVE_COMPONENT_TYPES.has(component.type),
   );
   $("#builder-canvas").innerHTML =
     `<div class="canvas-page">${contentComponents.length ? contentComponents.map(renderCanvasComponent).join("") : `<div class="canvas-empty"><div><strong>Le contenu de cette page est vide</strong><p>Glissez un composant visuel depuis la bibliothèque.</p></div></div>`}</div>`;
@@ -5343,14 +5456,14 @@ function renderVisualStudio() {
         slot = Number(cell.dataset.slot);
       if (token.startsWith("new:")) {
         const type = token.slice(4);
-        if (["button", "select"].includes(type)) placeInteraction(type, slot);
+        if (INTERACTIVE_COMPONENT_TYPES.has(type)) placeInteraction(type, slot);
       } else if (token.startsWith("preset:")) {
         placePresetInteraction(token.slice(7), slot);
       } else if (token.startsWith("move:")) {
         const component = page.components.find(
           (item) => item.id === token.slice(5),
         );
-        if (component && ["button", "select"].includes(component.type)) {
+        if (component && INTERACTIVE_COMPONENT_TYPES.has(component.type)) {
           page.components = page.components.filter(
             (item) => item !== component,
           );
@@ -5360,7 +5473,9 @@ function renderVisualStudio() {
             alert("Cet emplacement est déjà occupé.");
           } else {
             component.slot =
-              component.type === "select" ? Math.floor(slot / 5) * 5 : slot;
+              FULL_ROW_INTERACTION_TYPES.has(component.type)
+                ? Math.floor(slot / 5) * 5
+                : slot;
             page.components.push(component);
           }
           renderVisualStudio();
@@ -5393,6 +5508,16 @@ function renderCanvasComponent(component) {
     content = `<div class="preview-card"><b>🎒 ${escapeHtml(props.title || "Inventaire du joueur")}</b><p>Le contenu, la monnaie, l’énergie et les métiers du joueur seront affichés ici.</p></div>`;
   if (component.type === "building_inventory")
     content = `<div class="preview-card"><b>📦 ${escapeHtml(props.title || "Stock commun")}</b><p>Les ressources stockées dans ce bâtiment seront affichées ici.</p></div>`;
+  if (component.type === "world_weather")
+    content = `<div class="preview-card"><b>🌦️ ${escapeHtml(props.title || "Météo actuelle")}</b><p>Condition, température et saison du monde en direct.</p></div>`;
+  if (component.type === "world_calendar")
+    content = `<div class="preview-card"><b>📅 ${escapeHtml(props.title || "Calendrier")}</b><p>Date, heure et période du calendrier configuré.</p></div>`;
+  if (component.type === "event_countdown")
+    content = `<div class="preview-stat"><small>⏳ ${escapeHtml(props.title || "Temps restant")}</small><strong>01:23:45</strong></div>`;
+  if (component.type === "collective_objective")
+    content = `<div class="preview-card"><b>🎯 ${escapeHtml(props.title || "Progression collective")}</b><p>Progression et objectif commun en temps réel.</p></div>`;
+  if (component.type === "profession_status")
+    content = `<div class="preview-card"><b>🛠️ ${escapeHtml(props.title || "Votre métier")}</b><p>Métier, niveau et expérience du joueur.</p></div>`;
   return `<div class="canvas-component ${component.id === state.selectedComponent ? "selected" : ""}" draggable="true" data-component-id="${component.id}"><span class="drag-handle">⋮⋮</span>${content}</div>`;
 }
 
@@ -5504,6 +5629,27 @@ function renderPropertyPanel() {
           props.building || state.interfaceDraft.target_building_key,
         ),
       );
+  if (component.type === "world_weather")
+    fields = propertyInput("Titre", "title", props.title || "Météo actuelle");
+  if (component.type === "world_calendar")
+    fields = propertyInput("Titre", "title", props.title || "Calendrier");
+  if (component.type === "event_countdown")
+    fields =
+      propertyInput("Titre", "title", props.title || "Temps restant") +
+      propertySelect(
+        "Événement suivi",
+        "event_key",
+        props.event_key || "",
+        [["", "Prochain événement"], ...state.catalogs.event.map((item) => [item.entity_key, item.payload.name])],
+      );
+  if (component.type === "collective_objective")
+    fields =
+      propertyInput("Titre", "title", props.title || "Progression collective") +
+      propertyInput("Clé de l’objectif", "objective_key", props.objective_key || "");
+  if (component.type === "profession_status")
+    fields = propertyInput("Titre", "title", props.title || "Votre métier");
+  if (component.type.startsWith("dynamic_"))
+    fields = propertyInput("Texte d’invitation", "placeholder", props.placeholder || "Choisir…");
   if (component.type === "button") fields = buttonPropertyFields(component);
   if (component.type === "select") fields = selectPropertyFields(component);
   panel.innerHTML = `${pageFields}<hr><h4>${COMPONENT_LIBRARY[component.type].icon} ${COMPONENT_LIBRARY[component.type].name}</h4>${fields}<button type="button" class="delete-component secondary">Supprimer le composant</button>`;
@@ -5673,7 +5819,9 @@ function placePresetInteraction(preset, slot) {
     return;
   }
   const component = newPresetComponent(preset);
-  component.slot = slot;
+  component.slot = FULL_ROW_INTERACTION_TYPES.has(component.type)
+    ? Math.floor(slot / 5) * 5
+    : slot;
   page.components.push(component);
   state.selectedComponent = component.id;
   renderVisualStudio();
@@ -5686,6 +5834,25 @@ function newPresetComponent(preset) {
   );
   if (preset === "back")
     component.interaction.page = state.interfaceDraft.start_page;
+  if (template.action_kind && component.interaction?.type === "action") {
+    const building =
+      state.type === "building"
+        ? $("#key")?.value || state.interfaceDraft.target_building_key
+        : state.interfaceDraft.target_building_key;
+    const candidates = availableActions(building);
+    const matching = candidates.find((action) => {
+      const source = state.catalogs.building
+        .find((item) => item.entity_key === building)
+        ?.payload?.actions?.find((item) => item.key === action.key);
+      return (source?.effects || []).some((effect) => {
+        if (template.action_kind === "activity")
+          return ["activity", "start_activity", "delayed_activity"].includes(effect.type);
+        return effect.type === template.action_kind;
+      });
+    });
+    component.interaction.building = building || "";
+    component.interaction.action = matching?.key || candidates[0]?.key || "";
+  }
   return component;
 }
 
@@ -5903,6 +6070,17 @@ function simpleAudioMarkup(payload, buildingKey, modules) {
     ambience = state.catalogs.audio.find(
       (item) => item.entity_key === ambienceKey,
     ),
+    residents = state.catalogs.npc.filter(
+      (item) => item.payload.building_key === buildingKey,
+    ),
+    primaryNpcKey = modules.audio?.primary_npc_key || "",
+    scenes = state.catalogs.event.filter((item) =>
+      (item.payload.audio_layers || []).some(
+        (layer) => !(layer.building_keys || []).length || layer.building_keys.includes(buildingKey),
+      ) || (item.payload.character_moves || []).some(
+        (move) => move.building_key === buildingKey,
+      ),
+    ),
     actions = (payload.actions || [])
       .map((action, index) => ({
         action,
@@ -5912,7 +6090,7 @@ function simpleAudioMarkup(payload, buildingKey, modules) {
         ),
       }))
       .filter((item) => !item.action.key.startsWith("claim_"));
-  return `<section class="simple-audio-panel"><div class="simple-section-head"><div><small>AUDIO DU BÂTIMENT</small><h3>Ambiance et sons du lieu</h3><p>L’ambiance appartient au bâtiment. Les répliques appartiennent aux personnages et restent configurées dans leurs réactions.</p></div><button type="button" data-open-audio-advanced>⚙ Bibliothèque et groupes audio</button></div><div class="simple-audio-grid"><article class="building-ambience-card"><span>🌲</span><small>AMBIANCE DU BÂTIMENT</small><h4>${escapeHtml(ambience?.payload.name || "Aucune ambiance")}</h4><p>Créez vos sons et groupes dans « Voix & audio », puis sélectionnez ici le fond sonore joué dans le vocal de ${escapeHtml(payload.name || buildingKey)}.</p><div><button type="button" data-change-ambience>Choisir une ambiance</button><button type="button" class="danger-link" data-remove-simple-ambience ${ambienceKey ? "" : "disabled"}>Retirer</button></div></article></div><section class="simple-audio-actions"><div class="simple-section-head compact"><div><small>SONS DU GAMEPLAY</small><h3>Effets propres aux actions</h3><p>Ces effets accompagnent l’action. Pour faire réagir un PNJ, configurez une réaction « Activité réussie » sur sa fiche, avec éventuellement la condition « Action précise du bâtiment ».</p></div></div>${actions.map(({ action, index, sounds }) => `<article><span>${escapeHtml(action.emoji || "🔊")}</span><div><b>${escapeHtml(action.name || action.key)}</b><small>${sounds.length ? `${sounds.length} son(s) configuré(s)` : "Aucun son"}</small></div><button type="button" data-simple-sfx="${index}">${sounds.length ? "Modifier" : "Associer un son"}</button></article>`).join("") || '<p class="simple-empty">Aucune action pouvant recevoir un SFX.</p>'}</section></section>`;
+  return `<section class="simple-audio-panel"><div class="simple-section-head"><div><small>AUDIO & PRÉSENCES</small><h3>Scène sonore vivante du bâtiment</h3><p>Configurez le lieu et ses personnages. KingdomVoice choisit et réutilise automatiquement les Workers nécessaires.</p></div><button type="button" data-open-audio-advanced>⚙ Bibliothèque et groupes audio</button></div><div class="simple-audio-grid"><article class="building-ambience-card"><span>🌲</span><small>AMBIANCE PRINCIPALE</small><h4>${escapeHtml(ambience?.payload.name || "Aucune ambiance")}</h4><p>Fond sonore permanent de ${escapeHtml(payload.name || buildingKey)}, conservé même quand aucun PNJ n’est présent.</p><div><button type="button" data-change-ambience>Choisir une ambiance</button><button type="button" class="danger-link" data-remove-simple-ambience ${ambienceKey ? "" : "disabled"}>Retirer</button></div></article><article class="building-ambience-card"><span>🧙</span><small>PERSONNAGES RÉSIDENTS</small><h4>${residents.length ? `${residents.length} personnage(s)` : "Aucun personnage"}</h4><label>Personnage principal<select data-field="audio_primary_npc"><option value="">Priorité automatique</option>${residents.map((item) => `<option value="${escapeHtml(item.entity_key)}" ${item.entity_key === primaryNpcKey ? "selected" : ""}>${escapeHtml(`${item.payload.emoji || "🧙"} ${item.payload.name}`)}</option>`).join("")}</select></label><p>${residents.map((item) => escapeHtml(item.payload.name)).join(" · ") || "Ajoutez un personnage puis choisissez ce bâtiment comme résidence."}</p><button type="button" data-manage-building-npcs>Gérer les personnages</button></article></div><section class="simple-audio-actions"><div class="simple-section-head compact"><div><small>SONS DU GAMEPLAY</small><h3>Effets propres aux actions</h3><p>Chaque PNJ peut réagir depuis sa propre présence, indépendamment de l’ambiance continue.</p></div></div>${actions.map(({ action, index, sounds }) => `<article><span>${escapeHtml(action.emoji || "🔊")}</span><div><b>${escapeHtml(action.name || action.key)}</b><small>${sounds.length ? `${sounds.length} son(s) configuré(s)` : "Aucun son"}</small></div><button type="button" data-simple-sfx="${index}">${sounds.length ? "Modifier" : "Associer un son"}</button></article>`).join("") || '<p class="simple-empty">Aucune action pouvant recevoir un SFX.</p>'}</section><section class="simple-audio-actions"><div class="simple-section-head compact"><div><small>SCÈNES UTILISANT CE BÂTIMENT</small><h3>Événements et déplacements</h3></div></div>${scenes.map((item) => `<article><span>${escapeHtml(item.payload.emoji || "✦")}</span><div><b>${escapeHtml(item.payload.name)}</b><small>Ambiance ou personnages liés à ce lieu</small></div></article>`).join("") || '<p class="simple-empty">Aucune scène n’utilise encore ce bâtiment.</p>'}</section></section>`;
 }
 
 function openSimpleSfxEditor(index) {
@@ -5985,6 +6163,14 @@ function refreshSimpleAudio() {
   bindSimpleAudio();
 }
 function bindSimpleAudio() {
+  $("[data-manage-building-npcs]")?.addEventListener("click", () => {
+    if (state.editorDirty) {
+      alert("Enregistrez d’abord les changements de ce bâtiment.");
+      return;
+    }
+    closeEditor();
+    navigateTo("npc");
+  });
   $("[data-change-ambience]")?.addEventListener("click", () => {
     const current = fieldValue("relation_ambience_key"),
       dialog = simpleDialog(
@@ -7935,7 +8121,7 @@ function discordInspectorPreviewMarkup() {
     return `<section class="discord-inspector-preview" id="discord-inspector-preview"><div class="discord-inspector-heading"><small>APERÇU JOUEUR · DISCORD</small><span>En direct</span></div><div class="discord-inspector-empty"><b>Aucune page à afficher</b><span>Ajoutez une page dans l’onglet Interface Discord.</span></div></section>`;
   const components = page.components || [],
     content = components
-      .filter((component) => !["button", "select"].includes(component.type))
+      .filter((component) => !INTERACTIVE_COMPONENT_TYPES.has(component.type))
       .slice(0, 5)
       .map(discordInspectorComponentMarkup)
       .join(""),
@@ -7949,11 +8135,11 @@ function discordInspectorPreviewMarkup() {
       )
       .join(""),
     selects = components
-      .filter((component) => component.type === "select")
+      .filter((component) => FULL_ROW_INTERACTION_TYPES.has(component.type))
       .slice(0, 2)
       .map(
         (component) =>
-          `<div class="discord-inspector-select">${escapeHtml(component.props?.placeholder || component.props?.label || "Choisir une option")} <span>⌄</span></div>`,
+          `<div class="discord-inspector-select">${escapeHtml(component.props?.placeholder || component.props?.label || COMPONENT_LIBRARY[component.type]?.name || "Choisir une option")} <span>⌄</span></div>`,
       )
       .join(""),
     themeColor = /^#[0-9a-f]{6}$/i.test(draft?.theme?.color || "")
@@ -9311,6 +9497,7 @@ function buildPayload() {
     const selectedAudioGroup = fieldValue("audio_default_group") || "";
     modules.audio = {
       ...(modules.audio || {}),
+      primary_npc_key: fieldValue("audio_primary_npc") || "",
       default_group_key: simpleAmbience
         ? "global_ambience"
         : selectedAudioGroup === "global_ambience"

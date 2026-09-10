@@ -14,7 +14,7 @@ import discord
 
 from KingdomData import ContentStore
 from KingdomData.paths import PACKAGE_DATA_ROOT, persistent_data_root
-from KingdomVoice.resolver import resolve_audio_scene
+from KingdomVoice.resolver import resolve_audio_scene, resolve_building_presences
 from KingdomVoice.pool import VoicePresence, VoiceWorkerPool, VoiceWorkerState
 from KingdomVoice.configuration import discover_platform_workers
 from KingdomVoice.runtime_status import write_voice_status
@@ -201,6 +201,12 @@ class ManagedVoiceBot(discord.Client):
         """
         building_key=str(self.config.get("building_key", ""))
         if not building_key: return
+        # Les présences secondaires matérialisent les PNJ dans Discord et ne
+        # parlent que lorsqu'une réaction les cible. Une seule présence par
+        # bâtiment porte la couche continue afin d'éviter plusieurs ambiances
+        # superposées.
+        if self.config.get("carries_ambience") is False:
+            return
         try:
             payload=self.store.get("building",building_key,published=True)["payload"]
             world=WorldClock(self.store).state()
@@ -357,7 +363,14 @@ class VoiceBotManager:
                         "guild_id": os.getenv("KINGDOM_GUILD_ID", ""),
                     },
                 }
-        return list(entities.values())
+        configured = list(entities.values())
+        for entity in configured:
+            # Un Worker n'est jamais attaché statiquement à un bâtiment. Seul
+            # l'orchestrateur de scènes décide où et quand il se connecte.
+            entity["payload"]["auto_join"] = False
+            entity["payload"].pop("building_key", None)
+            entity["payload"].pop("voice_channel_id", None)
+        return configured
 
     async def run(self) -> None:
         recovered = self.store.recover_audio()
@@ -447,8 +460,17 @@ class VoiceBotManager:
             self.pool.fail(worker.key, "Client Discord indisponible")
             return None
         client.store = world_store or self.store
-        client.config.update({"guild_id": guild_id or client.config.get("guild_id", ""), "voice_channel_id": channel_id or 0, "building_key": building_key, "presence_key": presence.key})
-        client.current_group_key = presence.scene_key or client.current_group_key
+        client.config.update({
+            "guild_id": guild_id or client.config.get("guild_id", ""),
+            "voice_channel_id": channel_id or 0,
+            "building_key": building_key,
+            "presence_key": presence.key,
+            "source_key": presence.source_key,
+            "carries_ambience": bool(presence.metadata.get("carries_ambience", True)),
+        })
+        client.current_group_key = (
+            presence.scene_key if client.config["carries_ambience"] else ""
+        )
         await client.apply_presence_identity(presence)
         await client.ensure_connected()
         return client
@@ -480,20 +502,53 @@ class VoiceBotManager:
         self._presence_stores = {}
         multiple_worlds = len(self.worlds) > 1
         for world_store, guild_id in self.worlds:
-            for entity in world_store.list("voice_presence", published=True):
-                payload = entity["payload"]
-                if payload.get("assignment_mode", "on_demand") != "automatic":
-                    continue
+            configured = {
+                entity["entity_key"]: entity["payload"]
+                for entity in world_store.list("voice_presence", published=True)
+            }
+            active_events = EventLifecycle(world_store).active_definitions()
+            npcs = world_store.list("npc", published=True)
+            logical_presences: list[dict[str, Any]] = []
+            for building_entity in world_store.list("building", published=True):
+                logical_presences.extend(
+                    resolve_building_presences(
+                        building_entity["entity_key"],
+                        building_entity["payload"],
+                        npcs,
+                        configured,
+                        events=active_events,
+                    )
+                )
+            represented_keys = {str(item["key"]) for item in logical_presences}
+            represented_buildings = {str(item.get("building_key", "")) for item in logical_presences}
+            # Les présences historiques sans bâtiment publié restent prises en
+            # charge pendant la migration. Elles disparaissent naturellement
+            # de l'UX simplifiée dès qu'un bâtiment possède sa scène vivante.
+            for entity_key, payload in configured.items():
+                configured_building = str(payload.get("metadata", {}).get("building_key", ""))
+                if (
+                    entity_key not in represented_keys
+                    and configured_building not in represented_buildings
+                    and payload.get("assignment_mode", "on_demand") == "automatic"
+                ):
+                    logical_presences.append({**payload, "key": entity_key})
+            for payload in logical_presences:
+                entity_key = str(payload["key"])
                 runtime_key = (
-                    f"{guild_id}:{entity['entity_key']}"
+                    f"{guild_id}:{entity_key}"
                     if multiple_worlds and guild_id
-                    else entity["entity_key"]
+                    else entity_key
                 )
                 metadata = dict(payload.get("metadata", {}))
-                metadata.update({"runtime_entity_key": entity["entity_key"], "guild_id": guild_id})
+                metadata.update({
+                    "runtime_entity_key": entity_key,
+                    "guild_id": guild_id,
+                    "building_key": payload.get("building_key") or metadata.get("building_key", ""),
+                    "carries_ambience": bool(payload.get("carries_ambience", True)),
+                })
                 presences[runtime_key] = VoicePresence(
                     key=runtime_key,
-                    name=str(payload.get("name", entity["entity_key"])),
+                    name=str(payload.get("name", entity_key)),
                     presence_type=str(payload.get("presence_type", "custom")),
                     source_key=str(payload.get("source_key", "")),
                     avatar_url=str(payload.get("avatar_path") or payload.get("avatar_url", "")),
@@ -616,6 +671,8 @@ class VoiceBotManager:
         building_key = str(command.get("building_key", ""))
         explicit = str(command.get("bot_key") or "")
         speaker = str((audio or {}).get("speaker_bot_key") or "")
+        requested_presence = str(command.get("context", {}).get("presence_key") or "")
+        requested_source = str(command.get("context", {}).get("npc_key") or "")
 
         def belongs_to_world(client: ManagedVoiceBot) -> bool:
             if world_store is None:
@@ -625,6 +682,21 @@ class VoiceBotManager:
         if explicit and explicit in self.clients:
             candidate = self.clients[explicit]
             return candidate if belongs_to_world(candidate) else None
+        if requested_presence or requested_source:
+            candidate = next(
+                (
+                    client
+                    for client in self.clients.values()
+                    if belongs_to_world(client)
+                    and (
+                        str(client.config.get("presence_key", "")) == requested_presence
+                        or str(client.config.get("source_key", "")) == requested_source
+                    )
+                ),
+                None,
+            )
+            if candidate is not None:
+                return candidate
         if (
             speaker in self.clients
             and belongs_to_world(self.clients[speaker])
@@ -637,6 +709,7 @@ class VoiceBotManager:
                 for client in self.clients.values()
                 if belongs_to_world(client)
                 and str(client.config.get("building_key", "")) == building_key
+                and client.config.get("carries_ambience", True)
             ),
             None,
         )

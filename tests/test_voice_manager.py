@@ -5,6 +5,7 @@ from KingdomData import ContentStore
 from KingdomVoice.bot_manager import ManagedVoiceBot, VoiceBotManager, _normalized_name
 from KingdomVoice.configuration import discover_platform_workers, migrate_bot_catalog
 from KingdomVoice.pool import VoicePresence
+from KingdomVoice.resolver import resolve_building_presences
 
 
 def test_provisioned_voice_channel_matches_building_name():
@@ -169,7 +170,8 @@ def test_configured_enables_historical_worker_from_environment(monkeypatch):
     }])
     configured = VoiceBotManager.configured(SimpleNamespace(store=store))
     assert configured[0]["payload"]["enabled"] is True
-    assert configured[0]["payload"]["building_key"] == "tavern"
+    assert configured[0]["payload"]["auto_join"] is False
+    assert "building_key" not in configured[0]["payload"]
 
 
 def test_automatic_presence_resolves_its_only_building_and_channel():
@@ -202,6 +204,34 @@ def test_direct_building_assignment_does_not_depend_on_location_guessing():
     )
 
     assert VoiceBotManager._presence_target(manager, presence) == ("lodge", "789")
+
+
+def test_living_scene_prioritizes_primary_npc_and_keeps_other_npcs_visible():
+    building = {
+        "name": "Taverne d'Edgar",
+        "modules": {"audio": {"default_group_key": "tavern", "primary_npc_key": "edgar"}},
+    }
+    npcs = [
+        {"entity_key": "roland", "payload": {"name": "Roland", "building_key": "tavern", "voice_presence_key": "presence_roland"}},
+        {"entity_key": "edgar", "payload": {"name": "Edgar", "building_key": "tavern", "voice_presence_key": "presence_edgar"}},
+    ]
+
+    scene = resolve_building_presences("tavern", building, npcs, {})
+
+    assert [item["name"] for item in scene] == ["Edgar", "Roland"]
+    assert [item["carries_ambience"] for item in scene] == [True, False]
+
+
+def test_living_scene_falls_back_to_building_and_event_moves_npcs():
+    building = {"name": "Taverne", "modules": {"audio": {"default_group_key": "quiet"}}}
+    npcs = [{"entity_key": "edgar", "payload": {"name": "Edgar", "building_key": "tavern"}}]
+    events = [{"priority": 50, "character_moves": [{"npc_key": "edgar", "building_key": "church"}]}]
+
+    tavern = resolve_building_presences("tavern", building, npcs, {}, events=events)
+    church = resolve_building_presences("church", {"name": "Église"}, npcs, {}, events=events)
+
+    assert tavern == [{"key": "building_tavern", "name": "Taverne", "presence_type": "ambience", "scene_key": "quiet", "priority": 0, "building_key": "tavern", "carries_ambience": True}]
+    assert church[0]["name"] == "Edgar"
 
 
 def test_automatic_presences_are_loaded_from_every_managed_world(tmp_path):
