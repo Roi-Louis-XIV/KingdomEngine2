@@ -745,10 +745,11 @@ def creer_serveur(request: Request, body: dict[str, Any]):
         magasin = ContentStore(serveur["database_path"])
         magasin.initialize()
         magasin.seed(definitions)
+        live_ops = WorldCreatorService(magasin).start_live_operations()
         comptes.definir_source_modele(str(serveur["slug"]), preset_key, template_version)
         store._magasins[str(magasin.path.resolve())] = magasin
         return {**serveur, "preset": preset_key, "preset_version": template_version,
-                "seeded_entities": len(definitions), "discord_provision": {
+                "seeded_entities": len(definitions), "live_ops": live_ops, "discord_provision": {
                     "requested": False,
                     "next_step": "install",
                     "message": "Installez d'abord l'application Discord ; la synchronisation complète sera alors lancée.",

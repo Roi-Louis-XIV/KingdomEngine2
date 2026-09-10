@@ -45,6 +45,14 @@ def _join(profession: str, label: str, emoji: str) -> dict[str, Any]:
     }
 
 
+def _leave(profession: str, label: str, emoji: str) -> dict[str, Any]:
+    return {
+        "key": f"leave_{profession}", "name": label, "emoji": emoji,
+        "conditions": {"type": "profession_active", "profession": profession},
+        "effects": [{"type": "profession_leave", "profession": profession}],
+    }
+
+
 def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
     """Complète en place le template officiel déjà généré depuis le GDD."""
     # Le jardin médiéval de démonstration n'appartient pas au scénario GDD.
@@ -54,7 +62,7 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
     )]
 
     settings = _entity(definitions, "server_settings", "kingdom_server")
-    settings["template_revision"] = 2
+    settings["template_revision"] = 3
     settings["balance_status"] = BALANCE
     settings["onboarding"]["starting_money"] = 25
     settings["live_ops"]["status"] = "preparation"
@@ -109,6 +117,7 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
     forest = _entity(definitions, "building", "forester_lodge")
     forest["actions"] = [
         _join("forester", "Devenir forestier", "🪓"),
+        _leave("forester", "Quitter le métier de forestier", "↩️"),
         _action("gather_festival_wood", "Bûcheronner", "🪵", "forester", [{"type":"reward","resource":"oak_timber","amount":5},{"type":"profession_experience","profession":"forester","amount":10}], energy=5, cooldown=5, duration=8),
         _action("hunt_game", "Chasser le gibier", "🦌", "forester", [{"type":"reward","resource":"game_meat","amount":2},{"type":"profession_experience","profession":"forester","amount":12}], energy=7, cooldown=10, duration=12),
         _action("craft_decorations", "Façonner des décorations", "🎊", "forester", [{"type":"cost","resource":"oak_timber","amount":2},{"type":"reward","resource":"festival_decoration","amount":2},{"type":"profession_experience","profession":"forester","amount":8}], energy=3),
@@ -118,6 +127,7 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
     mine = _entity(definitions, "building", "deep_mine")
     mine["actions"] = [
         _join("miner", "Devenir mineur", "⛏️"),
+        _leave("miner", "Quitter le métier de mineur", "↩️"),
         _action("extract_festival_ore", "Extraire du minerai", "⛓️", "miner", [{"type":"reward","resource":"iron_ore","amount":3},{"type":"profession_experience","profession":"miner","amount":10}], energy=6, cooldown=5, duration=10),
         _action("quarry_stone", "Tailler de la pierre", "🪨", "miner", [{"type":"reward","resource":"stone_block","amount":3},{"type":"profession_experience","profession":"miner","amount":8}], energy=5),
         _action("reinforce_mine", "Sécuriser la galerie", "🪵", "miner", [{"type":"cost","resource":"oak_timber","amount":15},{"type":"cost","resource":"festival_provision","amount":5},{"type":"contribution","objective":"mine_repair","resource":"support","amount":1}], energy=8),
@@ -126,6 +136,7 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
     forge = _entity(definitions, "building", "royal_forge")
     forge["actions"] = [
         _join("blacksmith", "Devenir forgeron", "⚒️"),
+        _leave("blacksmith", "Quitter le métier de forgeron", "↩️"),
         _action("forge_festival_brazier", "Forger un brasero", "🔥", "blacksmith", [{"type":"cost","resource":"iron_ore","amount":3},{"type":"cost","resource":"oak_timber","amount":1},{"type":"reward","resource":"festival_brazier","amount":1},{"type":"profession_experience","profession":"blacksmith","amount":15}], energy=7, duration=10),
         _action("forge_support_beam", "Fabriquer un étai", "🪵", "blacksmith", [{"type":"cost","resource":"oak_timber","amount":2},{"type":"cost","resource":"iron_ore","amount":1},{"type":"reward","resource":"support_beam","amount":1},{"type":"profession_experience","profession":"blacksmith","amount":8}], energy=4),
     ]
@@ -133,6 +144,7 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
     tavern = _entity(definitions, "building", "edgar_tavern")
     tavern["actions"] = [
         _join("innkeeper", "Devenir tavernier", "🍺"),
+        _leave("innkeeper", "Quitter le métier de tavernier", "↩️"),
         _action("brew_festival_drinks", "Préparer les boissons", "🍺", "innkeeper", [{"type":"cost","resource":"wheat_sack","amount":1},{"type":"reward","resource":"festival_drink_crate","amount":2},{"type":"profession_experience","profession":"innkeeper","amount":10}], energy=4, cooldown=5),
         _action("cook_festival_meal", "Cuisiner le banquet", "🍲", "innkeeper", [{"type":"cost","resource":"flour_sack","amount":1},{"type":"cost","resource":"game_meat","amount":1},{"type":"reward","resource":"festival_meal","amount":4},{"type":"contribution","objective":"banquet","resource":"festival_meal","amount":4},{"type":"profession_experience","profession":"innkeeper","amount":14}], energy=6, duration=10),
         _action("edgar_refreshment", "Profiter de la tournée d’Edgar", "🍻", None, [{"type":"reward","resource":"energy","amount":15}], cooldown=60),
@@ -141,6 +153,7 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
     farm = _entity(definitions, "building", "festival_farm")
     farm["actions"] = [
         _join("farmer", "Devenir cultivateur", "🌾"),
+        _leave("farmer", "Quitter le métier de cultivateur", "↩️"),
         _action("harvest_festival_wheat", "Récolter le blé", "🌾", "farmer", [{"type":"reward","resource":"wheat_sack","amount":4},{"type":"profession_experience","profession":"farmer","amount":10}], energy=4, cooldown=5),
         _action("mill_festival_flour", "Moudre la farine", "⚙️", "farmer", [{"type":"cost","resource":"wheat_sack","amount":2},{"type":"reward","resource":"flour_sack","amount":2},{"type":"profession_experience","profession":"farmer","amount":8}], energy=3),
         _action("prepare_provisions", "Préparer les provisions", "🧺", "farmer", [{"type":"cost","resource":"wheat_sack","amount":1},{"type":"reward","resource":"festival_provision","amount":2},{"type":"profession_experience","profession":"farmer","amount":8}], energy=3),

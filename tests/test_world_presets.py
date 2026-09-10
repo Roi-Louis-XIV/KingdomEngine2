@@ -111,6 +111,43 @@ def test_royal_festival_relations_and_gdd_screens_are_complete(tmp_path):
         assert any(reaction["trigger"] == "activity_success" for reaction in payload["reactions"])
 
 
+def test_royal_festival_professions_commerce_and_three_hour_timeline_are_operational(tmp_path):
+    store = _seed(tmp_path, "royal_festival")
+    buildings = {row["entity_key"]: row["payload"] for row in store.list("building", published=True)}
+
+    for building_key, profession_key in {
+        "forester_lodge": "forester",
+        "deep_mine": "miner",
+        "royal_forge": "blacksmith",
+        "edgar_tavern": "innkeeper",
+        "festival_farm": "farmer",
+    }.items():
+        actions = buildings[building_key]["actions"]
+        assert any(any(effect.get("type") == "profession_join" for effect in action["effects"]) for action in actions)
+        assert any(any(effect.get("type") == "profession_leave" for effect in action["effects"]) for action in actions)
+        assert buildings[building_key]["modules"]["activities"]
+        assert buildings[building_key]["modules"]["products"]
+
+    start = 1_900_000_000.0
+    service = WorldCreatorService(store)
+    started = service.start_live_operations(now=start)
+    assert started["started"] is True and started["scheduled"] == 5
+    assert service.start_live_operations(now=start + 10)["started"] is False
+    occurrences = __import__("kingdomEvent.lifecycle", fromlist=["EventLifecycle"]).EventLifecycle(store).list(now=start)
+    assert len(occurrences) == 5
+    assert all(item["status"] == "scheduled" for item in occurrences)
+    after_rain = __import__("kingdomEvent.lifecycle", fromlist=["EventLifecycle"]).EventLifecycle(store).list(now=start + 45 * 60)
+    assert next(item for item in after_rain if item["event_key"] == "festival_rain")["status"] == "active"
+    before_opening = next(item for item in after_rain if item["event_key"] == "festival_opening")
+    assert before_opening["status"] == "scheduled"
+
+    with store.connection() as database:
+        runtime = database.execute(
+            "SELECT value_json FROM world_runtime WHERE runtime_key='live_ops_scenario'"
+        ).fetchone()
+    assert runtime is not None
+
+
 def test_playable_presets_link_pages_professions_tools_and_actions(tmp_path):
     for preset_key in ("medieval_kingdom", "space_station"):
         store = _seed(tmp_path, preset_key)

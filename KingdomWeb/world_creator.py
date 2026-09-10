@@ -16,6 +16,75 @@ from kingdomCore.world import WorldEngine
 class WorldCreatorService:
     def __init__(self, store): self.store = store
 
+    def start_live_operations(self, *, now: float | None = None) -> dict[str, Any]:
+        """Planifie une timeline relative déclarée par n'importe quel template.
+
+        L'ancre et les occurrences sont persistantes et idempotentes : un
+        redémarrage des services ne recommence jamais le scénario.
+        """
+        import json
+        import time
+        from datetime import datetime, timezone
+
+        configuration = get_server_settings(self.store).get("live_ops", {})
+        timeline = configuration.get("timeline", [])
+        now = time.time() if now is None else float(now)
+        if not timeline:
+            return {"started": False, "scheduled": 0}
+        with self.store.connection() as db:
+            row = db.execute(
+                "SELECT value_json FROM world_runtime WHERE runtime_key='live_ops_scenario'"
+            ).fetchone()
+            if row:
+                state = json.loads(row[0])
+                return {"started": False, "scheduled": int(state.get("scheduled", 0)), **state}
+            state = {
+                "started_at": now,
+                "scenario_duration_minutes": int(configuration.get("scenario_duration_minutes", 0)),
+                "scheduled": 0,
+            }
+            db.execute(
+                "INSERT INTO world_runtime VALUES(?,?,?)",
+                (
+                    "live_ops_scenario",
+                    json.dumps(state, ensure_ascii=False),
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+        lifecycle = EventLifecycle(self.store)
+        scheduled = 0
+        for step in timeline:
+            event_key = str(step.get("event_key", ""))
+            if not event_key:
+                continue
+            try:
+                definition = self.store.get("event", event_key, published=True)["payload"]
+            except NotFoundError:
+                continue
+            duration = max(
+                1,
+                int(definition.get("duration_seconds") or 0)
+                or int(definition.get("duration_minutes") or 1) * 60,
+            )
+            lifecycle.schedule(
+                event_key,
+                now + max(0, int(step.get("minute", 0))) * 60,
+                duration,
+                metadata={
+                    "source": "live_ops_timeline",
+                    "scenario_started_at": now,
+                    "scenario_minute": int(step.get("minute", 0)),
+                },
+            )
+            scheduled += 1
+        with self.store.connection() as db:
+            state["scheduled"] = scheduled
+            db.execute(
+                "UPDATE world_runtime SET value_json=? WHERE runtime_key='live_ops_scenario'",
+                (json.dumps(state, ensure_ascii=False),),
+            )
+        return {"started": True, **state}
+
     def professions(self) -> list[dict[str, Any]]:
         rows: dict[str, dict[str, Any]] = {}
         for building in self.store.list("building"):
@@ -181,7 +250,19 @@ class WorldCreatorService:
             )
             objective["progress"] = min(100, round(objective["current"] / max(1, int(objective.get("target", 1))) * 100))
         elapsed_minutes = 0
-        if first_action:
+        with self.store.connection() as db:
+            scenario_row = db.execute(
+                "SELECT value_json FROM world_runtime WHERE runtime_key='live_ops_scenario'"
+            ).fetchone()
+        scenario_started_at = None
+        if scenario_row:
+            try:
+                scenario_started_at = float(__import__("json").loads(scenario_row[0]).get("started_at"))
+            except (TypeError, ValueError):
+                scenario_started_at = None
+        if scenario_started_at is not None:
+            elapsed_minutes = max(0, int((__import__("time").time() - scenario_started_at) / 60))
+        elif first_action:
             try:
                 from datetime import datetime, timezone
                 started = datetime.fromisoformat(str(first_action).replace("Z", "+00:00"))

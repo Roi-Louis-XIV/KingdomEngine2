@@ -84,7 +84,7 @@ class OfficialContentStore:
                         "SELECT 1 FROM official_content_entities WHERE pack_id=? AND entity_type='audio' LIMIT 1",
                         (current["id"],),
                     ).fetchone()
-                    needs_bundled_update = current_revision < 2 if key == "royal_festival" else not has_audio
+                    needs_bundled_update = current_revision < 3 if key == "royal_festival" else not has_audio
                     # Migration ciblée des seuls presets livrés avec le code.
                     # Les copies et contenus créés par les administrateurs ne
                     # sont jamais réécrits par un démarrage de KingdomWeb.
