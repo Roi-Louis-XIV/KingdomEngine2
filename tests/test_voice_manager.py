@@ -100,6 +100,45 @@ def test_voice_worker_reapplies_name_when_reallocated_between_buildings(tmp_path
     assert member.names == ["Kevin", "Edgar"]
 
 
+def test_voice_worker_applies_the_incarnated_presence_portrait(tmp_path):
+    portrait = tmp_path / "assets" / "presence-avatars" / "edgar.webp"
+    portrait.parent.mkdir(parents=True)
+    portrait.write_bytes(b"portrait-edgar")
+
+    class FakeMember:
+        nick = "Voice Worker 1"
+        edited = None
+
+        async def edit(self, **kwargs):
+            self.edited = kwargs
+
+    member = FakeMember()
+    guild = SimpleNamespace(me=member)
+    fake = SimpleNamespace(
+        config={"guild_id": "123"},
+        guilds=[guild],
+        get_guild=lambda guild_id: guild if guild_id == 123 else None,
+        assets_root=tmp_path,
+        _applied_identity="",
+        key="voice_worker_1",
+    )
+
+    asyncio.run(
+        ManagedVoiceBot.apply_presence_identity(
+            fake,
+            VoicePresence(
+                "presence_edgar",
+                "Edgar Brassebarbe",
+                "npc",
+                avatar_url="assets/presence-avatars/edgar.webp",
+            ),
+        )
+    )
+
+    assert member.edited["nick"] == "Edgar Brassebarbe"
+    assert member.edited["avatar"] == b"portrait-edgar"
+
+
 def test_historical_platform_workers_are_discovered_without_exposing_tokens():
     workers = discover_platform_workers({
         "EDGAR_BOT_TOKEN": "secret-edgar",
@@ -230,8 +269,25 @@ def test_living_scene_falls_back_to_building_and_event_moves_npcs():
     tavern = resolve_building_presences("tavern", building, npcs, {}, events=events)
     church = resolve_building_presences("church", {"name": "Église"}, npcs, {}, events=events)
 
-    assert tavern == [{"key": "building_tavern", "name": "Taverne", "presence_type": "ambience", "scene_key": "quiet", "priority": 0, "building_key": "tavern", "carries_ambience": True}]
+    assert tavern[0] | {"avatar_path": "", "avatar_url": ""} == {"key": "building_tavern", "name": "Taverne", "presence_type": "ambience", "scene_key": "quiet", "priority": 0, "building_key": "tavern", "carries_ambience": True, "avatar_path": "", "avatar_url": ""}
     assert church[0]["name"] == "Edgar"
+
+
+def test_living_scene_exposes_the_incarnated_character_or_building_portrait():
+    npc_scene = resolve_building_presences(
+        "tavern",
+        {"name": "Taverne"},
+        [{"entity_key": "edgar", "payload": {"name": "Edgar", "building_key": "tavern", "avatar_path": "avatars/edgar.png"}}],
+        {},
+    )
+    building_scene = resolve_building_presences(
+        "mine", {"name": "Mine", "image_path": "buildings/mine.webp"}, [], {},
+    )
+
+    assert npc_scene[0]["name"] == "Edgar"
+    assert npc_scene[0]["avatar_path"] == "avatars/edgar.png"
+    assert building_scene[0]["name"] == "Mine"
+    assert building_scene[0]["avatar_path"] == "buildings/mine.webp"
 
 
 def test_automatic_presences_are_loaded_from_every_managed_world(tmp_path):

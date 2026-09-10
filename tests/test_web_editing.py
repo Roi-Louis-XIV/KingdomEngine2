@@ -774,6 +774,16 @@ def test_global_character_editor_hides_technical_voice_objects():
     assert "Vous n’avez rien à créer ni à sélectionner manuellement" in script
     assert 'select("Profil vocal (bibliothèque)", "npc_voice_profile"' not in script
     assert 'select("Présence (identité + bâtiment)", "npc_voice_presence"' not in script
+    assert 'createPresence: false' in script
+    assert 'data-field="npc_avatar"' in script
+
+    first_npc_save = script.index('fetch(`/api/content/${state.type}/${key}`')
+    presence_creation = script.index('await ensureNpcVoiceResources(key, payload);')
+    assert first_npc_save < presence_creation
+
+    responsive = (static / "premium-builder.css").read_text(encoding="utf-8")
+    assert ".wizard-panel.npc-mode" in responsive
+    assert "width: min(1500px, 97vw)" in responsive
 
 
 def test_voice_presence_avatar_upload_publishes_the_new_image(tmp_path, monkeypatch):
