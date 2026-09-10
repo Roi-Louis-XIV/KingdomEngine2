@@ -141,6 +141,16 @@ def test_royal_festival_professions_commerce_and_three_hour_timeline_are_operati
     before_opening = next(item for item in after_rain if item["event_key"] == "festival_opening")
     assert before_opening["status"] == "scheduled"
 
+    objectives = service.live_operations()["objectives"]
+    with store.connection() as database:
+        for objective in objectives:
+            database.execute(
+                "INSERT INTO collective_contributions(objective_key,discord_id,building_key,resource_key,amount,metadata_json,created_at) VALUES(?,?,?,?,?,?,?)",
+                (objective["key"], "collective", "festival_esplanade", objective["unit"], objective["target"], "{}", "2026-09-10T00:00:00+00:00"),
+            )
+    after_completion = __import__("kingdomEvent.lifecycle", fromlist=["EventLifecycle"]).EventLifecycle(store).list(now=start + 170 * 60)
+    assert next(item for item in after_completion if item["event_key"] == "festival_opening")["status"] == "active"
+
     with store.connection() as database:
         runtime = database.execute(
             "SELECT value_json FROM world_runtime WHERE runtime_key='live_ops_scenario'"

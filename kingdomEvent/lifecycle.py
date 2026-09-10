@@ -44,12 +44,53 @@ class EventLifecycle:
         real_start=now+(target-float(world["world_hours"]))*3600/float(world["speed"]); real_duration=(finish-target)*3600/float(world["speed"])
         return self.schedule(event_key,real_start,real_duration,scope=scope,metadata={"world_start":start,"world_end":end,"world_start_hours":target,"world_end_hours":finish})
 
+    def _activation_allowed(self, event_key: str) -> bool:
+        """Évalue les prérequis déclaratifs communs avant une activation planifiée."""
+        definition = self.store.get("event", event_key, published=True)["payload"]
+        conditions = definition.get("activation_conditions", {})
+        if not conditions.get("all_objectives_completed"):
+            return True
+
+        from KingdomData import get_server_settings
+
+        objectives = get_server_settings(self.store).get("live_ops", {}).get("objectives", [])
+        with self.store.connection() as db:
+            totals = {
+                str(row["objective_key"]): int(row["amount"] or 0)
+                for row in db.execute(
+                    "SELECT objective_key,SUM(amount) amount "
+                    "FROM collective_contributions GROUP BY objective_key"
+                )
+            }
+        return bool(objectives) and all(
+            totals.get(str(objective.get("key", "")), 0) >= int(objective.get("target", 1))
+            for objective in objectives
+            if objective.get("state", "active") not in {"disabled", "failed"}
+        )
+
     def _advance(self, now: float) -> None:
         with self.store.connection() as db:
-            rows=db.execute("SELECT occurrence_id,scheduled_at,remaining_seconds FROM event_occurrences WHERE status=? AND scheduled_at<=?",(SCHEDULED,now)).fetchall()
-            for row in rows:
-                duration=max(0,float(row["remaining_seconds"] or 0)); db.execute("UPDATE event_occurrences SET status=?,started_at=?,ends_at=?,scheduled_at=NULL,remaining_seconds=NULL,updated_at=? WHERE occurrence_id=?",(ACTIVE,now,now+duration,_iso(),row["occurrence_id"]))
-            db.execute("UPDATE event_occurrences SET status=?,updated_at=? WHERE status=? AND ends_at IS NOT NULL AND ends_at<=?",(FINISHED,_iso(),ACTIVE,now))
+            rows = db.execute(
+                "SELECT occurrence_id,event_key,scheduled_at,remaining_seconds "
+                "FROM event_occurrences WHERE status=? AND scheduled_at<=?",
+                (SCHEDULED, now),
+            ).fetchall()
+        for row in rows:
+            if not self._activation_allowed(str(row["event_key"])):
+                continue
+            duration = max(0, float(row["remaining_seconds"] or 0))
+            with self.store.connection() as db:
+                db.execute(
+                    "UPDATE event_occurrences SET status=?,started_at=?,ends_at=?,"
+                    "scheduled_at=NULL,remaining_seconds=NULL,updated_at=? WHERE occurrence_id=?",
+                    (ACTIVE, now, now + duration, _iso(), row["occurrence_id"]),
+                )
+        with self.store.connection() as db:
+            db.execute(
+                "UPDATE event_occurrences SET status=?,updated_at=? "
+                "WHERE status=? AND ends_at IS NOT NULL AND ends_at<=?",
+                (FINISHED, _iso(), ACTIVE, now),
+            )
 
     def list(self, *, now: float | None = None) -> list[dict[str, Any]]:
         now=time.time() if now is None else float(now); self._advance(now)
