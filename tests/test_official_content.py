@@ -24,6 +24,21 @@ def test_legacy_presets_are_migrated_idempotently(official):
     official.migrate_legacy_presets()
     items = official.list(content_type="world_template", published_only=True)
     assert {item["key"] for item in items} == {"medieval_kingdom", "royal_festival", "space_station"}
+
+
+def test_archived_bundled_template_is_restored_without_duplication(official):
+    official.migrate_legacy_presets()
+    before = official.list(content_type="world_template")
+    festival = next(item for item in before if item["key"] == "royal_festival")
+    official.set_status("royal_festival", "archived", version=festival["version"])
+
+    official.migrate_legacy_presets()
+
+    visible = official.list(content_type="world_template", published_only=True)
+    restored = [item for item in visible if item["key"] == "royal_festival"]
+    assert len(restored) == 1
+    assert restored[0]["status"] == "published"
+    assert restored[0]["version"] == festival["version"]
     medieval = official.get("medieval_kingdom", published_only=True)
     assert medieval["validation"]["valid"]
     assert {"buildings", "items", "professions", "events", "calendar"} <= set(medieval["validation"]["coverage"]["represented"])

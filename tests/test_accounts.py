@@ -308,6 +308,44 @@ def test_unassigned_account_can_create_its_first_server_and_becomes_owner(tmp_pa
             world.get("building", "market_square")
 
 
+def test_world_preset_api_and_picker_expose_and_instantiate_royal_festival(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "festival-picker.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "festival-admin")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "festival-password")
+    monkeypatch.setattr(web, "magasin_principal", primary)
+    monkeypatch.setattr(web, "store", web.MagasinsServeurs(primary))
+    monkeypatch.setattr(web, "comptes", registry)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+
+    with TestClient(web.app) as client:
+        assert client.post("/api/auth/login", json={
+            "username": "festival-admin", "password": "festival-password",
+        }).status_code == 200
+        response = client.get("/api/world-presets")
+        assert response.status_code == 200
+        presets = response.json()["presets"]
+        assert [item["key"] for item in presets] == [
+            "blank", "medieval_kingdom", "royal_festival", "space_station",
+        ]
+        festival = next(item for item in presets if item["key"] == "royal_festival")
+        assert festival["catalog_scope"] == "official"
+
+        script = client.get("/static/app.js").text
+        assert 'value="${escapeHtml(preset.key)}"' in script
+        assert 'key: "royal_festival"' in script
+
+        created = client.post("/api/servers", json={
+            "name": "Fête visible", "guild_id": "123456789012345680",
+            "preset": "royal_festival",
+        })
+        assert created.status_code == 200
+        assert created.json()["preset"] == "royal_festival"
+        world = ContentStore(created.json()["database_path"])
+        assert world.get("server_settings", "kingdom_server")["payload"]["template_revision"] == 3
+
+
 def test_managed_server_install_and_safe_removal_lifecycle(tmp_path, monkeypatch):
     primary = ContentStore(tmp_path / "server-lifecycle.db")
     registry = RegistreComptes(primary.path)

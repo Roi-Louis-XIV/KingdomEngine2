@@ -1704,6 +1704,14 @@ function worldPresetPicker() {
       tone: "emerald",
     },
     {
+      key: "royal_festival",
+      name: "La Fête du Royaume",
+      emoji: "🎉",
+      description:
+        "Préparation coopérative complète d’une fête en trois heures.",
+      tone: "gold",
+    },
+    {
       key: "space_station",
       name: "Station spatiale",
       emoji: "🛰️",

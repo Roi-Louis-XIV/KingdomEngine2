@@ -74,6 +74,23 @@ class OfficialContentStore:
                         "SELECT id,origin FROM official_content_packs WHERE pack_key=? AND content_type='world_template' "
                         "AND status='published' ORDER BY version DESC LIMIT 1", (key,),
                     ).fetchone()
+                    # Une ancienne action d'archivage ne doit pas faire
+                    # disparaître silencieusement un modèle livré avec le
+                    # produit. On republie la même révision historique : aucun
+                    # pack ni aucune donnée de gameplay ne sont dupliqués.
+                    if current is None:
+                        current = db.execute(
+                            "SELECT id,origin FROM official_content_packs WHERE pack_key=? "
+                            "AND content_type='world_template' AND origin='legacy_world_presets' "
+                            "ORDER BY version DESC LIMIT 1",
+                            (key,),
+                        ).fetchone()
+                        if current:
+                            db.execute(
+                                "UPDATE official_content_packs SET status='published',published_at=?,updated_at=? "
+                                "WHERE id=?",
+                                (_now(), _now(), current["id"]),
+                            )
                     settings_row = current and db.execute(
                         "SELECT payload_json FROM official_content_entities WHERE pack_id=? "
                         "AND entity_type='server_settings' AND entity_key='kingdom_server' LIMIT 1",

@@ -23,6 +23,7 @@ from KingdomData import ConflictError, ContentStore, NotFoundError, ValidationEr
 from KingdomData.audio_storage import audio_key, safe_audio_path, store_audio_file
 from KingdomData.paths import persistent_data_root
 from KingdomData.official_content import OfficialContentStore, validate_official_pack
+from KingdomData.world_presets import PRESET_CATALOG
 from import_v1 import import_v1, seed_legacy_audio_catalog
 from kingdomCore.provisioner import managed_bot_permissions, required_bot_permissions
 from KingdomWeb.supervision import AdministrationService, ServiceSupervisor
@@ -701,6 +702,12 @@ def retirer_acces_compte(account_id: int, server_slug: str):
 @app.get("/api/world-presets", dependencies=[Depends(authenticate_account)])
 def modeles_de_monde():
     published = contenus_officiels.list(content_type="world_template", published_only=True)
+    catalog_order = {item["key"]: index for index, item in enumerate(PRESET_CATALOG)}
+    published.sort(key=lambda item: (
+        item.get("catalog_scope") == "community",
+        catalog_order.get(item["key"], len(catalog_order)),
+        item["name"].casefold(),
+    ))
     presets = [{"key": "blank", "name": "Monde vierge", "emoji": "◇", "description": "Une configuration propre, sans lieu ni mécanique imposée.", "tone": "neutral", "version": 1}]
     presets.extend({
         "key": item["key"], "name": item["name"], "emoji": item["emoji"],
