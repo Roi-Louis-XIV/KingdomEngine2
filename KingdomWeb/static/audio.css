@@ -1314,6 +1314,53 @@
   background: #10271e;
 }
 
+.npc-simple-section {
+  display: grid;
+  gap: 18px;
+}
+
+.npc-simple-section .wizard-section-copy {
+  margin-bottom: 0;
+}
+
+.technical-badge {
+  align-self: center;
+  padding: 7px 11px;
+  border: 1px solid #2c7053;
+  border-radius: 999px;
+  color: #50d99c;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.npc-technical-details dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.npc-technical-details dl div {
+  display: grid;
+  gap: 5px;
+  padding: 13px;
+  border: 1px solid var(--border, #26334a);
+  border-radius: 12px;
+  background: var(--panel-soft, #0d1420);
+}
+
+.npc-technical-details dt {
+  color: var(--muted, #94a0b5);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.npc-technical-details dd {
+  margin: 0;
+  font-weight: 700;
+}
+
 @media (max-width: 760px) {
   .living-audio-hero,
   .living-section-heading,
@@ -1341,6 +1388,10 @@
 
   .routine-editor > div {
     grid-template-columns: 105px 1fr 38px;
+  }
+
+  .npc-technical-details dl {
+    grid-template-columns: 1fr;
   }
 }
 

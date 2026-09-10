@@ -762,6 +762,20 @@ def test_building_audio_tab_exposes_the_simple_living_scene_workflow():
     assert ".building-character-wizard" in styles
 
 
+def test_global_character_editor_hides_technical_voice_objects():
+    static = Path(web.__file__).with_name("static")
+    script = SourceText((static / "app.js").read_text(encoding="utf-8"))
+
+    assert "async function ensureNpcVoiceResources" in script
+    assert '"voice_profile",\n    profileKey' in script
+    assert '"voice_presence",\n    presenceKey' in script
+    assert '"npc_voice_audio"' in script
+    assert "Sera créé à l’enregistrement" in script
+    assert "Vous n’avez rien à créer ni à sélectionner manuellement" in script
+    assert 'select("Profil vocal (bibliothèque)", "npc_voice_profile"' not in script
+    assert 'select("Présence (identité + bâtiment)", "npc_voice_presence"' not in script
+
+
 def test_voice_presence_avatar_upload_publishes_the_new_image(tmp_path, monkeypatch):
     store = ContentStore(tmp_path / "voice-avatar.db")
     store.initialize()

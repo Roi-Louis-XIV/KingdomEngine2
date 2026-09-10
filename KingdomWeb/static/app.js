@@ -3219,6 +3219,62 @@ function voiceLinkState(npcPayload = {}) {
   };
 }
 
+async function ensureNpcVoiceResources(npcKey, payload) {
+  const currentProfile = state.catalogs.voice_profile.find(
+      (item) => item.entity_key === payload.voice_profile_key,
+    ),
+    currentPresence = state.catalogs.voice_presence.find(
+      (item) => item.entity_key === payload.voice_presence_key,
+    ),
+    profileKey = currentProfile?.entity_key || `voice_${npcKey}`,
+    presenceKey = currentPresence?.entity_key || `presence_${npcKey}`,
+    building = state.catalogs.building.find(
+      (item) => item.entity_key === payload.building_key,
+    ),
+    voiceAudio = fieldValue("npc_voice_audio") || "";
+  await saveAndPublishEntity(
+    "voice_profile",
+    profileKey,
+    {
+      ...(currentProfile?.payload || {}),
+      name: currentProfile?.payload.name || `Voix de ${payload.name}`,
+      provider: currentProfile?.payload.provider || "files",
+      language: currentProfile?.payload.language || "fr",
+      volume: Number(fieldValue("npc_voice_volume") ?? 1),
+      tags: [...new Set([...(currentProfile?.payload.tags || []), "personnage", npcKey])],
+      clips: voiceAudio
+        ? [{ audio_key: voiceAudio, category: "default" }]
+        : currentProfile?.payload.clips || [],
+      metadata: {
+        ...(currentProfile?.payload.metadata || {}),
+        missing_audio: voiceAudio || currentProfile?.payload.clips?.length ? "" : "À fournir",
+      },
+    },
+    currentProfile?.version,
+  );
+  await saveAndPublishEntity(
+    "voice_presence",
+    presenceKey,
+    {
+      ...(currentPresence?.payload || {}),
+      name: payload.name,
+      presence_type: "npc",
+      source_key: npcKey,
+      location_key: payload.location_key || building?.payload.location_key || "",
+      voice_profile_key: profileKey,
+      assignment_mode: currentPresence?.payload.assignment_mode || "automatic",
+      release_timeout_seconds: currentPresence?.payload.release_timeout_seconds || 30,
+      metadata: {
+        ...(currentPresence?.payload.metadata || {}),
+        building_key: payload.building_key || "",
+      },
+    },
+    currentPresence?.version,
+  );
+  payload.voice_profile_key = profileKey;
+  payload.voice_presence_key = presenceKey;
+}
+
 function openVoicePresenceDialog(entity = null) {
   if (mobileCreationBlocked())
     return showDesktopRequired("L’affectation d’un bot audio");
@@ -4467,7 +4523,15 @@ function renderFields(payload) {
       "<li>Les résultats exécutent des actions concrètes.</li><li>Les ambiances Event durent tant que l’occurrence est active.</li><li>La priorité départage les événements concurrents.</li><li>Enregistrez d’abord en brouillon avant de publier.</li>";
   }
   if (state.type === "npc") {
-    root.innerHTML = `<section class="form-section"><h3>Identité du personnage</h3><p class="field-note">Un PNJ est un personnage logique. L'agent vocal de son espace parlera pour lui si une variante possède une voix.</p><div class="form-grid">${input("Rôle", "npc_role", payload.role || "")}${select("Lieu", "npc_location", payload.location_key || "", locationOptions(payload.location_key || ""))}${select("Bâtiment", "npc_building", payload.building_key || "", catalogOptions("building", payload.building_key || ""))}${input("Tags", "npc_tags", (payload.tags || []).join(", "))}</div></section><section class="form-section"><div class="section-head"><div><h3>Réactions contextuelles</h3><p class="field-note">La priorité la plus élevée gagne. Le texte et la voix d'une variante restent toujours associés.</p></div><button type="button" class="secondary" id="add-npc-reaction">＋ Ajouter une réaction</button></div><div id="npc-reactions"></div></section>`;
+    const linkedProfile = state.catalogs.voice_profile.find(
+        (item) => item.entity_key === payload.voice_profile_key,
+      ),
+      defaultVoice = linkedProfile?.payload.clips?.[0]?.audio_key || "";
+    root.innerHTML = `<section class="form-section npc-simple-section"><div class="wizard-section-copy"><span>1</span><div><h3>Identité et rôle</h3><p>Décrivez simplement la place du personnage dans votre monde.</p></div></div><div class="form-grid">${input("Rôle", "npc_role", payload.role || "")}${input("Tags", "npc_tags", (payload.tags || []).join(", "))}</div></section>
+      <section class="form-section npc-simple-section"><div class="wizard-section-copy"><span>2</span><div><h3>Voix</h3><p>Choisissez une voix ; KingdomWeb crée et relie automatiquement la bibliothèque vocale nécessaire.</p></div></div><div class="form-grid">${select("Voix ou clip principal", "npc_voice_audio", defaultVoice, [["", "À fournir plus tard"], ...state.catalogs.audio.filter((item) => item.payload.audio_type === "voice" || item.payload.channel === "voice").map((item) => [item.entity_key, `${item.payload.emoji || "🗣️"} ${item.payload.name}`])])}${input("Volume de la voix", "npc_voice_volume", linkedProfile?.payload.volume ?? 1, "number", 'min="0" max="2" step="0.05"')}</div></section>
+      <section class="form-section npc-simple-section"><div class="wizard-section-copy"><span>3</span><div><h3>Présence</h3><p>Choisissez où il vit. Sa présence Discord sera configurée automatiquement.</p></div></div><div class="form-grid">${select("Bâtiment principal", "npc_building", payload.building_key || "", catalogOptions("building", payload.building_key || ""))}${select("Lieu", "npc_location", payload.location_key || "", locationOptions(payload.location_key || ""))}</div></section>
+      <section class="form-section npc-simple-section"><div class="wizard-section-copy"><span>4</span><div><h3>Comportement</h3><p>Définissez son état et ses réponses aux actions des joueurs.</p></div></div><div class="form-grid">${input("État initial", "npc_state", payload.state || "disponible")}${input("Comportement", "npc_behavior", payload.behavior || "contextuel")}</div><div class="section-head"><div><h3>Réactions contextuelles</h3><p class="field-note">Le texte et le son choisis dans chaque variante restent associés.</p></div><button type="button" class="secondary" id="add-npc-reaction">＋ Ajouter une réaction</button></div><div id="npc-reactions"></div></section>
+      <details class="advanced npc-technical-details"><summary>⚙ Informations techniques générées automatiquement</summary><div class="advanced-content"><p class="field-note">Ces références sont conservées pour la supervision. Vous n’avez rien à créer ni à sélectionner manuellement.</p><dl><div><dt>Profil vocal</dt><dd>${escapeHtml(linkedProfile?.payload.name || "Sera créé à l’enregistrement")}</dd></div><div><dt>Présence Discord</dt><dd>${escapeHtml(state.catalogs.voice_presence.find((item) => item.entity_key === payload.voice_presence_key)?.payload.name || "Sera créée à l’enregistrement")}</dd></div><div><dt>Voice Worker</dt><dd>Attribué automatiquement quand un joueur entre</dd></div></dl></div></details>`;
     (payload.reactions || []).forEach((reaction) =>
       addNpcReaction($("#npc-reactions"), reaction),
     );
@@ -4611,7 +4675,7 @@ function renderFields(payload) {
             <h3>Voix et présence</h3>
             <p class="field-note">Le personnage contient ses dialogues et leurs sons. La présence place son identité dans un bâtiment. Un Voice Worker libre l’incarne automatiquement sur Discord.</p>
           </div>
-          <button type="button" class="secondary" data-go="voice_presence">Gérer dans Voix et présence</button>
+          <span class="technical-badge">AUTOMATIQUE</span>
         </div>
         <div class="npc-voice-flow" aria-label="Fonctionnement de la voix du personnage">
           <span><b>1</b> Personnage<small>${escapeHtml(payload.name || "Sans nom")}</small></span>
@@ -4623,16 +4687,9 @@ function renderFields(payload) {
           <span><b>4</b> Voice Worker<small>Alloué automatiquement</small></span>
         </div>
         <p class="npc-voice-status" data-ready="${link.linkedBothWays && link.audioCount > 0}">${escapeHtml(linkStatus)}</p>
-        <div class="form-grid">
-          ${select("Profil vocal (bibliothèque)", "npc_voice_profile", payload.voice_profile_key || "", [["", "Aucun profil"], ...state.catalogs.voice_profile.map((item) => [item.entity_key, item.payload.name])])}
-          ${select("Présence (identité + bâtiment)", "npc_voice_presence", payload.voice_presence_key || "", [["", "Aucune présence"], ...state.catalogs.voice_presence.map((item) => [item.entity_key, item.payload.name])])}
-          ${input("État initial", "npc_state", payload.state || "disponible")}
-          ${input("Comportement", "npc_behavior", payload.behavior || "contextuel")}
-        </div>
-        <p class="field-note"><b>Important :</b> sélectionner un son dans un profil ne déclenche pas sa lecture. Pour faire parler le personnage, choisissez le son dans une variante de la section « Réactions contextuelles ».</p>
+        <p class="field-note"><b>À retenir :</b> le clip principal définit sa voix. Les sons précis joués en réaction se choisissent dans les variantes de « Comportement ».</p>
       </section>`,
     );
-    bindNavigationShortcuts();
   }
 }
 
@@ -9781,8 +9838,8 @@ function buildPayload() {
       role: fieldValue("npc_role") || "",
       location_key: fieldValue("npc_location") || "",
       building_key: fieldValue("npc_building") || "",
-      voice_profile_key: fieldValue("npc_voice_profile") || "",
-      voice_presence_key: fieldValue("npc_voice_presence") || "",
+      voice_profile_key: payload.voice_profile_key || "",
+      voice_presence_key: payload.voice_presence_key || "",
       state: fieldValue("npc_state") || "disponible",
       behavior: fieldValue("npc_behavior") || "contextuel",
       tags: (fieldValue("npc_tags") || "")
@@ -11317,6 +11374,7 @@ async function saveEditor(publishRequested = false) {
         state.type === "building" ? fieldValue("relation_bot_key") || "" : "";
     if (state.type === "bot" && state.editing) await uploadBotAvatar(key);
     const payload = buildPayload();
+    if (state.type === "npc") await ensureNpcVoiceResources(key, payload);
     let response = await fetch(`/api/content/${state.type}/${key}`, {
       method: "POST",
       headers,
