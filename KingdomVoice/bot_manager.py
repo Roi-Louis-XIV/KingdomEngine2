@@ -372,6 +372,40 @@ class VoiceBotManager:
             entity["payload"].pop("voice_channel_id", None)
         return configured
 
+    @staticmethod
+    def configured_quota(worker_count: int) -> int:
+        """Retourne une capacité exploitable pour les installations existantes."""
+        raw = os.getenv(
+            "KINGDOM_MAX_CONCURRENT_VOICE_PRESENCES",
+            str(worker_count),
+        )
+        try:
+            requested = int(raw or worker_count)
+        except ValueError:
+            requested = worker_count
+        return worker_count if requested <= 0 and worker_count else requested
+
+    async def _run_client(self, key: str, client: ManagedVoiceBot, token: str) -> None:
+        """Isole et relance un Worker sans arrêter tout KingdomVoice.
+
+        Une application Discord mal configurée, révoquée ou momentanément
+        inaccessible ne doit jamais faire tomber les autres Voice Workers.
+        Le secret n'est volontairement jamais inclus dans le diagnostic.
+        """
+        retry_seconds = max(5, int(os.getenv("KINGDOM_VOICE_RETRY_SECONDS", "30") or 30))
+        while True:
+            try:
+                await client.start(token, reconnect=True)
+                print(f"[KingdomVoice] {key} s'est arrêté ; nouvelle tentative dans {retry_seconds}s.")
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                print(
+                    f"[KingdomVoice] {key} indisponible ({type(exc).__name__}: {exc}); "
+                    f"nouvelle tentative dans {retry_seconds}s."
+                )
+            await asyncio.sleep(retry_seconds)
+
     async def run(self) -> None:
         recovered = self.store.recover_audio()
         if recovered:
@@ -404,16 +438,30 @@ class VoiceBotManager:
                 continue
             client = ManagedVoiceBot(key, config, self.assets_root, self.store)
             self.clients[key] = client
-            tasks.append(asyncio.create_task(client.start(token), name=key))
+            tasks.append(asyncio.create_task(self._run_client(key, client, token), name=key))
             print(f"[KingdomVoice] {key} découvert ({config.get('worker_kind', 'custom')}, secret={config.get('token_env')}).")
-        configured_quota = int(os.getenv("KINGDOM_MAX_CONCURRENT_VOICE_PRESENCES", str(len(self.clients))) or len(self.clients))
+        configured_quota = self.configured_quota(len(self.clients))
+        # Les premières installations Debian proposaient cette variable vide,
+        # et certaines ont été enregistrées avec ``0``. Tant qu'aucun système
+        # d'abonnement ne limite réellement la capacité, zéro signifie
+        # "automatique" et non "désactiver tous les workers".
+        if os.getenv("KINGDOM_MAX_CONCURRENT_VOICE_PRESENCES", "").strip() == "0" and self.clients:
+            print(
+                "[KingdomVoice] quota vocal nul corrigé automatiquement : "
+                f"{configured_quota} Voice Worker(s) disponible(s)."
+            )
         self.pool = VoiceWorkerPool(
             [VoiceWorkerState(key=key, guild_id=str(client.config.get("guild_id", ""))) for key, client in self.clients.items()],
             max_concurrent_voice_presences=configured_quota,
         )
         if not tasks:
             print("[KingdomVoice] Aucun bot vocal activé avec un token configuré.")
-            return
+            # KingdomVoice est un service long-vivant. Il reste supervisable
+            # même avant la configuration du premier token, au lieu de sortir
+            # immédiatement et d'apparaître comme cassé dans systemd.
+            while True:
+                self._publish_runtime_status()
+                await asyncio.sleep(5)
         dispatcher = asyncio.create_task(self._dispatch_audio(), name="audio-dispatcher")
         try: await asyncio.gather(*tasks)
         finally:
@@ -550,7 +598,11 @@ class VoiceBotManager:
                     key=runtime_key,
                     name=str(payload.get("name", entity_key)),
                     presence_type=str(payload.get("presence_type", "custom")),
-                    source_key=str(payload.get("source_key", "")),
+                    source_key=str(
+                        payload.get("source_key")
+                        or payload.get("metadata", {}).get("source_npc_key")
+                        or ""
+                    ),
                     avatar_url=str(payload.get("avatar_path") or payload.get("avatar_url", "")),
                     voice_profile_key=str(payload.get("voice_profile_key", "")),
                     scene_key=str(payload.get("scene_key", "")),

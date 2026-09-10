@@ -8,6 +8,52 @@ from KingdomVoice.pool import VoicePresence
 from KingdomVoice.resolver import resolve_building_presences
 
 
+def test_failed_worker_is_retried_without_crashing_voice_manager(monkeypatch, capsys):
+    class BrokenClient:
+        async def start(self, _token, *, reconnect=True):
+            assert reconnect is True
+            raise RuntimeError("application Discord refusée")
+
+    async def stop_after_diagnostic(_seconds):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(asyncio, "sleep", stop_after_diagnostic)
+    manager = VoiceBotManager.__new__(VoiceBotManager)
+
+    try:
+        asyncio.run(manager._run_client("voice_worker_2", BrokenClient(), "secret-token"))
+    except asyncio.CancelledError:
+        pass
+
+    output = capsys.readouterr().out
+    assert "voice_worker_2 indisponible" in output
+    assert "RuntimeError" in output
+    assert "secret-token" not in output
+
+
+def test_voice_service_stays_alive_when_no_worker_token_is_configured(tmp_path, monkeypatch):
+    store = ContentStore(tmp_path / "voice-idle.db")
+    store.initialize()
+    manager = VoiceBotManager(store)
+    monkeypatch.setattr(manager, "configured", lambda: [])
+
+    calls = 0
+
+    async def observe_then_stop(_seconds):
+        nonlocal calls
+        calls += 1
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(asyncio, "sleep", observe_then_stop)
+    try:
+        asyncio.run(manager.run())
+    except asyncio.CancelledError:
+        pass
+
+    assert calls == 1
+    assert manager.pool.snapshot()["quota"] == 0
+
+
 def test_provisioned_voice_channel_matches_building_name():
     assert _normalized_name("🔊 Place du village") == _normalized_name("Place du village")
     assert _normalized_name("🔊 Forêt Royale") == _normalized_name("Forêt Royale")
@@ -312,3 +358,47 @@ def test_automatic_presences_are_loaded_from_every_managed_world(tmp_path):
     assert list(presences) == ["222:forge_ambience"]
     assert presences["222:forge_ambience"].metadata["building_key"] == "forge"
     assert manager._presence_stores["222:forge_ambience"].path == second.path
+
+
+def test_legacy_presence_source_metadata_is_exposed_to_worker(tmp_path):
+    store = ContentStore(tmp_path / "world.db")
+    store.initialize()
+    building = store.save("building", "mine", {"name": "Mine"})
+    store.publish("building", "mine", building["version"])
+    presence = store.save(
+        "voice_presence",
+        "presence_roland",
+        {
+            "name": "Roland",
+            "presence_type": "npc",
+            "assignment_mode": "automatic",
+            "metadata": {
+                "building_key": "mine",
+                "source_npc_key": "roland",
+            },
+        },
+    )
+    store.publish("voice_presence", "presence_roland", presence["version"])
+    npc = store.save(
+        "npc",
+        "roland",
+        {
+            "name": "Roland",
+            "building_key": "mine",
+            "voice_presence_key": "presence_roland",
+        },
+    )
+    store.publish("npc", "roland", npc["version"])
+
+    manager = VoiceBotManager(store, worlds=[(store, "123")])
+    resolved = manager._published_presences()["presence_roland"]
+
+    assert resolved.source_key == "roland"
+
+
+def test_zero_or_invalid_legacy_quota_uses_all_workers(monkeypatch):
+    monkeypatch.setenv("KINGDOM_MAX_CONCURRENT_VOICE_PRESENCES", "0")
+    assert VoiceBotManager.configured_quota(5) == 5
+
+    monkeypatch.setenv("KINGDOM_MAX_CONCURRENT_VOICE_PRESENCES", "invalide")
+    assert VoiceBotManager.configured_quota(5) == 5

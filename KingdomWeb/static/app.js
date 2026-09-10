@@ -3227,7 +3227,9 @@ function voiceLinkState(npcPayload = {}) {
     linkedBothWays: Boolean(
       presence &&
         presence.payload.presence_type === "npc" &&
-        presence.payload.source_key === state.editing?.entity_key,
+        (presence.payload.source_key ||
+          presence.payload.metadata?.source_npc_key) ===
+          state.editing?.entity_key,
     ),
   };
 }
