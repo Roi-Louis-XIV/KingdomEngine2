@@ -736,6 +736,13 @@
   font-size: 11px;
 }
 
+.preset-catalog-diagnostic {
+  display: block;
+  margin-top: 8px;
+  color: var(--text-soft);
+  font: 10px/1.4 var(--font-mono, monospace);
+}
+
 .world-preset-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

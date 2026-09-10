@@ -331,6 +331,11 @@ def test_world_preset_api_and_picker_expose_and_instantiate_royal_festival(tmp_p
         ]
         festival = next(item for item in presets if item["key"] == "royal_festival")
         assert festival["catalog_scope"] == "official"
+        assert response.json()["catalog"]["source"] == "official_content_packs"
+        assert response.json()["catalog"]["royal_festival_revision"] == 3
+        assert response.json()["catalog"]["keys"] == [
+            "blank", "medieval_kingdom", "royal_festival", "space_station",
+        ]
 
         script = client.get("/static/app.js").text
         assert 'value="${escapeHtml(preset.key)}"' in script

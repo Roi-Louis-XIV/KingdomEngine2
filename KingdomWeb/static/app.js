@@ -52,6 +52,7 @@ const state = {
   viewRequest: 0,
   token: "",
   profile: null,
+  presetCatalogDiagnostic: null,
   server: officialWorkspaceToken
     ? `official--${officialWorkspaceToken}`
     : localStorage.getItem("kingdomServer") || "",
@@ -1720,7 +1721,8 @@ function worldPresetPicker() {
       tone: "violet",
     },
   ];
-  return `<fieldset class="world-preset-picker"><legend>Choisissez votre point de départ</legend><p>Comparez les modèles officiels Payen Studio et les créations partagées par la communauté. La copie installée restera entièrement indépendante.</p><div class="world-preset-grid">${presets.map((preset, index) => `<label class="world-preset-card tone-${escapeHtml(preset.tone || "neutral")}"><input type="radio" name="preset" value="${escapeHtml(preset.key)}" ${index === 0 ? "checked" : ""}><span class="world-preset-icon">${escapeHtml(preset.emoji)}</span><span><em>${preset.catalog_scope === "community" ? "COMMUNAUTÉ" : preset.key === "blank" ? "VIERGE" : "OFFICIEL PAYEN STUDIO"}</em><b>${escapeHtml(preset.name)}</b><small>${escapeHtml(preset.description)}</small>${preset.author ? `<small>Par ${escapeHtml(preset.author)} · v${preset.version || 1}</small>` : ""}</span><i>Choisir</i></label>`).join("")}</div></fieldset>`;
+  const diagnostic = state.presetCatalogDiagnostic;
+  return `<fieldset class="world-preset-picker"><legend>Choisissez votre point de départ</legend><p>Comparez les modèles officiels Payen Studio et les créations partagées par la communauté. La copie installée restera entièrement indépendante.</p><div class="world-preset-grid">${presets.map((preset, index) => `<label class="world-preset-card tone-${escapeHtml(preset.tone || "neutral")}"><input type="radio" name="preset" value="${escapeHtml(preset.key)}" ${index === 0 ? "checked" : ""}><span class="world-preset-icon">${escapeHtml(preset.emoji)}</span><span><em>${preset.catalog_scope === "community" ? "COMMUNAUTÉ" : preset.key === "blank" ? "VIERGE" : "OFFICIEL PAYEN STUDIO"}</em><b>${escapeHtml(preset.name)}</b><small>${escapeHtml(preset.description)}</small>${preset.author ? `<small>Par ${escapeHtml(preset.author)} · v${preset.version || 1}</small>` : ""}</span><i>Choisir</i></label>`).join("")}</div>${diagnostic ? `<small class="preset-catalog-diagnostic">Catalogue ${escapeHtml(diagnostic.source)} · commit ${escapeHtml(diagnostic.commit)} · Fête du Royaume révision ${escapeHtml(diagnostic.royal_festival_revision ?? "absente")}</small>` : ""}</fieldset>`;
 }
 
 function installLiveOperationsTabs(operations) {
@@ -1785,9 +1787,11 @@ async function loadProfile() {
       ? await foundationsResponse.json()
       : { worlds: [] },
     support = supportResponse.ok ? (await supportResponse.json()).grants : [];
-  state.worldPresets = presetsResponse.ok
-    ? (await presetsResponse.json()).presets
-    : state.worldPresets;
+  if (presetsResponse.ok) {
+    const presetPayload = await presetsResponse.json();
+    state.worldPresets = presetPayload.presets;
+    state.presetCatalogDiagnostic = presetPayload.catalog || null;
+  }
   const hasServer = state.profile.servers.length > 0;
   const firstServer = `<section class="accounts-panel first-server-panel ${hasServer ? "additional-server-panel" : ""}"><div><small>${hasServer ? "NOUVEAU MONDE" : "PREMIÈRE ÉTAPE"}</small><h3>${hasServer ? "Ajouter un autre serveur" : "Ajouter votre serveur Discord"}</h3><p>${hasServer ? "Créez un espace indépendant et choisissez sa base de départ." : "Vous en deviendrez automatiquement propriétaire. Choisissez un modèle, puis installez KingdomEngine sur Discord."}</p></div><form id="self-create-server-form" class="first-server-form"><label>Nom du serveur<input name="name" required minlength="3" placeholder="Ex. Royaume de Valbrume"></label><label>Identifiant du serveur Discord<input name="guild_id" required inputmode="numeric" pattern="[0-9]+" placeholder="123456789…"></label>${worldPresetPicker()}<button type="submit" class="primary">${hasServer ? "Ajouter ce serveur" : "Créer mon monde"}</button><small data-form-status></small></form><details><summary>Où trouver l’identifiant Discord ?</summary><p>Activez le mode développeur dans Discord, faites un clic droit sur l’icône du serveur puis choisissez « Copier l’identifiant du serveur ».</p></details></section>`;
   $("#admin-view").innerHTML =

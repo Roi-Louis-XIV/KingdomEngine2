@@ -716,7 +716,30 @@ def modeles_de_monde():
         "version": item["version"], "entity_count": item["entity_count"],
         "catalog_scope": item.get("catalog_scope", "official"), "author": item.get("author", ""),
     } for item in published)
-    return {"presets": presets}
+    festival_revision = None
+    festival = next((item for item in published if item["key"] == "royal_festival"), None)
+    if festival:
+        details = contenus_officiels.get(
+            "royal_festival", version=festival["version"], published_only=True
+        )
+        settings = next(
+            (
+                entity["payload"]
+                for entity in details["entities"]
+                if entity["type"] == "server_settings" and entity["key"] == "kingdom_server"
+            ),
+            {},
+        )
+        festival_revision = settings.get("template_revision")
+    return {
+        "presets": presets,
+        "catalog": {
+            "source": "official_content_packs",
+            "commit": _deployment_summary()["commit"],
+            "keys": [preset["key"] for preset in presets],
+            "royal_festival_revision": festival_revision,
+        },
+    }
 
 
 @app.post("/api/servers", dependencies=[Depends(authenticate_account)])
