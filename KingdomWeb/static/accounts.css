@@ -270,6 +270,18 @@
   color: var(--text-soft);
 }
 
+.profile-voice-plan {
+  display: inline-flex;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: 999px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .account-table-scroll {
   overflow-x: auto;
 }

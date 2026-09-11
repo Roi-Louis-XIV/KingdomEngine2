@@ -489,7 +489,8 @@ def _bots_disponibles() -> list[dict[str, Any]]:
 @app.get("/api/profile", dependencies=[Depends(authenticate_account)])
 def profil(request: Request, x_kingdom_server: str | None = Header(None)):
     compte = request.state.compte
-    compte = {**compte, "platform_role": comptes.role_plateforme(int(compte["id"])) if int(compte["id"]) else ""}
+    voice_plan = comptes.plan_vocal(int(compte["id"])) if int(compte["id"]) else {"key": "legend", "name": "Légende", "voice_workers": 10, "custom_workers": True}
+    compte = {**compte, "voice_plan": voice_plan, "platform_role": comptes.role_plateforme(int(compte["id"])) if int(compte["id"]) else ""}
     est_plateforme = bool(int(compte["id"]) and compte.get("platform_role") == "platform_admin")
     serveurs = comptes.lister_serveurs(int(compte["id"]), est_plateforme) if int(compte["id"]) else comptes.lister_serveurs(0, True)
     if est_plateforme and x_kingdom_server and x_kingdom_server.startswith("official--"):
@@ -1035,19 +1036,23 @@ def get_content(entity_type: str, key: str):
 
 
 @app.post("/api/content/{entity_type}/{key}", dependencies=[Depends(authorize)])
-def save_content(entity_type: str, key: str, body: dict[str, Any]):
+def save_content(entity_type: str, key: str, body: dict[str, Any], request: Request):
     payload = body.get("payload", {})
     if entity_type == "building" and (key == "nocode_academy" or payload.get("is_reference")):
         raise HTTPException(422, "Les démonstrations de l'Académie sont isolées et ne peuvent pas être enregistrées dans un royaume.")
     if entity_type == "bot":
+        platform_keys = {str(worker["key"]) for worker in discover_platform_workers()}
+        if key in platform_keys or payload.get("worker_kind") == "platform":
+            raise HTTPException(403, "Un Voice Worker fourni par KingdomEngine est entièrement protégé.")
         try:
             existing = store.get("bot", key)
         except NotFoundError:
             existing = None
-        if existing and existing["payload"].get("worker_kind") == "platform":
-            protected = {"token_env", "application_id_env", "legacy_token_env", "legacy_application_id_env", "worker_number", "worker_kind"}
-            if any(payload.get(field) != existing["payload"].get(field) for field in protected):
-                raise HTTPException(403, "La configuration système d’un Voice Worker plateforme est protégée.")
+        if payload.get("bot_type") == "voice" and payload.get("worker_kind", "custom") != "platform":
+            account_id = int(request.state.compte["id"])
+            plan = comptes.plan_vocal(account_id) if account_id else {"custom_workers": True}
+            if not plan["custom_workers"]:
+                raise HTTPException(403, "L’ajout de Voice Workers personnels nécessite l’offre Légende.")
     try: return store.save(entity_type, key, payload, body.get("author", "studio"), body.get("expected_version"))
     except (ValidationError, KeyError) as exc: raise HTTPException(422, str(exc)) from exc
     except ConflictError as exc: raise HTTPException(409, str(exc)) from exc
@@ -1071,6 +1076,8 @@ def delete_content(entity_type: str, key: str):
 def publish_content(entity_type: str, key: str, version: int, body: dict[str, Any] | None = None):
     try:
         current = store.get(entity_type, key)
+        if entity_type == "bot" and current.get("payload", {}).get("worker_kind") == "platform":
+            raise HTTPException(403, "Un Voice Worker fourni par KingdomEngine est entièrement protégé.")
         if entity_type == "building" and (key == "nocode_academy" or current.get("payload", {}).get("is_reference")):
             raise HTTPException(422, "Une démonstration de l'Académie ne peut jamais être publiée sur Discord.")
         result = store.publish(entity_type, key, version, (body or {}).get("author", "studio"))
@@ -1608,7 +1615,7 @@ def bot_statuses(request: Request):
             "application_id_configured": bool(worker["application_id_env"] and os.getenv(worker["application_id_env"])),
             "enabled": True,
             "token_env": worker["token_env"],
-            "token_configured": True,
+            "token_configured": bool(worker["token_env"] and os.getenv(worker["token_env"])),
             "channel_configured": False,
             "worker_kind": "platform",
             "connected": bool(
@@ -1622,6 +1629,55 @@ def bot_statuses(request: Request):
             "voice_plan": voice_plan["key"],
         })
     return statuses
+
+
+def _write_worker_environment(values: dict[str, str]) -> None:
+    """Met à jour uniquement les variables d'un Worker, sans relire de secret via l'API."""
+    target = Path(__file__).resolve().parents[1] / ".env"
+    lines = target.read_text(encoding="utf-8").splitlines() if target.exists() else []
+    pending = dict(values)
+    updated: list[str] = []
+    for line in lines:
+        name = line.split("=", 1)[0].strip() if "=" in line and not line.lstrip().startswith("#") else ""
+        if name in pending:
+            updated.append(f"{name}={pending.pop(name)}")
+        else:
+            updated.append(line)
+    if pending and updated and updated[-1].strip():
+        updated.append("")
+    updated.extend(f"{name}={value}" for name, value in pending.items())
+    temporary = target.with_name(".env.tmp")
+    temporary.write_text("\n".join(updated) + "\n", encoding="utf-8")
+    try:
+        temporary.chmod(0o600)
+    except OSError:
+        pass
+    temporary.replace(target)
+
+
+@app.post("/api/bots/{key}/credentials", dependencies=[Depends(authorize)])
+def configure_custom_worker_credentials(key: str, body: dict[str, Any], request: Request):
+    account_id = int(request.state.compte["id"])
+    plan = comptes.plan_vocal(account_id) if account_id else {"custom_workers": True}
+    if not plan["custom_workers"]:
+        raise HTTPException(403, "La gestion de Workers personnels nécessite l’offre Légende.")
+    try:
+        entity = store.get("bot", key)
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    config = entity["payload"]
+    if config.get("bot_type") != "voice" or config.get("worker_kind") == "platform":
+        raise HTTPException(403, "Seuls vos Voice Workers personnels sont configurables ici.")
+    token = str(body.get("token", "")).strip()
+    application_id = str(body.get("application_id", "")).strip()
+    if len(token) < 20 or "\n" in token or "\r" in token or not application_id.isdigit():
+        raise HTTPException(422, "Renseignez un token Discord valide et un Application ID numérique.")
+    token_env = str(config.get("token_env") or f"CUSTOM_{key.upper()}_TOKEN")
+    application_env = str(config.get("application_id_env") or f"CUSTOM_{key.upper()}_APPLICATION_ID")
+    _write_worker_environment({token_env: token, application_env: application_id})
+    os.environ[token_env] = token
+    os.environ[application_env] = application_id
+    return {"ok": True, "restart_required": True, "message": "Identifiants enregistrés. Redémarrez KingdomVoice pour activer ce Worker."}
 
 
 @app.get("/api/bots/{key}/invite", dependencies=[Depends(authorize)])
@@ -1666,6 +1722,9 @@ async def upload_bot_avatar(key: str, request: Request, file: UploadFile = File(
     if entity["payload"].get("bot_type") != "voice":
         await file.close()
         raise HTTPException(422, "L’avatar personnalisable est réservé aux Voice Workers.")
+    if entity["payload"].get("worker_kind") == "platform" or key in {str(worker["key"]) for worker in discover_platform_workers()}:
+        await file.close()
+        raise HTTPException(403, "Les Voice Workers fournis par KingdomEngine ne sont pas personnalisables.")
     extension = Path(file.filename or "").suffix.lower()
     if extension not in {".png", ".jpg", ".jpeg", ".webp"} or (file.content_type and not file.content_type.startswith("image/")):
         await file.close()

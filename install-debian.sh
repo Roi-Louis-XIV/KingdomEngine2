@@ -50,6 +50,10 @@ if grep -q '^KINGDOM_ADMIN_PASSWORD=change-me$' "$ROOT/.env"; then
   sed -i "s/^KINGDOM_ADMIN_PASSWORD=.*/KINGDOM_ADMIN_PASSWORD=$ADMIN_PASSWORD/" "$ROOT/.env"
   echo "Mot de passe KingdomWeb remplacé pour l'accès public : $ADMIN_PASSWORD"
 fi
+for number in {1..10}; do
+  grep -q "^VOICE_WORKER_${number}_TOKEN=" "$ROOT/.env" || echo "VOICE_WORKER_${number}_TOKEN=" >>"$ROOT/.env"
+  grep -q "^VOICE_WORKER_${number}_APPLICATION_ID=" "$ROOT/.env" || echo "VOICE_WORKER_${number}_APPLICATION_ID=" >>"$ROOT/.env"
+done
 sed -i 's/^KINGDOM_WEB_HOST=.*/KINGDOM_WEB_HOST=0.0.0.0/' "$ROOT/.env"
 if [[ -n "$DATA_DIR" ]]; then
   DATA_DIR="$(readlink -m "$DATA_DIR")"

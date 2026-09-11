@@ -91,8 +91,8 @@ def discover_platform_workers(
                 "worker_number": number,
                 "worker_kind": "platform",
                 "enabled": True,
-                "token_env": token_env if env.get(token_env) else old_token,
-                "application_id_env": app_env if env.get(app_env) else old_app,
+                "token_env": token_env if env.get(token_env) else (old_token or token_env),
+                "application_id_env": app_env if env.get(app_env) else (old_app or app_env),
                 "legacy_token_env": old_token,
                 "legacy_application_id_env": old_app,
             }
