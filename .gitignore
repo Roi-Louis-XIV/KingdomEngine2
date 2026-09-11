@@ -10,3 +10,5 @@ var/
 htmlcov/
 .ui-test/
 browser.db*
+KingdomData/runtime/
+KingdomData/official-workspaces/
