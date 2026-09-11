@@ -333,9 +333,11 @@ class VoiceBotManager:
         store: ContentStore | None = None,
         assets_root: str | Path | None = None,
         worlds: list[tuple[ContentStore, str]] | None = None,
+        world_quotas: dict[str, int | None] | None = None,
     ) -> None:
         self.store = store or ContentStore()
         self.worlds = worlds or [(self.store, os.getenv("KINGDOM_GUILD_ID", ""))]
+        self.world_quotas = world_quotas or {}
         self._presence_stores: dict[str, ContentStore] = {}
         self.assets_root = Path(assets_root) if assets_root else persistent_data_root()
         self.clients: dict[str, ManagedVoiceBot] = {}
@@ -547,6 +549,7 @@ class VoiceBotManager:
 
     def _published_presences(self) -> dict[str, VoicePresence]:
         presences: dict[str, VoicePresence] = {}
+        represented_identities: set[tuple[str, str]] = set()
         self._presence_stores = {}
         multiple_worlds = len(self.worlds) > 1
         for world_store, guild_id in self.worlds:
@@ -582,6 +585,18 @@ class VoiceBotManager:
                     logical_presences.append({**payload, "key": entity_key})
             for payload in logical_presences:
                 entity_key = str(payload["key"])
+                source_key = str(
+                    payload.get("source_key")
+                    or payload.get("metadata", {}).get("source_npc_key")
+                    or ""
+                )
+                # Une présence historique et sa version générée peuvent
+                # coexister après migration. Un PNJ ne doit pourtant être
+                # incarné qu'une fois sur un serveur Discord donné.
+                identity = (str(guild_id), f"npc:{source_key}") if source_key else (str(guild_id), f"presence:{entity_key}")
+                if identity in represented_identities:
+                    continue
+                represented_identities.add(identity)
                 runtime_key = (
                     f"{guild_id}:{entity_key}"
                     if multiple_worlds and guild_id
@@ -598,11 +613,7 @@ class VoiceBotManager:
                     key=runtime_key,
                     name=str(payload.get("name", entity_key)),
                     presence_type=str(payload.get("presence_type", "custom")),
-                    source_key=str(
-                        payload.get("source_key")
-                        or payload.get("metadata", {}).get("source_npc_key")
-                        or ""
-                    ),
+                    source_key=source_key,
                     avatar_url=str(payload.get("avatar_path") or payload.get("avatar_url", "")),
                     voice_profile_key=str(payload.get("voice_profile_key", "")),
                     scene_key=str(payload.get("scene_key", "")),
@@ -665,6 +676,13 @@ class VoiceBotManager:
                 print(f"[KingdomVoice] présence {presence.key} en attente : aucun salon vocal provisionné pour son lieu.")
                 continue
             guild_id = str(presence.metadata.get("guild_id") or os.getenv("KINGDOM_GUILD_ID", ""))
+            guild_quota = self.world_quotas.get(guild_id)
+            guild_active = sum(
+                bool(worker.presence_key) and worker.guild_id == guild_id
+                for worker in self.pool.workers.values()
+            )
+            if guild_quota is not None and guild_active >= guild_quota:
+                continue
             if not self._channel_has_humans(guild_id, channel_id):
                 continue
             try:

@@ -527,6 +527,20 @@ def test_existing_accounts_and_servers_are_migrated_to_product_foundations(tmp_p
     assert foundations["plans"][0]["plan_key"] == "standard"
 
 
+def test_voice_plan_migration_and_assignment_are_persistent(tmp_path, monkeypatch):
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "platform")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "platform-secret")
+    registry = RegistreComptes(tmp_path / "voice-plans.db")
+    registry.initialiser()
+    admin = next(item for item in registry.lister_comptes() if item["is_admin"])
+    client = registry.creer_compte("voice-client", "Voice Client", "client-secret")
+
+    assert registry.plan_vocal(int(client["id"]))["voice_workers"] == 2
+    changed = registry.definir_plan_vocal(int(client["id"]), "pro", int(admin["id"]))
+    assert changed["voice_workers"] == 10
+    assert registry.plan_vocal(int(client["id"]))["key"] == "pro"
+
+
 def test_support_mode_is_scoped_expiring_revocable_and_audited(tmp_path, monkeypatch):
     database = tmp_path / "support.db"
     monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "owner")

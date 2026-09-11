@@ -34,7 +34,7 @@ from KingdomWeb.world_creator import WorldCreatorService
 from kingdomCore.world import WorldEngine, WorldError
 from KingdomVoice.configuration import discover_platform_workers, migrate_bot_catalog
 from KingdomVoice.runtime_status import read_voice_status
-from KingdomWeb.accounts import ErreurAuthentification, ErreurAutorisation, RegistreComptes
+from KingdomWeb.accounts import ErreurAuthentification, ErreurAutorisation, RegistreComptes, VOICE_PLANS
 from seed import DEFINITIONS, REFERENCE_BUILDING
 import discord
 
@@ -634,7 +634,7 @@ def platform_overview():
         for worker in discover_platform_workers()
     ]
     supervisor = ServiceSupervisor()
-    return {"accounts": accounts, "metrics": {"users": len(accounts), "organizations": organizations, "worlds": worlds, "active_support": active_support}, "services": supervisor.statuses(), "service_logs": supervisor.logs(160), "voice_worlds": voice_worlds, "platform_workers": platform_workers, "support": support, "audit": audit, "deployment": _deployment_summary()}
+    return {"accounts": accounts, "voice_plans": VOICE_PLANS, "metrics": {"users": len(accounts), "organizations": organizations, "worlds": worlds, "active_support": active_support}, "services": supervisor.statuses(), "service_logs": supervisor.logs(160), "voice_worlds": voice_worlds, "platform_workers": platform_workers, "support": support, "audit": audit, "deployment": _deployment_summary()}
 
 
 def _deployment_summary() -> dict[str, Any]:
@@ -798,6 +798,43 @@ def creer_serveur(request: Request, body: dict[str, Any]):
             comptes.archiver_serveur(str(serveur["slug"]))
         logger.exception("Échec de création du monde KingdomEngine")
         raise HTTPException(500, f"Le monde n'a pas pu être initialisé ({type(exc).__name__}). Consultez les logs KingdomWeb.") from exc
+
+
+@app.put("/api/accounts/{account_id}/voice-plan", dependencies=[Depends(_administrateur_plateforme)])
+def definir_plan_vocal_compte(account_id: int, body: dict[str, Any], request: Request):
+    try:
+        return comptes.definir_plan_vocal(
+            account_id,
+            str(body.get("plan_key", "basic")),
+            int(request.state.compte["id"]),
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/api/platform/voice-workers", dependencies=[Depends(_administrateur_plateforme)])
+def ajouter_voice_worker_plateforme(body: dict[str, Any]):
+    """Enregistre une capacité additionnelle sans stocker son secret."""
+    number = int(body.get("number", 0) or 0)
+    if number <= 10:
+        raise HTTPException(422, "Les emplacements 1 à 10 sont fournis par KingdomEngine.")
+    key = f"voice_worker_{number}"
+    payload = {
+        "name": str(body.get("name") or f"Voice Worker {number}").strip(),
+        "description": "Capacité vocale additionnelle administrée par Payen Studio.",
+        "bot_type": "voice",
+        "worker_kind": "custom",
+        "worker_number": number,
+        "enabled": True,
+        "token_env": f"VOICE_WORKER_{number}_TOKEN",
+        "application_id_env": f"VOICE_WORKER_{number}_APPLICATION_ID",
+    }
+    try:
+        draft = store.save("bot", key, payload)
+        published = store.publish("bot", key, draft["version"])
+    except (ConflictError, ValidationError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"key": key, "version": published["version"], "required_environment": [payload["token_env"], payload["application_id_env"]]}
 
 
 @app.delete("/api/accounts/{account_id}", dependencies=[Depends(_administrateur_plateforme)])
@@ -1515,6 +1552,12 @@ def bot_statuses(request: Request):
     statuses = []
     runtime = read_voice_status()
     selected_guild = str(request.state.serveur.get("guild_id", ""))
+    voice_plan = comptes.plan_vocal(int(request.state.compte["id"]))
+    worker_limit = int(voice_plan["voice_workers"])
+    platform_numbers = {
+        str(worker["key"]): int(worker.get("worker_number", 0) or 0)
+        for worker in discover_platform_workers()
+    }
     runtime_by_key = {
         str(worker.get("key", "")): worker
         for worker in runtime.get("workers", [])
@@ -1526,6 +1569,11 @@ def bot_statuses(request: Request):
         token_env, token = _configured_environment(config, "token_env", "legacy_token_env")
         application_env, application_id = _configured_environment(config, "application_id_env", "legacy_application_id_env")
         worker_runtime = runtime_by_key.get(entity["entity_key"], {})
+        worker_number = int(config.get("worker_number", 0) or platform_numbers.get(entity["entity_key"], 0))
+        locked = bool(config.get("bot_type") == "voice" and (
+            (config.get("worker_kind") == "custom" and not voice_plan["custom_workers"])
+            or (worker_number and worker_number > worker_limit)
+        ))
         statuses.append({
             "key": entity["entity_key"],
             "name": config["name"],
@@ -1544,6 +1592,8 @@ def bot_statuses(request: Request):
             "installed_on_server": selected_guild in worker_runtime.get("guild_ids", []),
             "runtime_state": worker_runtime.get("state", "offline"),
             "presence_key": worker_runtime.get("presence_key", ""),
+            "locked": locked,
+            "voice_plan": voice_plan["key"],
         })
     known = {status["key"] for status in statuses}
     for worker in discover_platform_workers():
@@ -1568,6 +1618,8 @@ def bot_statuses(request: Request):
             "installed_on_server": selected_guild in worker_runtime.get("guild_ids", []),
             "runtime_state": worker_runtime.get("state", "offline"),
             "presence_key": worker_runtime.get("presence_key", ""),
+            "locked": int(worker.get("worker_number", 0)) > worker_limit,
+            "voice_plan": voice_plan["key"],
         })
     return statuses
 
@@ -1577,8 +1629,16 @@ def bot_invite(key: str, request: Request):
     try:
         entity = store.get("bot", key)
     except NotFoundError as exc:
-        raise HTTPException(404, str(exc)) from exc
+        discovered = next((item for item in discover_platform_workers() if item["key"] == key), None)
+        if not discovered:
+            raise HTTPException(404, str(exc)) from exc
+        entity = {"entity_key": key, "payload": {**discovered, "bot_type": "voice", "enabled": True}}
     config = entity["payload"]
+    if config.get("bot_type") == "voice":
+        plan = comptes.plan_vocal(int(request.state.compte["id"]))
+        number = int(config.get("worker_number", 0) or 0)
+        if (config.get("worker_kind") == "custom" and not plan["custom_workers"]) or (number and number > int(plan["voice_workers"])):
+            raise HTTPException(403, f"Votre offre {plan['name']} autorise {plan['voice_workers']} Voice Workers.")
     application_id_env, application_id = _configured_environment(config, "application_id_env", "legacy_application_id_env")
     application_id_env = application_id_env or _application_id_env(config)
     application_id = application_id or str(os.getenv(application_id_env, "")).strip()

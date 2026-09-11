@@ -15,6 +15,8 @@ LEGACY_WORKERS = (
     (5, "voice_wagner", "WAGNER_BOT_TOKEN", "WAGNER_APPLICATION_ID"),
 )
 
+DEFAULT_PLATFORM_WORKER_COUNT = 10
+
 
 def migrate_bot_catalog(store) -> list[str]:
     """Retire les doublons historiques devenus inutiles.
@@ -67,7 +69,7 @@ def discover_platform_workers(
     # Cinq emplacements sont fournis par défaut par KingdomEngine. Ils restent
     # visibles même avant la saisie des tokens afin que l'installation soit
     # compréhensible et reproductible sur un nouveau serveur.
-    numbers = set(range(1, len(LEGACY_WORKERS) + 1))
+    numbers = set(range(1, DEFAULT_PLATFORM_WORKER_COUNT + 1))
     numbers.update({
         int(match.group(1))
         for name, value in env.items()

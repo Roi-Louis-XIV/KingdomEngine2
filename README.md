@@ -248,6 +248,8 @@ Une présence vocale publiée en mode **automatique** est affectée par KingdomV
 
 Les compteurs **connexions vocales réelles** de KingdomWeb et **Capacité vocale** de Payen Studio Admin sont alimentés par l’état runtime de KingdomVoice, actualisé toutes les cinq secondes dans `KINGDOM_DATA_DIR/runtime/voice-status.json`. Ce fichier ne contient aucun token. Un état âgé de plus de vingt secondes est considéré hors ligne afin de ne jamais conserver une connexion fantôme après l’arrêt du service.
 
+Les capacités Voice Workers sont préparées pour les futures offres : **Basic** (2), **Supérieur** (6), **Pro** (10) et **Légende** (10 plus des Workers personnalisés). Payen Studio Admin permet d’attribuer l’offre à chaque profil. Les emplacements 1 à 10 utilisent `VOICE_WORKER_N_TOKEN` et `VOICE_WORKER_N_APPLICATION_ID`. Un Worker Légende ajouté depuis l’administration indique les deux nouvelles variables à renseigner dans `.env`; redémarrez ensuite `kingdom-voice` et `kingdom-web`.
+
 Tant qu’au moins un joueur reste dans le salon vocal affecté, KingdomVoice rafraîchit l’activité du worker à chaque cycle de surveillance. Le délai de libération ne peut donc plus provoquer une succession de déconnexions et reconnexions ; le worker est libéré lorsque le dernier joueur quitte réellement le salon.
 
 L’allocation des capacités utilise une rotation équitable. Lorsqu’un joueur quitte la mine pour le château, le worker de la mine est rapidement déconnecté et libéré, puis le prochain worker disponible prend le relais au château. Le premier worker reste disponible pour un autre joueur ou une prochaine présence au lieu de suivre systématiquement le même testeur de bâtiment en bâtiment. Cette règle s’applique automatiquement à tous les workers présents et futurs.

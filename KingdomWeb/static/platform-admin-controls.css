@@ -49,6 +49,72 @@
   color: var(--ops-danger);
 }
 
+.ops-plan-picker {
+  display: grid;
+  min-width: 220px;
+  gap: 5px;
+  color: var(--ops-muted);
+  font-size: 10px;
+}
+
+.ops-plan-picker select,
+.ops-add-worker input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #394354;
+  border-radius: 8px;
+  padding: 7px 9px;
+  color: var(--ops-text);
+  background: #111722;
+}
+
+.ops-add-worker {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 120px minmax(180px, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid #315544;
+  border-radius: 12px;
+  background: #0d1914;
+}
+
+.ops-add-worker label {
+  display: grid;
+  gap: 5px;
+  color: var(--ops-muted);
+  font-size: 10px;
+}
+
+.ops-add-worker [data-worker-feedback] {
+  grid-column: 1 / -1;
+  color: var(--ops-accent);
+}
+
+@media (max-width: 900px) {
+  header,
+  main {
+    width: calc(100% - 24px);
+  }
+
+  .ops-add-worker,
+  .ops-account-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .ops-plan-picker {
+    width: 100%;
+  }
+
+  .ops-grid,
+  .ops-metrics,
+  .ops-services > div > div,
+  .ops-platform-workers {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)) !important;
+  }
+}
+
 @media (max-width: 600px) {
   .ops-service-actions {
     grid-template-columns: 1fr;

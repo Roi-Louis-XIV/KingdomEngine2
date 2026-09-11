@@ -2288,6 +2288,23 @@ async function loadDiscordConnections() {
   }
   state.items = await contentResponse.json();
   state.botStatuses = statusResponse.ok ? await statusResponse.json() : [];
+  const knownBots = new Set(state.items.map((item) => item.entity_key));
+  state.botStatuses
+    .filter((status) => status.type === "voice" && !knownBots.has(status.key))
+    .forEach((status) =>
+      state.items.push({
+        entity_key: status.key,
+        status: "published",
+        version: 1,
+        payload: {
+          name: status.name,
+          bot_type: "voice",
+          worker_kind: status.worker_kind,
+          enabled: true,
+          description: "Capacité vocale disponible pour les présences du monde.",
+        },
+      }),
+    );
   renderDiscordConnections();
 }
 
@@ -2298,7 +2315,8 @@ function discordConnectionCard(entity) {
       state.botStatuses.find((item) => item.key === entity.entity_key) || {};
   const applicationReady = !!status.application_id_configured,
     tokenReady = !!status.token_configured,
-    enabled = !!payload.enabled;
+    enabled = !!payload.enabled,
+    locked = !!status.locked;
   const readiness =
     applicationReady && tokenReady
       ? enabled
@@ -2308,7 +2326,7 @@ function discordConnectionCard(entity) {
         ? "Application ID manquant"
         : "Token manquant";
   const protectedWorker = payload.worker_kind === "platform";
-  return `<article class="discord-connection-card ${voice ? "audio-connection" : "core-connection"}" data-open="${escapeHtml(entity.entity_key)}" data-access-tier="included" tabindex="0"><div class="discord-connection-icon">${escapeHtml(payload.emoji || (voice ? "🎙️" : "🛡️"))}</div><div class="discord-connection-copy"><small>${voice ? protectedWorker ? "VOICE WORKER DE BASE" : "VOICE WORKER AJOUTÉ" : "CONNEXION PRINCIPALE"}</small><h3>${escapeHtml(payload.name || entity.entity_key)}</h3><p>${escapeHtml(payload.description || (voice ? "Capacité technique réutilisée par les identités de Voix et Présences." : "Pilote les interfaces textuelles du monde."))}</p><div class="discord-connection-meta"><span class="${applicationReady ? "ready" : "missing"}">${applicationReady ? "✓ Application configurée" : "⚠ Application ID à renseigner"}</span><span class="${tokenReady ? "ready" : "missing"}">${tokenReady ? "✓ Token configuré" : "⚠ Token à renseigner"}</span>${voice ? `<span>${protectedWorker ? "🔒 Fourni par KingdomEngine" : "Personnalisable et supprimable"}</span>` : ""}</div></div><div class="discord-connection-actions"><span class="connection-readiness ${applicationReady && tokenReady ? "ready" : "missing"}">${readiness}</span><button type="button" class="primary" data-invite="${escapeHtml(entity.entity_key)}" ${applicationReady ? "" : "disabled"}>${voice ? "Ajouter à Discord" : "Installer sur Discord"}</button><button type="button" data-edit="${escapeHtml(entity.entity_key)}">${voice ? "Configurer la connexion" : "Configurer le bot"}</button>${!protectedWorker && voice ? `<button type="button" class="danger" data-delete="${escapeHtml(entity.entity_key)}">Supprimer</button>` : ""}${entity.status === "draft" ? `<button type="button" data-publish="${escapeHtml(entity.entity_key)}" data-version="${entity.version}">Publier sur Discord</button>` : ""}</div></article>`;
+  return `<article class="discord-connection-card ${voice ? "audio-connection" : "core-connection"} ${locked ? "is-locked" : ""}" data-open="${escapeHtml(entity.entity_key)}" data-access-tier="${locked ? "locked" : "included"}" tabindex="0"><div class="discord-connection-icon">${escapeHtml(payload.emoji || (voice ? "🎙️" : "🛡️"))}</div><div class="discord-connection-copy"><small>${voice ? protectedWorker ? "VOICE WORKER DE BASE" : "VOICE WORKER AJOUTÉ" : "CONNEXION PRINCIPALE"}</small><h3>${escapeHtml(payload.name || entity.entity_key)}</h3><p>${escapeHtml(payload.description || (voice ? "Capacité technique réutilisée par les identités de Voix et Présences." : "Pilote les interfaces textuelles du monde."))}</p><div class="discord-connection-meta"><span class="${applicationReady ? "ready" : "missing"}">${applicationReady ? "✓ Application configurée" : "⚠ Application ID à renseigner"}</span><span class="${tokenReady ? "ready" : "missing"}">${tokenReady ? "✓ Token configuré" : "⚠ Token à renseigner"}</span>${voice ? `<span>${locked ? `🔒 Offre ${escapeHtml(status.voice_plan || "Basic")}` : protectedWorker ? "🔒 Fourni par KingdomEngine" : "Personnalisable et supprimable"}</span>` : ""}</div></div><div class="discord-connection-actions"><span class="connection-readiness ${locked ? "missing" : applicationReady && tokenReady ? "ready" : "missing"}">${locked ? "Verrouillé par l’offre" : readiness}</span><button type="button" class="primary" data-invite="${escapeHtml(entity.entity_key)}" ${applicationReady && !locked ? "" : "disabled"}>${voice ? "Ajouter à Discord" : "Installer sur Discord"}</button>${locked ? "" : `<button type="button" data-edit="${escapeHtml(entity.entity_key)}">${voice ? "Configurer la connexion" : "Configurer le bot"}</button>`}${!protectedWorker && voice && !locked ? `<button type="button" class="danger" data-delete="${escapeHtml(entity.entity_key)}">Supprimer</button>` : ""}${entity.status === "draft" ? `<button type="button" data-publish="${escapeHtml(entity.entity_key)}" data-version="${entity.version}">Publier sur Discord</button>` : ""}</div></article>`;
 }
 
 function renderDiscordConnections() {
@@ -2332,7 +2350,7 @@ function renderDiscordConnections() {
   ).length;
   $("#cards").classList.remove("building-card-grid");
   $("#cards").innerHTML =
-    `<section class="discord-connections-intro"><div><small>CONNEXION DISCORD</small><h2>Toutes les applications du monde</h2><p>KingdomCore gère les interfaces textuelles. Chaque bot audio ajoute une capacité vocale indépendante pour KingdomVoice.</p></div><span>${audioTotal} capacité(s) audio</span></section>${core.length ? `<section class="discord-connection-group"><header><div><small>SYSTÈME PRINCIPAL</small><h2>KingdomCore</h2></div></header><div>${core.map(discordConnectionCard).join("")}</div></section>` : ""}<section class="discord-connection-group audio"><header><div><small>KINGDOMVOICE</small><h2>Bots audio disponibles</h2><p>Tous les bots audio sont affichés, même désactivés ou pas encore configurés.</p></div><span class="future-entitlement">Accès inclus actuellement</span></header><div>${audio.map(discordConnectionCard).join("") || '<div class="product-empty"><span>🎙️</span><h3>Aucun bot audio ne correspond</h3><p>Modifiez la recherche ou créez une connexion vocale.</p></div>'}</div></section>`;
+    `<section class="discord-connections-intro"><div><small>CONNEXION DISCORD</small><h2>Toutes les applications du monde</h2><p>KingdomCore gère les interfaces textuelles. Chaque bot audio ajoute une capacité vocale indépendante pour KingdomVoice.</p></div><span>${audioTotal} capacité(s) audio</span></section>${core.length ? `<section class="discord-connection-group"><header><div><small>SYSTÈME PRINCIPAL</small><h2>KingdomCore</h2></div></header><div>${core.map(discordConnectionCard).join("")}</div></section>` : ""}<section class="discord-connection-group audio" data-access-tier="included"><header><div><small>KINGDOMVOICE</small><h2>Bots audio disponibles</h2><p>Tous les bots audio sont affichés, même désactivés ou pas encore configurés.</p></div><span class="future-entitlement">Accès selon votre offre</span></header><div>${audio.map(discordConnectionCard).join("") || '<div class="product-empty"><span>🎙️</span><h3>Aucun bot audio ne correspond</h3><p>Modifiez la recherche ou créez une connexion vocale.</p></div>'}</div></section>`;
 }
 
 async function loadProfessionCatalog() {

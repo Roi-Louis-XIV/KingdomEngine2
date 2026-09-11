@@ -25,6 +25,13 @@ ROLES_SERVEUR: dict[str, set[str]] = {
     "proprietaire": {"*"},
 }
 
+VOICE_PLANS: dict[str, dict[str, Any]] = {
+    "basic": {"name": "Basic", "voice_workers": 2, "custom_workers": False},
+    "superior": {"name": "Supérieur", "voice_workers": 6, "custom_workers": False},
+    "pro": {"name": "Pro", "voice_workers": 10, "custom_workers": False},
+    "legend": {"name": "Légende", "voice_workers": 10, "custom_workers": True},
+}
+
 
 class ErreurAuthentification(RuntimeError):
     pass
@@ -68,6 +75,9 @@ class RegistreComptes:
     def initialiser(self) -> None:
         with self.connexion() as base:
             base.executescript(SCHEMA_COMPTES)
+            account_columns = {row[1] for row in base.execute("PRAGMA table_info(web_accounts)")}
+            if "voice_plan_key" not in account_columns:
+                base.execute("ALTER TABLE web_accounts ADD COLUMN voice_plan_key TEXT NOT NULL DEFAULT 'basic'")
             world_columns = {row[1] for row in base.execute("PRAGMA table_info(worlds)")}
             if "template_key" not in world_columns:
                 base.execute("ALTER TABLE worlds ADD COLUMN template_key TEXT NOT NULL DEFAULT 'blank'")
@@ -94,6 +104,13 @@ class RegistreComptes:
         now = _maintenant()
         with self.connexion() as base:
             base.execute("INSERT OR IGNORE INTO platform_plans(plan_key,name,entitlements_json,quotas_json,active,created_at) VALUES('standard','Standard','[]','{}',1,?)", (now,))
+            for plan_key, plan in VOICE_PLANS.items():
+                base.execute(
+                    "INSERT INTO platform_plans(plan_key,name,entitlements_json,quotas_json,active,created_at) VALUES(?,?,?,?,1,?) "
+                    "ON CONFLICT(plan_key) DO UPDATE SET name=excluded.name,entitlements_json=excluded.entitlements_json,quotas_json=excluded.quotas_json,active=1",
+                    (plan_key, plan["name"], json.dumps(["custom_voice_workers"] if plan["custom_workers"] else []), json.dumps({"voice_workers": plan["voice_workers"]}), now),
+                )
+            base.execute("UPDATE web_accounts SET voice_plan_key='legend' WHERE is_admin=1 AND voice_plan_key='basic'")
             for account in base.execute("SELECT id,display_name,username FROM web_accounts ORDER BY id").fetchall():
                 slug = f"personal-{account['id']}"
                 base.execute("INSERT OR IGNORE INTO organizations(slug,name,created_by,created_at) VALUES(?,?,?,?)", (slug, f"Espace de {account['display_name'] or account['username']}", account["id"], now))
@@ -293,7 +310,7 @@ class RegistreComptes:
     def lister_comptes(self) -> list[dict[str, Any]]:
         with self.connexion() as base:
             lignes = base.execute(
-                "SELECT id,username,display_name,email,is_admin,active,created_at FROM web_accounts ORDER BY display_name,username"
+                "SELECT id,username,display_name,email,is_admin,active,created_at,voice_plan_key FROM web_accounts ORDER BY display_name,username"
             ).fetchall()
             total_serveurs = int(base.execute("SELECT COUNT(*) FROM managed_servers WHERE active=1").fetchone()[0])
         resultats = []
@@ -307,6 +324,22 @@ class RegistreComptes:
             )
             resultats.append(compte)
         return resultats
+
+    def definir_plan_vocal(self, compte_id: int, plan_key: str, acteur_id: int) -> dict[str, Any]:
+        if plan_key not in VOICE_PLANS:
+            raise ValueError("Offre Voice Workers inconnue.")
+        with self.connexion() as base:
+            if not base.execute("SELECT 1 FROM web_accounts WHERE id=?", (compte_id,)).fetchone():
+                raise ValueError("Compte introuvable.")
+            base.execute("UPDATE web_accounts SET voice_plan_key=? WHERE id=?", (plan_key, compte_id))
+            self._audit_plateforme(base, acteur_id, "voice.plan.changed", "account", str(compte_id), {"plan_key": plan_key})
+        return {"account_id": compte_id, "plan_key": plan_key, **VOICE_PLANS[plan_key]}
+
+    def plan_vocal(self, compte_id: int) -> dict[str, Any]:
+        with self.connexion() as base:
+            row = base.execute("SELECT voice_plan_key FROM web_accounts WHERE id=?", (compte_id,)).fetchone()
+        key = str(row["voice_plan_key"] if row else "basic")
+        return {"key": key, **VOICE_PLANS.get(key, VOICE_PLANS["basic"])}
 
     def supprimer_compte(self, compte_id: int, acteur_id: int) -> dict[str, Any]:
         """Supprime un compte client sans détruire les mondes qu'il administrait.
@@ -581,7 +614,8 @@ class RegistreComptes:
 SCHEMA_COMPTES = """
 CREATE TABLE IF NOT EXISTS web_accounts(
  id INTEGER PRIMARY KEY AUTOINCREMENT,username TEXT NOT NULL UNIQUE,display_name TEXT NOT NULL,email TEXT NOT NULL DEFAULT '',
- password_salt TEXT NOT NULL,password_hash TEXT NOT NULL,is_admin INTEGER NOT NULL DEFAULT 0,active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL
+ password_salt TEXT NOT NULL,password_hash TEXT NOT NULL,is_admin INTEGER NOT NULL DEFAULT 0,active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,
+ voice_plan_key TEXT NOT NULL DEFAULT 'basic'
 );
 CREATE TABLE IF NOT EXISTS web_sessions(
  token_hash TEXT PRIMARY KEY,account_id INTEGER NOT NULL,created_at TEXT NOT NULL,expires_at TEXT NOT NULL,

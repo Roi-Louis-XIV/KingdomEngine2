@@ -169,11 +169,11 @@ async function load() {
     data.accounts
       .map(
         (account) =>
-          `<article class="ops-row"><div class="ops-avatar">${esc((account.display_name || account.username || "?")[0].toUpperCase())}</div><div><b>${esc(account.display_name)}</b><small>@${esc(account.username)}</small></div><span>${account.administered_server_count} monde(s)</span><i>${account.is_admin ? "ADMIN CLIENT" : "CLIENT"}</i>${account.is_admin ? "" : `<button type="button" class="ops-account-delete" data-delete-account="${account.id}" data-account-username="${esc(account.username)}">Supprimer</button>`}</article>`,
+          `<article class="ops-row ops-account-row"><div class="ops-avatar">${esc((account.display_name || account.username || "?")[0].toUpperCase())}</div><div><b>${esc(account.display_name)}</b><small>@${esc(account.username)}</small></div><span>${account.administered_server_count} monde(s)</span><label class="ops-plan-picker">Offre vocale<select data-voice-plan-account="${account.id}">${Object.entries(data.voice_plans || {}).map(([key, plan]) => `<option value="${esc(key)}" ${account.voice_plan_key === key ? "selected" : ""}>${esc(plan.name)} · ${plan.voice_workers}${plan.custom_workers ? "+" : ""} Workers</option>`).join("")}</select></label>${account.is_admin ? "" : `<button type="button" class="ops-account-delete" data-delete-account="${account.id}" data-account-username="${esc(account.username)}">Supprimer</button>`}</article>`,
       )
       .join("") || '<p class="ops-empty">Aucun compte.</p>';
   const voice =
-    `<div class="ops-platform-workers">${(data.platform_workers || [])
+    `<form class="ops-add-worker" id="add-platform-worker"><div><b>Ajouter une capacité Légende</b><small>Le token reste dans le fichier .env du serveur.</small></div><label>Numéro<input name="number" type="number" min="11" required placeholder="11"></label><label>Nom<input name="name" placeholder="Voice Worker 11"></label><button type="submit">+ Ajouter</button><span data-worker-feedback></span></form><div class="ops-platform-workers">${(data.platform_workers || [])
       .map(
         (worker) =>
           `<article class="ops-presence"><span>●</span><div><b>${esc(worker.name)}</b><small>${esc(worker.key)} · capacité plateforme</small></div><i>${worker.application_id_configured ? "Configuré" : "Application ID absent"}</i></article>`,
@@ -242,6 +242,34 @@ async function load() {
         await load();
       }),
   );
+  document.querySelectorAll("[data-voice-plan-account]").forEach((select) => {
+    select.onchange = async () => {
+      select.disabled = true;
+      const response = await fetch(`/api/accounts/${select.dataset.voicePlanAccount}/voice-plan`, {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan_key: select.value }),
+      });
+      select.disabled = false;
+      if (!response.ok) alert((await response.json()).detail || "Attribution impossible.");
+    };
+  });
+  const workerForm = document.querySelector("#add-platform-worker");
+  if (workerForm) workerForm.onsubmit = async (event) => {
+    event.preventDefault();
+    const feedback = workerForm.querySelector("[data-worker-feedback]");
+    const payload = Object.fromEntries(new FormData(workerForm));
+    payload.number = Number(payload.number);
+    const response = await fetch("/api/platform/voice-workers", {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok) return (feedback.textContent = result.detail || "Création impossible.");
+    feedback.textContent = `Créé · ajoutez ${result.required_environment.join(" et ")} dans .env, puis redémarrez Voice.`;
+    setTimeout(load, 1800);
+  };
   bindOfficialContent();
 }
 

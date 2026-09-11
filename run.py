@@ -104,11 +104,21 @@ elif args.module == "voice":
     from seed import DEFINITIONS
     voice_store = ContentStore(); voice_store.initialize(); voice_store.seed(DEFINITIONS); import_v1(voice_store); migrate_bot_catalog(voice_store)
     voice_worlds: list[tuple[ContentStore, str]] = []
+    voice_world_quotas: dict[str, int | None] = {}
     with voice_store.connection() as database:
         tables = {row[0] for row in database.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         managed = database.execute(
             "SELECT guild_id,database_path FROM managed_servers WHERE active=1 AND guild_id<>''"
         ).fetchall() if "managed_servers" in tables else []
+        if {"worlds", "world_discord_servers", "server_access", "web_accounts"} <= tables:
+            limits = {"basic": 2, "superior": 6, "pro": 10, "legend": None}
+            for row in database.execute(
+                "SELECT s.guild_id,COALESCE(a.voice_plan_key,'basic') plan_key "
+                "FROM managed_servers s LEFT JOIN server_access sa ON sa.server_id=s.id "
+                "AND sa.role='proprietaire' LEFT JOIN web_accounts a ON a.id=sa.account_id "
+                "WHERE s.active=1 AND s.guild_id<>'' ORDER BY sa.created_at LIMIT 1000"
+            ).fetchall():
+                voice_world_quotas[str(row["guild_id"])] = limits.get(str(row["plan_key"]), 2)
     seen_paths: set[Path] = set()
     for guild_id, configured_path in managed:
         world_store = ContentStore(configured_path); world_store.initialize()
@@ -120,7 +130,7 @@ elif args.module == "voice":
         voice_worlds.append((world_store, str(guild_id)))
     if not voice_worlds:
         voice_worlds.append((voice_store, os.getenv("KINGDOM_GUILD_ID", "")))
-    asyncio.run(VoiceBotManager(voice_store, worlds=voice_worlds).run())
+    asyncio.run(VoiceBotManager(voice_store, worlds=voice_worlds, world_quotas=voice_world_quotas).run())
 elif args.module == "provision":
     from KingdomData import ContentStore
     from kingdomCore.provisioner import run_provisioning

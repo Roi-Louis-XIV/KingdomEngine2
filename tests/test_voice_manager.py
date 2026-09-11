@@ -191,7 +191,7 @@ def test_historical_platform_workers_are_discovered_without_exposing_tokens():
         "VOICE_WORKER_3_TOKEN": "secret-three",
         "VOICE_WORKER_3_APPLICATION_ID": "123",
     })
-    assert [worker["key"] for worker in workers] == [
+    assert [worker["key"] for worker in workers[:5]] == [
         "voice_edgar", "voice_edouard", "voice_roland", "voice_sylvain", "voice_wagner"
     ]
     assert workers[0]["token_env"] == "EDGAR_BOT_TOKEN"
@@ -200,10 +200,10 @@ def test_historical_platform_workers_are_discovered_without_exposing_tokens():
     assert all(worker["worker_kind"] == "platform" for worker in workers)
 
 
-def test_five_platform_workers_exist_before_tokens_are_configured():
+def test_ten_platform_workers_exist_before_tokens_are_configured():
     workers = discover_platform_workers({})
-    assert len(workers) == 5
-    assert [worker["name"] for worker in workers] == [
+    assert len(workers) == 10
+    assert [worker["name"] for worker in workers[:5]] == [
         "Voice Worker 1", "Voice Worker 2", "Voice Worker 3",
         "Voice Worker 4", "Voice Worker 5",
     ]
@@ -399,6 +399,27 @@ def test_legacy_presence_source_metadata_is_exposed_to_worker(tmp_path):
 def test_zero_or_invalid_legacy_quota_uses_all_workers(monkeypatch):
     monkeypatch.setenv("KINGDOM_MAX_CONCURRENT_VOICE_PRESENCES", "0")
     assert VoiceBotManager.configured_quota(5) == 5
-
     monkeypatch.setenv("KINGDOM_MAX_CONCURRENT_VOICE_PRESENCES", "invalide")
     assert VoiceBotManager.configured_quota(5) == 5
+
+
+def test_same_npc_is_not_materialized_twice_on_same_guild(tmp_path):
+    stores = [ContentStore(tmp_path / f"duplicate-{index}.db") for index in range(2)]
+    for store in stores:
+        store.initialize()
+        building = store.save("building", "tavern", {"name": "Taverne"})
+        store.publish("building", "tavern", building["version"])
+        presence = store.save("voice_presence", "presence_edgar", {
+            "name": "Edgar", "presence_type": "npc", "assignment_mode": "automatic",
+            "metadata": {"building_key": "tavern", "source_npc_key": "edgar"},
+        })
+        store.publish("voice_presence", "presence_edgar", presence["version"])
+        npc = store.save("npc", "edgar", {
+            "name": "Edgar", "building_key": "tavern", "voice_presence_key": "presence_edgar",
+        })
+        store.publish("npc", "edgar", npc["version"])
+
+    manager = VoiceBotManager(stores[0], worlds=[(stores[0], "123"), (stores[1], "123")])
+    edgars = [item for item in manager._published_presences().values() if item.source_key == "edgar"]
+
+    assert len(edgars) == 1
