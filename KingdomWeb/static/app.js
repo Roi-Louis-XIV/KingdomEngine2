@@ -5769,6 +5769,9 @@ function renderPropertyPanel() {
     fields = propertyInput("Titre", "title", props.title || "Votre métier");
   if (component.type.startsWith("dynamic_"))
     fields = propertyInput("Texte d’invitation", "placeholder", props.placeholder || "Choisir…");
+  if (["dynamic_product_selector", "dynamic_consumable_selector"].includes(component.type)) {
+    fields += `<label>Objets de cette catégorie<select data-prop="item_keys" multiple size="6">${state.catalogs.item.map((item) => `<option value="${escapeHtml(item.entity_key)}" ${(props.item_keys || []).includes(item.entity_key) ? "selected" : ""}>${escapeHtml(item.payload.name)}</option>`).join("")}</select></label><small>Aucune sélection : tous les objets disponibles. Ctrl ou Cmd permet de sélectionner plusieurs objets.</small>`;
+  }
   if (component.type === "button") fields = buttonPropertyFields(component);
   if (component.type === "select") fields = selectPropertyFields(component);
   panel.innerHTML = `${pageFields}<hr><h4>${COMPONENT_LIBRARY[component.type].icon} ${COMPONENT_LIBRARY[component.type].name}</h4>${fields}<button type="button" class="delete-component secondary">Supprimer le composant</button>`;
@@ -7639,6 +7642,14 @@ function bindPropertyPanel() {
       (field.onchange = () => {
         const key = field.dataset.prop,
           value = field.type === "number" ? Number(field.value) : field.value;
+        if (component && key === "item_keys") {
+          const selected = Array.from(field.selectedOptions, (option) => option.value);
+          component.props ||= {};
+          if (selected.length) component.props.item_keys = selected;
+          else delete component.props.item_keys;
+          renderVisualStudio();
+          return;
+        }
         const optionMatch = key.match(/^option_(\d+)_(.+)$/);
         if (component && optionMatch) {
           const option = component.options[Number(optionMatch[1])],
@@ -9426,6 +9437,10 @@ function addRecipeModule(recipe = {}) {
     ],
   )}${input("Salaire", "recipe_reward", recipe.reward || 0, "number", "min=0")}${input("Expérience", "recipe_experience", recipe.experience || 0, "number", "min=0")}</div><div class="section-head"><b>Ingrédients</b><button type="button" class="secondary add-recipe-ingredient">＋ Ajouter</button></div><div class="recipe-ingredients"></div><div class="checks">${check("Recette active", "recipe_active", recipe.active !== false)}</div></div>`;
   $("#recipe-modules").append(element);
+  element.querySelector(".form-grid").insertAdjacentHTML("beforeend",
+    select("Prélever les ingrédients dans", "recipe_source", recipe.ingredient_source || "player_inventory", [
+      ["building_stock", "Stock du bâtiment"], ["player_inventory", "Inventaire du joueur"],
+    ]) + input("Catégorie du menu", "recipe_category", recipe.category || "production"));
   bindItemSelectors(element);
   Object.entries(recipe.ingredients || {}).forEach(([key, amount]) =>
     addRecipeIngredient(
@@ -9453,6 +9468,8 @@ function readRecipeModules() {
     return {
       ...original,
       key: fieldValue("recipe_key", element) || `recipe_${index + 1}`,
+      ingredient_source: fieldValue("recipe_source", element),
+      category: fieldValue("recipe_category", element),
       name: fieldValue("recipe_name", element),
       profession: fieldValue("recipe_profession", element),
       required_level: fieldValue("recipe_level", element),

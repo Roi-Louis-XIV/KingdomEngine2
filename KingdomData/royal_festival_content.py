@@ -67,13 +67,35 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
     settings["onboarding"]["starting_money"] = 25
     settings["live_ops"]["status"] = "preparation"
     settings["live_ops"]["objective_states"] = ["locked", "active", "completed", "failed"]
+    # Les cibles correspondent à environ 6 à 16 cycles de leur activité source.
+    # Elles restent volontairement identifiées comme valeurs de bêta à valider.
     settings["live_ops"]["objectives"] = [
-        {"key":"banquet","name":"Préparer le banquet","target":50,"unit":"portions","action_keys":["cook_festival_meal"],"increment":4,"state":"active","balance_status":BALANCE},
-        {"key":"braziers","name":"Installer les braseros","target":12,"unit":"braseros","action_keys":["install_brazier"],"state":"active","balance_status":BALANCE},
-        {"key":"decorations","name":"Installer les décorations","target":40,"unit":"éléments","action_keys":["install_decorations"],"increment":2,"state":"active","balance_status":BALANCE},
-        {"key":"drinks","name":"Réunir les boissons","target":30,"unit":"fûts","action_keys":["deliver_festival_drinks"],"increment":2,"state":"active","balance_status":BALANCE},
-        {"key":"wood","name":"Constituer la réserve de bois","target":80,"unit":"unités","action_keys":["deliver_festival_wood"],"increment":5,"state":"active","balance_status":BALANCE},
-        {"key":"treasury","name":"Financer la fête","target":500,"unit":"écus","action_keys":["fund_festival"],"increment":10,"state":"active","balance_status":BALANCE},
+        {"key":"wood","name":"Bois pour les installations","target":80,"unit":"bois","action_keys":["deposit_festival_wood"],"increment":5,"state":"active","balance_status":BALANCE},
+        {"key":"stone","name":"Pierre pour l'esplanade","target":30,"unit":"pierres","action_keys":["deposit_festival_stone"],"increment":3,"state":"active","balance_status":BALANCE},
+        {"key":"iron","name":"Fer pour les structures","target":24,"unit":"lingots","action_keys":["deposit_festival_iron"],"increment":2,"state":"active","balance_status":BALANCE},
+        {"key":"coal","name":"Combustible des braseros","target":24,"unit":"charbons","action_keys":["deposit_festival_coal"],"increment":3,"state":"active","balance_status":BALANCE},
+        {"key":"flour","name":"Farine pour les cuisines","target":32,"unit":"sacs","action_keys":["deposit_festival_flour"],"increment":2,"state":"active","balance_status":BALANCE},
+        {"key":"bread","name":"Pain pour le banquet","target":24,"unit":"pains","action_keys":["deposit_festival_bread"],"increment":2,"state":"active","balance_status":BALANCE},
+        {"key":"meat","name":"Gibier pour le banquet","target":24,"unit":"portions","action_keys":["deposit_festival_meat"],"increment":2,"state":"active","balance_status":BALANCE},
+        {"key":"vegetables","name":"Légumes pour le banquet","target":24,"unit":"paniers","action_keys":["deposit_festival_vegetables"],"increment":4,"state":"active","balance_status":BALANCE},
+        {"key":"beer","name":"Bière pour les convives","target":20,"unit":"fûts","action_keys":["deposit_festival_beer"],"increment":2,"state":"active","balance_status":BALANCE},
+        {"key":"mead","name":"Hydromel de cérémonie","target":12,"unit":"fûts","action_keys":["deposit_festival_mead"],"increment":2,"state":"active","balance_status":BALANCE},
+    ]
+    settings["live_ops"]["progress_display"] = "per_resource_and_overall"
+    settings["live_ops"]["final_tiers"] = [
+        {"key":"preparations_failed","minimum_percent":0,"maximum_percent":49,"name":"Préparatifs insuffisants"},
+        {"key":"modest_festival","minimum_percent":50,"maximum_percent":74,"name":"Fête modeste"},
+        {"key":"great_festival","minimum_percent":75,"maximum_percent":99,"name":"Grande fête"},
+        {"key":"royal_feast","minimum_percent":100,"name":"Festin royal","overachievement":True},
+    ]
+    settings["live_ops"]["timeline"] = [
+        {"minute":0,"label":"Découverte libre du royaume"},
+        {"minute":25,"label":"Annonce des préparatifs","event_key":"festival_announcement"},
+        {"minute":45,"label":"Fenêtre d'événements vivants"},
+        {"minute":90,"label":"Point d'étape collectif"},
+        {"minute":135,"label":"Dernière phase de préparation"},
+        {"minute":170,"label":"Bilan et ouverture de la fête","event_key":"festival_opening"},
+        {"minute":180,"label":"Clôture libre du scénario"},
     ]
 
     new_items = [
@@ -87,6 +109,10 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
         ("rain_herb","Herbe de pluie","🌧️","resource",100),
         ("support_beam","Étai de mine","🪵","material",50),
         ("festival_token","Jeton de contribution","🏅","quest",999),
+        ("festival_coal","Charbon de fête","⚫","resource",200),
+        ("festival_vegetables","Panier de légumes","🥕","ingredient",200),
+        ("festival_bread","Pain de fête","🥖","food",200),
+        ("festival_mead","Fût d'hydromel","🍯","drink",100),
     ]
     definitions.extend({"type":"item","key":key,"payload":{
         "name":name,"emoji":emoji,"description":f"Contenu du scénario La Fête du Royaume. {BALANCE}",
@@ -128,7 +154,7 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
     mine["actions"] = [
         _join("miner", "Devenir mineur", "⛏️"),
         _leave("miner", "Quitter le métier de mineur", "↩️"),
-        _action("extract_festival_ore", "Extraire du minerai", "⛓️", "miner", [{"type":"reward","resource":"iron_ore","amount":3},{"type":"profession_experience","profession":"miner","amount":10}], energy=6, cooldown=5, duration=10),
+        _action("extract_festival_ore", "Extraire du minerai et du charbon", "⛓️", "miner", [{"type":"reward","resource":"iron_ore","amount":3},{"type":"reward","resource":"festival_coal","amount":3},{"type":"profession_experience","profession":"miner","amount":10}], energy=6, cooldown=5, duration=10),
         _action("quarry_stone", "Tailler de la pierre", "🪨", "miner", [{"type":"reward","resource":"stone_block","amount":3},{"type":"profession_experience","profession":"miner","amount":8}], energy=5),
         _action("reinforce_mine", "Sécuriser la galerie", "🪵", "miner", [{"type":"cost","resource":"oak_timber","amount":15},{"type":"cost","resource":"festival_provision","amount":5},{"type":"contribution","objective":"mine_repair","resource":"support","amount":1}], energy=8),
     ]
@@ -139,6 +165,7 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
         _leave("blacksmith", "Quitter le métier de forgeron", "↩️"),
         _action("forge_festival_brazier", "Forger un brasero", "🔥", "blacksmith", [{"type":"cost","resource":"iron_ore","amount":3},{"type":"cost","resource":"oak_timber","amount":1},{"type":"reward","resource":"festival_brazier","amount":1},{"type":"profession_experience","profession":"blacksmith","amount":15}], energy=7, duration=10),
         _action("forge_support_beam", "Fabriquer un étai", "🪵", "blacksmith", [{"type":"cost","resource":"oak_timber","amount":2},{"type":"cost","resource":"iron_ore","amount":1},{"type":"reward","resource":"support_beam","amount":1},{"type":"profession_experience","profession":"blacksmith","amount":8}], energy=4),
+        _action("smelt_festival_iron", "Fondre le fer", "🔩", "blacksmith", [{"type":"cost","resource":"iron_ore","amount":3},{"type":"cost","resource":"festival_coal","amount":1},{"type":"reward","resource":"iron_ingot","amount":2},{"type":"profession_experience","profession":"blacksmith","amount":10}], energy=5, duration=8),
     ]
 
     tavern = _entity(definitions, "building", "edgar_tavern")
@@ -147,6 +174,8 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
         _leave("innkeeper", "Quitter le métier de tavernier", "↩️"),
         _action("brew_festival_drinks", "Préparer les boissons", "🍺", "innkeeper", [{"type":"cost","resource":"wheat_sack","amount":1},{"type":"reward","resource":"festival_drink_crate","amount":2},{"type":"profession_experience","profession":"innkeeper","amount":10}], energy=4, cooldown=5),
         _action("cook_festival_meal", "Cuisiner le banquet", "🍲", "innkeeper", [{"type":"cost","resource":"flour_sack","amount":1},{"type":"cost","resource":"game_meat","amount":1},{"type":"reward","resource":"festival_meal","amount":4},{"type":"contribution","objective":"banquet","resource":"festival_meal","amount":4},{"type":"profession_experience","profession":"innkeeper","amount":14}], energy=6, duration=10),
+        _action("bake_festival_bread", "Cuire le pain de fête", "🥖", "innkeeper", [{"type":"cost","resource":"flour_sack","amount":2},{"type":"reward","resource":"festival_bread","amount":2},{"type":"profession_experience","profession":"innkeeper","amount":10}], energy=4, duration=6),
+        _action("brew_festival_mead", "Brasser l'hydromel", "🍯", "innkeeper", [{"type":"cost","resource":"wheat_sack","amount":2},{"type":"reward","resource":"festival_mead","amount":2},{"type":"profession_experience","profession":"innkeeper","amount":12}], energy=5, cooldown=8),
         _action("edgar_refreshment", "Profiter de la tournée d’Edgar", "🍻", None, [{"type":"reward","resource":"energy","amount":15}], cooldown=60),
     ]
 
@@ -157,6 +186,7 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
         _action("harvest_festival_wheat", "Récolter le blé", "🌾", "farmer", [{"type":"reward","resource":"wheat_sack","amount":4},{"type":"profession_experience","profession":"farmer","amount":10}], energy=4, cooldown=5),
         _action("mill_festival_flour", "Moudre la farine", "⚙️", "farmer", [{"type":"cost","resource":"wheat_sack","amount":2},{"type":"reward","resource":"flour_sack","amount":2},{"type":"profession_experience","profession":"farmer","amount":8}], energy=3),
         _action("prepare_provisions", "Préparer les provisions", "🧺", "farmer", [{"type":"cost","resource":"wheat_sack","amount":1},{"type":"reward","resource":"festival_provision","amount":2},{"type":"profession_experience","profession":"farmer","amount":8}], energy=3),
+        _action("harvest_festival_vegetables", "Récolter les légumes", "🥕", "farmer", [{"type":"reward","resource":"festival_vegetables","amount":4},{"type":"profession_experience","profession":"farmer","amount":8}], energy=4, cooldown=6),
     ]
 
     esplanade = _entity(definitions, "building", "festival_esplanade")
@@ -164,7 +194,16 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
         _action("install_brazier", "Installer un brasero", "🔥", None, [{"type":"cost","resource":"festival_brazier","amount":1},{"type":"contribution","objective":"braziers","resource":"festival_brazier","amount":1},{"type":"reward","resource":"festival_token","amount":1}]),
         _action("install_decorations", "Installer les décorations", "🎊", None, [{"type":"cost","resource":"festival_decoration","amount":2},{"type":"contribution","objective":"decorations","resource":"festival_decoration","amount":2},{"type":"reward","resource":"festival_token","amount":1}]),
         _action("deliver_festival_drinks", "Livrer les boissons", "🍻", None, [{"type":"cost","resource":"festival_drink_crate","amount":2},{"type":"contribution","objective":"drinks","resource":"festival_drink_crate","amount":2},{"type":"reward","resource":"money","amount":4}]),
-        _action("deliver_festival_wood", "Livrer le bois", "🪵", None, [{"type":"cost","resource":"oak_timber","amount":5},{"type":"contribution","objective":"wood","resource":"oak_timber","amount":5},{"type":"reward","resource":"money","amount":5}]),
+        _action("deposit_festival_wood", "Déposer 5 bois", "🪵", None, [{"type":"cost","resource":"oak_timber","amount":5},{"type":"contribution","objective":"wood","resource":"oak_timber","amount":5}]),
+        _action("deposit_festival_stone", "Déposer 3 pierres", "🪨", None, [{"type":"cost","resource":"stone_block","amount":3},{"type":"contribution","objective":"stone","resource":"stone_block","amount":3}]),
+        _action("deposit_festival_iron", "Déposer 2 lingots", "🔩", None, [{"type":"cost","resource":"iron_ingot","amount":2},{"type":"contribution","objective":"iron","resource":"iron_ingot","amount":2}]),
+        _action("deposit_festival_coal", "Déposer 3 charbons", "⚫", None, [{"type":"cost","resource":"festival_coal","amount":3},{"type":"contribution","objective":"coal","resource":"festival_coal","amount":3}]),
+        _action("deposit_festival_flour", "Déposer 2 sacs de farine", "⚪", None, [{"type":"cost","resource":"flour_sack","amount":2},{"type":"contribution","objective":"flour","resource":"flour_sack","amount":2}]),
+        _action("deposit_festival_bread", "Déposer 2 pains", "🥖", None, [{"type":"cost","resource":"festival_bread","amount":2},{"type":"contribution","objective":"bread","resource":"festival_bread","amount":2}]),
+        _action("deposit_festival_meat", "Déposer 2 portions de gibier", "🦌", None, [{"type":"cost","resource":"game_meat","amount":2},{"type":"contribution","objective":"meat","resource":"game_meat","amount":2}]),
+        _action("deposit_festival_vegetables", "Déposer 4 paniers de légumes", "🥕", None, [{"type":"cost","resource":"festival_vegetables","amount":4},{"type":"contribution","objective":"vegetables","resource":"festival_vegetables","amount":4}]),
+        _action("deposit_festival_beer", "Déposer 2 fûts de bière", "🍺", None, [{"type":"cost","resource":"festival_drink_crate","amount":2},{"type":"contribution","objective":"beer","resource":"festival_drink_crate","amount":2}]),
+        _action("deposit_festival_mead", "Déposer 2 fûts d'hydromel", "🍯", None, [{"type":"cost","resource":"festival_mead","amount":2},{"type":"contribution","objective":"mead","resource":"festival_mead","amount":2}]),
         _action("secure_festival", "Sécuriser l’esplanade", "⛈️", None, [{"type":"cost","resource":"support_beam","amount":1},{"type":"contribution","objective":"storm_security","resource":"support_beam","amount":1}]),
         _action("inspect_preparations", "Voir l’état de la fête", "📋", None, [{"type":"message","text":"La progression collective est disponible dans Monde en direct."}]),
     ]
@@ -224,20 +263,94 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
             ],"metadata":{"template":"royal_festival","audio_assets":"À fournir"}}},
         ])
 
+    # Sons déjà livrés dans KingdomData. Les assets manquants restent dans les
+    # profils avec le statut « À fournir » et ne bloquent jamais la présence.
+    packaged_sounds = [
+        ("festival_sfx_axe", "Coup de hache", "assets/forest/sfx/axe_01.mp3", "sfx", 0.75),
+        ("festival_sfx_arrow", "Trait de chasse", "assets/forest/sfx/arrow_01.mp3", "sfx", 0.7),
+        ("festival_sfx_pickaxe", "Coup de pioche", "assets/mine/sfx/pickaxe_01.mp3", "sfx", 0.75),
+        ("festival_sfx_beer", "Chope remplie", "assets/tavern/sfx/biere rempli.mp3", "sfx", 0.7),
+        ("festival_voice_edgar_welcome", "Accueil d'Edgar", "assets/tavern/welcome/Edgar_bienvenue.mp3", "voice", 1.0),
+        ("festival_voice_roland_welcome", "Accueil de Roland", "assets/mine/welcome/welcome mine.mp3", "voice", 1.0),
+        ("festival_voice_wagner_welcome", "Accueil de Wagner", "assets/forge/welcome/bonjour_forge_1.mp3", "voice", 1.0),
+        ("festival_voice_maelis_welcome", "Accueil de Maëlis", "assets/village/welcome/welcome_01.mp3", "voice", 1.0),
+    ]
+    definitions.extend({"type":"audio","key":key,"payload":{
+        "name":name,"emoji":"🔊","description":"Asset fourni avec La Fête du Royaume.",
+        "storage_path":path,"file_name":path.rsplit("/", 1)[-1],"audio_type":audio_type,
+        "volume":volume,"loop":False,"tags":["royal_festival","packaged"],
+    }} for key,name,path,audio_type,volume in packaged_sounds)
+
+    action_audio = {
+        ("forester_lodge", "gather_festival_wood"): "festival_sfx_axe",
+        ("forester_lodge", "hunt_game"): "festival_sfx_arrow",
+        ("deep_mine", "extract_festival_ore"): "festival_sfx_pickaxe",
+        ("edgar_tavern", "brew_festival_drinks"): "festival_sfx_beer",
+    }
+    for (building_key, action_key), audio_key in action_audio.items():
+        building = _entity(definitions, "building", building_key)
+        action = next(item for item in building["actions"] if item["key"] == action_key)
+        action["effects"].append({"type":"play_audio","audio_key":audio_key,"volume":1})
+
+    voice_assets = {
+        "edgar": "festival_voice_edgar_welcome",
+        "roland": "festival_voice_roland_welcome",
+        "wagner": "festival_voice_wagner_welcome",
+        "maelis": "festival_voice_maelis_welcome",
+    }
+    for npc_key, audio_key in voice_assets.items():
+        profile = _entity(definitions, "voice_profile", f"voice_{npc_key}")
+        profile["clips"] = [{
+            "key":"welcome","name":"Accueil","trigger":"talk",
+            "audio_key":audio_key,"text":"Réplique d'accueil fournie avec le template.",
+        }]
+        profile["missing_assets_status"] = "Partiel — autres variantes à fournir"
+        npc = _entity(definitions, "npc", npc_key)
+        npc["reactions"][0]["variants"][0]["audio_key"] = audio_key
+
     event_updates = {
-        "festival_rain": {"trigger":{"type":"scheduled","minute":45},"duration_minutes":45,"weather_key":"rain","audio_layers":[{"group_key":"preset_forest_scene","building_keys":["forester_lodge"]}],"modifiers":[{"property":"production.quantity","operator":"multiply","value":0.85,"target":{"type":"building","key":"forester_lodge"}}]},
-        "mine_incident": {"trigger":{"type":"scheduled","minute":70},"duration_minutes":20,"modifiers":[{"property":"production.quantity","operator":"multiply","value":0.5,"target":{"type":"building","key":"deep_mine"}}],"resolution":{"requirements":{"oak_timber":15,"support_beam":3,"festival_provision":5},"balance_status":BALANCE}},
-        "edgar_round": {"trigger":{"type":"scheduled","minute":110},"duration_minutes":15,"modifiers":[{"property":"energy.cost","operator":"multiply","value":0.8,"target":{"type":"kingdom","key":""}}]},
-        "festival_storm": {"trigger":{"type":"scheduled","minute":135},"duration_minutes":35,"modifiers":[{"property":"activity.duration","operator":"multiply","value":1.4,"target":{"type":"kingdom","key":""}}],"temporary_objective":{"key":"storm_security","target":6,"unit":"étais","state":"active","balance_status":BALANCE}},
+        "festival_rain": {"trigger":{"type":"manual"},"recommended_window_minutes":[35,95],"duration_minutes":30,"weather_key":"rain","audio_layers":[{"group_key":"preset_forest_scene","building_keys":["forester_lodge"]}],"modifiers":[{"property":"production.quantity","operator":"multiply","value":0.85,"target":{"type":"building","key":"forester_lodge"}}]},
+        "mine_incident": {"trigger":{"type":"manual"},"recommended_window_minutes":[55,120],"duration_minutes":20,"modifiers":[{"property":"production.quantity","operator":"multiply","value":0.5,"target":{"type":"building","key":"deep_mine"}}],"resolution":{"requirements":{"oak_timber":15,"support_beam":3,"festival_provision":5},"balance_status":BALANCE}},
+        "edgar_round": {"trigger":{"type":"manual"},"recommended_window_minutes":[75,145],"duration_minutes":15,"modifiers":[{"property":"energy.cost","operator":"multiply","value":0.8,"target":{"type":"kingdom","key":""}}]},
+        "festival_storm": {"trigger":{"type":"manual"},"recommended_window_minutes":[105,155],"duration_minutes":25,"weather_key":"storm","modifiers":[{"property":"activity.duration","operator":"multiply","value":1.4,"target":{"type":"kingdom","key":""}}],"temporary_objective":{"key":"storm_security","target":6,"unit":"étais","state":"active","balance_status":BALANCE}},
         "festival_opening": {"trigger":{"type":"scheduled","minute":170},"duration_minutes":10,"activation_conditions":{"all_objectives_completed":True},"audio_layers":[{"group_key":"preset_festival_scene","building_keys":["festival_esplanade"]}]},
     }
     for event_key, values in event_updates.items():
         _entity(definitions, "event", event_key).update({**values,"balance_status":BALANCE})
-    definitions.append({"type":"event","key":"royal_convocation","payload":{"name":"Convocation royale","emoji":"👑","description":"Clôture du scénario et bilan collectif.","trigger":{"type":"scheduled","minute":180},"enabled":False,"modifiers":[],"effects":[],"balance_status":BALANCE}})
+    definitions.extend([
+        {"type":"event","key":"festival_announcement","payload":{"name":"Préparatifs de la Grande Fête du Royaume","emoji":"📣","description":"Le Crieur public ouvre officiellement l'objectif collectif, après une période de découverte libre.","trigger":{"type":"scheduled","minute":25},"duration_minutes":10,"enabled":True,"modifiers":[],"effects":[],"balance_status":BALANCE}},
+        {"type":"event","key":"royal_convocation","payload":{"name":"Convocation royale","emoji":"👑","description":"Clôture du scénario et bilan collectif.","trigger":{"type":"manual"},"enabled":False,"modifiers":[],"effects":[],"balance_status":BALANCE}},
+    ])
+
+    # Bibliothèque d'événements optionnels : ils sont déclenchés par l'admin ou
+    # par une automatisation générique, jamais par une branche métier Royaume.
+    optional_events = [
+        ("rich_vein","Filon riche","💎","La mine produit davantage pendant un court moment.","production.quantity",1.5,"deep_mine"),
+        ("abundant_game","Gibier abondant","🦌","La chasse est exceptionnellement généreuse.","production.quantity",1.5,"forester_lodge"),
+        ("good_harvest","Bonne récolte","🌾","Les champs donnent une récolte généreuse.","production.quantity",1.4,"festival_farm"),
+        ("bad_harvest","Mauvaise récolte","🥀","Les récoltes sont temporairement réduites.","production.quantity",0.7,"festival_farm"),
+        ("forge_issue","Incident à la forge","⚒️","La forge travaille au ralenti.","production.duration",1.35,"royal_forge"),
+        ("traveling_merchant","Marchand itinérant","🧳","Un marchand de passage anime la Place Royale.","commerce.price",0.9,"market_square"),
+        ("tavern_concert","Concert à la taverne","🎻","Un concert rassemble les habitants chez Edgar.","energy.cost",0.85,"edgar_tavern"),
+        ("happy_hour","Heure joyeuse","🍻","Edgar sert les équipes à prix amical.","commerce.price",0.75,"edgar_tavern"),
+        ("rare_find","Trouvaille rare","✨","Une découverte exceptionnelle récompense l'exploration.","profession.experience",1.25,"forester_lodge"),
+        ("thick_fog","Brouillard dense","🌫️","Le brouillard ralentit les activités extérieures.","activity.duration",1.25,"forester_lodge"),
+    ]
+    definitions.extend({"type":"event","key":key,"payload":{
+        "name":name,"emoji":emoji,"description":description,"trigger":{"type":"manual"},
+        "enabled":True,"duration_minutes":15,"modifiers":[{"property":prop,"operator":"multiply","value":value,"target":{"type":"building","key":building}}],
+        "effects":[],"balance_status":BALANCE,
+    }} for key,name,emoji,description,prop,value,building in optional_events)
 
     environment = _entity(definitions, "environment", "realm_climate")
     environment["name"] = "Calendrier et météo de la Fête"
-    environment["scenario_schedule"] = [{"minute":45,"condition":"rain"},{"minute":90,"condition":"clear"},{"minute":135,"condition":"storm"}]
+    environment["scenario_schedule"] = []
+    environment["conditions"].append({"key":"storm","name":"Tempête","emoji":"⛈️","weight":1})
+    environment["gameplay_links"] = [
+        {"condition_key":"rain","event_key":"festival_rain","description":"Réduit la production forestière et active les ressources de pluie."},
+        {"condition_key":"fog","event_key":"thick_fog","description":"Ralentit les activités extérieures."},
+        {"condition_key":"storm","event_key":"festival_storm","description":"Ralentit le royaume et ouvre l'objectif de sécurisation."},
+    ]
     environment["balance_status"] = BALANCE
 
     page_sets = {

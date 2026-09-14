@@ -206,6 +206,9 @@ class GameEngine:
             total = quantity * unit_price
             self._change_resource(db, discord_id, str(product.get("currency", "money")), -total)
             self._change_resource(db, discord_id, item_key, quantity)
+            maximum_durability = self.building(building_key)["payload"].get("modules", {}).get("repairs", {}).get("durability", {}).get(item_key)
+            if maximum_durability:
+                self._grant_tool(db, discord_id, {"tool": item_key, "max_durability": maximum_durability})
             result = {"purchase": {"item": item_key, "name": product["name"], "quantity": quantity,
                                     "total": total}, "player": self.player(discord_id, db)}
             db.execute("INSERT INTO action_log(interaction_id,discord_id,building_key,action_key,result_json,created_at) VALUES(?,?,?,?,?,?)",

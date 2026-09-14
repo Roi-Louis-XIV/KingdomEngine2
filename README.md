@@ -1,5 +1,27 @@
 # KingdomEngine 2
 
+### Taverne et Forge du template Fête du Royaume
+
+Après mise à jour du code, redémarrer `kingdom-web` et `kingdom-core` :
+`sudo systemctl restart kingdom-web kingdom-core`. Au démarrage, le catalogue
+officiel livré est actualisé une seule fois (`workshop_content_revision: 1`).
+Les mondes déjà créés restent inchangés. Pour tester cette configuration,
+instancier **La Fête du Royaume** depuis le catalogue actualisé.
+
+Dans le Builder, les recettes de la Taverne et de la Forge utilisent le
+**stock du bâtiment** et y déposent leur production. Les ingrédients sont
+livrés depuis l'inventaire des joueurs. **Interface** permet de modifier les
+pages Boire/Manger/Cuisiner ou Fondre/Fabriquer/Acheter/Réparer. Les sélecteurs
+d'objets disposent d'un filtre modifiable pour chaque catégorie.
+Les valeurs d'énergie (3 pour l'eau à 45 pour le repas complet), prix et
+recettes sans valeurs imposées sont marqués `BALANCE_DRAFT / À VALIDER`.
+
+> Le template officiel **La Fête du Royaume** (révision 3) propose désormais
+> une découverte libre, un objectif collectif détaillé par ressource, des
+> événements Live Ops optionnels et un bilan final à plusieurs paliers. La
+> liste exacte des sons fournis et à produire se trouve dans
+> [`AUDIO_ASSETS_FETE_DU_ROYAUME.md`](AUDIO_ASSETS_FETE_DU_ROYAUME.md).
+
 > Mise à jour Live Ops du 9 septembre 2026 : **Monde en direct** possède désormais quatre vues stables — Carte Live, Progression, Activité et Santé. Les joueurs positionnés sont cliquables sur la carte ; leur fiche prend alors explicitement le contrôle de la navigation et ne peut plus être remplacée par un rafraîchissement Live Ops. Elle affiche les courbes argent/énergie/XP, les diagnostics déterministes et deux interventions auditées : déplacement logique et réparation limitée des états bloquants. L'initialisation concurrente de l'horloge a également été sécurisée afin d'éviter l'erreur 500 au premier chargement.
 
 > Le template officiel existant **La Fête du Royaume** est livré en révision 3 depuis le GDD : sept bâtiments scénarisés, cinq métiers avec prise et démission conditionnelles, 32 objets, commerces, recettes et livraisons, six PNJ reliés à leurs présences vocales, six objectifs coopératifs et une timeline de neuf jalons sur trois heures. À la création du monde, les cinq jalons événementiels sont réellement planifiés et persistent après redémarrage. Les voix encore absentes portent la mention `À fournir` et toutes les valeurs d'équilibrage provisoires sont marquées `BALANCE_DRAFT / À VALIDER`. Comme les autres modèles, il reste composé uniquement de contenus no-code versionnés et sa copie reste indépendante après installation.

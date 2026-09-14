@@ -455,6 +455,12 @@ class InterfaceView(discord.ui.View):
     def _add_button(self, component: dict[str, Any], row: int, styles: dict[str, discord.ButtonStyle]) -> None:
         props, interaction = component.get("props", {}), component.get("interaction", {})
         label = str(props.get("label", "Continuer"))[:80]
+        if props.get("durability_tool") and self.owner_id is not None:
+            with self.engine.store.connection() as db:
+                tool = db.execute("SELECT durability,max_durability FROM player_tools WHERE discord_id=? AND tool_key=?",
+                                  (str(self.owner_id), str(props["durability_tool"]))).fetchone()
+            if tool:
+                label = f"{label[:62]} · {tool[0]}/{tool[1]}"[:80]
         style = styles.get(props.get("style"), discord.ButtonStyle.secondary)
         disabled = False
         if interaction.get("type") == "action" and str(interaction.get("action", "")).startswith("claim_") and self.owner_id is not None:
@@ -562,6 +568,9 @@ class InterfaceView(discord.ui.View):
 
     def _add_dynamic_product(self, component: dict[str, Any], row: int) -> None:
         products = [item for item in self.engine.commerce_options(self._building_key()) if int(item.get("quantity", 0)) > 0]
+        allowed = component.get("props", {}).get("item_keys")
+        if allowed is not None:
+            products = [item for item in products if item["item_key"] in allowed]
         if not products: return
         select = discord.ui.Select(placeholder=str(component.get("props", {}).get("placeholder", "Choisir un produit…"))[:150], options=[discord.SelectOption(label=str(item["name"])[:100], value=item["item_key"][:100], description=f"{item.get('price', 0)} écus · stock {item.get('quantity', 0)}"[:100], emoji=item.get("emoji") or None) for item in products[:25]], row=row)
         async def choose(interaction: discord.Interaction):
@@ -590,7 +599,10 @@ class InterfaceView(discord.ui.View):
         with self.engine.store.connection() as db:
             rows = db.execute("SELECT item_key,quantity FROM inventory WHERE discord_id=? AND quantity>0", (str(self.owner_id),)).fetchall()
         items = []
+        allowed = component.get("props", {}).get("item_keys")
         for item_key, quantity in rows:
+            if allowed is not None and str(item_key) not in allowed:
+                continue
             try:
                 payload = self.engine.store.get("item", str(item_key), published=True)["payload"]
                 if payload.get("consumable") and payload.get("consumption", {}).get("effects"): items.append((str(item_key), int(quantity), payload))

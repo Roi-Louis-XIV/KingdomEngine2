@@ -113,6 +113,8 @@ class OfficialContentStore:
                         (current["id"],),
                     ).fetchone()
                     needs_bundled_update = current_revision < 3 if key == "royal_festival" else not has_audio
+                    if key == "royal_festival" and settings_row:
+                        needs_bundled_update |= int(json.loads(settings_row[0]).get("workshop_content_revision", 0)) < 1
                     # Migration ciblée des seuls presets livrés avec le code.
                     # Les copies et contenus créés par les administrateurs ne
                     # sont jamais réécrits par un démarrage de KingdomWeb.

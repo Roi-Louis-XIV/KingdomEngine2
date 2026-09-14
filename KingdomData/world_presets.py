@@ -32,6 +32,9 @@ def world_preset(key: str) -> list[dict[str, Any]]:
     if key == "royal_festival":
         enrich_royal_festival(definitions)
     playable = _make_playable(definitions)
+    if key == "royal_festival":
+        from .festival_workshops import configure_workshops
+        configure_workshops(playable)
     # Ordre déterministe compatible avec la validation stricte de ContentStore.
     # Il exprime uniquement les dépendances génériques entre catalogues.
     rank = {"audio_group": 1, "voice_profile": 1, "voice_presence": 2,

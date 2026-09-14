@@ -33,7 +33,7 @@ def test_royal_festival_published_world_full_persistent_journey(tmp_path):
     store.seed(template["entities"])
     scenario_start = 1_900_000_000.0
     live_ops = WorldCreatorService(store).start_live_operations(now=scenario_start)
-    assert live_ops["started"] and live_ops["scheduled"] == 5
+    assert live_ops["started"] and live_ops["scheduled"] == 2
 
     # Même file persistante que celle consommée par la synchronisation Discord.
     request_id = store.request_discord_provision("server", requested_by="e2e")
@@ -54,6 +54,10 @@ def test_royal_festival_published_world_full_persistent_journey(tmp_path):
     assert worked["player"]["inventory"]["wheat_sack"] == 4
     assert worked["player"]["professions"]["farmer"]["experience"] == 10
     assert produced["player"]["inventory"]["festival_provision"] == 2
+    milled = asyncio.run(engine.execute("42", "festival_farm", "mill_festival_flour", "e2e-mill"))
+    assert milled["player"]["inventory"]["flour_sack"] == 2
+    contributed = asyncio.run(engine.execute("42", "festival_esplanade", "deposit_festival_flour", "e2e-contribution"))
+    assert contributed["player"]["inventory"].get("flour_sack", 0) == 0
 
     delivered = asyncio.run(
         engine.execute_delivery("42", "edgar_tavern", "e2e-delivery", {"festival_provision": 2})
@@ -78,12 +82,7 @@ def test_royal_festival_published_world_full_persistent_journey(tmp_path):
     assert "Sylvain" in NpcEngine(store).react("sylvain", "42")["variant"]["text"]
 
     lifecycle = EventLifecycle(store)
-    milestones = {
-        45: "festival_rain",
-        70: "mine_incident",
-        110: "edgar_round",
-        135: "festival_storm",
-    }
+    milestones = {25: "festival_announcement"}
     for minute, event_key in milestones.items():
         occurrence = next(
             item for item in lifecycle.list(now=scenario_start + minute * 60)
@@ -98,11 +97,8 @@ def test_royal_festival_published_world_full_persistent_journey(tmp_path):
         if item["event_key"] == "festival_opening"
     )
     assert opening["status"] == "scheduled"
-    with store.connection() as database:
-        database.execute("UPDATE players SET money=25 WHERE discord_id='42'")
-    asyncio.run(engine.execute("42", "market_square", "fund_festival", "e2e-contribution"))
-    treasury = next(item for item in WorldCreatorService(store).live_operations()["objectives"] if item["key"] == "treasury")
-    assert treasury["current"] == 10
+    flour = next(item for item in WorldCreatorService(store).live_operations()["objectives"] if item["key"] == "flour")
+    assert flour["current"] == 2
 
     # Les autres joueurs du royaume terminent les objectifs collectifs. Le
     # joueur E2E a bien effectué lui-même une contribution via le moteur.
@@ -144,8 +140,8 @@ def test_royal_festival_published_world_full_persistent_journey(tmp_path):
     restarted_store = ContentStore(world_path)
     restarted_store.initialize()
     restarted_player = GameEngine(restarted_store).player("42")
-    assert restarted_player["money"] == 15
-    assert restarted_player["inventory"]["wheat_sack"] == 3
+    assert restarted_player["money"] == 21
+    assert restarted_player["inventory"]["wheat_sack"] == 1
     assert restarted_player["inventory"]["royal_ale"] == 1
     persisted_opening = next(
         item for item in EventLifecycle(restarted_store).list(now=scenario_start + 171 * 60)

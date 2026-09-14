@@ -71,9 +71,12 @@ def test_royal_festival_matches_the_playable_demo_brief(tmp_path):
     store = _seed(tmp_path, "royal_festival")
     settings = get_server_settings(store)
     live_ops = settings["live_ops"]
-    assert len(live_ops["objectives"]) == 6
+    assert {item["key"] for item in live_ops["objectives"]} == {
+        "wood", "stone", "iron", "coal", "flour", "bread", "meat",
+        "vegetables", "beer", "mead",
+    }
     assert live_ops["scenario_duration_minutes"] == 180
-    assert [step["minute"] for step in live_ops["timeline"]] == [0,45,70,90,110,125,135,170,180]
+    assert [step["minute"] for step in live_ops["timeline"]] == [0,25,45,90,135,170,180]
     assert len(store.list("building", published=True)) == 7
     assert {"edgar_tavern","festival_farm","festival_esplanade"} <= {row["entity_key"] for row in store.list("building", published=True)}
     assert {"edgar", "roland", "wagner", "sylvain", "agathe", "maelis"} == {
@@ -84,10 +87,10 @@ def test_royal_festival_matches_the_playable_demo_brief(tmp_path):
     with store.connection() as db:
         db.execute("INSERT INTO players(discord_id,money,energy,updated_at,display_name,created_at) VALUES('42',100,80,'now','Louis','now')")
         db.execute("INSERT INTO action_log(interaction_id,discord_id,building_key,action_key,result_json,created_at) VALUES('festival-1','42','edgar_tavern','prepare_drinks','{}','2026-09-09T12:00:00+00:00')")
-        db.execute("INSERT INTO collective_contributions(objective_key,discord_id,building_key,resource_key,amount,metadata_json,created_at) VALUES('drinks','42','festival_esplanade','festival_drink_crate',2,'{}','2026-09-09T12:00:00+00:00')")
+        db.execute("INSERT INTO collective_contributions(objective_key,discord_id,building_key,resource_key,amount,metadata_json,created_at) VALUES('beer','42','festival_esplanade','festival_drink_crate',2,'{}','2026-09-09T12:00:00+00:00')")
     live_ops = WorldCreatorService(store).live_operations()
-    drinks = next(item for item in live_ops["objectives"] if item["key"] == "drinks")
-    assert drinks["current"] == 2 and len(live_ops["timeline"]) == 9
+    drinks = next(item for item in live_ops["objectives"] if item["key"] == "beer")
+    assert drinks["current"] == 2 and len(live_ops["timeline"]) == 7
 
 
 def test_royal_festival_relations_and_gdd_screens_are_complete(tmp_path):
@@ -95,7 +98,7 @@ def test_royal_festival_relations_and_gdd_screens_are_complete(tmp_path):
     buildings = {row["entity_key"]: row["payload"] for row in store.list("building", published=True)}
     required_pages = {
         "market_square": "preparations", "edgar_tavern": "kitchen",
-        "deep_mine": "incident", "royal_forge": "festival_orders",
+        "deep_mine": "incident", "royal_forge": "craft_festival",
         "forester_lodge": "rain_resources", "festival_farm": "mill",
         "festival_esplanade": "storm_alert",
     }
@@ -123,22 +126,22 @@ def test_royal_festival_professions_commerce_and_three_hour_timeline_are_operati
         "festival_farm": "farmer",
     }.items():
         actions = buildings[building_key]["actions"]
-        assert any(any(effect.get("type") == "profession_join" for effect in action["effects"]) for action in actions)
-        assert any(any(effect.get("type") == "profession_leave" for effect in action["effects"]) for action in actions)
-        assert buildings[building_key]["modules"]["activities"]
+        assert any(action["key"] == f"join_{profession_key}" for action in actions)
+        assert any(action["key"] == f"leave_{profession_key}" for action in actions)
+        assert buildings[building_key]["modules"]["activities"] or buildings[building_key]["modules"]["recipes"]
         assert buildings[building_key]["modules"]["products"]
 
     start = 1_900_000_000.0
     service = WorldCreatorService(store)
     started = service.start_live_operations(now=start)
-    assert started["started"] is True and started["scheduled"] == 5
+    assert started["started"] is True and started["scheduled"] == 2
     assert service.start_live_operations(now=start + 10)["started"] is False
     occurrences = __import__("kingdomEvent.lifecycle", fromlist=["EventLifecycle"]).EventLifecycle(store).list(now=start)
-    assert len(occurrences) == 5
+    assert len(occurrences) == 2
     assert all(item["status"] == "scheduled" for item in occurrences)
-    after_rain = __import__("kingdomEvent.lifecycle", fromlist=["EventLifecycle"]).EventLifecycle(store).list(now=start + 45 * 60)
-    assert next(item for item in after_rain if item["event_key"] == "festival_rain")["status"] == "active"
-    before_opening = next(item for item in after_rain if item["event_key"] == "festival_opening")
+    after_announcement = __import__("kingdomEvent.lifecycle", fromlist=["EventLifecycle"]).EventLifecycle(store).list(now=start + 25 * 60)
+    assert next(item for item in after_announcement if item["event_key"] == "festival_announcement")["status"] == "active"
+    before_opening = next(item for item in after_announcement if item["event_key"] == "festival_opening")
     assert before_opening["status"] == "scheduled"
 
     objectives = service.live_operations()["objectives"]
