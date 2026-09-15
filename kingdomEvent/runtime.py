@@ -40,9 +40,10 @@ def event_is_active(payload: dict[str, Any], now: float | None = None) -> bool:
         return False
     trigger = payload.get("trigger", {}).get("type", "manual")
     if trigger != "scheduled":
-        return bool(payload.get("active") or payload.get("status") == "active" or (payload.get("enabled") and trigger == "manual"))
+        # Disponible dans le catalogue ne signifie pas démarré.
+        return bool(payload.get("active") or payload.get("status") == "active")
     starts, ends = _timestamp(payload.get("starts_at")), _timestamp(payload.get("ends_at"))
-    return (starts is None or now >= starts) and (ends is None or now < ends)
+    return starts is not None and now >= starts and (ends is None or now < ends)
 
 
 class WorldClock:

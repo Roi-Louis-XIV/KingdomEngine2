@@ -125,6 +125,16 @@ class EventLifecycle:
         now=time.time() if now is None else float(now); self.get(occurrence_id,now)
         self._update(occurrence_id,status=FINISHED,ends_at=now,paused_at=None,remaining_seconds=None); return self.get(occurrence_id,now)
 
+    def restart(self, occurrence_id: str, *, now: float | None = None) -> dict[str, Any]:
+        """Relance la même occurrence avec la durée publiée, sans la dupliquer."""
+        now = time.time() if now is None else float(now)
+        current = self.get(occurrence_id, now)
+        definition = self.store.get("event", current["event_key"], published=True)["payload"]
+        duration = max(0, float(definition.get("duration_seconds", 3600)))
+        self._update(occurrence_id, status=ACTIVE, started_at=now, ends_at=now + duration,
+                     scheduled_at=None, paused_at=None, remaining_seconds=None)
+        return self.get(occurrence_id, now)
+
     def active_definitions(self, now: float | None = None) -> list[dict[str, Any]]:
         result=[]
         for occurrence in self.list(now=now):

@@ -1,5 +1,41 @@
 # KingdomEngine 2
 
+### Accès aux paramètres avancés des événements
+
+Dans **Événements → Modifier → 5 · Avancé**, le raccourci ouvre les propriétés
+supplémentaires et fait défiler uniquement le formulaire. L'éditeur réserve
+la place des boutons et utilise la hauteur visible sur mobile. Après déploiement,
+recharger KingdomWeb pour récupérer les fichiers frontend actualisés.
+
+Le défilement des bâtiments est également borné à l'espace restant entre
+l'en-tête et les boutons. Dans **Événements**, les cartes publiées proposent
+**Démarrer / Pause / Reprendre / Redémarrer / Arrêter**, avec l'état réel des
+occurrences. Redémarrer remet le compteur à la durée publiée sans duplication.
+Une définition manuelle activée n'est plus considérée comme en cours avant
+son démarrage explicite ; une programmation sans date ne démarre pas seule.
+Pour cette correction du moteur, redémarrer `kingdom-web kingdom-core kingdom-voice`
+après déploiement (`sudo systemctl restart kingdom-web kingdom-core kingdom-voice`).
+Les occurrences déjà démarrées ne sont pas arrêtées automatiquement.
+
+### Stabilisation des connexions Voice Workers
+
+Après déploiement, redémarrer uniquement le service audio :
+`sudo systemctl restart kingdom-voice`.
+Les joueurs peuvent rester connectés ; les présences sont recalculées depuis
+les salons occupés, sans réinstaller le monde ni modifier ses bâtiments.
+
+Une présence conserve son worker tant que des joueurs occupent son salon.
+La déconnexion réelle précède toute réallocation ; les anciennes affectations
+ne peuvent plus se reconnecter seules. Un fichier audio manquant est journalisé
+sans provoquer l'arrivée de workers supplémentaires. Les salons du pool sont
+identifiés uniquement par leurs liens Discord provisionnés, jamais par un nom
+approximatif. Plusieurs PNJ distincts restent possibles, avec un seul porteur
+d'ambiance par bâtiment.
+
+Vérification après déploiement : entrer dans un bâtiment, en changer plusieurs
+fois rapidement, puis quitter le vocal. Contrôler l'absence de PNJ en double
+et consulter `sudo journalctl -u kingdom-voice -n 100 --no-pager` en cas d'échec.
+
 ### Taverne et Forge du template Fête du Royaume
 
 Après mise à jour du code, redémarrer `kingdom-web` et `kingdom-core` :

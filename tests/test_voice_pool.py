@@ -50,6 +50,9 @@ def test_worker_pool_reallocates_a_presence_from_an_ineligible_worker():
     )
     presence = VoicePresence("castle_npc", "Edgar", "npc")
     assert pool.allocate(presence).key == "worker_01"
+    assert pool.allocate(presence, eligible_worker_keys={"worker_02"}) is None
+    assert pool.workers["worker_01"].presence_key == presence.key
+    pool.release(worker_key="worker_01")  # Après déconnexion confirmée par le manager.
     replacement = pool.allocate(presence, eligible_worker_keys={"worker_02"})
     assert replacement is not None
     assert replacement.key == "worker_02"

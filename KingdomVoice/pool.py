@@ -99,12 +99,9 @@ class VoiceWorkerPool:
                 None,
             )
             if stale:
-                stale.state = "free"
-                stale.presence_key = ""
-                stale.guild_id = ""
-                stale.channel_id = ""
-                stale.last_activity = _now()
-                stale.error = ""
+                # Seul le gestionnaire peut confirmer la déconnexion physique.
+                # Garder la réservation empêche un second bot de l'incarner.
+                return None
             existing = next((worker for worker in self.workers.values() if worker.presence_key == presence.key and eligible(worker)), None)
             if existing:
                 existing.guild_id = guild_id or existing.guild_id; existing.channel_id = channel_id or existing.channel_id; existing.last_activity = _now()

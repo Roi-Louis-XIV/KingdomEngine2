@@ -43,6 +43,7 @@
 
 .building-mode .editor-layout {
   display: grid;
+  grid-template-rows: minmax(0, 1fr);
   grid-template-columns: 248px minmax(0, 1fr) 292px;
   min-height: 0;
   height: auto;
@@ -51,6 +52,7 @@
 }
 
 .building-mode .editor-main {
+  min-height: 0;
   min-width: 0;
   max-height: none !important;
   padding: 0 !important;

@@ -2240,6 +2240,7 @@ function renderCards() {
     <article class="card" data-open="${item.entity_key}" tabindex="0">
       <div class="card-head"><span class="emoji">${item.payload.emoji || icons[state.type]}</span><span class="badge ${item.status}">${item.status === "published" ? "PUBLIÉ" : "BROUILLON"}</span></div>
       <h3>${escapeHtml(item.payload.name)}</h3><p>${escapeHtml(item.payload.description || "Aucune description")}</p>
+      ${state.type === "event" && item.status === "published" ? `<div data-event-controls="${escapeHtml(item.entity_key)}">Chargement de l’état…</div>` : ""}
       <div class="meta"><span>${item.entity_key} · v${item.version}</span><span>
         ${state.type === "building" ? `<button type="button" data-duplicate="${item.entity_key}">Dupliquer</button> · ` : ""}
         ${state.type === "bot" ? `<button type="button" data-invite="${item.entity_key}">Inviter</button> · ` : ""}
@@ -2251,6 +2252,7 @@ function renderCards() {
       )
       .join("") || `<p class="empty">Aucune définition. Crée la première.</p>`;
   // Le bouton d'édition possède son propre gestionnaire. Il ne dépend ainsi
+  if (state.type === "event") refreshEventCardControls();
   // ni du clic global de la carte, ni du menu secondaire « ••• ».
   $$("#cards [data-edit]").forEach(
     (button) =>
@@ -2274,6 +2276,43 @@ function renderCards() {
         }
       }),
   );
+}
+
+async function refreshEventCardControls() {
+  const containers = [...document.querySelectorAll('[data-event-controls]')];
+  const requestHeaders = { ...headers };
+  try {
+    const response = await fetch('/api/events/occurrences', { headers: requestHeaders, cache: 'no-store' });
+    if (!response.ok) throw new Error('État des événements indisponible');
+    const { occurrences } = await response.json();
+    for (const container of containers) {
+      if (!container.isConnected) continue;
+      const key = container.dataset.eventControls;
+      const running = occurrences.filter(item => item.event_key === key && ['active', 'paused', 'scheduled'].includes(item.status));
+      const button = (command, label, id = '') => `<button type="button" data-live-command="${command}" data-occurrence="${escapeHtml(id)}">${label}</button>`;
+      container.innerHTML = running.length ? running.map(item => `<div class="event-lifecycle-actions"><strong>${({active: 'En cours', paused: 'En pause', scheduled: 'Programmé'})[item.status]}</strong><span>${item.remaining_seconds == null ? '' : formatDuration(item.remaining_seconds)}</span>${item.status === 'active' ? button('pause', '⏸ Pause', item.occurrence_id) : item.status === 'paused' ? button('resume', '▶ Reprendre', item.occurrence_id) : ''}${button('restart', '↻ Redémarrer', item.occurrence_id)}${button('stop', '■ Arrêter', item.occurrence_id)}</div>`).join('') : `<div class="event-lifecycle-actions"><strong>Aucune occurrence en cours</strong>${button('activate', '▶ Démarrer')}</div>`;
+      container.onclick = event => event.stopPropagation();
+      container.querySelectorAll('[data-live-command]').forEach(control => {
+        control.onclick = async event => {
+          event.stopPropagation();
+          const command = control.dataset.liveCommand;
+          if (['stop', 'restart'].includes(command) && !confirm(command === 'stop' ? 'Arrêter cette occurrence et retirer ses impacts ?' : 'Redémarrer cette occurrence depuis le début ?')) return;
+          container.querySelectorAll('button').forEach(item => { item.disabled = true; });
+          const url = command === 'activate' ? `/api/events/${encodeURIComponent(key)}/activate` : `/api/events/occurrences/${encodeURIComponent(control.dataset.occurrence)}/${command}`;
+          try {
+            const result = await fetch(url, { method: 'POST', headers: requestHeaders, body: '{}' });
+            if (!result.ok) throw new Error((await result.json()).detail || 'Commande refusée');
+            await refreshEventCardControls();
+          } catch (error) {
+            alert(error.message);
+            container.querySelectorAll('button').forEach(item => { item.disabled = false; });
+          }
+        };
+      });
+    }
+  } catch (error) {
+    containers.filter(item => item.isConnected).forEach(item => { item.textContent = error.message; });
+  }
 }
 
 async function loadDiscordConnections() {
@@ -2778,7 +2817,8 @@ async function renderEventLifecycle(eventKey) {
           body = {};
         if (button.dataset.eventCommand === "activate") {
           url = `/api/events/${encodeURIComponent(eventKey)}/activate`;
-          body = { duration_seconds: 3600 };
+          // Sans surcharge, utiliser la durée configurée dans la définition.
+          body = {};
         } else {
           url = `/api/events/occurrences/${encodeURIComponent(current.occurrence_id)}/${button.dataset.eventCommand}`;
           if (button.dataset.eventCommand === "extend")
@@ -4555,6 +4595,18 @@ function renderFields(payload) {
         ["webhook", "Webhook / API"],
       ],
     )}${input("Expression / valeur", "trigger_value", payload.trigger?.value || "")}${input("Début", "starts_at", payload.starts_at || "", "datetime-local")}${input("Fin", "ends_at", payload.ends_at || "", "datetime-local")}${input("Durée d’une occurrence (secondes)", "duration_seconds", payload.duration_seconds ?? 3600, "number", 'min="0"')}${input("Priorité", "priority", payload.priority || 0, "number")}${select("Portée", "event_scope_type", eventScope.type || "kingdom", [["kingdom", "Tout le monde"], ["location", "Un lieu"], ["building", "Un bâtiment"], ["profession", "Un métier"], ["players", "Des joueurs"]])}<label data-event-scope-target>Élément ciblé<select data-field="event_scope_key">${modifierTargetOptions(eventScope.type || "kingdom", eventScope.key || "").map(([key, label]) => `<option value="${escapeHtml(key)}" ${key === (eventScope.key || "") ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select></label>${input("Tags de ciblage", "event_scope_tags", (eventScope.tags || []).join(", "))}</div><div class="checks">${check("Définition activée", "enabled", payload.enabled !== false)}${check("Actif immédiatement (mode manuel)", "active", !!payload.active)}</div><p class="field-note">La durée sert aux activations immédiates et programmées. La portée limite les impacts sans dupliquer l’événement.</p></section><section class="form-section event-effects-section" id="event-effects"><div class="section-head event-section-heading"><span>2</span><div><h3>Que se passe-t-il ?</h3><p>Ajoutez autant de résultats que nécessaire. Ils sont exécutés dans l’ordre affiché.</p></div><button type="button" class="secondary" id="add-effect">＋ Ajouter un résultat</button></div><div id="effects"></div></section><section class="form-section event-modifiers-section" id="event-modifiers"><div class="section-head event-section-heading"><span>3</span><div><h3>Comment le monde est-il transformé ?</h3><p>Les impacts modifient temporairement les règles sans écraser les valeurs de base.</p></div><button type="button" class="secondary" id="add-world-modifier">＋ Ajouter un impact</button></div><div id="world-modifiers"></div></section><section class="form-section event-audio-section" id="event-audio"><div class="section-head event-section-heading"><span>4</span><div><h3>Quelle atmosphère règne pendant l’événement ?</h3><p>Appliquez une ambiance à tout le monde ou seulement aux bâtiments sélectionnés.</p></div><button type="button" class="secondary" id="add-event-audio-layer">＋ Ajouter une ambiance</button></div><div id="event-audio-layers"></div></section><section class="form-section event-advanced-section" id="event-advanced"><div class="event-section-heading"><span>5</span><div><h3>Paramètres avancés</h3><p>Les propriétés spécifiques ou futures restent modifiables sans être perdues par l’éditeur visuel.</p></div></div><details class="advanced"><summary>Afficher les propriétés supplémentaires (JSON)</summary><div class="advanced-content"><p class="field-note">Ce bloc complète les champs visuels ci-dessus. Il ne crée pas un second événement.</p><label>Propriétés supplémentaires<textarea data-field="event_advanced_json" rows="12" spellcheck="false">${escapeHtml(JSON.stringify(eventAdvanced, null, 2))}</textarea></label></div></details></section>`;
+    root.querySelectorAll('.event-editor-index a').forEach((link) => {
+      link.onclick = (event) => {
+        event.preventDefault();
+        const section = root.querySelector(link.getAttribute('href'));
+        if (!section) return;
+        section.querySelectorAll('details').forEach((details) => { details.open = true; });
+        const scroller = root.closest('.editor-main');
+        const index = root.querySelector('.event-editor-index');
+        const offset = getComputedStyle(index).position === 'sticky' ? index.offsetHeight + 16 : 16;
+        scroller.scrollTop += section.getBoundingClientRect().top - scroller.getBoundingClientRect().top - offset;
+      };
+    });
     (payload.effects || []).forEach((effect) =>
       addEffect($("#effects"), effect),
     );

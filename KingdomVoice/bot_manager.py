@@ -31,6 +31,7 @@ class ManagedVoiceBot(discord.Client):
         super().__init__(intents=intents)
         self.key, self.config, self.assets_root, self.store = key, config, assets_root, store
         self._audio_lock = asyncio.Lock()
+        self._connection_lock = asyncio.Lock()
         self.current_group_key = str(config.get("default_group_key", ""))
         self._last_scene_check = 0.0
         self._applied_identity = ""
@@ -50,7 +51,11 @@ class ManagedVoiceBot(discord.Client):
             channel = self.get_channel(self.channel_id)
             if isinstance(channel, discord.VoiceChannel) and channel.guild in guilds:
                 return channel
+            if not self.config.get("auto_join", True):
+                return None
             print(f"[KingdomVoice] {self.key} : salon {self.channel_id} obsolète, recherche par nom.")
+        if not self.config.get("auto_join", True):
+            return None
         expected = _normalized_name(self.config.get("voice_channel_name") or self.config.get("building_key") or "")
         if not expected:
             return None
@@ -64,7 +69,8 @@ class ManagedVoiceBot(discord.Client):
     async def on_ready(self) -> None:
         presence = self.config.get("presence") or f"dans {self.config.get('building', 'le Royaume')}"
         await self.change_presence(activity=discord.Game(str(presence)))
-        await self.apply_configured_identity()
+        if not self.config.get("presence_key"):
+            await self.apply_configured_identity()
         print(f"[KingdomVoice] {self.key} connecté : {self.user}")
         if self.config.get("auto_join", True):
             await self.ensure_connected()
@@ -116,11 +122,21 @@ class ManagedVoiceBot(discord.Client):
         self._applied_identity = identity
 
     async def on_voice_state_update(self, _member, before, after) -> None:
+        # Les workers du pool sont pilotés exclusivement par le gestionnaire.
+        # Un événement Discord ne doit pas ressusciter une ancienne affectation.
+        if not self.config.get("auto_join", True):
+            return
         target = self.target_channel()
         if target and (getattr(before.channel, "id", None) == target.id or getattr(after.channel, "id", None) == target.id):
             await self.ensure_connected()
 
     async def ensure_connected(self) -> discord.VoiceClient | None:
+        async with self._connection_lock:
+            return await self._ensure_connected_locked()
+
+    async def _ensure_connected_locked(self) -> discord.VoiceClient | None:
+        if not self.config.get("auto_join", True) and not self.config.get("presence_key"):
+            return None
         channel = self.target_channel()
         if channel is None:
             guild_id = self.config.get("guild_id") or os.getenv("KINGDOM_GUILD_ID", "")
@@ -135,18 +151,33 @@ class ManagedVoiceBot(discord.Client):
             print(f"[KingdomVoice] {self.key} : permission Speak absente dans #{channel.name}.")
             return None
         voice = channel.guild.voice_client
+        if voice is not None and (voice.channel.id != channel.id or not voice.is_connected()):
+            # Ne jamais conserver l'audio du lieu précédent dans le nouveau.
+            voice.stop()
+            await voice.disconnect(force=True)
+            voice = None
         humans = [member for member in channel.members if not member.bot]
         if humans and voice is None:
             # Un bot d'ambiance n'a pas besoin d'être assourdi. Discord affiche
             # self_deaf=True comme une sourdine, ce qui prête à confusion lors
             # des tests et masque parfois un mute serveur réel.
             print(f"[KingdomVoice] {self.key} rejoint #{channel.name} ({channel.id}) pour {len(humans)} joueur(s).")
-            voice = await channel.connect(self_deaf=False)
-            if self.current_group_key:
-                self._start_group_background(voice, self.current_group_key)
-            else:
-                self._start_welcome_then_ambience(voice)
+            voice = await channel.connect(self_deaf=False, timeout=15, reconnect=False)
+            # Le joueur peut avoir changé de bâtiment pendant le handshake.
+            if not any(not member.bot for member in channel.members):
+                await voice.disconnect(force=True)
+                return None
+            try:
+                if self.current_group_key:
+                    self._start_group_background(voice, self.current_group_key)
+                elif self.config.get("auto_join", True):
+                    self._start_welcome_then_ambience(voice)
+            except (OSError, RuntimeError) as exc:
+                # Un asset absent ne remet pas en cause la réservation vocale.
+                print(f"[KingdomVoice] {self.key} connecté, audio indisponible : {exc}")
         elif not humans and voice is not None:
+            if not self.config.get("auto_join", True):
+                return voice
             await asyncio.sleep(max(0, int(self.config.get("leave_delay", 10))))
             if not [member for member in channel.members if not member.bot]:
                 await voice.disconnect(force=False)
@@ -287,12 +318,16 @@ class ManagedVoiceBot(discord.Client):
             self._start_group_background(voice, group_key)
 
     def _resume_background(self, voice: discord.VoiceClient, error: Exception | None = None) -> None:
+        if not self._voice_matches_assignment(voice) or self.config.get("carries_ambience") is False:
+            return
         if error:
             print(f"[KingdomVoice] lecture interrompue pour {self.key} : {error}")
         if self.current_group_key and voice.is_connected() and not voice.is_playing():
             self._start_group_background(voice, self.current_group_key)
 
     def _start_group_background(self, voice: discord.VoiceClient, group_key: str) -> None:
+        if not self._voice_matches_assignment(voice):
+            return
         group = self._group(group_key)
         if not group:
             return
@@ -317,12 +352,22 @@ class ManagedVoiceBot(discord.Client):
         voice.play(self._source(welcomes[0], "voice"), after=lambda error: loop.call_soon_threadsafe(self._start_ambience, voice) if not error else print(f"[KingdomVoice] accueil interrompu : {error}"))
 
     def _start_ambience(self, voice: discord.VoiceClient) -> None:
+        if not self._voice_matches_assignment(voice):
+            return
         tracks = self._tracks(self.config.get("ambience_folder"))
         if tracks and voice.is_connected() and not voice.is_playing():
             voice.play(self._source(tracks[0], "ambience", loop=True))
             print(f"[KingdomVoice] {self.key} joue {tracks[0].name} en boucle.")
         elif not tracks:
             print(f"[KingdomVoice] {self.key} : aucune ambiance trouvée dans {self.config.get('ambience_folder') or '(non configuré)' }.")
+
+    def _voice_matches_assignment(self, voice) -> bool:
+        if self.config.get("auto_join", True):
+            return True
+        return bool(self.config.get("presence_key")) and (
+            str(voice.channel.id) == str(self.config.get("voice_channel_id"))
+            and str(voice.guild.id) == str(self.config.get("guild_id"))
+        )
 
 
 class VoiceBotManager:
@@ -472,6 +517,14 @@ class VoiceBotManager:
             await asyncio.gather(*(client.close() for client in self.clients.values()), return_exceptions=True)
 
     async def assign_presence(
+        self, presence: VoicePresence, **kwargs,
+    ) -> ManagedVoiceBot | None:
+        if not hasattr(self, "_assignment_lock"):
+            self._assignment_lock = asyncio.Lock()
+        async with self._assignment_lock:
+            return await self._assign_presence_locked(presence, **kwargs)
+
+    async def _assign_presence_locked(
         self,
         presence: VoicePresence,
         *,
@@ -490,6 +543,9 @@ class VoiceBotManager:
             for key, client in self.clients.items()
             if not expected_guild or client.get_guild(expected_guild) is not None
         }
+        previous = next((w for w in self.pool.workers.values() if w.presence_key == presence.key), None)
+        if previous and (previous.key not in eligible_workers or previous.channel_id != channel_id or previous.guild_id != guild_id):
+            await self._release_presence_locked(presence.key)
         worker = self.pool.allocate(
             presence,
             guild_id=guild_id,
@@ -521,16 +577,33 @@ class VoiceBotManager:
         client.current_group_key = (
             presence.scene_key if client.config["carries_ambience"] else ""
         )
-        await client.apply_presence_identity(presence)
+        try:
+            await asyncio.wait_for(client.apply_presence_identity(presence), timeout=5)
+        except (TimeoutError, TypeError, discord.HTTPException):
+            print(f"[KingdomVoice] {client.key} : personnalisation différée, connexion maintenue.")
         await client.ensure_connected()
         return client
 
     async def release_presence(self, presence_key: str) -> None:
+        if not hasattr(self, "_assignment_lock"):
+            self._assignment_lock = asyncio.Lock()
+        async with self._assignment_lock:
+            await self._release_presence_locked(presence_key)
+
+    async def _release_presence_locked(self, presence_key: str) -> None:
         worker = next((item for item in self.pool.workers.values() if item.presence_key == presence_key), None)
         if not worker: return
         client = self.clients.get(worker.key)
         if client:
-            await asyncio.gather(*(voice.disconnect(force=False) for voice in client.voice_clients), return_exceptions=True)
+            # Désarmer avant le premier await : les événements de déconnexion
+            # et les commandes audio ne peuvent plus utiliser ce lieu.
+            client.config.update(presence_key="", source_key="", building_key="",
+                                 voice_channel_id=0, voice_channel_name="", voice_channel_env="")
+            client.current_group_key = ""
+            async with client._connection_lock:
+                for voice in list(client.voice_clients):
+                    voice.stop()
+                    await voice.disconnect(force=True)
             client._applied_identity = ""
         self.pool.release(presence_key=presence_key)
 
@@ -641,13 +714,19 @@ class VoiceBotManager:
         return building_key, str(channels.get("voice_channel_id", ""))
 
     async def _sync_automatic_presences(self) -> None:
+        if not hasattr(self, "_sync_lock"):
+            self._sync_lock = asyncio.Lock()
+        async with self._sync_lock:
+            await self._reconcile_automatic_presences()
+
+    async def _reconcile_automatic_presences(self) -> None:
         presences = self._published_presences()
         # Un worker dont la connexion précédente a échoué ne doit pas bloquer
         # indéfiniment la présence : il redevient disponible et le tourniquet
         # essaiera la capacité suivante au cycle courant.
         for worker in list(self.pool.workers.values()):
             if worker.state == "error":
-                self.pool.recover(worker.key)
+                await self.release_presence(worker.presence_key)
         # Un joueur toujours présent constitue une activité réelle. Sans ce
         # heartbeat, le délai d'inactivité libérait puis réallouait le worker
         # en boucle alors que personne n'avait quitté le salon.
@@ -657,7 +736,8 @@ class VoiceBotManager:
                 and self._channel_has_humans(worker.guild_id, worker.channel_id)
             ):
                 self.pool.touch(worker.key)
-        self.pool.sweep(presences)
+        # La libération doit d'abord fermer la connexion Discord. Un sweep
+        # purement mémoire rendait les bots encore connectés réallouables.
         # Une présence automatique ne monopolise une capacité que pendant la
         # présence réelle de joueurs dans son salon. Le même worker peut ainsi
         # passer de la mine au château et recevoir la nouvelle identité.
@@ -665,7 +745,10 @@ class VoiceBotManager:
             if not worker.presence_key:
                 continue
             presence = presences.get(worker.presence_key)
-            if presence is None or not self._channel_has_humans(worker.guild_id, worker.channel_id):
+            target = self._presence_target(presence)[1] if presence else ""
+            client = self.clients.get(worker.key)
+            connected = client and any(v.is_connected() and str(v.channel.id) == worker.channel_id for v in client.voice_clients)
+            if presence is None or target != worker.channel_id or not connected or not self._channel_has_humans(worker.guild_id, worker.channel_id):
                 await self.release_presence(worker.presence_key)
         assigned = {worker.presence_key for worker in self.pool.workers.values() if worker.presence_key}
         for presence in sorted(presences.values(), key=lambda item: item.priority, reverse=True):

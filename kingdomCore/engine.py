@@ -672,8 +672,17 @@ class GameEngine:
 
     def _effective_range(self, value: Any, property_name: str, context: dict[str, Any]) -> tuple[int, int]:
         minimum, maximum = self._range(value)
-        events = [{"key": row["entity_key"], **row["payload"], "active": event_is_active(row["payload"])} for row in self.store.list("event", published=True)]
-        weather = (self._world_snapshot or self.world_clock.state())["weather"]
+        world = self._world_snapshot or self.world_clock.state()
+        active_keys = {event["key"] for event in world["active_events"]}
+        occurrences = {item["event_key"]: item for item in world.get("event_occurrences", []) if item["status"] == "active"}
+        events = []
+        for row in self.store.list("event", published=True):
+            payload = dict(row["payload"])
+            occurrence = occurrences.get(row["entity_key"])
+            if occurrence and occurrence.get("scope"):
+                payload["scope"] = occurrence["scope"]
+            events.append({**payload, "key": row["entity_key"], "active": row["entity_key"] in active_keys})
+        weather = world["weather"]
         environment = [{"key": f"weather_{weather.get('key', 'current')}", "modifiers": weather.get("modifiers", [])}]
         resolver = ModifierEngine()
         effective_minimum, _ = resolver.effective(minimum, property_name, context, environment, events)

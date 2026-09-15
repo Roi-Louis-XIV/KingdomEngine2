@@ -378,6 +378,7 @@ def schedule_event(event_key: str, body: dict[str, Any]):
 def command_event_occurrence(occurrence_id: str, command: str, body: dict[str, Any] | None = None):
     from kingdomEvent.lifecycle import EventLifecycle
     lifecycle=EventLifecycle(store); commands={"pause":lambda:lifecycle.pause(occurrence_id),"resume":lambda:lifecycle.resume(occurrence_id),"stop":lambda:lifecycle.stop(occurrence_id),"extend":lambda:lifecycle.extend(occurrence_id,float((body or {}).get("seconds",0)))}
+    commands["restart"] = lambda: lifecycle.restart(occurrence_id)
     if command not in commands: raise HTTPException(404,"Commande Event inconnue.")
     try: return commands[command]()
     except (LookupError,ValueError) as exc: raise HTTPException(422,str(exc)) from exc
