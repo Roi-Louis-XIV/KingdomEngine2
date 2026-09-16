@@ -1,0 +1,154 @@
+{
+  "rumors": {
+    "player_cooldown_seconds": 120,
+    "global_cooldown_seconds": 10,
+    "catalogue": [
+      {
+        "key": "lumiere_vieux_moulin",
+        "text": "On raconte qu'une lumière étrange apparaît chaque nuit près du vieux moulin.",
+        "audio": null,
+        "enabled": true,
+        "weight": 10
+      },
+      {
+        "key": "chariot_sans_cocher",
+        "text": "Un chariot sans cocher aurait traversé la forêt avant de disparaître dans la brume.",
+        "audio": null,
+        "enabled": true,
+        "weight": 10
+      },
+      {
+        "key": "galerie_condamnee",
+        "text": "Les mineurs jurent entendre des coups de pioche derrière une galerie condamnée depuis des années.",
+        "audio": null,
+        "enabled": true,
+        "weight": 8
+      },
+      {
+        "key": "marchand_cape_rouge",
+        "text": "Un marchand à la cape rouge achèterait au prix fort les cartes menant aux anciennes ruines.",
+        "audio": null,
+        "enabled": true,
+        "weight": 7
+      },
+      {
+        "key": "banquet_royal",
+        "text": "Les cuisines du château se prépareraient déjà à un banquet royal dont personne ne connaît la date.",
+        "audio": null,
+        "enabled": true,
+        "weight": 6
+      },
+      {
+        "key": "cloche_sous_la_riviere",
+        "text": "Certains pêcheurs disent avoir entendu une cloche sonner sous la rivière au lever du jour.",
+        "audio": null,
+        "enabled": true,
+        "weight": 5
+      }
+    ]
+  },
+  "games": {
+    "dice": {
+      "stake": 5,
+      "multipliers": {
+        "crown": 6,
+        "judgement": 2,
+        "destiny": 2
+      },
+      "key": "dice",
+      "name": "Jugement des Six Faces",
+      "sides": 6,
+      "stake_resource": "money",
+      "bets": [
+        {
+          "key": "crown_1",
+          "name": "Couronne 1",
+          "winning_faces": [
+            1
+          ],
+          "multiplier": 6
+        },
+        {
+          "key": "crown_2",
+          "name": "Couronne 2",
+          "winning_faces": [
+            2
+          ],
+          "multiplier": 6
+        },
+        {
+          "key": "crown_3",
+          "name": "Couronne 3",
+          "winning_faces": [
+            3
+          ],
+          "multiplier": 6
+        },
+        {
+          "key": "crown_4",
+          "name": "Couronne 4",
+          "winning_faces": [
+            4
+          ],
+          "multiplier": 6
+        },
+        {
+          "key": "crown_5",
+          "name": "Couronne 5",
+          "winning_faces": [
+            5
+          ],
+          "multiplier": 6
+        },
+        {
+          "key": "crown_6",
+          "name": "Couronne 6",
+          "winning_faces": [
+            6
+          ],
+          "multiplier": 6
+        },
+        {
+          "key": "judgement_even",
+          "name": "Jugement pair",
+          "winning_faces": [
+            2,
+            4,
+            6
+          ],
+          "multiplier": 2
+        },
+        {
+          "key": "judgement_odd",
+          "name": "Jugement impair",
+          "winning_faces": [
+            1,
+            3,
+            5
+          ],
+          "multiplier": 2
+        },
+        {
+          "key": "destiny_low",
+          "name": "Destin 1 a 3",
+          "winning_faces": [
+            1,
+            2,
+            3
+          ],
+          "multiplier": 2
+        },
+        {
+          "key": "destiny_high",
+          "name": "Destin 4 a 6",
+          "winning_faces": [
+            4,
+            5,
+            6
+          ],
+          "multiplier": 2
+        }
+      ]
+    }
+  }
+}

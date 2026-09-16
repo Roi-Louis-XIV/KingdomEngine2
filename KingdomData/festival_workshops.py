@@ -5,6 +5,8 @@ règle de cuisine ou de forge n'est ajoutée au moteur d'exécution.
 """
 
 from copy import deepcopy
+import json
+from pathlib import Path
 
 from .royal_festival_content import BALANCE
 
@@ -13,7 +15,7 @@ def configure_workshops(definitions):
     from import_v1 import actions_from_modules
 
     entities = {(row["type"], row["key"]): row["payload"] for row in definitions}
-    entities["server_settings", "kingdom_server"]["workshop_content_revision"] = 1
+    entities["server_settings", "kingdom_server"]["workshop_content_revision"] = 2
 
     def item(key, name, category, energy=0, price=6):
         payload = entities.get(("item", key))
@@ -155,6 +157,10 @@ def configure_workshops(definitions):
             profession["initial_durability"] = 100
         building["action_mode"] = "generated"
         building["interface_blueprint"] = "custom"
+        if building_key == "edgar_tavern":
+            # Copie éditable dans chaque monde, sans dépendance vers la V1.
+            social = json.loads(Path(__file__).with_name("festival_v1_social.json").read_text(encoding="utf-8"))
+            modules.update(social)
         building["actions"] = actions_from_modules(building_key, modules)
         for action in building["actions"]:
             if action["key"].startswith("repair_"):
@@ -165,6 +171,128 @@ def configure_workshops(definitions):
                     {"type": "tool_durability", "tool": tool, "operator": "<", "value": 100},
                 ]}
         building["interface"] = _workshop_pages(building_key, building, foods, tools)
+
+    _configure_mine_galleries(entities["building", "deep_mine"])
+    _configure_forest_expeditions(definitions, entities)
+    dialogues = json.loads(Path(__file__).with_name("festival_v1_dialogues.json").read_text(encoding="utf-8"))
+    for building_key, npc_key in [("edgar_tavern", "edgar"), ("royal_forge", "wagner"),
+                                  ("deep_mine", "roland"), ("forester_lodge", "sylvain")]:
+        building = entities["building", building_key]
+        npc = deepcopy(dialogues[building_key])
+        npc["key"] = npc_key
+        if not npc["phrases"]:
+            npc["phrases"] = [entities["npc", npc_key]["reactions"][0]["variants"][0]["text"]]
+        building["modules"]["npc"] = npc
+        talk = actions_from_modules(building_key, {"npc": npc})[0]
+        building["actions"].append(talk)
+        home = next(p for p in building["interface"]["pages"] if p["key"] == building["interface"].get("start_page", "home"))
+        button = _button(building, building_key, talk)
+        button["props"]["label"] = f"Discuter avec {entities['npc', npc_key]['name']}"
+        home["components"].append(button)
+
+
+def _configure_forest_expeditions(definitions, entities):
+    """Zones V1 réconciliées avec les ressources et identités du scénario."""
+    from import_v1 import actions_from_modules
+
+    for key, name, price in [("curved_bow", "Arc courbé", 55),
+                             ("fine_wood", "Bois de qualité", 7),
+                             ("wild_boar_meat", "Viande de sanglier", 6)]:
+        if ("item", key) not in entities:
+            payload = {"name": name, "price": price, "category": "equipment" if key == "curved_bow" else "resources",
+                       "stack_limit": 1 if key == "curved_bow" else 100, "description": "Ressource des expéditions de Sylvain."}
+            definitions.append({"type": "item", "key": key, "payload": payload})
+            entities["item", key] = payload
+    hunter = {"key": "hunter", "name": "Chasseur", "required_item": "curved_bow",
+              "grant_required_item": False, "max_durability": 90, "initial_durability": 90,
+              "experience_per_level": 100}
+    if ("profession", "hunter") not in entities:
+        definitions.append({"type": "profession", "key": "hunter", "payload": {k: v for k, v in hunter.items() if k != "key"}})
+    building = entities["building", "forester_lodge"]
+    building["modules"]["professions"].append(hunter)
+    activities = json.loads(Path(__file__).with_name("festival_v1_forest.json").read_text(encoding="utf-8"))
+    building["modules"]["activities"].extend(activities)
+    compiled = actions_from_modules("forester_lodge", {"professions": [hunter], "activities": activities})
+    building["actions"].extend(compiled)
+    pages = building["interface"]["pages"]
+    home = next(p for p in pages if p["key"] == building["interface"].get("start_page", "home"))
+    for profession, title in [("forester", "Zones de bûcheronnage"), ("hunter", "Chasse et métier Chasseur")]:
+        page_key = f"zones_{profession}"
+        home["components"].append(_nav(f"nav_{page_key}", title, page_key))
+        keys = {a["key"] for a in activities if a["profession"] == profession}
+        components = [{"id": f"title_{page_key}", "type": "hero", "props": {"title": title}},
+                      _nav(f"back_{page_key}", "⬅️ Retour", home["key"])]
+        for action in compiled:
+            if action["key"] not in keys | {f"claim_{key}" for key in keys} | ({"join_hunter", "leave_hunter"} if profession == "hunter" else set()):
+                continue
+            button = _button(building, "forester_lodge", action)
+            if action["key"].startswith("claim_"):
+                button["visible_when"] = {"pending_action": action["key"][6:]}
+            components.append(button)
+        pages.append({"key": page_key, "name": title, "components": components})
+
+    # L'arc est achetable et reproductible, pas un objet inaccessible.
+    forge = entities["building", "royal_forge"]
+    additions = {"products": [{"item_key": "curved_bow", "name": "Arc courbé", "price": 55, "initial_stock": 4}],
+                 "recipes": [{"key": "craft_curved_bow", "name": "Fabriquer un arc courbé", "profession": "blacksmith",
+                              "ingredients": {"fine_wood": 3, "iron_ingot": 1}, "output_item_key": "curved_bow",
+                              "output_quantity": 1, "duration_seconds": 60, "energy_cost": 15,
+                              "experience": 25, "ingredient_source": "building_stock", "output_destination": "building_stock",
+                              "category": "hunting_tools", "balance_status": BALANCE}]}
+    for field, rows in additions.items():
+        forge["modules"][field].extend(rows)
+    forge["modules"]["repairs"]["durability"]["curved_bow"] = 90
+    additions["repairs"] = {"durability": {"curved_bow": 90}, "item_names": {"curved_bow": "Arc courbé"}, "equipment_price_per_point": 1}
+    compiled = actions_from_modules("royal_forge", additions)
+    forge["actions"].extend(compiled)
+    # Débouchés explicites pour les ressources supplémentaires des expéditions.
+    for destination, item_key, price in [("royal_forge", "fine_wood", 7),
+                                          ("edgar_tavern", "wild_boar_meat", 6),
+                                          ("edgar_tavern", "medicinal_herb", 2)]:
+        target = entities["building", destination]
+        target["modules"]["deliveries"].append({
+            "item_key": item_key, "name": entities["item", item_key]["name"],
+            "target_building_key": destination, "unit_price": price, "minimum_quantity": 1,
+        })
+    for page in forge["interface"]["pages"]:
+        if page["key"] == "shop_hunting_tools":
+            next(c for c in page["components"] if c["type"] == "dynamic_product_selector")["props"]["item_keys"].append("curved_bow")
+        if page["key"] in {"craft_hunting_tools", "repairs"}:
+            prefix = "repair_" if page["key"] == "repairs" else "craft_"
+            for action in compiled:
+                if action["key"].startswith(prefix) or (prefix == "craft_" and action["key"].startswith("claim_")):
+                    button = _button(forge, "royal_forge", action)
+                    if action["key"].startswith("claim_"):
+                        button["visible_when"] = {"pending_action": action["key"][6:]}
+                    page["components"].append(button)
+
+
+def _configure_mine_galleries(building):
+    """Enrichit la Mine existante sans remplacer ses actions de scénario."""
+    from import_v1 import actions_from_modules
+
+    activities = json.loads(Path(__file__).with_name("festival_v1_mine.json").read_text(encoding="utf-8"))
+    modules = building["modules"]
+    existing = {activity["key"] for activity in modules["activities"]}
+    modules["activities"].extend(activity for activity in activities if activity["key"] not in existing)
+    # Ne pas recompiler les actions du scénario : elles portent ses conditions
+    # et ses effets particuliers, déjà configurés par le template.
+    compiled = actions_from_modules("deep_mine", {"activities": activities})
+    action_keys = {action["key"] for action in building["actions"]}
+    building["actions"].extend(action for action in compiled if action["key"] not in action_keys)
+    pages = building["interface"]["pages"]
+    home = next(page for page in pages if page["key"] == building["interface"].get("start_page", "home"))
+    home["components"].append(_nav("nav_galleries", "⛏️ Galeries de Roland", "galleries"))
+    components = [{"id": "gallery_title", "type": "hero", "props": {
+        "title": "Galeries de Roland",
+        "subtitle": "Niveaux 1, 2 et 4 · 30, 60 et 90 secondes. Le butin rejoint votre sac après récupération.",
+    }}, _nav("back_galleries", "⬅️ Retour", home["key"])]
+    for action in compiled:
+        button = _button(building, "deep_mine", action)
+        if action["key"].startswith("claim_"):
+            button["visible_when"] = {"pending_action": action["key"][6:]}
+        components.append(button)
+    pages.append({"key": "galleries", "name": "Galeries de Roland", "components": components})
 
 
 def _nav(key, label, page, **extra):
@@ -239,6 +367,14 @@ def _workshop_pages(key, building, foods, tools):
         page(target, title).append({"id": target, "type": component_type, "props": {"building": key}})
     home.append(_nav("nav_profession", "Métier", "profession"))
     page("profession", "Métier").extend(_button(building, key, a) for a in building["actions"] if a["key"] in {f"join_{profession}", f"leave_{profession}"})
+    if tavern:
+        home.append(_nav("nav_stories", "🗣️ Les rumeurs d’Edgar", "stories"))
+        page("stories", "Les rumeurs d’Edgar").append(_button(building, key, actions["hear_rumor"]))
+        home.append(_nav("nav_games", "🎲 Jugement des Six Faces", "games"))
+        page("games", "Jugement des Six Faces").append({
+            "id": "choose_bet", "type": "dynamic_game_selector",
+            "props": {"placeholder": "Choisir un pari — mise de 5 écus"},
+        })
     if not tavern:
         home.append(_nav("nav_repairs", "🛠️ Réparer", "repairs"))
         page("repairs", "Outils usés de votre inventaire").extend(_button(building, key, a) for a in building["actions"] if a["key"].startswith("repair_"))

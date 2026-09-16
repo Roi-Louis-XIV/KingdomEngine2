@@ -755,6 +755,22 @@ Le **Tableau de bord** résume la disponibilité du monde, les bâtiments, objet
 
 Le Studio conserve chaque modification en brouillon. La publication archive la version active précédente. Le contrôle de version empêche deux administrateurs d’écraser silencieusement leurs changements.
 
+## Récupération des bâtiments V1 (en cours)
+
+Le modèle officiel **La Fête du Royaume** conserve ses identifiants et sa révision
+de scénario 3 ; `workshop_content_revision=2` ajoute les rumeurs et dés d'Edgar,
+les galeries de Roland et les zones de forêt/chasse. Les données de référence
+sont livrées dans `KingdomData/festival_v1_*.json` : le dossier V1 n'est pas
+nécessaire sur Debian.
+
+Après déploiement, le redémarrage habituel de `kingdom-web` synchronise le
+catalogue officiel fourni par le logiciel. Aucun monde déjà installé n'est
+écrasé. Les ajouts concernent les nouvelles instanciations du modèle ; ils ne
+sont pas injectés automatiquement dans les bâtiments personnalisés existants.
+Dans l'éditeur des bâtiments, les modules et les pages restent modifiables.
+Consulter `V1_TO_V2_BUILDINGS_MIGRATION_REPORT.md` pour le périmètre effectivement
+récupéré et les fonctionnalités restant à porter.
+
 ## Fiabilité
 
 - transactions SQLite et mode WAL ;

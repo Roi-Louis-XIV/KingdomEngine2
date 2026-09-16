@@ -117,10 +117,91 @@ def test_existing_revision_three_catalog_is_updated_once(tmp_path):
     with official.connection() as db:
         row = db.execute("SELECT e.pack_id,e.payload_json FROM official_content_entities e JOIN official_content_packs p ON p.id=e.pack_id WHERE p.pack_key='royal_festival' AND e.entity_type='server_settings'").fetchone()
         settings = json.loads(row[1])
-        settings.pop("workshop_content_revision")
+        settings["workshop_content_revision"] = 1
         db.execute("UPDATE official_content_entities SET payload_json=? WHERE pack_id=? AND entity_type='server_settings'", (json.dumps(settings), row[0]))
     official.migrate_legacy_presets()
     updated = official.get("royal_festival", published_only=True)
-    assert next(e for e in updated["entities"] if e["type"] == "server_settings")["payload"]["workshop_content_revision"] == 1
+    assert next(e for e in updated["entities"] if e["type"] == "server_settings")["payload"]["workshop_content_revision"] == 2
     official.migrate_legacy_presets()
     assert official.get("royal_festival", published_only=True) == updated
+
+
+def test_festival_rumors_cooldown_and_dice_are_playable(shop):
+    from KingdomData.schemas import ValidationError
+
+    store, engine = shop
+    tavern = store.get("building", "edgar_tavern", published=True)["payload"]
+    assert len(tavern["modules"]["rumors"]["catalogue"]) == 6
+    run(engine.execute("42", "edgar_tavern", "hear_rumor", "rumor-one"))
+    with pytest.raises(ValidationError):
+        run(engine.execute("42", "edgar_tavern", "hear_rumor", "rumor-two"))
+    before = engine.player("42")["money"]
+    prepared = engine.prepare_game("42", "edgar_tavern", "dice", "judgement_even")
+    assert engine.player("42")["money"] == before
+    result = run(engine.confirm_game("42", prepared["session_key"], "dice-once"))
+    assert engine.player("42")["money"] in {before - 5, before + 5}
+    assert run(engine.confirm_game("42", prepared["session_key"], "dice-once")) == result
+
+    async def render():
+        games = InterfaceView(engine, tavern["interface"], page_key="games", owner_id=42)
+        assert len([o for c in games.children if hasattr(c, "options") for o in c.options]) == 10
+        stories = InterfaceView(engine, tavern["interface"], page_key="stories", owner_id=42)
+        assert any(c.custom_id == "kei:act_hear_rumor" for c in stories.children)
+
+    run(render())
+
+
+@pytest.mark.parametrize("building,profession,activity,tool", [
+    ("deep_mine", "miner", "quarry", "iron_pickaxe"),
+    ("forester_lodge", "forester", "royal_edge", "simple_axe"),
+    ("forester_lodge", "hunter", "clearing", "curved_bow"),
+])
+def test_restored_expeditions_require_job_and_persist_results(shop, building, profession, activity, tool):
+    from KingdomData.schemas import ValidationError
+
+    store, engine = shop
+    async def check_hidden():
+        payload = store.get("building", building, published=True)["payload"]
+        page_key = "galleries" if building == "deep_mine" else f"zones_{profession}"
+        view = InterfaceView(engine, payload["interface"], page_key=page_key, owner_id=42)
+        assert not any(c.custom_id == f"kei:act_{activity}" for c in view.children)
+    run(check_hidden())
+    with pytest.raises(ValidationError):
+        run(engine.execute("42", building, activity, "no-job"))
+    if profession == "hunter":
+        run(engine.execute_purchase("42", "royal_forge", "bow", tool, 1))
+    run(engine.execute("42", building, f"join_{profession}", "join"))
+    before = engine.player("42")["energy"]
+    run(engine.execute("42", building, activity, "depart"))
+    assert engine.player("42")["energy"] < before
+    with pytest.raises(ValidationError):
+        run(engine.execute("42", building, f"claim_{activity}", "early"))
+    with pytest.raises(ValidationError):
+        run(engine.execute("42", building, f"leave_{profession}", "leave-early"))
+    with store.connection() as db:
+        db.execute("UPDATE scheduled_actions SET ready_at=0 WHERE discord_id='42'")
+    # Une nouvelle instance du moteur retrouve l'expédition persistée.
+    engine = GameEngine(store)
+    result = run(engine.execute("42", building, f"claim_{activity}", "claim"))
+    assert run(engine.execute("42", building, f"claim_{activity}", "claim")) == result
+    assert engine.player("42")["professions"][profession]["experience"] > 0
+    run(engine.execute("42", building, f"leave_{profession}", "leave"))
+
+
+def test_mine_inventory_delivery_then_forge_stock_production(shop):
+    store, engine = shop
+    run(engine.execute("42", "deep_mine", "join_miner", "join-miner"))
+    run(engine.execute("42", "deep_mine", "extract_festival_ore", "extract"))
+    # L'action historique de scénario est immédiate ; les nouvelles galeries
+    # temporisées et leur récupération sont vérifiées séparément ci-dessus.
+    assert engine.player("42")["inventory"]["iron_ore"] >= 2
+    run(engine.execute_delivery("42", "royal_forge", "deliver-ore", {"iron_ore": 2, "festival_coal": 1}))
+    run(engine.execute("42", "deep_mine", "leave_miner", "leave-miner"))
+    run(engine.execute("42", "royal_forge", "join_blacksmith", "join-smith"))
+    run(engine.execute("42", "royal_forge", "smelt_festival_iron", "smelt"))
+    with store.connection() as db:
+        db.execute("UPDATE scheduled_actions SET ready_at=0 WHERE discord_id='42'")
+    run(engine.execute("42", "royal_forge", "claim_smelt_festival_iron", "claim-ingot"))
+    assert not engine.player("42")["inventory"].get("iron_ingot")
+    with store.connection() as db:
+        assert db.execute("SELECT quantity FROM building_stock WHERE building_key='royal_forge' AND item_key='iron_ingot'").fetchone()[0] == 1
