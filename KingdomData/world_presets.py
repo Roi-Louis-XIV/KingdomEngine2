@@ -35,6 +35,8 @@ def world_preset(key: str) -> list[dict[str, Any]]:
     if key == "royal_festival":
         from .festival_workshops import configure_workshops
         configure_workshops(playable)
+        from .festival_v1_completion import complete_v1_catalogue
+        complete_v1_catalogue(playable)
     # Ordre déterministe compatible avec la validation stricte de ContentStore.
     # Il exprime uniquement les dépendances génériques entre catalogues.
     rank = {"audio_group": 1, "voice_profile": 1, "voice_presence": 2,

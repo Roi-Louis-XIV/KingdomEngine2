@@ -382,7 +382,7 @@ class AdministrationService:
                 requirements = []
                 for requirement in stage.get("requirements", []):
                     required = int(requirement.get("quantity", 0))
-                    current = contributions.get((str(stage.get("key")), str(requirement.get("key"))), 0)
+                    current = contributions.get((str(stage.get("objective_key", stage.get("key"))), str(requirement.get("key"))), 0)
                     requirements.append({"key": requirement.get("key"), "name": requirement.get("name", str(requirement.get("key", "")).replace("_", " ").title()), "emoji": requirement.get("emoji", "📦"), "current": current, "required": required})
                 stages.append({"key": stage.get("key"), "name": stage.get("name", stage.get("key", "Étape")), "requirements": requirements, "complete": bool(requirements) and all(item["current"] >= item["required"] for item in requirements)})
             if stages:

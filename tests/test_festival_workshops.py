@@ -121,7 +121,7 @@ def test_existing_revision_three_catalog_is_updated_once(tmp_path):
         db.execute("UPDATE official_content_entities SET payload_json=? WHERE pack_id=? AND entity_type='server_settings'", (json.dumps(settings), row[0]))
     official.migrate_legacy_presets()
     updated = official.get("royal_festival", published_only=True)
-    assert next(e for e in updated["entities"] if e["type"] == "server_settings")["payload"]["workshop_content_revision"] == 2
+    assert next(e for e in updated["entities"] if e["type"] == "server_settings")["payload"]["workshop_content_revision"] == 3
     official.migrate_legacy_presets()
     assert official.get("royal_festival", published_only=True) == updated
 

@@ -1,7 +1,7 @@
 /* Écran d'accueil KingdomWeb — isolé du layout de l'application connectée. */
 .login-screen {
   place-items: stretch !important;
-  grid-template-columns: minmax(620px, 1.65fr) minmax(450px, 0.92fr) !important;
+  grid-template-columns: minmax(0, 1.55fr) minmax(450px, 1fr) !important;
   gap: 34px;
   min-height: 100dvh;
   padding: 26px !important;
@@ -32,8 +32,8 @@
   z-index: 2;
   right: 32px;
   bottom: 12px;
-  color: #688076;
-  font-size: 8px;
+  color: #afc2b6;
+  font-size: 10px;
   letter-spacing: 0.16em;
 }
 
@@ -79,7 +79,8 @@
 }
 
 .login-engine {
-  margin: auto 0 24px !important;
+  margin: clamp(72px, 15vh, 180px) 0 auto !important;
+  padding-bottom: 24px;
   text-shadow: 0 3px 24px #000;
 }
 
@@ -172,14 +173,14 @@
 }
 
 .module-ribbon article small {
-  font-size: 8px !important;
+  font-size: 10px !important;
 }
 
 .module-ribbon article:after {
   max-width: 150px;
   margin-top: 13px;
-  color: #aeb9b3;
-  font-size: 10px;
+  color: #c4d0c9;
+  font-size: 12px;
   line-height: 1.55;
 }
 
@@ -205,14 +206,15 @@
 
 .login-version {
   margin: 17px 4px 0 !important;
-  color: #8c9690 !important;
-  font-size: 9px !important;
+  color: #b6c5bc !important;
+  font-size: 11px !important;
 }
 
 .login-access {
   align-self: stretch;
   min-height: calc(100dvh - 52px);
-  padding: clamp(34px, 4.2vw, 76px) !important;
+  min-width: 0;
+  padding: clamp(30px, 3vw, 56px) !important;
   border-color: #48534e !important;
   border-radius: 15px !important;
   background: linear-gradient(145deg, #030a0ee8, #050c10f2) !important;
@@ -221,10 +223,11 @@
     inset 0 0 50px #13271b22 !important;
 }
 
-.login-card {
+#login-screen .login-card {
   align-self: center;
-  width: min(520px, 100%) !important;
-  gap: 19px !important;
+  width: min(560px, 100%) !important;
+  min-width: 0;
+  gap: 20px !important;
 }
 
 .login-card-head small {
@@ -247,11 +250,12 @@
 
 .login-card > label {
   gap: 10px !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
+  color: #82e2b8;
 }
 
 .login-input {
-  min-height: 59px;
+  min-height: 64px;
   border-color: #3d4944 !important;
   border-radius: 9px !important;
   background: #030a0fbb !important;
@@ -261,27 +265,42 @@
   font-size: 19px;
 }
 
-.login-input input {
+#login-screen .login-input input {
   padding: 17px 15px !important;
-  font-size: 15px;
+  font-size: 16px;
+  min-width: 0;
+  color: #edf5f0 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.login-input input::placeholder {
+  color: #a9b9b0;
+  opacity: 1;
+}
+
+.login-card .login-remember {
+  color: #c4d0c9;
+  font-size: 13px !important;
 }
 
 .login-card #login-error {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .login-submit,
 .login-register-button {
-  min-height: 57px;
-  font-size: 14px;
+  min-height: 62px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
 
-.login-submit {
+#login-screen .login-submit {
   align-items: center;
   padding: 16px 21px !important;
-  background: linear-gradient(135deg, #35b73e, #177128) !important;
+  background: linear-gradient(135deg, #53d69e, #37b77e) !important;
+  color: #052017 !important;
   box-shadow: 0 8px 28px #1f9f3233;
 }
 
@@ -299,13 +318,14 @@
 .login-trust {
   margin-top: 6px;
   padding-top: 23px !important;
-  font-size: 8px !important;
+  font-size: 11px !important;
+  color: #c4d0c9;
   letter-spacing: 0.04em;
 }
 
 @media (max-width: 1450px) {
   .login-screen {
-    grid-template-columns: minmax(540px, 1.5fr) minmax(420px, 0.82fr) !important;
+    grid-template-columns: minmax(0, 1.35fr) minmax(420px, 1fr) !important;
     gap: 24px;
   }
 
@@ -331,11 +351,11 @@
   }
 
   .login-access {
-    padding: 38px !important;
+    padding: 30px !important;
   }
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1080px) {
   .login-screen {
     display: grid !important;
     grid-template-columns: 1fr !important;
@@ -379,7 +399,7 @@
   }
 
   .login-card-head h1 {
-    font-size: 38px !important;
+    font-size: clamp(27px, 8.5vw, 38px) !important;
   }
 
   .login-card-head small {

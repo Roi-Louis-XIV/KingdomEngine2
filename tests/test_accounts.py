@@ -428,7 +428,7 @@ def test_login_interface_uses_the_immersive_brand_assets():
     compact_styles = "".join(stylesheet.text.split())
     assert "place-items:stretch" in compact_styles
     assert 'url("/static/login-kingdom-panorama-v2.png")' in stylesheet.text
-    assert "@media(max-width:960px)" in compact_styles
+    assert "@media(max-width:1080px)" in compact_styles
     assert panorama.status_code == 200
     assert panorama.headers["content-type"] == "image/png"
 

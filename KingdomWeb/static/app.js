@@ -9030,6 +9030,7 @@ function addEffect(container, effect = {}) {
     ["emit", "Déclencher un événement"],
     ["stock_cost", "Retirer du stock du bâtiment"],
     ["stock_reward", "Ajouter au stock du bâtiment"],
+    ["contribution", "Contribuer à un objectif collectif"],
     ["durability", "User un outil"],
     ["repair", "Réparer un outil"],
     ["random_reward", "Butin aléatoire avancé"],
@@ -9080,6 +9081,10 @@ function addEffect(container, effect = {}) {
       };
     } else if (["stock_cost", "stock_reward"].includes(type))
       fields = `${itemSelector("Objet du stock", "effect_stock_item", effect.item || "")}${input("Quantité", "effect_amount", effect.amount ?? 1, "number", "min=0")}${select("Bâtiment concerné", "effect_stock_building", effect.building || state.interfaceDraft.target_building_key, buildingTargetOptions(effect.building || state.interfaceDraft.target_building_key))}`;
+    else if (type === "contribution")
+      fields = input("Objectif collectif", "effect_objective", effect.objective || "")
+        + input("Contribution suivie", "effect_contribution_resource", effect.resource || "progress")
+        + input("Quantité", "effect_amount", effect.amount ?? 1, "number", "min=1");
     else if (type === "durability")
       fields = `${itemSelector("Outil utilisé", "effect_tool", effect.tool || "", "tool")}${input("Points de durabilité retirés", "effect_amount", effect.amount ?? 1, "number", "min=0")}`;
     else if (type === "repair")
@@ -9167,6 +9172,9 @@ function readEffects(container) {
         };
       if (type === "claim_scheduled")
         return { type, action: fieldValue("effect_action", element) };
+      if (type === "contribution")
+        return { type, objective: fieldValue("effect_objective", element),
+          resource: fieldValue("effect_contribution_resource", element), amount: fieldValue("effect_amount", element) };
       if (["stock_cost", "stock_reward"].includes(type))
         return {
           type,
@@ -9229,6 +9237,9 @@ function addConditionEditor(container, source = {}) {
         condition.resource || "",
         "resource",
       );
+    else if (type === "collective_progress")
+      reference = input("Objectif collectif", "condition_ref", condition.objective || "")
+        + input("Contribution suivie", "condition_resource", condition.resource || "progress");
     else if (["item_present", "item_absent", "building_stock"].includes(type))
       reference = itemSelector(
         "Objet",
@@ -9293,6 +9304,7 @@ function addConditionEditor(container, source = {}) {
         ["activity_limit_available", "Limite disponible"],
         ["cooldown_available", "Cooldown disponible"],
         ["building_stock", "Stock bâtiment"],
+        ["collective_progress", "Progression collective"],
         ["state", "État joueur"],
       ],
     )}${reference}${select(
@@ -9337,6 +9349,10 @@ function readConditions(actionElement) {
       value: fieldValue("condition_value", element),
     };
     if (type === "resource") condition.resource = reference;
+    else if (type === "collective_progress") {
+      condition.objective = reference;
+      condition.resource = fieldValue("condition_resource", element);
+    }
     else if (["item_present", "item_absent", "building_stock"].includes(type))
       condition.item = reference;
     else if (["profession_active", "profession_level"].includes(type))
@@ -9492,7 +9508,8 @@ function addRecipeModule(recipe = {}) {
   element.querySelector(".form-grid").insertAdjacentHTML("beforeend",
     select("Prélever les ingrédients dans", "recipe_source", recipe.ingredient_source || "player_inventory", [
       ["building_stock", "Stock du bâtiment"], ["player_inventory", "Inventaire du joueur"],
-    ]) + input("Catégorie du menu", "recipe_category", recipe.category || "production"));
+    ]) + input("Catégorie du menu", "recipe_category", recipe.category || "production")
+       + check("Mission partagée : un seul joueur à la fois, une mission par joueur", "recipe_shared_mission", !!recipe.shared_mission));
   bindItemSelectors(element);
   Object.entries(recipe.ingredients || {}).forEach(([key, amount]) =>
     addRecipeIngredient(
@@ -9522,6 +9539,7 @@ function readRecipeModules() {
       key: fieldValue("recipe_key", element) || `recipe_${index + 1}`,
       ingredient_source: fieldValue("recipe_source", element),
       category: fieldValue("recipe_category", element),
+      shared_mission: fieldValue("recipe_shared_mission", element),
       name: fieldValue("recipe_name", element),
       profession: fieldValue("recipe_profession", element),
       required_level: fieldValue("recipe_level", element),
@@ -9532,7 +9550,6 @@ function readRecipeModules() {
       output_destination: fieldValue("recipe_destination", element),
       reward: fieldValue("recipe_reward", element),
       experience: fieldValue("recipe_experience", element),
-      ingredient_source: original.ingredient_source || "building_stock",
       ingredients,
       active: fieldValue("recipe_active", element),
     };

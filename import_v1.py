@@ -711,7 +711,8 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
         deferred_effects = []
         output_effect = "stock_reward" if recipe.get("output_destination") == "building_stock" else "reward"
         if output_effect == "stock_reward":
-            deferred_effects.append({"type": output_effect, "item": recipe["output_item_key"], "amount": int(recipe.get("output_quantity", 1)), "building": building_key})
+            initial_stock = next((int(product.get("initial_stock", 0)) for product in modules.get("products", []) if product["item_key"] == recipe["output_item_key"]), 0)
+            deferred_effects.append({"type": output_effect, "item": recipe["output_item_key"], "amount": int(recipe.get("output_quantity", 1)), "building": building_key, "initial_stock": initial_stock})
         else:
             deferred_effects.append({"type": output_effect, "resource": recipe["output_item_key"], "amount": int(recipe.get("output_quantity", 1))})
         if recipe.get("reward"):
@@ -724,6 +725,13 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
             "requirements": {"profession": profession, "min_level": int(recipe.get("required_level", 1))} if profession else {},
             "modifier_context": {"recipe_key": recipe["key"], "profession_key": profession, "tags": recipe.get("tags", [])},
         }
+        if recipe.get("shared_mission"):
+            action["activity_limit"] = {"scope": "shared_action", "max_active": 1}
+            action["conditions"] = {"all": [
+                {"type": "no_pending_activity", "scope": "player_building"},
+                {"type": "no_pending_activity", "scope": "shared_action", "action": recipe["key"]},
+                *([{"type": "profession_active", "profession": profession}] if profession else []),
+            ]}
         _append_timed(actions, action, immediate_effects, deferred_effects)
     deliveries = modules.get("deliveries", [])
     if deliveries and modules.get("delivery_mode") == "all_available":
@@ -812,7 +820,7 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
         actions.append({
             "key": f"upgrade_{tool}_{upgrade.get('to_level', 1)}", "name": upgrade.get("name", f"Ameliorer {tool}"),
             "emoji": "⬆️", "enabled": True,
-            "requirements": {"profession": "miner", "min_level": 1, "items": {tool: 1}, "tool": tool, "tool_level": int(upgrade.get("from_level", 1))},
+            "requirements": {"profession": upgrade.get("profession", "miner"), "min_level": 1, "items": {tool: 1}, "tool": tool, "tool_level": int(upgrade.get("from_level", 1))},
             "effects": effects,
         })
     dice = modules.get("games", {}).get("dice", {})

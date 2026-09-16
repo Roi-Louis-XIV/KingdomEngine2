@@ -755,13 +755,16 @@ Le **Tableau de bord** résume la disponibilité du monde, les bâtiments, objet
 
 Le Studio conserve chaque modification en brouillon. La publication archive la version active précédente. Le contrôle de version empêche deux administrateurs d’écraser silencieusement leurs changements.
 
-## Récupération des bâtiments V1 (en cours)
+## Contenus V1 dans la Fête du Royaume
 
 Le modèle officiel **La Fête du Royaume** conserve ses identifiants et sa révision
-de scénario 3 ; `workshop_content_revision=2` ajoute les rumeurs et dés d'Edgar,
-les galeries de Roland et les zones de forêt/chasse. Les données de référence
+de scénario 3 ; `workshop_content_revision=3` réconcilie les 48 objets V1,
+les 22 produits de taverne, les huit recettes, les neuf zones d'expédition,
+les métiers, les livraisons, les améliorations et le chantier du pont
+(depuis l'esplanade). Les quêtes, la météo et les événements V2 sont conservés.
+Les données de référence
 sont livrées dans `KingdomData/festival_v1_*.json` : le dossier V1 n'est pas
-nécessaire sur Debian.
+  nécessaire sur Debian.
 
 Après déploiement, le redémarrage habituel de `kingdom-web` synchronise le
 catalogue officiel fourni par le logiciel. Aucun monde déjà installé n'est

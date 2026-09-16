@@ -20,10 +20,10 @@ CONDITION_TYPES = {
     "resource", "item_present", "item_absent", "profession_active", "no_active_profession",
     "profession_level", "tool_present", "tool_level", "tool_durability", "voice_presence",
     "discord_role", "no_pending_activity", "activity_limit_available", "cooldown_available",
-    "building_stock", "state", "player_stat",
+    "building_stock", "state", "player_stat", "collective_progress",
 }
 CONDITION_OPERATORS = {"=", "!=", ">", ">=", "<", "<="}
-ACTIVITY_SCOPES = {"player", "player_building", "player_action", "category", "building", "action"}
+ACTIVITY_SCOPES = {"player", "player_building", "player_action", "category", "building", "action", "shared_action"}
 PRODUCTION_DESTINATIONS = {"player_inventory", "building_stock", "player"}
 
 
@@ -275,7 +275,7 @@ def _validate_condition(condition: Any) -> None:
         "resource": "resource", "item_present": "item", "item_absent": "item",
         "profession_active": "profession", "profession_level": "profession",
         "tool_present": "tool", "tool_level": "tool", "tool_durability": "tool",
-        "discord_role": "role", "building_stock": "item", "state": "key",
+        "discord_role": "role", "building_stock": "item", "state": "key", "collective_progress": "objective",
     }.get(kind)
     if required and not str(condition.get(required, "")).strip():
         raise ValidationError(f"La condition {kind} exige le champ {required}.")

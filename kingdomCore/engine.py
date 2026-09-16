@@ -523,18 +523,11 @@ class GameEngine:
                     )
                 elif kind == "schedule":
                     scope = self._normalise_activity_scope(str(effect.get("limit_scope", "player_action")))
-                    if scope not in {"player", "player_building", "player_action", "category"}:
+                    if scope not in {"player", "player_building", "player_action", "category", "shared_action"}:
                         raise ValidationError(f"Portée d'activité inconnue : {scope}.")
                     maximum = max(1, int(effect.get("max_active", 1)))
                     category = str(effect.get("category", ""))
-                    clauses, parameters = ["discord_id=?", "status='pending'"], [discord_id]
-                    if scope in {"player_building", "player_action"}:
-                        clauses.append("building_key=?"); parameters.append(building_key)
-                    if scope == "player_action":
-                        clauses.append("action_key=?"); parameters.append(effect["action"])
-                    elif scope == "category":
-                        clauses.append("category=?"); parameters.append(category)
-                    count = int(db.execute(f"SELECT COUNT(*) FROM scheduled_actions WHERE {' AND '.join(clauses)}", parameters).fetchone()[0])
+                    count = self._pending_count(db, discord_id, building_key, effect["action"], scope, category)
                     if count >= maximum:
                         raise ValidationError("La limite d'activites en cours est atteinte.")
                     duration = self._effective_number(effect.get("duration_seconds", 0), "activity.duration", {"building_key": building_key, "action_key": str(effect.get("action", action_key)), "activity_key": str(effect.get("action", action_key))})
@@ -767,6 +760,11 @@ class GameEngine:
         elif kind == "state":
             row = db.execute("SELECT value_json FROM player_state WHERE discord_id=? AND state_key=?", (discord_id, condition["key"])).fetchone(); actual = json.loads(row[0]) if row else condition.get("default", 0)
         elif kind == "player_stat": actual = self.player_stats(discord_id, db).get(str(condition["stat"]), float(condition.get("default", 0)))
+        elif kind == "collective_progress":
+            actual = int(db.execute(
+                "SELECT COALESCE(SUM(amount),0) FROM collective_contributions WHERE objective_key=? AND building_key=? AND resource_key=?",
+                (condition["objective"], str(condition.get("building", building_key)), str(condition.get("resource", "progress"))),
+            ).fetchone()[0])
         else:
             raise ValidationError(f"Condition inconnue : {kind}.")
         return self._compare(actual, expected, operator)
@@ -787,9 +785,10 @@ class GameEngine:
 
     @staticmethod
     def _pending_count(db, discord_id: str, building_key: str, action_key: str, scope: str, category: str) -> int:
-        clauses, parameters = ["discord_id=?", "status='pending'"], [discord_id]
-        if scope in {"player_building", "player_action"}: clauses.append("building_key=?"); parameters.append(building_key)
-        if scope == "player_action": clauses.append("action_key=?"); parameters.append(action_key)
+        clauses, parameters = ["status='pending'"], []
+        if scope != "shared_action": clauses.append("discord_id=?"); parameters.append(discord_id)
+        if scope in {"player_building", "player_action", "shared_action"}: clauses.append("building_key=?"); parameters.append(building_key)
+        if scope in {"player_action", "shared_action"}: clauses.append("action_key=?"); parameters.append(action_key)
         if scope == "category": clauses.append("category=?"); parameters.append(category)
         return int(db.execute(f"SELECT COUNT(*) FROM scheduled_actions WHERE {' AND '.join(clauses)}", parameters).fetchone()[0])
 
