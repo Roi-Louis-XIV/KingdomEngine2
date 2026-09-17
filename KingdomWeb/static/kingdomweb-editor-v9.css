@@ -28,3 +28,19 @@
 #editor .kw-repair-preview{display:none!important}#editor .kw-v9-help-toggle{display:none}
 @media(max-width:1100px){#editor .editor-layout{grid-template-columns:minmax(0,1fr) 320px!important}#editor #definition-step{padding:18px 22px 75px!important}}
 @media(max-width:800px){#editor .editor-layout{grid-template-columns:minmax(0,1fr)!important}#editor .context-help{display:none!important}#editor .kw-v9-help-toggle{display:inline-flex!important}#editor.kw-v9-show-preview .context-help{display:block!important;position:absolute!important;inset:120px 0 65px 0!important;z-index:8!important;width:100%!important;max-width:none!important;overflow:auto!important}#editor .kw-v9-toolbar{padding:12px 16px}#editor #definition-step{padding:15px 14px 70px!important}#editor .form-section{padding:17px!important}}
+
+/* Les couleurs restent pilotées par le thème KingdomWeb. */
+#editor:not([hidden]){background:var(--background)!important}
+#editor .wizard-panel,#editor .dialog-head,#editor .context-help,#editor .actions,#editor .kw-v9-toolbar{background:var(--surface-elevated)!important;color:var(--text-primary)!important;border-color:var(--border)!important}
+#editor .editor-layout,#editor .editor-main{background:var(--background)!important}
+#editor .form-section{background:var(--surface)!important;border-color:var(--border)!important}
+#editor .form-section h3,#editor .kw-v9-title strong,#editor .kw-v9-discord strong,#editor .kw-v9-check strong{color:var(--text-primary)!important}
+#editor .kw-v9-title small,#editor .kw-v9-discord small{color:var(--text-muted)!important}
+#editor .form-section input,#editor .form-section select,#editor .form-section textarea,#editor .kw-v9-discord,#editor .kw-v9-check{background:var(--surface-muted)!important;border-color:var(--border)!important;color:var(--text-primary)!important}
+#editor .kw-v9-discord p,#editor .kw-v9-check ul{color:var(--text-secondary)!important}
+#editor .kw-v9-nav button{border-color:var(--border)!important;background:var(--surface-muted)!important;color:var(--text-secondary)!important}
+#editor .kw-v9-nav button:hover,#editor .kw-v9-nav button[aria-current=step]{border-color:var(--accent)!important;background:var(--accent)!important;color:var(--accent-contrast)!important}
+#editor .form-section input:focus,#editor .form-section select:focus,#editor .form-section textarea:focus{outline-color:var(--accent)!important}
+#editor .kw-v9-panel-title,#editor .kw-v9-check[data-ready=true] strong{color:var(--accent)!important}
+#editor .kw-v9-discord{border-left-color:var(--accent)!important}
+#editor .kw-v9-check[data-ready=true]{border-color:var(--accent)!important}
