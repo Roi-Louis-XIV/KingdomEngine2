@@ -267,7 +267,8 @@ class InterfaceView(discord.ui.View):
         field_count = 0
         if self.notice:
             descriptions.append(f"**{self.notice}**")
-        for component in self._visible_components():
+        visible_components = self._visible_components()
+        for component in visible_components:
             props = component.get("props", {})
             if component["type"] == "hero":
                 embed.title = f"{props.get('emoji', '')} {props.get('title', '')}".strip()
@@ -299,6 +300,9 @@ class InterfaceView(discord.ui.View):
                 self._add_inventory(embed, str(props.get("title") or "Inventaire"))
             elif component["type"] == "building_inventory":
                 self._add_building_inventory(embed, str(props.get("building") or self._building_key()), str(props.get("title") or "Stock commun"))
+            elif component["type"] == "workstation_status" and field_count < 25:
+                self._add_workstation_status(embed, str(props.get("building") or self._building_key()), str(props.get("title") or "État des postes"))
+                field_count += 1
             elif component["type"] == "world_weather" and field_count < 25:
                 world = WorldClock(self.engine.store).state()
                 weather = world.get("weather", {})
@@ -338,8 +342,33 @@ class InterfaceView(discord.ui.View):
                 value = "\n".join(f"**{key}** · niveau {entry.get('level', 1)} · {entry.get('experience', 0)} XP" for key, entry in professions.items()) or "Aucun métier actif"
                 embed.add_field(name=str(props.get("title") or "Votre métier")[:256], value=value[:1024], inline=False)
                 field_count += 1
+        if field_count < 25 and hasattr(self.engine, "building") and not any(component.get("type") == "workstation_status" for component in visible_components):
+            building = self.engine.building(self._building_key())["payload"]
+            action_keys = {str(component.get("interaction", {}).get("action")) for component in visible_components}
+            page_actions = [action for action in building.get("actions", []) if str(action.get("key")) in action_keys]
+            if any(effect.get("type") in {"start_transformation", "claim_transformation"} for action in page_actions for effect in action.get("effects", [])):
+                self._add_workstation_status(embed, self._building_key(), "État des postes")
         embed.description = "\n\n".join(descriptions)[:4096] or None
         return embed
+
+    def _add_workstation_status(self, embed: discord.Embed, building_key: str, title: str) -> None:
+        states = self.engine.workstation_states(building_key)
+        building = self.engine.building(building_key)["payload"]
+        recipes = {str(item.get("key")): str(item.get("name") or item.get("key")) for item in building.get("modules", {}).get("recipes", [])}
+        active = {(str(item["workstation_key"]), int(item["slot_index"])): item for item in states}
+        lines = []
+        for workstation in building.get("modules", {}).get("workstations", []):
+            for slot in range(max(1, int(workstation.get("slots", 1)))):
+                state = active.get((str(workstation.get("key")), slot))
+                if not state:
+                    detail = "🟢 libre"
+                elif state["status"] == "ready":
+                    detail = f"📦 **prêt à récupérer** · {recipes.get(state['recipe_key'], state['recipe_key'])}"
+                else:
+                    label = "préparation" if state["status"] == "preparation" else "transformation"
+                    detail = f"🟠 {label} · {recipes.get(state['recipe_key'], state['recipe_key'])} · {state['remaining_seconds']} s"
+                lines.append(f"**{workstation.get('name') or workstation.get('key')} {slot + 1}** — {detail}")
+        embed.add_field(name=title[:256], value=("\n".join(lines) or "Aucun poste configuré.")[:1024], inline=False)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if self.owner_id is None or interaction.user.id == self.owner_id:
@@ -355,6 +384,7 @@ class InterfaceView(discord.ui.View):
 
     def _is_visible(self, component: dict[str, Any]) -> bool:
         condition = component.get("visible_when", {})
+        interaction = component.get("interaction", {})
         if self.owner_id is None:
             return True
         player = self.engine.player(str(self.owner_id)) if hasattr(self.engine, "player") else {"professions": {}}
@@ -369,8 +399,12 @@ class InterfaceView(discord.ui.View):
             if condition.get("no_pending_building") and pending:
                 return False
             if condition.get("pending_action") and str(condition["pending_action"]) not in pending:
-                return False
-        interaction = component.get("interaction", {})
+                try:
+                    action = next(item for item in self.engine.building(str(interaction.get("building") or self._building_key()))["payload"].get("actions", []) if str(item.get("key")) == str(interaction.get("action")))
+                    if not any(effect.get("type") == "claim_transformation" for effect in action.get("effects", [])):
+                        return False
+                except (StopIteration, KeyError, AttributeError):
+                    return False
         generic_condition = component.get("visibility_conditions")
         if interaction.get("type") == "action" and interaction.get("inherit_action_conditions", True):
             try:
@@ -499,7 +533,32 @@ class InterfaceView(discord.ui.View):
                 label = f"{label[:62]} · {tool[0]}/{tool[1]}"[:80]
         style = styles.get(props.get("style"), discord.ButtonStyle.secondary)
         disabled = False
-        if interaction.get("type") == "action" and str(interaction.get("action", "")).startswith("claim_") and self.owner_id is not None:
+        action = None
+        if interaction.get("type") == "action":
+            try:
+                action = next(item for item in self.engine.building(str(interaction.get("building") or self._building_key()))["payload"].get("actions", []) if str(item.get("key")) == str(interaction.get("action")))
+            except (StopIteration, KeyError, AttributeError):
+                pass
+        effects = action.get("effects", []) if action else []
+        start_effect = next((effect for effect in effects if effect.get("type") == "start_transformation"), None)
+        claim_effect = next((effect for effect in effects if effect.get("type") == "claim_transformation"), None)
+        if claim_effect:
+            states = self.engine.workstation_states(str(interaction.get("building") or self._building_key()))
+            matching = [item for item in states if item["recipe_key"] == str(claim_effect.get("recipe_key"))]
+            if not any(item["status"] == "ready" for item in matching):
+                active = next((item for item in matching if item["status"] != "ready"), None)
+                label = f"En cours · {active['remaining_seconds']} s" if active else "Aucune préparation prête"
+                style, disabled = discord.ButtonStyle.secondary, True
+        elif start_effect:
+            building_key = str(interaction.get("building") or self._building_key())
+            building = self.engine.building(building_key)["payload"]
+            workstation = next((item for item in building.get("modules", {}).get("workstations", []) if str(item.get("key")) == str(start_effect.get("workstation_key"))), None)
+            occupied = [item for item in self.engine.workstation_states(building_key) if item["workstation_key"] == str(start_effect.get("workstation_key"))]
+            if workstation and len(occupied) >= max(1, int(workstation.get("slots", 1))):
+                remaining = min((item["remaining_seconds"] for item in occupied if item["status"] != "ready"), default=0)
+                label = "Postes occupés" + (f" · {remaining} s" if remaining else "")
+                style, disabled = discord.ButtonStyle.secondary, True
+        elif interaction.get("type") == "action" and str(interaction.get("action", "")).startswith("claim_") and self.owner_id is not None:
             activity_key = str(interaction["action"])[len("claim_"):]
             pending = next((item for item in self.engine.pending_actions(str(self.owner_id), str(interaction.get("building", self._building_key()))) if item["action"] == activity_key), None)
             if pending:
@@ -726,6 +785,7 @@ class InterfaceView(discord.ui.View):
         self.add_item(select)
 
     async def _execute_action(self, interaction: discord.Interaction, target: dict[str, Any]) -> None:
+        result: dict[str, Any] = {}
         await interaction.response.defer()
         try:
             context = interaction_context(interaction)
@@ -755,11 +815,26 @@ class InterfaceView(discord.ui.View):
             self.notice = str(exc)
         self._render_interactions()
         await interaction.edit_original_response(embed=self.embed(), view=self)
+        if result.get("workstations"):
+            asyncio.create_task(self._refresh_workstations(interaction, self.page_key))
         action_key = str(target.get("action", ""))
         if not action_key.startswith("claim_") and any(item["action"] == action_key for item in self.engine.pending_actions(str(interaction.user.id), str(target.get("building", self._building_key())))):
             asyncio.create_task(self._refresh_activity_countdown(interaction, action_key, self.page_key))
         elif int(target.get("cooldown_seconds", 0)) > 0 or int(target.get("global_cooldown_seconds", 0)) > 0:
             asyncio.create_task(self._refresh_activity_countdown(interaction, action_key, self.page_key))
+
+    async def _refresh_workstations(self, interaction: discord.Interaction, page_key: str) -> None:
+        """Anime le statut et les boutons jusqu'à ce que les productions soient prêtes."""
+        while self.page_key == page_key:
+            states = self.engine.workstation_states(self._building_key())
+            self._render_interactions()
+            try:
+                await interaction.edit_original_response(embed=self.embed(), view=self)
+            except (discord.NotFound, discord.HTTPException):
+                return
+            if not any(item["status"] in {"preparation", "transformation"} for item in states):
+                return
+            await asyncio.sleep(1)
 
     async def _refresh_text_sequence(self, interaction: discord.Interaction, page_key: str) -> None:
         steps = [step for component in self.page.get("components", []) if component.get("type") == "sequence" for step in component.get("props", {}).get("steps", [])]

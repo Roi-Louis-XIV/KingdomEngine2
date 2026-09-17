@@ -6,6 +6,15 @@ import json
 from typing import Any
 
 
+def _workstation_status(building_key: str) -> dict[str, Any]:
+    """Composant dynamique commun à tous les postes de transformation."""
+    return {
+        "id": f"workstations_{building_key}"[:64],
+        "type": "workstation_status",
+        "props": {"title": "État des postes", "building": building_key},
+    }
+
+
 def interface_from_hospitality_modules(building_key: str, building: dict[str, Any], actions: list[dict[str, Any]]) -> dict[str, Any]:
     """Parcours commerce/métier/récits/jeux entièrement dérivé des modules."""
     modules, texts = building.get("modules", {}), building.get("interface_texts", {})
@@ -36,6 +45,7 @@ def interface_from_hospitality_modules(building_key: str, building: dict[str, An
     profession_actions = [action for action in actions if action["key"].startswith(("join_", "leave_")) or action["key"].startswith("claim_") or action["key"] in {recipe.get("key") for recipe in modules.get("recipes", [])}]
     pages.append({"key": "profession", "name": "Métier", "components": [
         {"id": f"hero_profession_{building_key}"[:64], "type": "hero", "props": {"title": texts.get("profession_title", "Le métier"), "subtitle": texts.get("profession_description", "Rejoins le métier puis choisis une mission."), "emoji": "👨‍🍳"}},
+        *([_workstation_status(building_key)] if modules.get("workstations") else []),
         *[{"id": f"action_{action['key']}"[:64], "type": "button", "slot": index, "props": {"label": action.get("name", action["key"]), "emoji": action.get("emoji", "⚙️"), "style": "primary"}, "interaction": {"type": "action", "building": building_key, "action": action["key"]}} for index, action in enumerate(profession_actions[:20])],
         {"id": f"back_profession_{building_key}"[:64], "type": "button", "slot": 20, "props": {"label": "Retour", "emoji": "↩️", "style": "secondary"}, "interaction": {"type": "navigate", "page": "home"}},
     ]})
@@ -402,10 +412,12 @@ def interface_from_workshop_modules(building_key: str, building: dict[str, Any],
         page_key = f"recipes_{category}"[:64]
         job.append({"id": f"open_{building_key}_{page_key}", "type": "button", "slot": index, "props": {"label": "Forger un outil" if category == "tool" else "Forger une arme" if category == "weapon" else f"Produire : {category}", "emoji": "⛏️" if category == "tool" else "⚔️", "style": "primary"}, "visible_when": {"profession": profession_key}, "interaction": {"type": "navigate", "page": page_key}})
         components = [{"id": f"hero_{building_key}_{page_key}", "type": "hero", "props": {"title": "OUTILS · Commandes de forge" if category == "tool" else "ARMES · Commandes de forge", "subtitle": "Les ressources sont prélevées du stock commun dès le lancement.", "emoji": "⛏️" if category == "tool" else "⚔️"}}]
+        if modules.get("workstations"):
+            components.append(_workstation_status(building_key))
         for recipe_index, recipe in enumerate(item for item in recipes if item.get("category", "production") == category):
             ingredient_names = recipe.get("ingredient_names", {})
             ingredients = " · ".join(f"{amount} × {ingredient_names.get(item) or str(item).replace('_', ' ').capitalize()}" for item, amount in recipe.get("ingredients", {}).items())
-            components.extend([{"id": f"recipe_card_{building_key}_{recipe['key']}", "type": "card", "props": {"title": recipe.get("name", recipe["key"]), "text": f"Niveau **{recipe.get('required_level', 1)}** · {recipe.get('duration_seconds', 0)} s\n{ingredients}\nRécompense : **{recipe.get('reward', 0)} écus · {recipe.get('experience', 0)} XP**"}}, {"id": f"recipe_{building_key}_{recipe['key']}", "type": "button", "slot": recipe_index, "props": {"label": recipe.get("name", recipe["key"]), "emoji": "🔥", "style": "primary"}, "interaction": {"type": "action", "building": building_key, "action": str(recipe["key"])}}, {"id": f"claim_{building_key}_{recipe['key']}", "type": "button", "slot": 10 + recipe_index, "props": {"label": "Récupérer la fabrication", "emoji": "📦", "style": "success"}, "visible_when": {"pending_action": str(recipe["key"])}, "interaction": {"type": "action", "building": building_key, "action": f"claim_{recipe['key']}"}}])
+            components.extend([{"id": f"recipe_card_{building_key}_{recipe['key']}", "type": "card", "props": {"title": recipe.get("name", recipe["key"]), "text": f"Niveau **{recipe.get('required_level', 1)}** · {recipe.get('duration_seconds', 0)} s\n{ingredients}\nRécompense : **{recipe.get('reward', 0)} écus · {recipe.get('experience', 0)} XP**"}}, {"id": f"recipe_{building_key}_{recipe['key']}", "type": "button", "slot": recipe_index, "props": {"label": recipe.get("name", recipe["key"]), "emoji": "🔥", "style": "primary"}, "interaction": {"type": "action", "building": building_key, "action": str(recipe["key"])}}, {"id": f"claim_{building_key}_{recipe['key']}", "type": "button", "slot": 10 + recipe_index, "props": {"label": "Récupérer la fabrication", "emoji": "📦", "style": "success"}, "interaction": {"type": "action", "building": building_key, "action": f"claim_{recipe['key']}"}}])
         components.append({**back(page_key), "interaction": {"type": "navigate", "page": "job"}}); pages.append({"key": page_key, "name": str(category), "components": components})
     if profession_key:
         job.append({"id": f"leave_{building_key}_{profession_key}", "type": "button", "slot": 4, "props": {"label": "Démissionner", "emoji": "📜", "style": "danger"}, "visible_when": {"profession": profession_key, "no_pending_building": building_key}, "interaction": {"type": "action", "building": building_key, "action": f"leave_{profession_key}", "on_success_page": "home"}})

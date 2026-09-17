@@ -4,11 +4,34 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 from KingdomData import ContentStore, ValidationError
+from KingdomData.interfaces import interface_from_hospitality_modules, interface_from_workshop_modules
 from kingdomCore.engine import GameEngine
 
 
 def run(coro):
     return asyncio.run(coro)
+
+
+def test_shared_workstations_are_exposed_in_building_interfaces():
+    building = {
+        "name": "Atelier", "modules": {
+            "workstations": [{"key": "oven", "name": "Four", "slots": 2}],
+            "professions": [{"key": "cook", "name": "Cuisinier"}],
+            "recipes": [{"key": "bread", "name": "Pain", "category": "food", "workstation_key": "oven", "ingredients": {}, "output_item_key": "bread"}],
+        },
+    }
+    actions = [
+        {"key": "bread", "name": "Cuire du pain", "effects": [{"type": "start_transformation", "recipe_key": "bread", "workstation_key": "oven"}]},
+        {"key": "claim_bread", "name": "Récupérer le pain", "effects": [{"type": "claim_transformation", "recipe_key": "bread"}]},
+    ]
+    for interface in (
+        interface_from_hospitality_modules("bakery", building, actions),
+        interface_from_workshop_modules("bakery", building, actions),
+    ):
+        components = [component for page in interface["pages"] for component in page["components"]]
+        assert any(component["type"] == "workstation_status" for component in components)
+        claim = next(component for component in components if component.get("interaction", {}).get("action") == "claim_bread")
+        assert "pending_action" not in claim.get("visible_when", {})
 
 
 def workstation_world(tmp_path, *, slots=2, stock=6):
