@@ -6226,9 +6226,9 @@ function buildingOverviewMarkup(payload, buildingKey, modules) {
       (item) => item.payload.building_key === buildingKey,
     ),
     ambienceKey = payload.relations?.ambience_audio_key || "",
-    ambience = state.catalogs.audio.find(
-      (item) => item.entity_key === ambienceKey,
-    ),
+    ambience = state.catalogs.audio_group.find(
+      (item) => item.entity_key === modules.audio?.default_group_key,
+    ) || state.catalogs.audio.find((item) => item.entity_key === ambienceKey),
     productions =
       (modules.products || []).length + (modules.recipes || []).length,
     actions =
@@ -6240,10 +6240,11 @@ function buildingOverviewMarkup(payload, buildingKey, modules) {
 }
 
 function simpleAudioMarkup(payload, buildingKey, modules) {
-  const ambienceKey = payload.relations?.ambience_audio_key || "",
-    ambience = state.catalogs.audio.find(
-      (item) => item.entity_key === ambienceKey,
-    ),
+  const ambienceGroupKey = modules.audio?.default_group_key || "",
+    ambienceKey = payload.relations?.ambience_audio_key || "",
+    ambience = state.catalogs.audio_group.find(
+      (item) => item.entity_key === ambienceGroupKey,
+    ) || state.catalogs.audio.find((item) => item.entity_key === ambienceKey),
     residents = state.catalogs.npc.filter(
       (item) => item.payload.building_key === buildingKey,
     ),
@@ -6278,7 +6279,7 @@ function simpleAudioMarkup(payload, buildingKey, modules) {
     <article><span>${escapeHtml(item.payload.emoji || "✦")}</span><div><h4>${escapeHtml(item.payload.name)}</h4><p>${escapeHtml(item.payload.trigger?.type || "manuel")} · ${(item.payload.character_moves || []).length} déplacement(s)</p></div></article>`).join("");
   return `<section class="simple-audio-panel living-audio-editor">
     <header class="living-audio-hero"><div><small>AUDIO & PRÉSENCES</small><h2>Donnez une vie sonore à ${escapeHtml(payload.name || buildingKey)}</h2><p>Vous configurez le monde. Les connexions techniques sont automatiques.</p></div><button type="button" data-open-audio-advanced>⚙ Réglages avancés</button></header>
-    <section class="living-audio-section"><div class="living-section-heading"><span>1</span><div><small>AMBIANCE</small><h3>Le fond sonore du bâtiment</h3><p>Cette ambiance continue même lorsqu’aucun personnage n’est présent.</p></div></div><div class="living-ambience-layout"><article class="living-audio-card ambience-feature"><div class="living-card-icon">🌲</div><div><small>ASSET ACTUEL</small><h4>${escapeHtml(ambience?.payload.name || "Aucune ambiance")}</h4><p>${escapeHtml(ambience?.payload.description || "Choisissez un son d’ambiance dans votre bibliothèque.")}</p></div><div class="living-card-actions"><button type="button" data-change-ambience>${ambience ? "Changer" : "Choisir un asset"}</button><button type="button" data-test-building-ambience ${ambience ? "" : "disabled"}>▶ Tester</button><button type="button" class="danger-link" data-remove-simple-ambience ${ambienceKey ? "" : "disabled"}>Retirer</button></div></article><div class="living-audio-controls"><label>Volume <output data-ambience-volume-output>${Math.round(ambienceVolume * 100)} %</output><input type="range" min="0" max="1" step=".05" value="${ambienceVolume}" data-field="audio_ambience_volume"></label><label class="living-toggle"><input type="checkbox" data-field="audio_ambience_loop" ${ambienceLoop ? "checked" : ""}><span>Lire en boucle</span></label></div></div></section>
+    <section class="living-audio-section"><div class="living-section-heading"><span>1</span><div><small>AMBIANCE</small><h3>Le fond sonore du bâtiment</h3><p>Cette ambiance continue même lorsqu’aucun personnage n’est présent.</p></div></div><div class="living-ambience-layout"><article class="living-audio-card ambience-feature"><div class="living-card-icon">🌲</div><div><small>GROUPE ACTUEL</small><h4>${escapeHtml(ambience?.payload.name || "Aucune ambiance")}</h4><p>${escapeHtml(ambience?.payload.description || "Choisissez un groupe d’ambiance dans votre bibliothèque.")}</p></div><div class="living-card-actions"><button type="button" data-change-ambience>${ambience ? "Changer" : "Choisir une ambiance"}</button><button type="button" data-test-building-ambience ${ambience ? "" : "disabled"}>▶ Tester</button><button type="button" class="danger-link" data-remove-simple-ambience ${ambienceGroupKey || ambienceKey ? "" : "disabled"}>Retirer</button></div></article><div class="living-audio-controls"><label>Volume <output data-ambience-volume-output>${Math.round(ambienceVolume * 100)} %</output><input type="range" min="0" max="1" step=".05" value="${ambienceVolume}" data-field="audio_ambience_volume"></label><label class="living-toggle"><input type="checkbox" data-field="audio_ambience_loop" ${ambienceLoop ? "checked" : ""}><span>Lire en boucle</span></label></div></div></section>
     <section class="living-audio-section"><div class="living-section-heading"><span>2</span><div><small>PERSONNAGES</small><h3>Qui vit ici ?</h3><p>Le principal porte l’ambiance. Les autres restent visibles et parlent avec leur propre voix.</p></div><button type="button" class="primary" data-add-building-character>＋ Ajouter un personnage</button></div><div class="resident-character-grid">${residentCards || '<div class="living-empty"><span>🧙</span><b>Aucun personnage</b><p>Ajoutez votre premier personnage sans quitter cet écran.</p></div>'}</div><label class="primary-character-select">Personnage principal<select data-field="audio_primary_npc"><option value="">Choix automatique selon la présence</option>${residents.map((item) => `<option value="${escapeHtml(item.entity_key)}" ${item.entity_key === primaryNpcKey ? "selected" : ""}>${escapeHtml(`${item.payload.emoji || "🧙"} ${item.payload.name}`)}</option>`).join("")}</select></label></section>
     <section class="living-audio-section"><div class="living-section-heading"><span>3</span><div><small>SONS PONCTUELS</small><h3>Réactions aux actions</h3><p>Porte, pioche, cloche ou réplique : chaque son reçoit un déclencheur.</p></div><button type="button" data-add-building-sfx>＋ Ajouter un son</button></div><div class="simple-audio-actions living-sfx-list">${sfxRows || '<p class="simple-empty">Créez d’abord une action dans Fonctionnement.</p>'}</div></section>
     <section class="living-audio-section"><div class="living-section-heading"><span>4</span><div><small>SCÈNES & DÉPLACEMENTS</small><h3>Quand le monde change</h3><p>Les événements remplacent temporairement les routines, puis les personnages reprennent leur journée.</p></div></div><div class="living-scenes-layout"><div class="living-scene-list">${sceneRows || '<div class="living-empty"><span>✦</span><b>Aucune scène liée</b><p>Les scènes créées dans Événements apparaîtront ici.</p></div>'}</div>${buildingAudioDiscordPreview(payload, residents, primaryNpcKey)}</div></section>
@@ -6459,7 +6460,9 @@ function bindSimpleAudio() {
   $("[data-add-building-sfx]")?.addEventListener("click", openBuildingSfxCreator);
   $$('[data-edit-resident-routine]').forEach((button) => button.onclick = () => openResidentRoutineEditor(button.dataset.editResidentRoutine));
   $("[data-test-building-ambience]")?.addEventListener("click", () => {
-    const audioKey = fieldValue("relation_ambience_key");
+    const groupKey = fieldValue("audio_default_group"),
+      group = state.catalogs.audio_group.find((item) => item.entity_key === groupKey),
+      audioKey = group?.payload.layers?.[0]?.audio_key || fieldValue("relation_ambience_key");
     if (audioKey) previewAudio(audioKey);
   });
   const volume = $('[data-field="audio_ambience_volume"]');
@@ -6470,25 +6473,22 @@ function bindSimpleAudio() {
   $('[data-field="audio_ambience_loop"]')?.addEventListener("change", markEditorDirty);
   $('[data-field="audio_primary_npc"]')?.addEventListener("change", markEditorDirty);
   $("[data-change-ambience]")?.addEventListener("click", () => {
-    const current = fieldValue("relation_ambience_key"),
+    const current = fieldValue("audio_default_group"),
       dialog = simpleDialog(
         "simple-ambience-dialog",
         "AUDIO › AMBIANCE",
         "🌲 Choisir une ambiance",
-        `<div class="simple-zone-form"><input data-ambience-search placeholder="Rechercher une ambiance…"><label>Ambiance<select name="ambience">${audioOptions(
-          current,
-          "ambience",
-        )
+        `<div class="simple-zone-form"><input data-ambience-search placeholder="Rechercher une ambiance…"><label>Groupe d’ambiance<select name="ambience"><option value="">Aucune ambiance</option>${(state.catalogs.audio_group || [])
           .map(
-            ([id, label]) =>
-              `<option value="${escapeHtml(id)}" ${id === current ? "selected" : ""}>${escapeHtml(label)}</option>`,
+            (item) =>
+              `<option value="${escapeHtml(item.entity_key)}" ${item.entity_key === current ? "selected" : ""}>🌲 ${escapeHtml(item.payload.name || item.entity_key)}</option>`,
           )
           .join(
-            "",
-          )}</select></label><button type="button" class="secondary" data-open-audio-bank>Ouvrir la banque Audio</button></div>`,
+        "",
+      )}</select></label><button type="button" class="secondary" data-open-audio-bank>Ouvrir la banque Audio</button></div>`,
         (data, currentDialog) => {
-          $('[data-field="relation_ambience_key"]').value =
-            data.get("ambience");
+          $('[data-field="audio_default_group"]').value = data.get("ambience");
+          $('[data-field="relation_ambience_key"]').value = "";
           currentDialog.close();
           markEditorDirty();
           refreshSimpleAudio();
@@ -6509,6 +6509,7 @@ function bindSimpleAudio() {
     };
   });
   $("[data-remove-simple-ambience]")?.addEventListener("click", () => {
+    $('[data-field="audio_default_group"]').value = "";
     $('[data-field="relation_ambience_key"]').value = "";
     markEditorDirty();
     refreshSimpleAudio();
