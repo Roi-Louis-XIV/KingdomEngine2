@@ -9513,6 +9513,12 @@ function addWorkstationModule(workstation = {}) {
   element.innerHTML = `<button type="button" class="remove">×</button><div class="workstation-heading"><span>${escapeHtml(workstation.emoji || "⚙️")}</span><div><b>${escapeHtml(workstation.name || "Nouveau poste")}</b><small>Poste partagé configurable</small></div></div><div class="form-grid">${input("Identifiant", "workstation_key", workstation.key || "")}${input("Nom", "workstation_name", workstation.name || "")}${input("Icône", "workstation_emoji", workstation.emoji || "⚙️")}${input("Nombre de postes", "workstation_slots", workstation.slots || 1, "number", "min=1 max=50")}</div>`;
   $("#workstation-modules").append(element);
   element.querySelector(".remove").onclick = () => { element.remove(); refreshWorkstationSelectors(); };
+  const keyField = element.querySelector('[data-field="workstation_key"]');
+  const nameField = element.querySelector('[data-field="workstation_name"]');
+  nameField.addEventListener("input", () => {
+    if (!keyField.dataset.touched) keyField.value = technicalKey(nameField.value, "poste");
+  });
+  keyField.addEventListener("input", () => { keyField.dataset.touched = "true"; });
   element.querySelectorAll("input").forEach((field) => field.addEventListener("input", () => {
     element.querySelector(".workstation-heading b").textContent = fieldValue("workstation_name", element) || "Nouveau poste";
     refreshWorkstationSelectors();
@@ -9520,7 +9526,7 @@ function addWorkstationModule(workstation = {}) {
 }
 function readWorkstationModules() {
   return $$("#workstation-modules > .workstation-module").map((element, index) => ({
-    key: fieldValue("workstation_key", element) || `poste_${index + 1}`,
+    key: technicalKey(fieldValue("workstation_key", element), `poste_${index + 1}`),
     name: fieldValue("workstation_name", element) || `Poste ${index + 1}`,
     emoji: fieldValue("workstation_emoji", element) || "⚙️",
     slots: fieldValue("workstation_slots", element) || 1,
@@ -9607,19 +9613,21 @@ function readRecipeModules() {
           fieldValue("recipe_ingredient_amount", row),
         ]),
     );
+    const name = String(fieldValue("recipe_name", element) || "").trim();
+    const workstationKey = fieldValue("recipe_workstation", element) || "";
     return {
       ...original,
-      key: fieldValue("recipe_key", element) || `recipe_${index + 1}`,
+      key: technicalKey(fieldValue("recipe_key", element) || name, `recipe_${index + 1}`),
       ingredient_source: fieldValue("recipe_source", element),
       category: fieldValue("recipe_category", element),
       shared_mission: fieldValue("recipe_shared_mission", element),
-      name: fieldValue("recipe_name", element),
+      name,
       profession: fieldValue("recipe_profession", element),
       required_level: fieldValue("recipe_level", element),
-      duration_seconds: fieldValue("recipe_preparation", element) + fieldValue("recipe_transformation", element),
-      preparation_seconds: fieldValue("recipe_preparation", element),
-      transformation_seconds: fieldValue("recipe_transformation", element),
-      workstation_key: fieldValue("recipe_workstation", element) || undefined,
+      duration_seconds: Number(fieldValue("recipe_preparation", element) || 0) + Number(fieldValue("recipe_transformation", element) || 0),
+      preparation_seconds: Number(fieldValue("recipe_preparation", element) || 0),
+      transformation_seconds: Number(fieldValue("recipe_transformation", element) || 0),
+      workstation_key: workstationKey || undefined,
       active_transformation: fieldValue("recipe_active_transformation", element),
       preparer_xp_percent: fieldValue("recipe_xp_share", element),
       energy_cost: fieldValue("recipe_energy", element),
@@ -11577,7 +11585,10 @@ document.addEventListener("keydown", (event) => {
 });
 
 async function saveEditor(publishRequested = false) {
-  if (state.referencePreview) return;
+  if (state.referencePreview) {
+    setSaveState("error", "Cette démonstration est en lecture seule");
+    return;
+  }
   const saveButton = $("#save"),
     publishButton = $("#save-publish"),
     activeButton = publishRequested ? publishButton : saveButton;
@@ -11695,7 +11706,9 @@ async function saveEditor(publishRequested = false) {
     );
   } catch (error) {
     $("#error").textContent = error.message;
-    setSaveState("error", "Échec de sauvegarde");
+    setSaveState("error", `Échec : ${error.message}`);
+    activeButton.title = error.message;
+    $("#error").scrollIntoView({ behavior: "smooth", block: "center" });
   } finally {
     saveButton.disabled = false;
     publishButton.disabled = false;
