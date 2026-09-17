@@ -3095,6 +3095,28 @@ async function saveAudioComposition(type, key, payload, expectedVersion) {
       (await publishResponse.json()).detail || "Publication impossible.",
     );
 }
+function materializeCatalogAudioGroup(groups, groupKey) {
+  if (!groupKey || groups.some((group) => group.key === groupKey)) return groups;
+  const external = state.catalogs.audio_group.find(
+    (item) => item.entity_key === groupKey,
+  );
+  if (!external) return groups;
+  const tracks = { music: [], ambience: [], sfx: [], voice: [] };
+  for (const layer of external.payload.layers || []) {
+    const role = tracks[layer.role] ? layer.role : "ambience";
+    if (layer.audio_key && !tracks[role].includes(layer.audio_key))
+      tracks[role].push(layer.audio_key);
+  }
+  groups.push({
+    key: groupKey,
+    name: external.payload.name || groupKey,
+    volume: Number(external.payload.volume ?? 1),
+    tracks,
+    source_audio_group_key: groupKey,
+  });
+  return groups;
+}
+
 async function assignAudioGroupTargets(groupKey, buildingKeys, npcKeys) {
   const selectedBuildings = new Set(buildingKeys),
     selectedNpcs = new Set(npcKeys);
@@ -3105,7 +3127,13 @@ async function assignAudioGroupTargets(groupKey, buildingKeys, npcKeys) {
     const payload = clone(entity.payload);
     payload.modules ||= {};
     payload.modules.audio ||= {};
-    if (wanted) payload.modules.audio.default_group_key = groupKey;
+    if (wanted) {
+      payload.modules.audio.groups = materializeCatalogAudioGroup(
+        clone(payload.modules.audio.groups || []),
+        groupKey,
+      );
+      payload.modules.audio.default_group_key = groupKey;
+    }
     else if (payload.modules.audio.default_group_key === groupKey)
       payload.modules.audio.default_group_key = "";
     await saveAndPublishEntity("building", entity.entity_key, payload, entity.version);
@@ -10035,6 +10063,7 @@ function buildPayload() {
       }
     }
     const selectedAudioGroup = fieldValue("audio_default_group") || "";
+    materializeCatalogAudioGroup(soundGroups, selectedAudioGroup);
     modules.audio = {
       ...(modules.audio || {}),
       primary_npc_key: fieldValue("audio_primary_npc") || "",
