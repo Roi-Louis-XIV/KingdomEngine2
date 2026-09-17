@@ -59,6 +59,14 @@
 #editor .building-mode .component-tile{min-width:0;padding:8px;gap:7px}
 #editor .building-mode .component-tile span{font-size:16px}
 #editor .building-mode .component-tile b{overflow:hidden;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+#editor .building-mode .studio-editor-view{display:grid;grid-template-rows:minmax(260px,1fr) auto;height:100%;min-height:0;overflow:hidden}
+#editor .building-mode .studio-editor-view .builder-canvas{display:grid;align-items:start;min-height:0!important;overflow:auto}
+#editor .building-mode .studio-editor-view .canvas-page{width:min(920px,92%);min-height:0}
+#editor .building-mode .studio-editor-view .interaction-zone{max-height:240px;overflow:auto}
+#editor .building-mode .studio-graph-view{height:100%;min-height:0;overflow:hidden}
+#editor .building-mode .studio-graph-view .page-link-graph{display:grid;grid-template-rows:auto minmax(0,1fr);height:100%;border:0}
+#editor .building-mode .studio-graph-view .page-graph-scroll{display:grid;place-items:center;max-height:none;min-height:360px;overflow:auto}
+#editor .building-mode .studio-graph-view .page-graph-svg{width:100%!important;height:100%!important;min-height:360px}
 
 @media(max-width:1180px){
   #editor .building-mode .visual-studio{height:auto;max-height:none;overflow:visible}

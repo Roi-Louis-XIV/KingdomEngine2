@@ -3095,6 +3095,35 @@ async function saveAudioComposition(type, key, payload, expectedVersion) {
       (await publishResponse.json()).detail || "Publication impossible.",
     );
 }
+async function assignAudioGroupTargets(groupKey, buildingKeys, npcKeys) {
+  const selectedBuildings = new Set(buildingKeys),
+    selectedNpcs = new Set(npcKeys);
+  for (const entity of state.catalogs.building || []) {
+    const current = entity.payload.modules?.audio?.default_group_key || "",
+      wanted = selectedBuildings.has(entity.entity_key);
+    if (wanted === (current === groupKey)) continue;
+    const payload = clone(entity.payload);
+    payload.modules ||= {};
+    payload.modules.audio ||= {};
+    if (wanted) payload.modules.audio.default_group_key = groupKey;
+    else if (payload.modules.audio.default_group_key === groupKey)
+      payload.modules.audio.default_group_key = "";
+    await saveAndPublishEntity("building", entity.entity_key, payload, entity.version);
+  }
+  for (const npc of state.catalogs.npc || []) {
+    const presence = state.catalogs.voice_presence.find(
+      (item) => item.entity_key === npc.payload.voice_presence_key,
+    );
+    if (!presence) continue;
+    const current = presence.payload.scene_key || "",
+      wanted = selectedNpcs.has(npc.entity_key);
+    if (wanted === (current === groupKey)) continue;
+    const payload = clone(presence.payload);
+    payload.scene_key = wanted ? groupKey : "";
+    await saveAndPublishEntity("voice_presence", presence.entity_key, payload, presence.version);
+  }
+}
+
 function openAudioComposition(mode, entity = null) {
   let dialog = $("#audio-composition-dialog");
   if (!dialog) {
@@ -3104,7 +3133,38 @@ function openAudioComposition(mode, entity = null) {
   }
   const p = clone(entity?.payload || {}),
     isGroup = mode === "groups";
+  const assignedBuildings = new Set(p.building_keys || []),
+    assignedNpcs = new Set(p.npc_keys || []);
+  if (isGroup && entity) {
+    state.catalogs.building.forEach((building) => {
+      if (building.payload.modules?.audio?.default_group_key === entity.entity_key)
+        assignedBuildings.add(building.entity_key);
+    });
+    state.catalogs.npc.forEach((npc) => {
+      const presence = state.catalogs.voice_presence.find(
+        (item) => item.entity_key === npc.payload.voice_presence_key,
+      );
+      if (presence?.payload.scene_key === entity.entity_key)
+        assignedNpcs.add(npc.entity_key);
+    });
+  }
   dialog.innerHTML = `<form><div class="dialog-head"><div><small>${isGroup ? "GROUPE D’AMBIANCE" : "HISTOIRE AUDITIVE"}</small><h2>${entity ? "Modifier" : "Créer"} ${isGroup ? "une atmosphère" : "un récit audio"}</h2></div><button type="button" data-close>×</button></div><div class="audio-composition-form"><div class="form-grid"><label>Nom visible<input name="title" value="${escapeHtml(p.name || "")}" required></label><label>Identifiant technique<input name="key" value="${escapeHtml(entity?.entity_key || "")}" ${entity ? "readonly" : ""} required></label></div><label>Description<textarea name="description" rows="2">${escapeHtml(p.description || "")}</textarea></label>${isGroup ? `<div class="form-grid"><label>Volume général<input name="master_volume" type="number" min="0" max="1" step=".05" value="${Number(p.volume ?? 1)}"></label><label>Fondu d’entrée (s)<input name="fade_in" type="number" min="0" step=".1" value="${Number(p.transitions?.fade_in_seconds || 0)}"></label></div><section><div class="section-head"><div><h3>Couches sonores</h3><small>Ambiance, musique, voix et effets peuvent cohabiter.</small></div><button type="button" data-add-layer>＋ Ajouter une couche</button></div><div id="audio-composition-rows"></div></section><section><h3>Bâtiments suggérés</h3><p class="field-note">Facultatif : aide à retrouver les usages. Un Event peut toujours choisir d’autres bâtiments.</p><div class="audio-building-picker">${state.catalogs.building.map((building) => `<label class="check"><input type="checkbox" name="building_key" value="${escapeHtml(building.entity_key)}" ${(p.building_keys || []).includes(building.entity_key) ? "checked" : ""}><span>${escapeHtml(building.payload.emoji || "🏰")} ${escapeHtml(building.payload.name)}</span></label>`).join("")}</div></section>` : `<section><div class="section-head"><div><h3>Chronologie</h3><small>Chaque étape peut lire un son, afficher un texte ou créer un silence.</small></div><button type="button" data-add-step>＋ Ajouter une étape</button></div><div id="audio-composition-rows" class="audio-story-timeline"></div></section>`}</div><div class="actions"><button type="button" data-close>Annuler</button><button class="primary">Enregistrer et publier sur Discord</button></div></form>`;
+  if (isGroup) {
+    const buildingSection = [...dialog.querySelectorAll(".audio-composition-form section")]
+      .find((section) => section.querySelector("h3")?.textContent === "Bâtiments suggérés");
+    if (buildingSection) {
+      buildingSection.querySelector("h3").textContent = "Attribuer aux bâtiments";
+      buildingSection.querySelector(".field-note").textContent =
+        "L’ambiance devient l’ambiance principale des bâtiments cochés.";
+      buildingSection.querySelectorAll('[name="building_key"]').forEach(
+        (input) => (input.checked = assignedBuildings.has(input.value)),
+      );
+      buildingSection.insertAdjacentHTML(
+        "afterend",
+        `<section><h3>Attribuer aux personnages</h3><p class="field-note">Le Voice Worker utilisera cette scène lorsqu’il incarne le personnage.</p><div class="audio-building-picker">${state.catalogs.npc.map((npc) => `<label class="check"><input type="checkbox" name="npc_key" value="${escapeHtml(npc.entity_key)}" ${assignedNpcs.has(npc.entity_key) ? "checked" : ""}><span>${escapeHtml(npc.payload.emoji || "🧙")} ${escapeHtml(npc.payload.name)}</span></label>`).join("") || '<p class="field-note">Aucun personnage disponible.</p>'}</div></section>`,
+      );
+    }
+  }
   dialog.showModal();
   const rows = dialog.querySelector("#audio-composition-rows");
   if (isGroup)
@@ -3142,6 +3202,9 @@ function openAudioComposition(mode, entity = null) {
       payload.building_keys = [
         ...form.querySelectorAll('[name="building_key"]:checked'),
       ].map((input) => input.value);
+      payload.npc_keys = [
+        ...form.querySelectorAll('[name="npc_key"]:checked'),
+      ].map((input) => input.value);
       payload.layers = [...rows.children]
         .map((row) => ({
           audio_key: row.querySelector('[name="audio_key"]').value,
@@ -3164,6 +3227,8 @@ function openAudioComposition(mode, entity = null) {
       }));
     try {
       await saveAudioComposition(mode, key, payload, entity?.version);
+      if (isGroup)
+        await assignAudioGroupTargets(key, payload.building_keys, payload.npc_keys);
       dialog.close();
       await loadCatalogs();
       loadAudioBank();
@@ -5089,8 +5154,8 @@ function componentTiles(types) {
     .join("");
 }
 function visualStudioMarkup() {
-  return `<section class="visual-studio library-open inspector-open" data-studio-view="editor">
-    <nav class="studio-layout-toolbar" aria-label="Disposition de l’éditeur"><button type="button" data-toggle-studio-library aria-expanded="true">☷ Bibliothèque</button><div><button type="button" class="active" data-studio-view-button="editor">Éditeur</button><button type="button" data-studio-view-button="graph">Graphe de navigation</button></div><button type="button" data-toggle-studio-inspector aria-expanded="true">Inspecteur ◫</button></nav>
+  return `<section class="visual-studio" data-studio-view="editor">
+    <nav class="studio-layout-toolbar" aria-label="Disposition de l’éditeur"><button type="button" data-toggle-studio-library aria-expanded="false">☷ Bibliothèque</button><div><button type="button" class="active" data-studio-view-button="editor">Éditeur</button><button type="button" data-studio-view-button="graph">Graphe de navigation</button></div><button type="button" data-toggle-studio-inspector aria-expanded="false">Inspecteur ◫</button></nav>
     <aside class="studio-panel component-palette"><div class="studio-panel-head"><h3>Composants</h3><small>Glisser</small></div><div class="component-group"><h4>📝 Contenu de l’embed</h4><p>Éléments affichés dans le message Discord.</p><div class="component-library">${componentTiles(["hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "building_inventory"])}</div><h5>Composants prêts à l’emploi</h5><div class="component-library preset-library">${Object.entries(PREDEFINED_COMPONENTS).map(([key, item]) => `<button type="button" class="component-tile preset-tile" draggable="true" data-content-preset="${key}"><span>${item.icon}</span><b>${item.name}</b></button>`).join("")}</div></div><div class="component-group interaction-components"><h4>🖱️ Boutons et menus</h4><p>Éléments interactifs placés dans la grille.</p><div class="component-library">${componentTiles(["button", "select"])}</div><h5>Boutons prêts à l’emploi</h5><div class="component-library preset-library">${Object.entries(
       PREDEFINED_INTERACTIONS,
     )

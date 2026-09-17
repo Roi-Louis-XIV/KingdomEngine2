@@ -387,7 +387,7 @@
 }
 
 .building-mode .visual-studio .builder-canvas {
-  min-height: 480px;
+  min-height: 0;
   overflow: visible;
   background: var(--background, var(--bg));
 }
@@ -397,8 +397,59 @@
   min-width: 0;
 }
 
+.building-mode .studio-editor-view {
+  display: grid;
+  grid-template-rows: minmax(260px, 1fr) auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.building-mode .studio-editor-view .builder-canvas {
+  display: grid;
+  align-items: start;
+  overflow: auto;
+}
+
+.building-mode .studio-editor-view .canvas-page {
+  width: min(920px, 92%);
+  min-height: 0;
+}
+
+.building-mode .studio-editor-view .interaction-zone {
+  max-height: 240px;
+  overflow: auto;
+}
+
 .studio-graph-view {
   padding: 18px;
+}
+
+.building-mode .studio-graph-view {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.building-mode .studio-graph-view .page-link-graph {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  border: 0;
+}
+
+.building-mode .studio-graph-view .page-graph-scroll {
+  display: grid;
+  place-items: center;
+  max-height: none;
+  min-height: 360px;
+  overflow: auto;
+}
+
+.building-mode .studio-graph-view .page-graph-svg {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 360px;
 }
 
 .studio-graph-view[hidden],
