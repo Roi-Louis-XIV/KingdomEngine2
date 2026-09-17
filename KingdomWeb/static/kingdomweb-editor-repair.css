@@ -1,0 +1,25 @@
+/* Editor repair: restore visible form and constrain every pane. Scoped to the modal. */
+#editor:not([hidden]){padding:0!important;place-items:stretch!important}
+#editor .wizard-panel{width:100%!important;max-width:none!important;height:100dvh!important;max-height:100dvh!important;border-radius:0!important;overflow:hidden!important;display:block!important}
+#editor #editor-form{height:100%!important;max-height:100%!important;min-height:0!important;display:flex!important;flex-direction:column!important;overflow:hidden!important}
+#editor .dialog-head{flex:0 0 auto!important;min-height:60px!important;padding:12px 24px!important;position:relative!important;z-index:4}
+#editor .editor-layout{flex:1 1 0!important;min-height:0!important;height:auto!important;display:grid!important;grid-template-rows:minmax(0,1fr)!important;grid-template-columns:minmax(0,1fr) minmax(290px,340px)!important;overflow:hidden!important;gap:0!important}
+#editor .editor-main{grid-column:1!important;grid-row:1!important;min-width:0!important;min-height:0!important;max-height:none!important;height:100%!important;overflow-y:auto!important;overflow-x:hidden!important;padding:0!important;scrollbar-gutter:stable}
+#editor #definition-step{width:100%!important;max-width:1180px!important;margin:0 auto!important;box-sizing:border-box!important;padding:20px clamp(18px,3vw,42px) 65px!important}
+#editor #preset-step:not([hidden]){padding:20px clamp(18px,3vw,42px)!important}
+#editor .context-help{grid-column:2!important;grid-row:1!important;min-width:0!important;min-height:0!important;height:100%!important;max-height:none!important;overflow-y:auto!important;display:block!important;padding:20px!important;border-left:1px solid var(--border,#424044)!important;box-sizing:border-box!important}
+#editor .actions{flex:0 0 auto!important;position:relative!important;bottom:auto!important;z-index:5!important;min-height:56px!important;padding:10px 22px!important;box-sizing:border-box!important}
+#editor .kw-editor-workflow,#editor .kw-inspector{display:none!important}
+#editor .building-workbench-nav{display:none!important}
+#editor .building-workbench-list{display:none!important}
+#editor .editor-main .form-section,#editor .editor-main [data-building-panel]{min-width:0!important;max-width:100%!important}
+#editor .editor-main input,#editor .editor-main textarea,#editor .editor-main select{max-width:100%;box-sizing:border-box}
+#editor .kw-repair-preview{border:1px solid var(--border,#424044);border-radius:14px;padding:17px;margin-bottom:16px;background:var(--surface,#29292c);overflow-wrap:anywhere}
+#editor .kw-repair-preview small{display:block;color:var(--muted,#b5a997);letter-spacing:.08em;font-size:10px;margin-bottom:12px}
+#editor .kw-repair-preview strong{display:block;font-size:19px;margin-bottom:8px;color:var(--text,#f3eee7)}
+#editor .kw-repair-preview p{font-size:13px;line-height:1.6;margin:0;color:var(--muted,#b5a997)}
+#editor .kw-repair-status{display:block;margin-top:14px;font-size:12px;color:#c4a574}
+#editor .kw-repair-status[data-ready=true]{color:#79bd91}
+#editor .kw-repair-note{font-size:11px;line-height:1.5;color:var(--muted,#b5a997);margin-top:12px}
+@media(max-width:1050px){#editor .editor-layout{grid-template-columns:minmax(0,1fr)!important}#editor .context-help{display:none!important}#editor #definition-step{max-width:900px!important}}
+@media(max-width:650px){#editor .dialog-head{padding:10px 14px!important}#editor #definition-step{padding:14px 14px 55px!important}#editor .actions{padding:8px 12px!important;flex-wrap:wrap!important}}
