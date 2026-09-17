@@ -51,7 +51,8 @@
 #editor .building-mode .editor-layout{grid-template-columns:minmax(0,1fr) minmax(320px,380px)!important}
 #editor .building-mode .editor-layout.inspector-collapsed{grid-template-columns:minmax(0,1fr)!important}
 #editor .building-mode .editor-layout.inspector-collapsed .context-help{display:none!important}
-#editor .building-mode .visual-studio{width:100%!important;max-width:none!important;height:clamp(560px,calc(100dvh - 350px),820px);min-height:0!important;overflow:hidden}
+#editor .building-mode .building-sheet-hero{display:none!important}
+#editor .building-mode .visual-studio{width:100%!important;max-width:none!important;height:clamp(620px,calc(100dvh - 235px),900px);min-height:0!important;overflow:hidden}
 #editor .building-mode .visual-studio>.studio-panel{min-height:0;overflow:auto}
 #editor .building-mode .visual-studio>.canvas-shell{overflow:hidden}
 #editor .building-mode .studio-editor-view{min-height:0;overflow:auto}
@@ -61,12 +62,17 @@
 #editor .building-mode .component-tile b{overflow:hidden;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
 #editor .building-mode .studio-editor-view{display:grid;grid-template-rows:minmax(260px,1fr) auto;height:100%;min-height:0;overflow:hidden}
 #editor .building-mode .studio-editor-view .builder-canvas{display:grid;align-items:start;min-height:0!important;overflow:auto}
-#editor .building-mode .studio-editor-view .canvas-page{width:min(920px,92%);min-height:0}
+#editor .building-mode .studio-editor-view .canvas-page{width:min(1100px,94%);min-height:0;margin:0 auto}
 #editor .building-mode .studio-editor-view .interaction-zone{max-height:240px;overflow:auto}
 #editor .building-mode .studio-graph-view{height:100%;min-height:0;overflow:hidden}
 #editor .building-mode .studio-graph-view .page-link-graph{display:grid;grid-template-rows:auto minmax(0,1fr);height:100%;border:0}
 #editor .building-mode .studio-graph-view .page-graph-scroll{display:grid;place-items:center;max-height:none;min-height:360px;overflow:auto}
 #editor .building-mode .studio-graph-view .page-graph-svg{width:100%!important;height:100%!important;min-height:360px}
+#editor .building-mode .visual-studio.library-open{grid-template-columns:minmax(320px,19vw) minmax(0,1fr)!important}
+#editor .building-mode .visual-studio.inspector-open{grid-template-columns:minmax(0,1fr) minmax(340px,20vw)!important}
+#editor .building-mode .visual-studio.library-open.inspector-open{grid-template-columns:minmax(320px,19vw) minmax(0,1fr) minmax(340px,20vw)!important}
+#editor .building-mode .component-palette .component-library{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+#editor .building-mode .studio-inspector{min-width:0;overflow:auto}
 
 @media(max-width:1180px){
   #editor .building-mode .visual-studio{height:auto;max-height:none;overflow:visible}
