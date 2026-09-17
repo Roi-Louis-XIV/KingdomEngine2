@@ -2512,6 +2512,7 @@ function resetEditor() {
     .forEach((element) => definitionStep.insertBefore(element, typeFields));
   $(".building-workbench-nav")?.remove();
   $("#building-list-toggle")?.remove();
+  $("#npc-inspector-toggle")?.remove();
   state.editing = null;
   state.duplicate = false;
   state.selectedPreset = null;
@@ -4651,6 +4652,20 @@ function renderFields(payload) {
     );
     $("#add-npc-reaction").onclick = () =>
       addNpcReaction($("#npc-reactions"), {});
+    const npcLayout = $("#editor .editor-layout"),
+      npcHelp = $("#context-help"),
+      npcHead = $("#editor .dialog-head");
+    npcLayout.classList.add("inspector-collapsed");
+    npcHelp.hidden = true;
+    npcHead?.querySelector("#close-editor")?.insertAdjacentHTML(
+      "beforebegin",
+      '<button type="button" id="npc-inspector-toggle" class="secondary" aria-expanded="false">◫ Inspecteur</button>',
+    );
+    $("#npc-inspector-toggle").onclick = () => {
+      const hidden = npcLayout.classList.toggle("inspector-collapsed");
+      npcHelp.hidden = hidden;
+      $("#npc-inspector-toggle").setAttribute("aria-expanded", String(!hidden));
+    };
   }
   if (state.type === "profession")
     root.innerHTML = `<section class="form-section"><h3>Fiche métier</h3><div class="form-grid">${input("Emoji", "profession_emoji", payload.emoji || "⚒️")}${select("Outil principal", "profession_item", payload.required_item || "", catalogOptions("item", payload.required_item || ""))}${input("Niveau initial", "profession_level", payload.initial_level || 1, "number", 'min="1"')}${input("XP par niveau", "profession_xp", payload.experience_per_level || 100, "number", 'min="1"')}</div><p class="field-note">Les bâtiments et activités associés sont calculés depuis leurs usages réels.</p></section>`;
@@ -11708,6 +11723,7 @@ async function saveEditor(publishRequested = false) {
           String(latest.author || ""),
         );
       if (
+        state.type !== "npc" &&
         !automatic &&
         !confirm(
           `Une autre modification a créé la version ${latest.version}. Voulez-vous enregistrer vos changements par-dessus cette version ?`,
@@ -11722,6 +11738,15 @@ async function saveEditor(publishRequested = false) {
         headers,
         body: JSON.stringify({ payload, expected_version: latest.version }),
       });
+      // Un service peut enrichir la fiche PNJ (présence/voix) exactement entre
+      // la relecture et cette seconde écriture. L'action explicite de
+      // l'utilisateur reste alors prioritaire sur cette mise à jour technique.
+      if (response.status === 409)
+        response = await fetch(`/api/content/${state.type}/${key}`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ payload, expected_version: null }),
+        });
     }
     if (!response.ok) throw Error((await response.json()).detail);
     let saved = await response.json();

@@ -1323,6 +1323,15 @@
   height: calc(100% - 142px);
 }
 
+.wizard-panel.npc-mode .editor-layout.inspector-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.wizard-panel.npc-mode .editor-layout.inspector-collapsed .context-help,
+.wizard-panel.npc-mode .context-help[hidden] {
+  display: none !important;
+}
+
 .wizard-panel.npc-mode .editor-main {
   width: 100%;
   max-height: none;
