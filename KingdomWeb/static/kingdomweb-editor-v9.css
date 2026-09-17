@@ -113,6 +113,10 @@
 #editor .building-mode [data-toggle-studio-library],
 #editor .building-mode [data-toggle-studio-inspector]{display:none!important}
 #editor .building-mode .studio-layout-toolbar{justify-content:center}
+#editor .building-mode .property-mode-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 0 14px;padding:4px;border:1px solid var(--border);border-radius:10px;background:var(--surface-muted)}
+#editor .building-mode .property-mode-tabs button{min-height:36px;border:0;border-radius:7px;background:transparent;color:var(--text-secondary);font-weight:700}
+#editor .building-mode .property-mode-tabs button.active{background:var(--accent);color:var(--accent-contrast)}
+#editor .building-mode .property-mode-content{min-width:0}
 
 @media(max-width:1180px){
   #editor .building-mode .visual-studio,

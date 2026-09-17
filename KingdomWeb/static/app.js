@@ -17,6 +17,7 @@ const state = {
   interfaceDraft: null,
   selectedPage: null,
   selectedComponent: null,
+  interfaceInspectorMode: "page",
   adminTimer: null,
   supervisionTab: "overview",
   settingsTab: "onboarding",
@@ -5343,6 +5344,7 @@ function openSimpleComponentEditor(pageIndex, componentIndex) {
   if (!["hero", "text", "sequence", "button"].includes(component.type)) {
     state.selectedPage = page.key;
     state.selectedComponent = component.id;
+    state.interfaceInspectorMode = "component";
     $("#simple-page-dialog")?.close();
     $("[data-open-full-builder]").click();
     return;
@@ -5486,6 +5488,7 @@ function bindVisualStudio() {
       const component = newComponent(type);
       page.components.splice(index, 0, component);
       state.selectedComponent = component.id;
+      state.interfaceInspectorMode = "component";
     }
     if (token.startsWith("contentpreset:")) {
       const preset = PREDEFINED_COMPONENTS[token.slice(14)];
@@ -5498,6 +5501,7 @@ function bindVisualStudio() {
           component.props.building = state.interfaceDraft.target_building_key;
         page.components.splice(index, 0, component);
         state.selectedComponent = component.id;
+        state.interfaceInspectorMode = "component";
       }
     }
     if (token.startsWith("move:")) {
@@ -5550,6 +5554,7 @@ function placeInteraction(type, slot) {
   component.slot = slot;
   page.components.push(component);
   state.selectedComponent = component.id;
+  state.interfaceInspectorMode = "component";
   renderVisualStudio();
 }
 
@@ -5687,6 +5692,7 @@ function renderVisualStudio() {
       (button.onclick = () => {
         state.selectedPage = button.dataset.page;
         state.selectedComponent = null;
+        state.interfaceInspectorMode = "page";
         renderVisualStudio();
       }),
   );
@@ -5720,6 +5726,7 @@ function renderVisualStudio() {
   $$("[data-component-id]").forEach((element) => {
     element.onclick = () => {
       state.selectedComponent = element.dataset.componentId;
+      state.interfaceInspectorMode = "component";
       renderVisualStudio();
     };
     element.ondragstart = (event) =>
@@ -5867,6 +5874,7 @@ function renderPropertyPanel() {
   )}<h4>Page</h4>${propertyInput("Nom", "page_name", page.name)}${propertyInput("Identifiant", "page_key", page.key)}<div class="checks">${check("Page de départ", "page_start", state.interfaceDraft.start_page === page.key)}</div>${state.interfaceDraft.pages.length > 1 ? `<button type="button" class="remove-page secondary">Supprimer cette page</button>` : ""}`;
   if (!component) {
     panel.innerHTML = `${pageFields}<p class="field-note">Sélectionnez un composant pour afficher ses propriétés.</p>`;
+    state.interfaceInspectorMode = "page";
     bindPropertyPanel();
     return;
   }
@@ -5964,7 +5972,17 @@ function renderPropertyPanel() {
   }
   if (component.type === "button") fields = buttonPropertyFields(component);
   if (component.type === "select") fields = selectPropertyFields(component);
-  panel.innerHTML = `${pageFields}<hr><h4>${COMPONENT_LIBRARY[component.type].icon} ${COMPONENT_LIBRARY[component.type].name}</h4>${fields}<button type="button" class="delete-component secondary">Supprimer le composant</button>`;
+  const componentFields = `<h4>${COMPONENT_LIBRARY[component.type].icon} ${COMPONENT_LIBRARY[component.type].name}</h4>${fields}<button type="button" class="delete-component secondary">Supprimer le composant</button>`,
+    componentLabel = INTERACTIVE_COMPONENT_TYPES.has(component.type)
+      ? "Bouton / menu"
+      : "Composant";
+  panel.innerHTML = `<nav class="property-mode-tabs" aria-label="Paramètres affichés"><button type="button" data-property-mode="page" class="${state.interfaceInspectorMode === "page" ? "active" : ""}">Page</button><button type="button" data-property-mode="component" class="${state.interfaceInspectorMode !== "page" ? "active" : ""}">${componentLabel}</button></nav><div class="property-mode-content">${state.interfaceInspectorMode === "page" ? pageFields : componentFields}</div>`;
+  panel.querySelectorAll("[data-property-mode]").forEach((button) => {
+    button.onclick = () => {
+      state.interfaceInspectorMode = button.dataset.propertyMode;
+      renderPropertyPanel();
+    };
+  });
   bindPropertyPanel();
 }
 
@@ -6136,6 +6154,7 @@ function placePresetInteraction(preset, slot) {
     : slot;
   page.components.push(component);
   state.selectedComponent = component.id;
+  state.interfaceInspectorMode = "component";
   renderVisualStudio();
 }
 function newPresetComponent(preset) {
