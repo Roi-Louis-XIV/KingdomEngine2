@@ -383,6 +383,7 @@ class GameEngine:
         messages: list[str] = []
         selected_results: list[str] = []
         with self.store.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
             previous = db.execute("SELECT result_json FROM action_log WHERE interaction_id=?", (interaction_id,)).fetchone()
             if previous: return json.loads(previous[0])
             now = _now()
@@ -397,6 +398,11 @@ class GameEngine:
                     "UPDATE players SET display_name=?,avatar_url=?,updated_at=? WHERE discord_id=?",
                     (str(context.get("display_name", "")), str(context.get("avatar_url", "")), now, discord_id),
                 )
+            self._refresh_transformation_jobs(db)
+            if self._player_transformation_busy(db, discord_id) and not any(
+                effect.get("type") == "claim_transformation" for effect in action.get("effects", [])
+            ):
+                raise ValidationError("Vous êtes déjà occupé par une transformation.")
             self._check_cooldowns(db, discord_id, building_key, action)
             self._check_requirements(db, discord_id, action.get("requirements", {}))
             self._check_condition(db, discord_id, building_key, action_key, action.get("conditions"), context)
@@ -557,6 +563,12 @@ class GameEngine:
                     selected_results.extend(map(str, selected))
                     claim_hooks = json.loads(job["claim_hooks_json"] or "[]")
                     effects[0:0] = [{"type": "emit", "event": hook["event"], "payload": {**hook.get("payload", {}), "selected_results": selected}} for hook in claim_hooks]
+                elif kind == "start_transformation":
+                    job = self._start_transformation(db, discord_id, building_key, effect, building)
+                    messages.append(f"Poste {job['slot_index'] + 1} réservé. Production lancée.")
+                elif kind == "claim_transformation":
+                    job = self._claim_transformation(db, discord_id, building_key, str(effect["recipe_key"]))
+                    messages.append(f"Production récupérée sur le poste {job['slot_index'] + 1}.")
                 elif kind == "emit": emitted.append(Event(str(effect["event"]), f"building:{building_key}", {"discord_id": discord_id, **effect.get("payload", {})}))
                 elif kind == "play_audio":
                     self.store.queue_audio(db, "play", building_key, audio_key=str(effect["audio_key"]), bot_key=str(effect.get("bot_key", "")), context={"discord_id": discord_id, "action": action_key})
@@ -577,6 +589,7 @@ class GameEngine:
                 "ok": True, "messages": messages, "player": snapshot, "action": action_key,
                 "duration_seconds": int(action.get("duration_seconds", 0)),
                 "selected_results": selected_results,
+                "workstations": self._workstation_states(db, building_key),
             }
             self._set_cooldowns(db, discord_id, building_key, action)
             db.execute("INSERT INTO action_log(interaction_id,discord_id,building_key,action_key,result_json,created_at) VALUES(?,?,?,?,?,?)", (interaction_id, discord_id, building_key, action_key, json.dumps(result, ensure_ascii=False), _now()))
@@ -612,6 +625,114 @@ class GameEngine:
                 (discord_id, building_key),
             ).fetchall()
         return [{"action": str(row[0]), "ready_at": float(row[1])} for row in rows]
+
+    def workstation_states(self, building_key: str) -> list[dict[str, Any]]:
+        """Expose l'état durable des postes pour Discord et KingdomWeb."""
+        with self.store.connection() as db:
+            self._refresh_transformation_jobs(db)
+            return self._workstation_states(db, building_key)
+
+    @staticmethod
+    def _refresh_transformation_jobs(db) -> None:
+        now = time.time()
+        db.execute(
+            "UPDATE transformation_jobs SET status='transformation',updated_at=? "
+            "WHERE status='preparation' AND preparation_ends_at<=? AND transformation_ends_at>?",
+            (_now(), now, now),
+        )
+        db.execute(
+            "UPDATE transformation_jobs SET status='ready',updated_at=? "
+            "WHERE status IN ('preparation','transformation') AND transformation_ends_at<=?",
+            (_now(), now),
+        )
+
+    @staticmethod
+    def _player_transformation_busy(db, discord_id: str) -> bool:
+        now = time.time()
+        return db.execute(
+            "SELECT 1 FROM transformation_jobs WHERE preparer_id=? AND "
+            "((status='preparation' AND preparation_ends_at>?) OR "
+            "(status='transformation' AND active_transformation=1 AND transformation_ends_at>?)) LIMIT 1",
+            (discord_id, now, now),
+        ).fetchone() is not None
+
+    def _start_transformation(self, db, discord_id: str, building_key: str, effect: dict[str, Any], building: dict[str, Any]) -> dict[str, Any]:
+        workstation_key = str(effect["workstation_key"])
+        workstation = next(
+            (item for item in building.get("modules", {}).get("workstations", []) if item.get("key") == workstation_key),
+            None,
+        )
+        if not workstation:
+            raise ValidationError("Le poste de transformation configuré n'existe plus.")
+        slots = max(1, int(workstation.get("slots", 1)))
+        occupied = {
+            int(row[0]) for row in db.execute(
+                "SELECT slot_index FROM transformation_jobs WHERE building_key=? AND workstation_key=? "
+                "AND status IN ('preparation','transformation','ready')",
+                (building_key, workstation_key),
+            ).fetchall()
+        }
+        slot = next((index for index in range(slots) if index not in occupied), None)
+        if slot is None:
+            raise ValidationError("Tous les postes compatibles sont actuellement occupés.")
+        now = time.time()
+        preparation = max(0, int(effect.get("preparation_seconds", 0)))
+        transformation = max(0, int(effect.get("transformation_seconds", 0)))
+        preparation_ends = now + preparation
+        transformation_ends = preparation_ends + transformation
+        status = "preparation" if preparation else ("transformation" if transformation else "ready")
+        output = {str(effect["output_item_key"]): max(1, int(effect.get("output_quantity", 1)))}
+        stamp = _now()
+        cursor = db.execute(
+            "INSERT INTO transformation_jobs(building_key,recipe_key,workstation_key,slot_index,preparer_id,status,"
+            "preparation_ends_at,transformation_ends_at,active_transformation,output_json,profession_key,xp_total,"
+            "preparer_xp_percent,experience_per_level,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (building_key, str(effect["recipe_key"]), workstation_key, slot, discord_id, status,
+             preparation_ends, transformation_ends, int(bool(effect.get("active_transformation", False))),
+             json.dumps(output, ensure_ascii=False), str(effect.get("profession", "")),
+             max(0, int(effect.get("xp_total", 0))), max(0, min(100, int(effect.get("preparer_xp_percent", 80)))),
+             max(1, int(effect.get("experience_per_level", 100))), stamp, stamp),
+        )
+        return {"id": int(cursor.lastrowid), "slot_index": slot, "status": status}
+
+    def _claim_transformation(self, db, discord_id: str, building_key: str, recipe_key: str) -> dict[str, Any]:
+        self._refresh_transformation_jobs(db)
+        job = db.execute(
+            "SELECT * FROM transformation_jobs WHERE building_key=? AND recipe_key=? AND status='ready' ORDER BY id LIMIT 1",
+            (building_key, recipe_key),
+        ).fetchone()
+        if not job:
+            raise ValidationError("Aucune production terminée n'est disponible sur ce poste.")
+        for item, amount in json.loads(job["output_json"]).items():
+            self._change_stock(db, building_key, str(item), int(amount))
+        profession = str(job["profession_key"])
+        total = int(job["xp_total"])
+        preparer_xp = total * int(job["preparer_xp_percent"]) // 100
+        collector_xp = total - preparer_xp
+        if profession and preparer_xp:
+            self._award_experience(db, str(job["preparer_id"]), profession, preparer_xp, int(job["experience_per_level"]))
+        if profession and collector_xp:
+            self._award_experience(db, discord_id, profession, collector_xp, int(job["experience_per_level"]))
+        db.execute(
+            "UPDATE transformation_jobs SET status='completed',collector_id=?,preparer_xp_awarded=?,collector_xp_awarded=?,completed_at=?,updated_at=? WHERE id=? AND status='ready'",
+            (discord_id, preparer_xp, collector_xp, _now(), _now(), int(job["id"])),
+        )
+        return {"id": int(job["id"]), "slot_index": int(job["slot_index"]), "preparer_xp": preparer_xp, "collector_xp": collector_xp}
+
+    @staticmethod
+    def _workstation_states(db, building_key: str) -> list[dict[str, Any]]:
+        now = time.time()
+        rows = db.execute(
+            "SELECT id,recipe_key,workstation_key,slot_index,preparer_id,collector_id,status,preparation_ends_at,transformation_ends_at "
+            "FROM transformation_jobs WHERE building_key=? AND status IN ('preparation','transformation','ready') ORDER BY workstation_key,slot_index",
+            (building_key,),
+        ).fetchall()
+        return [{
+            "id": int(row[0]), "recipe_key": str(row[1]), "workstation_key": str(row[2]),
+            "slot_index": int(row[3]), "preparer_id": str(row[4]), "collector_id": str(row[5]),
+            "status": str(row[6]), "preparation_ends_at": float(row[7]), "transformation_ends_at": float(row[8]),
+            "remaining_seconds": max(0, int(float(row[8]) - now) + (1 if float(row[8]) > now else 0)),
+        } for row in rows]
 
     def action_available(self, building_key: str, action_key: str) -> bool:
         building = self.building(building_key)["payload"]

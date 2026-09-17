@@ -582,7 +582,7 @@ const fieldValue = (name, root = document) => {
   const element = root.querySelector(`[data-field="${name}"]`);
   if (!element) return undefined;
   if (element.type === "checkbox") return element.checked;
-  if (element.type === "number") return Number(element.value);
+  if (["number", "range"].includes(element.type)) return Number(element.value);
   return element.value;
 };
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -8228,7 +8228,7 @@ function renderBuildingFields(payload, preset = null) {
     .querySelector('[data-building-panel="mechanics"] > details')
     .insertAdjacentHTML(
       "beforebegin",
-      `<section class="form-section"><div class="section-copy"><span class="step-dot">🛒</span><div><h3>Commerce, recettes, récits et jeux</h3><p>Ces réglages alimentent directement les menus Discord. Aucun JSON n'est nécessaire pour les opérations courantes.</p></div></div><div class="section-head"><b>Produits</b><button type="button" class="secondary" id="add-product">＋ Ajouter un produit</button></div><div id="product-modules"></div><div class="section-head"><b>Recettes temporisées</b><button type="button" class="secondary" id="add-recipe">＋ Ajouter une recette</button></div><div id="recipe-modules"></div><div class="section-head"><b>Rumeurs et récits pondérés</b><button type="button" class="secondary" id="add-rumor">＋ Ajouter un récit</button></div><div id="rumor-modules"></div><div class="form-grid">${input("Cooldown joueur (secondes)", "rumor_player_cooldown", modules.rumors?.player_cooldown_seconds || 0, "number", "min=0")}${input("Cooldown global (secondes)", "rumor_global_cooldown", modules.rumors?.global_cooldown_seconds || 0, "number", "min=0")}</div><div class="section-head"><b>Jeux configurables</b><button type="button" class="secondary" id="add-game">＋ Ajouter un jeu</button></div><div id="game-modules"></div></section>`,
+      `<section class="form-section"><div class="section-copy"><span class="step-dot">🛒</span><div><h3>Commerce, recettes, récits et jeux</h3><p>Ces réglages alimentent directement les menus Discord. Aucun JSON n'est nécessaire pour les opérations courantes.</p></div></div><div class="section-head"><b>Produits</b><button type="button" class="secondary" id="add-product">＋ Ajouter un produit</button></div><div id="product-modules"></div><div class="section-head"><div><b>Postes de transformation partagés</b><small class="field-note">Configurez les équipements et leurs emplacements indépendants.</small></div><button type="button" class="secondary" id="add-workstation">＋ Ajouter un poste</button></div><div id="workstation-modules" class="workstation-grid"></div><div id="workstation-live-states" class="workstation-live-states"></div><div class="section-head"><b>Recettes temporisées</b><button type="button" class="secondary" id="add-recipe">＋ Ajouter une recette</button></div><div id="recipe-modules"></div><div class="section-head"><b>Rumeurs et récits pondérés</b><button type="button" class="secondary" id="add-rumor">＋ Ajouter un récit</button></div><div id="rumor-modules"></div><div class="form-grid">${input("Cooldown joueur (secondes)", "rumor_player_cooldown", modules.rumors?.player_cooldown_seconds || 0, "number", "min=0")}${input("Cooldown global (secondes)", "rumor_global_cooldown", modules.rumors?.global_cooldown_seconds || 0, "number", "min=0")}</div><div class="section-head"><b>Jeux configurables</b><button type="button" class="secondary" id="add-game">＋ Ajouter un jeu</button></div><div id="game-modules"></div></section>`,
     );
   const advancedPanel = root.querySelector('[data-building-panel="advanced"]');
   root
@@ -8257,9 +8257,13 @@ function renderBuildingFields(payload, preset = null) {
   (modules.activities || []).forEach(addActivityModule);
   (modules.deliveries || []).forEach(addDeliveryModule);
   (modules.products || []).forEach(addProductModule);
+  (modules.workstations || []).forEach(addWorkstationModule);
   (modules.recipes || []).forEach(addRecipeModule);
+  refreshWorkstationSelectors();
+  loadWorkstationStates(buildingKey, modules.workstations || []);
   (modules.rumors?.catalogue || []).forEach(addRumorModule);
   Object.values(modules.games || {}).forEach(addGameModule);
+  $("#add-workstation").onclick = () => { addWorkstationModule({}); refreshWorkstationSelectors(); };
   $("#add-profession").onclick = () => {
     addProfessionModule({});
     refreshActivityProfessionOptions();
@@ -9490,12 +9494,71 @@ function addRecipeIngredient(root, key = "", amount = 1) {
   bindItemSelectors(row);
   row.querySelector(".remove").onclick = () => row.remove();
 }
+function workstationOptions(current = "") {
+  const options = $$("#workstation-modules > .workstation-module")
+    .map((element) => [fieldValue("workstation_key", element), fieldValue("workstation_name", element)])
+    .filter(([key]) => key);
+  if (current && !options.some(([key]) => key === current)) options.push([current, current]);
+  return [["", "Recette classique (sans poste partagé)"], ...options];
+}
+function refreshWorkstationSelectors() {
+  $$("#recipe-modules [data-field='recipe_workstation']").forEach((field) => {
+    const current = field.value;
+    field.innerHTML = workstationOptions(current).map(([key, label]) => `<option value="${escapeHtml(key)}" ${key === current ? "selected" : ""}>${escapeHtml(label)}</option>`).join("");
+  });
+}
+function addWorkstationModule(workstation = {}) {
+  const element = document.createElement("article");
+  element.className = "module-card workstation-module";
+  element.innerHTML = `<button type="button" class="remove">×</button><div class="workstation-heading"><span>${escapeHtml(workstation.emoji || "⚙️")}</span><div><b>${escapeHtml(workstation.name || "Nouveau poste")}</b><small>Poste partagé configurable</small></div></div><div class="form-grid">${input("Identifiant", "workstation_key", workstation.key || "")}${input("Nom", "workstation_name", workstation.name || "")}${input("Icône", "workstation_emoji", workstation.emoji || "⚙️")}${input("Nombre de postes", "workstation_slots", workstation.slots || 1, "number", "min=1 max=50")}</div>`;
+  $("#workstation-modules").append(element);
+  element.querySelector(".remove").onclick = () => { element.remove(); refreshWorkstationSelectors(); };
+  element.querySelectorAll("input").forEach((field) => field.addEventListener("input", () => {
+    element.querySelector(".workstation-heading b").textContent = fieldValue("workstation_name", element) || "Nouveau poste";
+    refreshWorkstationSelectors();
+  }));
+}
+function readWorkstationModules() {
+  return $$("#workstation-modules > .workstation-module").map((element, index) => ({
+    key: fieldValue("workstation_key", element) || `poste_${index + 1}`,
+    name: fieldValue("workstation_name", element) || `Poste ${index + 1}`,
+    emoji: fieldValue("workstation_emoji", element) || "⚙️",
+    slots: fieldValue("workstation_slots", element) || 1,
+  }));
+}
+async function loadWorkstationStates(buildingKey, workstations) {
+  const root = $("#workstation-live-states");
+  if (!root) return;
+  try {
+    const response = await fetch(`/api/world/workstations/${encodeURIComponent(buildingKey)}`, { headers });
+    if (!response.ok) throw Error("status");
+    const jobs = (await response.json()).jobs || [];
+    const labels = { preparation: "Préparation", transformation: "Transformation", ready: "Prêt" };
+    const cards = workstations.flatMap((station) => Array.from({ length: Number(station.slots || 1) }, (_, slot) => {
+      const job = jobs.find((entry) => entry.workstation_key === station.key && Number(entry.slot_index) === slot);
+      const status = job?.status || "free";
+      const recipe = job ? readRecipeModules().find((entry) => entry.key === job.recipe_key) : null;
+      const total = Number(recipe?.preparation_seconds || 0) + Number(recipe?.transformation_seconds || 0);
+      const progress = job ? (status === "ready" ? 100 : Math.max(4, Math.min(99, 100 - (Number(job.remaining_seconds || 0) / Math.max(1, total)) * 100))) : 0;
+      return `<article class="workstation-state ${status}"><header><b>${escapeHtml(station.emoji || "⚙️")} ${escapeHtml(station.name)} · ${slot + 1}</b><span>${labels[status] || "Libre"}</span></header>${job ? `<small>${escapeHtml(job.recipe_key)} · ${job.remaining_seconds || 0} s restantes</small><div><i style="width:${progress}%"></i></div>` : "<small>Disponible pour une nouvelle production</small>"}</article>`;
+    }));
+    root.innerHTML = cards.length ? `<div class="workstation-state-title"><b>État des postes</b><span>Actualisation automatique</span></div><div class="workstation-state-grid">${cards.join("")}</div>` : "";
+  } catch (_) {
+    root.innerHTML = '<p class="field-note">Les états des postes seront visibles après publication du bâtiment.</p>';
+  }
+  setTimeout(() => {
+    if ($("#workstation-live-states")) loadWorkstationStates(buildingKey, readWorkstationModules());
+  }, 5000);
+}
+function recipeRange(label, field, value, max = 7200) {
+  return `<label class="recipe-range"><span>${escapeHtml(label)} <b data-range-value="${field}">${Number(value || 0)}${field === "recipe_xp_share" ? " %" : " s"}</b></span><input type="range" data-field="${field}" min="0" max="${max}" step="${field === "recipe_xp_share" ? 1 : 5}" value="${Number(value || 0)}"></label>`;
+}
 function addRecipeModule(recipe = {}) {
   const element = document.createElement("details");
   element.className = "module-card recipe-module";
   element.open = !recipe.key;
   element.dataset.original = JSON.stringify(recipe);
-  element.innerHTML = `<summary><strong>🍲 ${escapeHtml(recipe.name || recipe.title || recipe.key || "Nouvelle recette")}</strong><small>${Number(recipe.duration_seconds || 0)} s</small></summary><div class="module-content"><button type="button" class="remove">×</button><div class="form-grid">${input("Identifiant", "recipe_key", recipe.key || "")}${input("Nom", "recipe_name", recipe.name || recipe.title || "")}${select("Métier", "recipe_profession", recipe.profession || "", professionOptions(recipe.profession || ""))}${input("Niveau requis", "recipe_level", recipe.required_level || 1, "number", "min=1")}${input("Durée (secondes)", "recipe_duration", recipe.duration_seconds || 0, "number", "min=0")}${input("Énergie", "recipe_energy", recipe.energy_cost || 0, "number", "min=0")}${itemSelector("Produit obtenu", "recipe_output", recipe.output_item_key || "")}${input("Quantité produite", "recipe_output_quantity", recipe.output_quantity || 1, "number", "min=1")}${select(
+  element.innerHTML = `<summary><strong>🍲 ${escapeHtml(recipe.name || recipe.title || recipe.key || "Nouvelle recette")}</strong><small>${Number((recipe.preparation_seconds || 0) + (recipe.transformation_seconds ?? recipe.duration_seconds ?? 0))} s</small></summary><div class="module-content"><button type="button" class="remove">×</button><div class="form-grid">${input("Identifiant", "recipe_key", recipe.key || "")}${input("Nom", "recipe_name", recipe.name || recipe.title || "")}${select("Métier", "recipe_profession", recipe.profession || "", professionOptions(recipe.profession || ""))}${input("Niveau requis", "recipe_level", recipe.required_level || 1, "number", "min=1")}${input("Énergie", "recipe_energy", recipe.energy_cost || 0, "number", "min=0")}${itemSelector("Produit obtenu", "recipe_output", recipe.output_item_key || "")}${input("Quantité produite", "recipe_output_quantity", recipe.output_quantity || 1, "number", "min=1")}${select(
     "Destination",
     "recipe_destination",
     recipe.output_destination || "building_stock",
@@ -9503,7 +9566,7 @@ function addRecipeModule(recipe = {}) {
       ["building_stock", "Stock du bâtiment"],
       ["player", "Inventaire du joueur"],
     ],
-  )}${input("Salaire", "recipe_reward", recipe.reward || 0, "number", "min=0")}${input("Expérience", "recipe_experience", recipe.experience || 0, "number", "min=0")}</div><div class="section-head"><b>Ingrédients</b><button type="button" class="secondary add-recipe-ingredient">＋ Ajouter</button></div><div class="recipe-ingredients"></div><div class="checks">${check("Recette active", "recipe_active", recipe.active !== false)}</div></div>`;
+  )}${input("Salaire", "recipe_reward", recipe.reward || 0, "number", "min=0")}${input("XP totale", "recipe_experience", recipe.experience || 0, "number", "min=0")}</div><section class="workstation-recipe-config"><div class="form-grid">${select("Poste compatible", "recipe_workstation", recipe.workstation_key || "", workstationOptions(recipe.workstation_key || ""))}</div><div class="recipe-sliders">${recipeRange("Préparation", "recipe_preparation", recipe.preparation_seconds || 0)}${recipeRange("Transformation", "recipe_transformation", recipe.transformation_seconds ?? recipe.duration_seconds ?? 0)}${recipeRange("Part XP du préparateur", "recipe_xp_share", recipe.preparer_xp_percent ?? 80, 100)}</div><div class="checks">${check("Transformation active : le préparateur reste occupé", "recipe_active_transformation", !!recipe.active_transformation)}</div><div class="recipe-live-summary" aria-live="polite"></div></section><div class="section-head"><b>Ingrédients</b><button type="button" class="secondary add-recipe-ingredient">＋ Ajouter</button></div><div class="recipe-ingredients"></div><div class="checks">${check("Recette active", "recipe_active", recipe.active !== false)}</div></div>`;
   $("#recipe-modules").append(element);
   element.querySelector(".form-grid").insertAdjacentHTML("beforeend",
     select("Prélever les ingrédients dans", "recipe_source", recipe.ingredient_source || "player_inventory", [
@@ -9511,6 +9574,16 @@ function addRecipeModule(recipe = {}) {
     ]) + input("Catégorie du menu", "recipe_category", recipe.category || "production")
        + check("Mission partagée : un seul joueur à la fois, une mission par joueur", "recipe_shared_mission", !!recipe.shared_mission));
   bindItemSelectors(element);
+  const updateSummary = () => {
+    const preparation = Number(fieldValue("recipe_preparation", element) || 0), transformation = Number(fieldValue("recipe_transformation", element) || 0), share = Number(fieldValue("recipe_xp_share", element) || 80), xp = Number(fieldValue("recipe_experience", element) || 0);
+    element.querySelector('[data-range-value="recipe_preparation"]').textContent = `${preparation} s`;
+    element.querySelector('[data-range-value="recipe_transformation"]').textContent = `${transformation} s`;
+    element.querySelector('[data-range-value="recipe_xp_share"]').textContent = `${share} %`;
+    element.querySelector(".recipe-live-summary").innerHTML = `<b>Durée totale : ${preparation + transformation} s</b><span>Préparateur : ${Math.floor(xp * share / 100)} XP</span><span>Récupérateur : ${xp - Math.floor(xp * share / 100)} XP</span>`;
+    element.querySelector("summary small").textContent = `${preparation + transformation} s`;
+  };
+  element.querySelectorAll(".workstation-recipe-config input, [data-field='recipe_experience']").forEach((field) => field.addEventListener("input", updateSummary));
+  updateSummary();
   Object.entries(recipe.ingredients || {}).forEach(([key, amount]) =>
     addRecipeIngredient(
       element.querySelector(".recipe-ingredients"),
@@ -9543,7 +9616,12 @@ function readRecipeModules() {
       name: fieldValue("recipe_name", element),
       profession: fieldValue("recipe_profession", element),
       required_level: fieldValue("recipe_level", element),
-      duration_seconds: fieldValue("recipe_duration", element),
+      duration_seconds: fieldValue("recipe_preparation", element) + fieldValue("recipe_transformation", element),
+      preparation_seconds: fieldValue("recipe_preparation", element),
+      transformation_seconds: fieldValue("recipe_transformation", element),
+      workstation_key: fieldValue("recipe_workstation", element) || undefined,
+      active_transformation: fieldValue("recipe_active_transformation", element),
+      preparer_xp_percent: fieldValue("recipe_xp_share", element),
       energy_cost: fieldValue("recipe_energy", element),
       output_item_key: fieldValue("recipe_output", element),
       output_quantity: fieldValue("recipe_output_quantity", element),
@@ -9786,6 +9864,7 @@ function buildPayload() {
     modules.activities = readActivityModules();
     modules.deliveries = readDeliveryModules();
     modules.products = readProductModules();
+    modules.workstations = readWorkstationModules();
     modules.recipes = readRecipeModules();
     modules.rumors = {
       ...(modules.rumors || {}),

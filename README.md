@@ -120,6 +120,7 @@ La règle structurante est : **les modules dépendent des contrats, jamais des �
 - éditeur d’objets en plein écran avec formulaire élargi et fiche métier permettant la suppression directe des définitions autonomes ;
 - métiers, zones, niveaux, outils, durabilité, expérience, cooldowns et activités temporisées ;
 - objets, inventaires joueur et bâtiment, recettes, commerce, productions, livraisons et objectifs collectifs ;
+- postes de transformation partagés configurables par bâtiment : emplacements concurrents, préparation/transformation persistantes, stock commun et partage d’XP préparateur/récupérateur ;
 - modèles de départ jouables : **Royaume médiéval** et **Station spatiale** fournissent chacun 5 bâtiments avec pages Discord, métiers reliés, outils, actions, inventaires et chaînes de production ; **La Fête du Royaume** ajoute une démonstration coopérative de 3 heures avec 7 bâtiments, 6 objectifs et 9 jalons Live Ops ;
 - **La Fête du Royaume** relie aussi les métiers de la ferme et de la taverne, leurs conditions, récompenses, objectifs, impacts Event et scènes sonores ;
 - **Connexion Discord** regroupe KingdomCore et tous les bots audio KingdomVoice, y compris les connexions désactivées ou incomplètes. Elles sont toutes incluses actuellement ; l'affichage est prêt à accueillir de futurs droits d'abonnement ;

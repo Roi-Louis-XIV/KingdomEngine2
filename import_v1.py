@@ -725,6 +725,30 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
             "requirements": {"profession": profession, "min_level": int(recipe.get("required_level", 1))} if profession else {},
             "modifier_context": {"recipe_key": recipe["key"], "profession_key": profession, "tags": recipe.get("tags", [])},
         }
+        if recipe.get("workstation_key"):
+            preparation = int(recipe.get("preparation_seconds", 0))
+            transformation = int(recipe.get("transformation_seconds", recipe.get("duration_seconds", 0)))
+            action["duration_seconds"] = preparation + transformation
+            action["effects"] = [*immediate_effects, {
+                "type": "start_transformation", "recipe_key": recipe["key"],
+                "workstation_key": recipe["workstation_key"],
+                "preparation_seconds": preparation, "transformation_seconds": transformation,
+                "active_transformation": bool(recipe.get("active_transformation", False)),
+                "output_item_key": recipe["output_item_key"],
+                "output_quantity": int(recipe.get("output_quantity", 1)),
+                "profession": profession, "xp_total": int(recipe.get("experience", 0)),
+                "preparer_xp_percent": int(recipe.get("preparer_xp_percent", 80)),
+                "experience_per_level": xp_per_level,
+            }]
+            actions.append(action)
+            actions.append({
+                "key": f"claim_{recipe['key']}"[:64],
+                "name": f"Récupérer : {action['name']}", "emoji": "✅",
+                "enabled": recipe.get("active", True),
+                "requirements": action["requirements"],
+                "effects": [{"type": "claim_transformation", "recipe_key": recipe["key"]}],
+            })
+            continue
         if recipe.get("shared_mission"):
             action["activity_limit"] = {"scope": "shared_action", "max_active": 1}
             action["conditions"] = {"all": [

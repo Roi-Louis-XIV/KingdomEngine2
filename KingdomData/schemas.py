@@ -14,7 +14,7 @@ ACTION_TYPES = {
     "schedule", "claim_scheduled", "state", "production",
     "profession_join", "profession_leave", "profession_experience",
     "tool_grant", "tool_modify", "contribution", "player_stat",
-    "play_audio", "set_audio_group",
+    "play_audio", "set_audio_group", "start_transformation", "claim_transformation",
 }
 CONDITION_TYPES = {
     "resource", "item_present", "item_absent", "profession_active", "no_active_profession",
@@ -338,6 +338,24 @@ def _validate_building_modules(payload: dict[str, Any]) -> None:
     for recipe in modules.get("recipes", []):
         if int(recipe.get("duration_seconds", 0)) < 0 or int(recipe.get("energy_cost", 0)) < 0:
             raise ValidationError("La dur\u00e9e et le co\u00fbt en \u00e9nergie d'une recette doivent \u00eatre positifs.")
+    workstation_keys: set[str] = set()
+    for workstation in modules.get("workstations", []):
+        key = validate_key(workstation.get("key", ""))
+        if key in workstation_keys:
+            raise ValidationError(f"Poste de transformation dupliqué : {key}")
+        workstation_keys.add(key)
+        if int(workstation.get("slots", 1)) < 1:
+            raise ValidationError("Un poste de transformation doit proposer au moins un emplacement.")
+    for recipe in modules.get("recipes", []):
+        if any(int(recipe.get(field, 0)) < 0 for field in ("preparation_seconds", "transformation_seconds")):
+            raise ValidationError("Les durées d'un poste de transformation doivent être positives.")
+        xp_share = int(recipe.get("preparer_xp_percent", 80))
+        if not 0 <= xp_share <= 100:
+            raise ValidationError("La part d'XP du préparateur doit être comprise entre 0 et 100.")
+        if recipe.get("workstation_key") and recipe["workstation_key"] not in workstation_keys:
+            raise ValidationError(f"Poste compatible introuvable pour la recette {recipe.get('key')}.")
+        if recipe.get("workstation_key") and recipe.get("output_destination", "building_stock") != "building_stock":
+            raise ValidationError("La production d'un poste partagé doit rejoindre le stock du bâtiment.")
     for activity in modules.get("activities", []):
         if activity.get("profession") and activity["profession"] not in profession_keys:
             raise ValidationError(f"Métier inexistant pour l'activité {activity.get('key')} : {activity['profession']}")

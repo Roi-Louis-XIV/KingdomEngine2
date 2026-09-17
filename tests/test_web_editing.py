@@ -960,3 +960,15 @@ def test_world_settings_expose_visual_live_ops_editor():
     assert "Scénario & objectifs" in script
     assert "data-live-objective" in script
     assert "data-live-timeline" in script
+
+
+def test_building_recipe_editor_exposes_shared_workstations_and_responsive_styles():
+    static = Path(web.__file__).parent / "static"
+    script = (static / "app.js").read_text(encoding="utf-8")
+    styles = (static / "workstations.css").read_text(encoding="utf-8")
+    assert 'id="workstation-modules"' in script
+    assert '"recipe_preparation"' in script
+    assert '"recipe_transformation"' in script
+    assert '"recipe_xp_share"' in script
+    assert "workstation-live-states" in script
+    assert "@media (max-width: 780px)" in styles

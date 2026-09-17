@@ -32,6 +32,7 @@ from KingdomWeb.item_catalog import ItemCatalogService
 from KingdomWeb.discord_channels import DiscordChannelAdministrationService, DiscordChannelError
 from KingdomWeb.world_creator import WorldCreatorService
 from kingdomCore.world import WorldEngine, WorldError
+from kingdomCore.engine import GameEngine
 from KingdomVoice.configuration import discover_platform_workers, migrate_bot_catalog
 from KingdomVoice.runtime_status import read_voice_status
 from KingdomWeb.accounts import ErreurAuthentification, ErreurAutorisation, RegistreComptes, VOICE_PLANS
@@ -285,6 +286,11 @@ def world_effective(body: dict[str, Any]):
 
 @app.get("/api/world/state", dependencies=[Depends(authorize)])
 def world_state(): return WorldCreatorService(store).world_state()
+
+
+@app.get("/api/world/workstations/{building_key}", dependencies=[Depends(authorize_player_view)])
+def workstation_states(building_key: str):
+    return {"building_key": building_key, "jobs": GameEngine(store).workstation_states(building_key)}
 
 
 @app.get("/api/world/live-operations", dependencies=[Depends(authorize_player_view)])

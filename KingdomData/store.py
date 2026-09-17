@@ -85,6 +85,17 @@ class ContentStore:
                 value_json TEXT NOT NULL,updated_at TEXT NOT NULL,
                 PRIMARY KEY(npc_key,discord_id,memory_key),
                 FOREIGN KEY(discord_id) REFERENCES players(discord_id))""")
+            db.execute("""CREATE TABLE IF NOT EXISTS transformation_jobs(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,building_key TEXT NOT NULL,
+                recipe_key TEXT NOT NULL,workstation_key TEXT NOT NULL,slot_index INTEGER NOT NULL,
+                preparer_id TEXT NOT NULL,collector_id TEXT NOT NULL DEFAULT '',status TEXT NOT NULL,
+                preparation_ends_at REAL NOT NULL,transformation_ends_at REAL NOT NULL,
+                active_transformation INTEGER NOT NULL DEFAULT 0,output_json TEXT NOT NULL DEFAULT '{}',
+                profession_key TEXT NOT NULL DEFAULT '',xp_total INTEGER NOT NULL DEFAULT 0,
+                preparer_xp_percent INTEGER NOT NULL DEFAULT 80,preparer_xp_awarded INTEGER NOT NULL DEFAULT 0,
+                collector_xp_awarded INTEGER NOT NULL DEFAULT 0,experience_per_level INTEGER NOT NULL DEFAULT 100,
+                created_at TEXT NOT NULL,updated_at TEXT NOT NULL,completed_at TEXT)""")
+            db.execute("CREATE INDEX IF NOT EXISTS transformation_jobs_station ON transformation_jobs(building_key,workstation_key,status,slot_index)")
             # Les états d'outil enrichissent l'inventaire, ils ne constituent
             # pas une seconde liste de possessions.
             db.execute(
@@ -473,6 +484,8 @@ CREATE TABLE IF NOT EXISTS onboarding_grants(discord_id TEXT PRIMARY KEY,amount 
 CREATE TABLE IF NOT EXISTS building_stock(building_key TEXT NOT NULL,item_key TEXT NOT NULL,quantity INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(building_key,item_key));
 CREATE TABLE IF NOT EXISTS action_cooldowns(scope TEXT NOT NULL,building_key TEXT NOT NULL,action_key TEXT NOT NULL,ready_at REAL NOT NULL,PRIMARY KEY(scope,building_key,action_key));
 CREATE TABLE IF NOT EXISTS scheduled_actions(id INTEGER PRIMARY KEY AUTOINCREMENT,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,action_key TEXT NOT NULL,category TEXT NOT NULL DEFAULT '',limit_scope TEXT NOT NULL DEFAULT 'player_action',ready_at REAL NOT NULL,effects_json TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',created_at TEXT NOT NULL,completed_at TEXT,result_json TEXT NOT NULL DEFAULT '{}',claim_hooks_json TEXT NOT NULL DEFAULT '[]');
+CREATE TABLE IF NOT EXISTS transformation_jobs(id INTEGER PRIMARY KEY AUTOINCREMENT,building_key TEXT NOT NULL,recipe_key TEXT NOT NULL,workstation_key TEXT NOT NULL,slot_index INTEGER NOT NULL,preparer_id TEXT NOT NULL,collector_id TEXT NOT NULL DEFAULT '',status TEXT NOT NULL,preparation_ends_at REAL NOT NULL,transformation_ends_at REAL NOT NULL,active_transformation INTEGER NOT NULL DEFAULT 0,output_json TEXT NOT NULL DEFAULT '{}',profession_key TEXT NOT NULL DEFAULT '',xp_total INTEGER NOT NULL DEFAULT 0,preparer_xp_percent INTEGER NOT NULL DEFAULT 80,preparer_xp_awarded INTEGER NOT NULL DEFAULT 0,collector_xp_awarded INTEGER NOT NULL DEFAULT 0,experience_per_level INTEGER NOT NULL DEFAULT 100,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,completed_at TEXT);
+CREATE INDEX IF NOT EXISTS transformation_jobs_station ON transformation_jobs(building_key,workstation_key,status,slot_index);
 CREATE TABLE IF NOT EXISTS collective_contributions(id INTEGER PRIMARY KEY AUTOINCREMENT,objective_key TEXT NOT NULL,discord_id TEXT NOT NULL,building_key TEXT NOT NULL,resource_key TEXT NOT NULL,amount INTEGER NOT NULL,metadata_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS delivery_log(id INTEGER PRIMARY KEY AUTOINCREMENT,interaction_id TEXT NOT NULL,discord_id TEXT NOT NULL,source_building TEXT NOT NULL,destination_building TEXT NOT NULL,resource_key TEXT NOT NULL,quantity INTEGER NOT NULL,unit_price INTEGER NOT NULL,total_payment INTEGER NOT NULL,payment_resource TEXT NOT NULL,created_at TEXT NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS delivery_interaction_line ON delivery_log(interaction_id,resource_key,destination_building);
