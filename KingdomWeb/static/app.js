@@ -10482,6 +10482,7 @@ async function loadDashboard() {
     projects,
     rank,
   });
+  window.KingdomDashboardModular?.install($("#admin-view .royal-dashboard.dashboard-simple"));
   bindNavigationShortcuts();
 }
 
