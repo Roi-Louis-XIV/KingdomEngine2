@@ -5074,7 +5074,8 @@ function componentTiles(types) {
     .join("");
 }
 function visualStudioMarkup() {
-  return `<section class="visual-studio">
+  return `<section class="visual-studio library-open inspector-open" data-studio-view="editor">
+    <nav class="studio-layout-toolbar" aria-label="Disposition de l’éditeur"><button type="button" data-toggle-studio-library aria-expanded="true">☷ Bibliothèque</button><div><button type="button" class="active" data-studio-view-button="editor">Éditeur</button><button type="button" data-studio-view-button="graph">Graphe de navigation</button></div><button type="button" data-toggle-studio-inspector aria-expanded="true">Inspecteur ◫</button></nav>
     <aside class="studio-panel component-palette"><div class="studio-panel-head"><h3>Composants</h3><small>Glisser</small></div><div class="component-group"><h4>📝 Contenu de l’embed</h4><p>Éléments affichés dans le message Discord.</p><div class="component-library">${componentTiles(["hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "building_inventory"])}</div><h5>Composants prêts à l’emploi</h5><div class="component-library preset-library">${Object.entries(PREDEFINED_COMPONENTS).map(([key, item]) => `<button type="button" class="component-tile preset-tile" draggable="true" data-content-preset="${key}"><span>${item.icon}</span><b>${item.name}</b></button>`).join("")}</div></div><div class="component-group interaction-components"><h4>🖱️ Boutons et menus</h4><p>Éléments interactifs placés dans la grille.</p><div class="component-library">${componentTiles(["button", "select"])}</div><h5>Boutons prêts à l’emploi</h5><div class="component-library preset-library">${Object.entries(
       PREDEFINED_INTERACTIONS,
     )
@@ -5083,7 +5084,7 @@ function visualStudioMarkup() {
           `<button type="button" class="component-tile preset-tile" draggable="true" data-component-preset="${key}"><span>${item.icon}</span><b>${item.name}</b></button>`,
       )
       .join("")}</div></div></aside>
-    <section class="studio-panel canvas-shell"><div class="canvas-toolbar"><strong id="canvas-page-name"></strong><span>Contenu puis grille Discord de 25 emplacements.</span></div><div class="page-link-graph" id="page-link-graph"></div><div class="builder-canvas" id="builder-canvas"></div><div class="interaction-zone"><div class="interaction-title"><b>Interactions Discord</b><small>5 lignes × 5 emplacements</small></div><div class="interaction-grid" id="interaction-grid"></div></div></section>
+    <section class="studio-panel canvas-shell"><div class="canvas-toolbar"><strong id="canvas-page-name"></strong><span>Contenu puis grille Discord de 25 emplacements.</span></div><div class="studio-editor-view"><div class="builder-canvas" id="builder-canvas"></div><div class="interaction-zone"><div class="interaction-title"><b>Interactions Discord</b><small>5 lignes × 5 emplacements</small></div><div class="interaction-grid" id="interaction-grid"></div></div></div><div class="studio-graph-view" hidden><div class="page-link-graph" id="page-link-graph"></div></div></section>
     <aside class="studio-panel studio-inspector"><div class="studio-panel-head"><h3>Pages</h3><button type="button" class="secondary" id="add-page">＋</button></div><div class="page-tree" id="page-tree"></div><div class="property-panel" id="property-panel"></div></aside>
   </section>`;
 }
@@ -5655,7 +5656,36 @@ function renderVisualStudio() {
     };
   });
   renderPropertyPanel();
+  bindVisualStudioLayout();
   refreshDiscordInspectorPreview();
+}
+
+function bindVisualStudioLayout() {
+  const studio = $(".visual-studio");
+  if (!studio) return;
+  const libraryButton = studio.querySelector("[data-toggle-studio-library]"),
+    inspectorButton = studio.querySelector("[data-toggle-studio-inspector]"),
+    editorView = studio.querySelector(".studio-editor-view"),
+    graphView = studio.querySelector(".studio-graph-view");
+  libraryButton.onclick = () => {
+    const open = studio.classList.toggle("library-open");
+    libraryButton.setAttribute("aria-expanded", String(open));
+  };
+  inspectorButton.onclick = () => {
+    const open = studio.classList.toggle("inspector-open");
+    inspectorButton.setAttribute("aria-expanded", String(open));
+  };
+  studio.querySelectorAll("[data-studio-view-button]").forEach((button) => {
+    button.onclick = () => {
+      const graph = button.dataset.studioViewButton === "graph";
+      studio.dataset.studioView = graph ? "graph" : "editor";
+      editorView.hidden = graph;
+      graphView.hidden = !graph;
+      studio.querySelectorAll("[data-studio-view-button]").forEach((item) =>
+        item.classList.toggle("active", item === button),
+      );
+    };
+  });
 }
 
 function renderCanvasComponent(component) {
