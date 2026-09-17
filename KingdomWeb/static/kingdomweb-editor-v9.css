@@ -1,4 +1,8 @@
 /* V9: real editor workbench, scoped; retains application controls. */
+#editor .building-mode .building-workbench-nav{display:none!important}
+#editor .wizard-panel:not(.building-mode) .kw-v9-toolbar,
+#editor .wizard-panel:not(.building-mode) .kw-v9-discord,
+#editor .wizard-panel:not(.building-mode) .kw-v9-check{display:none!important}
 #editor:not([hidden]){background:#101114!important}
 #editor .wizard-panel{background:#17191e!important;color:#ece8e2!important}
 #editor .dialog-head{background:#191b20!important;border-bottom:1px solid #35363b!important;padding:15px 28px!important}
