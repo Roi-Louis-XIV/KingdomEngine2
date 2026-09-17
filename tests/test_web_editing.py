@@ -149,7 +149,7 @@ def test_building_publication_refreshes_the_active_discord_panel():
         Path(web.__file__).parents[1] / "kingdomCore" / "discord_bot.py"
     ).read_text(encoding="utf-8")
     assert 'request["scope"] == "building"' in source
-    assert "await send_building_entry(" in source
+    assert "await sync_building_panel(" in source
     assert 'summary += ", panneau du bâtiment actualisé"' in source
     assert "definition = interface_for_building(self.engine.store, payload)" in source
     assert "view = InterfaceView(self.engine, definition" in source

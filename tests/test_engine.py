@@ -8,6 +8,7 @@ from kingdomCore.discord_bot import (
     building_entry_menu,
     delete_building_entry,
     send_building_entry,
+    sync_building_panel,
 )
 from kingdomEvent import EventBus
 
@@ -109,6 +110,50 @@ def test_building_entry_uses_a_public_launcher_for_an_ephemeral_interface(tmp_pa
     assert "interface personnelle" in sent[0]["embed"].description
     assert store.building_entry_message("42", "forge") == {}
     assert asyncio.run(delete_building_entry(store, member, "forge")) is False
+
+
+def test_building_publication_creates_panel_without_voice_occupant(tmp_path):
+    store = ContentStore(tmp_path / "empty-building-panel.db")
+    store.initialize()
+    sent = []
+
+    class Message:
+        id = 100
+
+    class TextChannel:
+        name = "atelier-vide"
+
+        async def history(self, limit):
+            if False:
+                yield None
+
+        async def send(self, **kwargs):
+            sent.append(kwargs)
+            return Message()
+
+    category = type("Category", (), {"name": "Atelier vide", "text_channels": [TextChannel()]})()
+    guild = type("Guild", (), {
+        "categories": [category],
+        "me": type("BotMember", (), {"id": 1})(),
+    })()
+    entity = {
+        "entity_key": "empty_workshop",
+        "payload": {"name": "Atelier vide", "emoji": "🏰", "actions": []},
+    }
+    settings = {
+        "discord": {
+            "building_category_template": "{name}",
+            "building_text_channel": "{name}",
+        },
+    }
+
+    message = asyncio.run(sync_building_panel(store, None, guild, entity, settings, category))
+
+    assert message.id == 100
+    assert len(sent) == 1
+    assert isinstance(sent[0]["view"], PrivateInterfaceLauncher)
+    assert sent[0]["view"].definition["pages"][0]["key"] == "home"
+    assert sent[0]["embed"].footer.text == "KingdomEngine · bâtiment:empty_workshop"
 
 
 def test_building_launcher_opens_a_truly_ephemeral_menu_from_the_right_voice(tmp_path, monkeypatch):

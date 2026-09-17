@@ -1054,7 +1054,23 @@ async def send_building_entry(
     store: ContentStore, engine: GameEngine, member: discord.Member, entity: dict[str, Any],
     settings: dict[str, Any], voice_category: discord.CategoryChannel | None = None,
 ) -> discord.Message | None:
-    """Maintient le panneau commun qui ouvre une interface réellement éphémère."""
+    """Maintient le panneau commun lors de l'entrée d'un joueur."""
+    return await sync_building_panel(
+        store, engine, member.guild, entity, settings, voice_category, legacy_member=member,
+    )
+
+
+async def sync_building_panel(
+    store: ContentStore,
+    engine: GameEngine,
+    guild: discord.Guild,
+    entity: dict[str, Any],
+    settings: dict[str, Any],
+    voice_category: discord.CategoryChannel | None = None,
+    *,
+    legacy_member: discord.Member | None = None,
+) -> discord.Message | None:
+    """Crée ou actualise le panneau commun, même sans joueur dans le vocal."""
     payload = entity["payload"]
     building_key = entity["entity_key"]
 
@@ -1063,8 +1079,11 @@ async def send_building_entry(
     category_name = settings["discord"]["building_category_template"].format(
         name=payload["name"], key=building_key, emoji=payload.get("emoji", "🏰")
     ).strip()[:100]
-    category = next((item for item in member.guild.categories if item.name.strip() == category_name), None) or voice_category
-    legacy_marker = f"🏰 <@{member.id}> — **{payload['name']}**"
+    category = next((item for item in guild.categories if item.name.strip() == category_name), None) or voice_category
+    legacy_marker = (
+        f"🏰 <@{legacy_member.id}> — **{payload['name']}**"
+        if legacy_member is not None else ""
+    )
     channel = None
     if category is not None:
         text_name = channel_slug(settings["discord"]["building_text_channel"].format(name=payload["name"], key=building_key))
@@ -1072,7 +1091,11 @@ async def send_building_entry(
         if channel is not None:
             try:
                 async for old_message in channel.history(limit=30):
-                    if old_message.author.id == member.guild.me.id and old_message.content.startswith(legacy_marker):
+                    if (
+                        legacy_marker
+                        and old_message.author.id == guild.me.id
+                        and old_message.content.startswith(legacy_marker)
+                    ):
                         await old_message.delete()
             except discord.HTTPException:
                 logger.warning("Ancien menu public impossible à nettoyer dans #%s.", channel.name)
@@ -1080,17 +1103,18 @@ async def send_building_entry(
     if channel is None:
         logger.warning(
             "Interface privée de %s impossible à créer pour %s : salon textuel du bâtiment absent.",
-            building_key, member.id,
+            building_key, getattr(legacy_member, "id", "synchronisation"),
         )
         return None
 
     # Nettoie une ancienne interface individuelle (DM ou fil privé) issue des
     # versions intermédiaires. Le nouveau parcours n'en crée plus.
-    await delete_building_entry(store, member, building_key)
+    if legacy_member is not None:
+        await delete_building_entry(store, legacy_member, building_key)
     definition = interface_for_building(store, payload) or interface_from_building(
         building_key, payload, payload.get("actions", [])
     )
-    launcher = PrivateInterfaceLauncher(engine, definition, member.id)
+    launcher = PrivateInterfaceLauncher(engine, definition, 0)
     marker = f"KingdomEngine · bâtiment:{building_key}"
     panels: list[discord.Message] = []
     try:
@@ -1100,7 +1124,7 @@ async def send_building_entry(
                 if old_message.embeds and old_message.embeds[0].footer
                 else ""
             )
-            if old_message.author.id == member.guild.me.id and footer == marker:
+            if old_message.author.id == guild.me.id and footer == marker:
                 panels.append(old_message)
 
         embed = discord.Embed(
@@ -1351,20 +1375,15 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
                                     entity = target_store.get("building", building_key, published=True)
                                     channels = target_store.building_channels(building_key)
                                     voice_channel = guild.get_channel(int(channels.get("voice_channel_id") or 0))
-                                    occupants = [
-                                        member
-                                        for member in getattr(voice_channel, "members", [])
-                                        if not member.bot
-                                    ]
-                                    if occupants:
-                                        await send_building_entry(
-                                            target_store,
-                                            GameEngine(target_store, EventBus()),
-                                            occupants[0],
-                                            entity,
-                                            get_server_settings(target_store),
-                                            getattr(voice_channel, "category", None),
-                                        )
+                                    panel = await sync_building_panel(
+                                        target_store,
+                                        GameEngine(target_store, EventBus()),
+                                        guild,
+                                        entity,
+                                        get_server_settings(target_store),
+                                        getattr(voice_channel, "category", None),
+                                    )
+                                    if panel is not None:
                                         summary += ", panneau du bâtiment actualisé"
                             target_store.finish_discord_provision(request["id"], report=summary)
                             logger.warning("Synchronisation Discord terminée pour %s : %s.", guild.name, summary)
