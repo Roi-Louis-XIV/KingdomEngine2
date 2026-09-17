@@ -11,10 +11,13 @@
     ['jobs', '.dashboard-metrics > :nth-child(4)', 'Activités'],
     ['activity', '.dashboard-columns-simple > :nth-child(1)', 'Activité récente'],
     ['alerts', '.dashboard-columns-simple > :nth-child(2)', 'État du monde'],
+    ['analytics', '[data-analytics="snapshot"]', 'Indicateurs graphiques'],
+    ['player-table', '[data-analytics="players"]', 'Tableau des joueurs'],
+    ['creator', '.kw-creator-launchpad', 'Accès aux outils de création'],
     ['projects', '.dashboard-secondary:nth-of-type(1)', 'Projets'],
     ['rankings', '.dashboard-secondary:last-child', 'Classements']
   ];
-  const defaultIds = ['next', 'start', 'players', 'buildings', 'events', 'jobs', 'activity', 'alerts', 'projects', 'rankings'];
+  const defaultIds = ['next', 'start', 'players', 'buildings', 'events', 'jobs', 'activity', 'alerts', 'analytics', 'player-table', 'creator', 'projects', 'rankings'];
   let saved;
   try { saved = JSON.parse(localStorage.getItem(KEY)); } catch (_) { /* unavailable */ }
   let order = Array.isArray(saved?.order) ? [...new Set(saved.order.filter(id => defaultIds.includes(id)))] : defaultIds.slice();
@@ -59,8 +62,10 @@
     const { id, target, ghost, card } = drag;
     ghost?.remove(); card.classList.remove('is-drag-source');
     board.querySelectorAll('.is-drop-target').forEach(el => el.classList.remove('is-drop-target'));
+    board.classList.remove('is-drop-at-end');
     document.body.classList.remove('kw-dragging'); drag = null;
-    if (target) reorder(id, target);
+    if (target === '__end__') { order = order.filter(x => x !== id); order.push(id); persist(); draw(); }
+    else if (target) reorder(id, target);
   }
   function startDrag(e, card, id) {
     if (!edit || e.button !== 0 || drag) return;
@@ -79,11 +84,15 @@
     }
     d.ghost.style.transform = `translate3d(${dx}px,${dy}px,0) rotate(-1deg)`;
     board.querySelectorAll('.is-drop-target').forEach(el => el.classList.remove('is-drop-target'));
+    board.classList.remove('is-drop-at-end');
     const hit = document.elementFromPoint(e.clientX, e.clientY);
     const candidate = hit?.closest('[data-widget]');
     d.target = candidate && candidate !== d.card && board.contains(candidate) ? candidate.dataset.widget : null;
     if (d.target) candidate.classList.add('is-drop-target');
     else if (board.contains(hit)) {
+      const visible = [...board.querySelectorAll('[data-widget]:not([hidden])')].filter(el => el !== d.card);
+      const last = visible[visible.length - 1];
+      if (last && e.clientY > last.getBoundingClientRect().bottom + 12) { d.target = '__end__'; board.classList.add('is-drop-at-end'); return; }
       const candidates = [...board.querySelectorAll('[data-widget]:not([hidden])')].filter(el => el !== d.card);
       const nearest = candidates.reduce((best, el) => {
         const r = el.getBoundingClientRect(); const distance = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));

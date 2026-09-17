@@ -41,3 +41,19 @@ html[data-theme="dark"] .app-header,html[data-theme="light"] .app-header{backgro
 .royal-dashboard.dashboard-simple .kw-drag-ghost{border-color:var(--kw-gold)!important;box-shadow:0 25px 60px #0005!important;transform-origin:center}
 @media(max-width:760px){.royal-dashboard.dashboard-simple .kw-dashboard-status{width:100%;margin-left:0}.royal-dashboard.dashboard-simple .kw-widget-board{gap:12px}.royal-dashboard.dashboard-simple .kw-widget-board>.kw-widget{border-radius:12px}}
 @media(prefers-reduced-motion:reduce){.royal-dashboard.dashboard-simple *{transition:none!important}}
+
+/* Third tranche: cohesive controls and content surfaces, without changing application data. */
+html[data-theme="dark"],html[data-theme="light"]{color-scheme:normal}
+.app-main .stats article,.app-main .cards>*,.app-main .toolbar,.app-main #admin-view .panel,.app-main #admin-view .card{border-radius:15px;border-color:var(--kw-border);box-shadow:none}
+.app-main .stats article{background:var(--kw-surface);padding:20px}
+.app-main .stats article strong{color:var(--kw-gold);letter-spacing:-.04em}
+.app-main .toolbar{background:var(--kw-surface);border:1px solid var(--kw-border);padding:14px;gap:12px}
+.app-main input:not([type="checkbox"]):not([type="radio"]),.app-main select,.app-main textarea{border-radius:10px;border-color:var(--kw-border);transition:border-color .15s,box-shadow .15s}
+.app-main input:focus-visible,.app-main select:focus-visible,.app-main textarea:focus-visible,.app-main button:focus-visible,.app-sidebar button:focus-visible{outline:2px solid var(--kw-gold);outline-offset:2px}
+.app-main button{transition:border-color .15s,background .15s,color .15s}
+.app-main button.primary,.app-main .primary:not(.nav-primary){border-radius:10px}
+.app-main .cards>*{background:var(--kw-surface)}
+.royal-dashboard.dashboard-simple .kw-widget-board.is-editing{padding-bottom:72px;position:relative}
+.royal-dashboard.dashboard-simple .kw-widget-board.is-editing:after{content:"Déposer un widget dans cet espace";position:absolute;bottom:0;left:0;right:0;height:52px;display:grid;place-items:center;color:var(--kw-muted);border:1px dashed transparent;border-radius:12px;pointer-events:none;font-size:12px;transition:background .15s,border-color .15s}
+.royal-dashboard.dashboard-simple .kw-widget-board.is-editing.is-drop-at-end:after{background:var(--kw-gold-soft);border-color:var(--kw-gold);color:var(--kw-gold)}
+@media(max-width:760px){.app-main .toolbar{padding:10px}.app-main .stats article{padding:14px}}
