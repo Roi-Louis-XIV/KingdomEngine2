@@ -8498,12 +8498,16 @@ function installBuildingWorkbench(payload, buildingKey, modules) {
   if (!pageCount) warnings.push("Aucune page Discord.");
   help.hidden = false;
   help.innerHTML = `<section class="building-inspector-summary"><small>INSPECTEUR</small><div class="building-inspector-title"><span>${escapeHtml(payload.emoji || "🏰")}</span><div><h3>${escapeHtml(payload.name || "Nouveau bâtiment")}</h3><p>${state.editing?.status === "published" ? "Publié sur Discord" : "Brouillon de travail"}</p></div></div><dl><div><dt>Actions</dt><dd>${actionCount}</dd></div><div><dt>Métiers</dt><dd>${professionCount}</dd></div><div><dt>Activités</dt><dd>${activityCount}</dd></div><div><dt>Pages</dt><dd>${pageCount}</dd></div></dl>${warnings.length ? `<div class="building-inspector-warnings"><b>À vérifier</b>${warnings.map((text) => `<span>◇ ${escapeHtml(text)}</span>`).join("")}</div>` : '<div class="building-inspector-ready">✓ Prêt à être configuré et publié</div>'}</section>${discordInspectorPreviewMarkup()}<section class="building-contextual-help"><span class="help-icon">?</span><small>AIDE CONTEXTUELLE</small><h3 id="help-title">Comprendre ce réglage</h3><p id="help-text">Survolez ou sélectionnez un réglage pour afficher son explication.</p><ul id="help-list"></ul></section>`;
+  // Le formulaire est la surface principale. Les deux panneaux secondaires
+  // restent accessibles à la demande sans créer trois zones de défilement.
+  layout.classList.add("inspector-collapsed");
+  help.hidden = true;
   const head = $("#editor .dialog-head");
   head?.querySelector("#building-list-toggle")?.remove();
   head?.querySelector("#building-inspector-toggle")?.remove();
   head?.insertAdjacentHTML(
     "beforeend",
-    '<button type="button" id="building-list-toggle" class="secondary" aria-expanded="false">☷ Bâtiments</button><button type="button" id="building-inspector-toggle" class="secondary" aria-expanded="true">◫ Inspecteur</button>',
+    '<button type="button" id="building-list-toggle" class="secondary" aria-expanded="false">☷ Bâtiments</button><button type="button" id="building-inspector-toggle" class="secondary" aria-expanded="false">◫ Inspecteur</button>',
   );
   $("#building-list-toggle").onclick = () => {
     const open = navigator.classList.toggle("open");
