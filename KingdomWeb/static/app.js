@@ -8505,17 +8505,26 @@ function installBuildingWorkbench(payload, buildingKey, modules) {
   const head = $("#editor .dialog-head");
   head?.querySelector("#building-list-toggle")?.remove();
   head?.querySelector("#building-inspector-toggle")?.remove();
-  head?.insertAdjacentHTML(
-    "beforeend",
+  head?.querySelector("#close-editor")?.insertAdjacentHTML(
+    "beforebegin",
     '<button type="button" id="building-list-toggle" class="secondary" aria-expanded="false">☷ Bâtiments</button><button type="button" id="building-inspector-toggle" class="secondary" aria-expanded="false">◫ Inspecteur</button>',
   );
   $("#building-list-toggle").onclick = () => {
     const open = navigator.classList.toggle("open");
+    if (open) {
+      layout.classList.add("inspector-collapsed");
+      help.hidden = true;
+      $("#building-inspector-toggle").setAttribute("aria-expanded", "false");
+    }
     $("#building-list-toggle").setAttribute("aria-expanded", String(open));
   };
   $("#building-inspector-toggle").onclick = () => {
     const hidden = layout.classList.toggle("inspector-collapsed");
     help.hidden = hidden;
+    if (!hidden) {
+      navigator.classList.remove("open");
+      $("#building-list-toggle").setAttribute("aria-expanded", "false");
+    }
     $("#building-inspector-toggle").setAttribute(
       "aria-expanded",
       String(!hidden),

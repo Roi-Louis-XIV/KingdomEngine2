@@ -4,9 +4,11 @@ from KingdomData import ContentStore, ValidationError
 from kingdomCore import GameEngine
 import kingdomCore.discord_bot as discord_bot_module
 from kingdomCore.discord_bot import (
+    ACTIVE_BUILDING_INTERFACES,
     PrivateInterfaceLauncher,
     building_entry_menu,
     delete_building_entry,
+    remember_active_building_interface,
     send_building_entry,
     sync_building_panel,
 )
@@ -154,6 +156,31 @@ def test_building_publication_creates_panel_without_voice_occupant(tmp_path):
     assert isinstance(sent[0]["view"], PrivateInterfaceLauncher)
     assert sent[0]["view"].definition["pages"][0]["key"] == "home"
     assert sent[0]["embed"].footer.text == "KingdomEngine · bâtiment:empty_workshop"
+
+
+def test_voice_exit_removes_every_ephemeral_interface_for_player(tmp_path):
+    store = ContentStore(tmp_path / "ephemeral-cleanup.db")
+    store.initialize()
+    deleted = []
+
+    class Interaction:
+        guild_id = 123
+        user = type("User", (), {"id": 42})()
+
+        async def delete_original_response(self):
+            deleted.append(self)
+
+    first, second = Interaction(), Interaction()
+    remember_active_building_interface(first, "forge")
+    remember_active_building_interface(second, "forge")
+    member = type("Member", (), {
+        "id": 42,
+        "guild": type("Guild", (), {"id": 123})(),
+    })()
+
+    assert asyncio.run(delete_building_entry(store, member, "forge")) is True
+    assert deleted == [first, second]
+    assert (123, 42, "forge") not in ACTIVE_BUILDING_INTERFACES
 
 
 def test_building_launcher_opens_a_truly_ephemeral_menu_from_the_right_voice(tmp_path, monkeypatch):

@@ -28,6 +28,42 @@ from .provisioner import DiscordProvisioner, OATH_CUSTOM_ID, building_role_name,
 
 logger = logging.getLogger(__name__)
 
+# Les messages éphémères ne peuvent pas être retrouvés via l'historique d'un
+# salon. On conserve donc leur interaction tant que le joueur reste dans le
+# bâtiment afin de pouvoir les supprimer immédiatement à sa sortie.
+ACTIVE_BUILDING_INTERFACES: dict[tuple[int, int, str], list[Any]] = {}
+
+
+def _active_interface_key(guild_id: int | None, member_id: int, building_key: str) -> tuple[int, int, str]:
+    return (int(guild_id or 0), int(member_id), str(building_key))
+
+
+def remember_active_building_interface(interaction: Any, building_key: str) -> None:
+    key = _active_interface_key(
+        getattr(interaction, "guild_id", None), interaction.user.id, building_key,
+    )
+    active = ACTIVE_BUILDING_INTERFACES.setdefault(key, [])
+    if interaction not in active:
+        active.append(interaction)
+
+
+async def close_active_building_interfaces(
+    guild_id: int | None, member_id: int, building_key: str,
+) -> int:
+    """Supprime toutes les interfaces éphémères encore ouvertes du joueur."""
+    interactions = ACTIVE_BUILDING_INTERFACES.pop(
+        _active_interface_key(guild_id, member_id, building_key), []
+    )
+    removed = 0
+    for interaction in interactions:
+        try:
+            await interaction.delete_original_response()
+            removed += 1
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            # Le message peut déjà avoir expiré ou avoir été fermé manuellement.
+            pass
+    return removed
+
 
 class BuildingView(discord.ui.View):
     """Repli compatible pour les anciens bâtiments sans interface visuelle."""
@@ -482,6 +518,7 @@ class InterfaceView(discord.ui.View):
             async def navigate_callback(discord_interaction: discord.Interaction, target: str = interaction.get("page")):
                 self.page_key = target
                 self.page_started_at = time.time()
+                self.notice = ""
                 self._render_interactions()
                 await discord_interaction.response.edit_message(embed=self.embed(), view=self)
                 asyncio.create_task(self._refresh_text_sequence(discord_interaction, target))
@@ -495,6 +532,7 @@ class InterfaceView(discord.ui.View):
                         await self._execute_action(confirm_interaction, target)
                     confirm.callback = confirm_callback; confirmation.add_item(confirm)
                     await discord_interaction.response.send_message(str(target["confirm"]), view=confirmation, ephemeral=True)
+                    remember_active_building_interface(discord_interaction, self._building_key())
                 else:
                     await self._execute_action(discord_interaction, target)
             button.callback = action_callback
@@ -508,6 +546,7 @@ class InterfaceView(discord.ui.View):
             async def world_state_callback(discord_interaction: discord.Interaction):
                 view = WorldExplorerView(self.engine, discord_interaction.user.id)
                 await discord_interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
+                remember_active_building_interface(discord_interaction, self._building_key())
             button.callback = world_state_callback
         elif interaction.get("type") == "world_travel":
             async def world_travel_callback(discord_interaction: discord.Interaction, target: str = str(interaction.get("destination", ""))):
@@ -515,8 +554,10 @@ class InterfaceView(discord.ui.View):
                     result = WorldEngine(self.engine.store).travel(str(discord_interaction.user.id), target)
                     view = WorldExplorerView(self.engine, discord_interaction.user.id, "Voyage commencé." if result.get("travel") else "Vous êtes arrivé.")
                     await discord_interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
+                    remember_active_building_interface(discord_interaction, self._building_key())
                 except WorldError as exc:
                     await discord_interaction.response.send_message(f"🚫 {exc}", ephemeral=True)
+                    remember_active_building_interface(discord_interaction, self._building_key())
             button.callback = world_travel_callback
         elif interaction.get("type") == "close":
             async def close_callback(discord_interaction: discord.Interaction):
@@ -562,7 +603,10 @@ class InterfaceView(discord.ui.View):
                         async def cancel_delivery(cancel_interaction: discord.Interaction): await cancel_interaction.response.edit_message(content="Livraison annulée.", view=None)
                         confirm.callback = confirm_delivery; cancel.callback = cancel_delivery; confirmation.add_item(confirm); confirmation.add_item(cancel)
                         await modal_interaction.response.send_message(f"**Récapitulatif**\n{amount} × {selected['name']}\n→ {destination}\n→ **{price} {selected.get('payment_resource', 'money')}**", view=confirmation, ephemeral=True)
-                    except Exception as exc: await modal_interaction.response.send_message(str(exc), ephemeral=True)
+                        remember_active_building_interface(modal_interaction, parent._building_key())
+                    except Exception as exc:
+                        await modal_interaction.response.send_message(str(exc), ephemeral=True)
+                        remember_active_building_interface(modal_interaction, parent._building_key())
             await interaction.response.send_modal(QuantityModal())
         select.callback = choose; self.add_item(select)
 
@@ -582,6 +626,7 @@ class InterfaceView(discord.ui.View):
         product = next((item for item in self.engine.commerce_options(self._building_key()) if item["item_key"] == item_key), None)
         if not product:
             await interaction.response.send_message("Cet objet doit d’abord être ajouté aux Produits du bâtiment avec un prix et un stock.", ephemeral=True)
+            remember_active_building_interface(interaction, self._building_key())
             return
         parent = self
         class PurchaseModal(discord.ui.Modal, title="Commander"):
@@ -635,6 +680,7 @@ class InterfaceView(discord.ui.View):
             async def cancel_game(cancel_interaction: discord.Interaction): self.engine.cancel_game(str(cancel_interaction.user.id), prepared["session_key"]); await cancel_interaction.response.edit_message(content="Partie annulée.", view=None)
             confirm.callback = confirm_game; cancel.callback = cancel_game; confirmation.add_item(confirm); confirmation.add_item(cancel)
             await interaction.response.send_message(f"**{prepared['choice'].get('name', choice_key)}**\nMise : **{prepared['stake']} écus**\nLe tirage aura lieu après confirmation.", view=confirmation, ephemeral=True)
+            remember_active_building_interface(interaction, self._building_key())
         select.callback = choose; self.add_item(select)
 
     def _add_select(self, component: dict[str, Any], row: int) -> None:
@@ -664,6 +710,8 @@ class InterfaceView(discord.ui.View):
             interaction = option_map.get(select.values[0], {})
             if interaction.get("type") == "navigate":
                 self.page_key = str(interaction["page"])
+                self.page_started_at = time.time()
+                self.notice = ""
                 self._render_interactions()
                 await discord_interaction.response.edit_message(embed=self.embed(), view=self)
             elif interaction.get("type") == "action":
@@ -672,6 +720,7 @@ class InterfaceView(discord.ui.View):
                 await self._show_purchase_modal(discord_interaction, str(interaction.get("item_key", "")))
             else:
                 await discord_interaction.response.send_message("Cette option n'est pas encore configurée.", ephemeral=True)
+                remember_active_building_interface(discord_interaction, self._building_key())
 
         select.callback = select_callback
         self.add_item(select)
@@ -778,7 +827,11 @@ class PrivateInterfaceLauncher(discord.ui.View):
         )
         entry_page = str(definition.get("entry_page") or definition.get("start_page", "home"))
         view = InterfaceView(self.engine, definition, page_key=entry_page, owner_id=interaction.user.id)
+        await close_active_building_interfaces(
+            getattr(interaction, "guild_id", None), interaction.user.id, building_key,
+        )
         await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
+        remember_active_building_interface(interaction, building_key)
 
 
 class OathView(discord.ui.View):
@@ -1158,10 +1211,13 @@ async def sync_building_panel(
 
 
 async def delete_building_entry(store: ContentStore, member: discord.Member, building_key: str) -> bool:
-    """Supprime le fil privé du bâtiment lorsque le joueur quitte le lieu."""
+    """Nettoie les interfaces du joueur lorsqu'il quitte le bâtiment."""
+    removed_ephemeral = await close_active_building_interfaces(
+        getattr(member.guild, "id", None), member.id, building_key,
+    )
     record = store.building_entry_message(str(member.id), building_key)
     if not record:
-        return False
+        return bool(removed_ephemeral)
 
     private_thread = None
     try:
