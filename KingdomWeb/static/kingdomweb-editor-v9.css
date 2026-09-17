@@ -74,6 +74,57 @@
 #editor .building-mode .component-palette .component-library{grid-template-columns:repeat(2,minmax(0,1fr))!important}
 #editor .building-mode .studio-inspector{min-width:0;overflow:auto}
 
+/* Studio Discord : un seul défilement, celui de la page de l’éditeur. */
+#editor .building-mode .visual-studio,
+#editor .building-mode .visual-studio.library-open,
+#editor .building-mode .visual-studio.inspector-open,
+#editor .building-mode .visual-studio.library-open.inspector-open{
+  grid-template-columns:minmax(320px,19vw) minmax(0,1fr) minmax(340px,20vw)!important;
+  height:auto!important;
+  min-height:650px!important;
+  overflow:visible!important;
+  align-items:start;
+}
+#editor .building-mode .visual-studio>.studio-panel,
+#editor .building-mode .visual-studio>.canvas-shell,
+#editor .building-mode .studio-editor-view,
+#editor .building-mode .studio-editor-view .builder-canvas,
+#editor .building-mode .studio-editor-view .interaction-zone,
+#editor .building-mode .studio-inspector,
+#editor .building-mode .component-palette,
+#editor .building-mode .property-panel,
+#editor .building-mode .page-tree{
+  max-height:none!important;
+  overflow:visible!important;
+}
+#editor .building-mode .component-palette,
+#editor .building-mode .studio-inspector{
+  display:block!important;
+  position:sticky;
+  top:0;
+  align-self:start;
+}
+#editor .building-mode .studio-editor-view{
+  display:block;
+  height:auto;
+}
+#editor .building-mode .studio-editor-view .builder-canvas{min-height:360px!important}
+#editor .building-mode .studio-editor-view .interaction-zone{margin-top:0}
+#editor .building-mode [data-toggle-studio-library],
+#editor .building-mode [data-toggle-studio-inspector]{display:none!important}
+#editor .building-mode .studio-layout-toolbar{justify-content:center}
+
+@media(max-width:1180px){
+  #editor .building-mode .visual-studio,
+  #editor .building-mode .visual-studio.library-open,
+  #editor .building-mode .visual-studio.inspector-open,
+  #editor .building-mode .visual-studio.library-open.inspector-open{
+    grid-template-columns:minmax(0,1fr)!important;
+  }
+  #editor .building-mode .component-palette,
+  #editor .building-mode .studio-inspector{position:static}
+}
+
 @media(max-width:1180px){
   #editor .building-mode .visual-studio{height:auto;max-height:none;overflow:visible}
   #editor .building-mode .visual-studio>.studio-panel{overflow:visible}
