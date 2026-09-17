@@ -44,3 +44,23 @@
 #editor .kw-v9-panel-title,#editor .kw-v9-check[data-ready=true] strong{color:var(--accent)!important}
 #editor .kw-v9-discord{border-left-color:var(--accent)!important}
 #editor .kw-v9-check[data-ready=true]{border-color:var(--accent)!important}
+
+/* Grand écran : aucune largeur perdue et panneaux réellement rétractables. */
+#editor .building-mode .building-workbench-nav{display:flex!important}
+#editor .building-mode #definition-step{width:100%!important;max-width:none!important;margin:0!important;padding:18px clamp(16px,2vw,34px) 42px!important}
+#editor .building-mode .editor-layout{grid-template-columns:minmax(0,1fr) minmax(320px,380px)!important}
+#editor .building-mode .editor-layout.inspector-collapsed{grid-template-columns:minmax(0,1fr)!important}
+#editor .building-mode .editor-layout.inspector-collapsed .context-help{display:none!important}
+#editor .building-mode .visual-studio{width:100%!important;max-width:none!important;height:clamp(560px,calc(100dvh - 350px),820px);min-height:0!important;overflow:hidden}
+#editor .building-mode .visual-studio>.studio-panel{min-height:0;overflow:auto}
+#editor .building-mode .visual-studio>.canvas-shell{overflow:hidden}
+#editor .building-mode .studio-editor-view{min-height:0;overflow:auto}
+#editor .building-mode .component-library{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:7px}
+#editor .building-mode .component-tile{min-width:0;padding:8px;gap:7px}
+#editor .building-mode .component-tile span{font-size:16px}
+#editor .building-mode .component-tile b{overflow:hidden;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+
+@media(max-width:1180px){
+  #editor .building-mode .visual-studio{height:auto;max-height:none;overflow:visible}
+  #editor .building-mode .visual-studio>.studio-panel{overflow:visible}
+}
