@@ -17,7 +17,7 @@ from .royal_festival_content import enrich_royal_festival
 PRESET_CATALOG = [
     {"key": "blank", "name": "Monde vierge", "emoji": "◇", "description": "Une configuration propre, sans lieu ni mécanique imposée.", "tone": "neutral"},
     {"key": "medieval_kingdom", "name": "Royaume médiéval", "emoji": "🏰", "description": "Village, forêt, mine, métiers, économie, météo et événement saisonnier.", "tone": "emerald"},
-    {"key": "royal_festival", "name": "La Fête du Royaume", "emoji": "🎉", "description": "Démonstration coopérative complète : préparation d'une fête en trois heures, métiers, objectifs, incidents et ambiance.", "tone": "gold"},
+    {"key": "royal_festival", "name": "Le Royaume", "emoji": "🏰", "description": "Royaume jouable complet : contenus historiques V1, métiers, économie, PNJ et scénario V2 de la Fête du Royaume en trois heures.", "tone": "gold"},
     {"key": "space_station", "name": "Station spatiale", "emoji": "🛰️", "description": "Pont de commandement, hydroponie, exploration, crédits et météo spatiale.", "tone": "violet"},
 ]
 
@@ -240,8 +240,8 @@ def _royal_festival() -> list[dict[str, Any]]:
     by_key = {(row["type"], row["key"]): row["payload"] for row in definitions}
     settings = by_key[("server_settings", "kingdom_server")]
     settings.update({
-        "name": "La Fête du Royaume",
-        "description": "Monde coopératif de démonstration pour 6 à 8 joueurs, jouable en environ trois heures.",
+        "name": "Le Royaume",
+        "description": "Royaume complet reprenant les contenus V1 et enrichi du scénario coopératif La Fête du Royaume, jouable en environ trois heures.",
         "live_ops": {
             "scenario_duration_minutes": 180,
             "objectives": [

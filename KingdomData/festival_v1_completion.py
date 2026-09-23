@@ -66,8 +66,9 @@ def complete_v1_catalogue(definitions):
     source = json.loads(Path(__file__).with_name("festival_v1_catalogue.json").read_text(encoding="utf-8"))
     entities = {(row["type"], row["key"]): row["payload"] for row in definitions}
     settings = entities["server_settings", "kingdom_server"]
-    settings["workshop_content_revision"] = 3
+    settings["workshop_content_revision"] = 4
     settings["v1_content_aliases"] = deepcopy(ALIASES)
+    settings["onboarding"]["currency_label"] = "deniers"
 
     for row in source["items"]:
         key = ITEM_ALIASES.get(row["key"], row["key"])
@@ -144,9 +145,157 @@ def complete_v1_catalogue(definitions):
     _renewable_supplies(entities)
     _hunter_reconciliation(entities)
     _forge_services(entities["building", "royal_forge"])
+    _add_prompt_forge_catalogue(definitions, entities)
+    _add_balance_draft_mining(definitions, entities)
+    _set_historical_tavern_welcome(entities)
     tavern = entities["building", "edgar_tavern"]
     _merge(tavern["actions"], actions_from_modules("edgar_tavern", tavern["modules"]))
     _bridge_quest(entities["building", "festival_esplanade"], _remap(source["buildings"]["royal_bridge"]["construction"]))
+
+
+def _add_prompt_forge_catalogue(definitions, entities):
+    """Déclare le catalogue du prompt avec paiement atomique en ressources joueur."""
+    from import_v1 import actions_from_modules
+
+    forge = entities["building", "royal_forge"]
+    forge.update(name="La Forge du Dragon Noir", description="Catalogue du Maître Forgeron : paiement en minerais, lingots et gemmes.")
+    # Les anciens tarifs monétaires restent dans les données comme historique,
+    # mais aucun achat actif de la Forge ne doit débiter la monnaie du joueur.
+    for product in forge["modules"].setdefault("products", []):
+        if not product.get("costs"):
+            product["active"] = False
+    entries = [
+        ("short_sword_bronze", "Épée courte du novice", "Arme légère en bronze.", "⚔️", {"bronze_ingot":4}, 1, "armes"),
+        ("long_sword_iron", "Épée longue du chevalier", "Lame de fer forgée pour la garde.", "🗡️", {"iron_ingot":6}, 1, "armes"),
+        ("war_axe_iron_silver", "Hache de guerre des montagnes", "Hache de guerre en fer et argent.", "🪓", {"iron_ingot":5,"silver_ingot":2}, 1, "armes"),
+        ("war_hammer_iron", "Marteau de guerre du colosse", "Marteau massif en fer.", "🔨", {"iron_ingot":7}, 1, "armes"),
+        ("assassin_dagger_silver", "Dague d'assassin", "Dague discrète en argent.", "🗡️", {"silver_ingot":4}, 1, "armes"),
+        ("dragon_blade", "Lame du Dragon", "Épée légendaire en or sertie d'un diamant.", "🐉", {"gold_ingot":3,"diamond":1}, 1, "armes"),
+        ("short_hunter_bow", "Arc court du chasseur", "Arc court en bronze.", "🏹", {"bronze_ingot":5}, 1, "armes"),
+        ("long_elf_bow", "Arc long des elfes", "Arc long renforcé de fer et d'argent.", "🏹", {"iron_ingot":6,"silver_ingot":2}, 1, "armes"),
+        ("war_crossbow", "Arbalète de guerre", "Arbalète robuste en fer.", "🏹", {"iron_ingot":8}, 1, "armes"),
+        ("precision_crossbow", "Arbalète de précision", "Arbalète équilibrée en argent et or.", "🏹", {"silver_ingot":4,"gold_ingot":1}, 1, "armes"),
+        ("iron_arrows_20", "Flèches en fer · lot de 20", "Vingt flèches à pointe de fer.", "🏹", {"iron_ingot":2}, 20, "projectiles"),
+        ("broadhead_arrows_12", "Flèches à tête large · lot de 12", "Douze flèches de chasse.", "🏹", {"iron_ingot":3}, 12, "projectiles"),
+        ("crossbow_bolts_15", "Carreaux · lot de 15", "Quinze carreaux pour arbalète.", "➶", {"iron_ingot":3}, 15, "projectiles"),
+        ("piercing_bolts_10", "Carreaux perforants · lot de 10", "Dix carreaux renforcés à l'argent.", "➶", {"silver_ingot":2}, 10, "projectiles"),
+        ("reinforced_leather_cuirass", "Cuirasse de cuir renforcé", "Armure de cuir renforcée au bronze.", "🛡️", {"bronze_ingot":5}, 1, "armures"),
+        ("soldier_chainmail", "Cotte de mailles du soldat", "Cotte de mailles en fer.", "🛡️", {"iron_ingot":8}, 1, "armures"),
+        ("knight_plate_armor", "Armure de plates du chevalier", "Armure en fer et argent.", "🛡️", {"iron_ingot":10,"silver_ingot":3}, 1, "armures"),
+        ("closed_visor_helm", "Heaume à visage fermé", "Heaume de protection en fer.", "🪖", {"iron_ingot":4}, 1, "armures"),
+        ("dragon_king_armor", "Armure royale du Roi-Dragon", "Armure d'apparat sertie de gemmes.", "🛡️", {"gold_ingot":5,"diamond":2}, 1, "armures"),
+        ("round_wood_iron_shield", "Bouclier rond bois et fer", "Bouclier renforcé au fer.", "🛡️", {"iron_ingot":3}, 1, "accessoires"),
+        ("heraldic_silver_shield", "Bouclier héraldique gravé", "Bouclier décoré d'argent.", "🛡️", {"silver_ingot":2}, 1, "accessoires"),
+        ("combat_gauntlets", "Gantelets de combat", "Gantelets forgés en fer.", "🧤", {"iron_ingot":3}, 1, "accessoires"),
+        ("knight_spurs", "Éperons de chevalier", "Éperons en argent.", "🐎", {"silver_ingot":1}, 1, "accessoires"),
+        ("leather_quiver", "Carquois en cuir", "Carquois renforcé au bronze.", "🎒", {"bronze_ingot":2}, 1, "accessoires"),
+    ]
+    new_items = {
+        "bronze_ore": ("Minerai de bronze", "⛏️", "raw_metal", 999),
+        "silver_ore": ("Minerai d'argent", "⛏️", "raw_metal", 999),
+        "gold_ore": ("Minerai d'or", "⛏️", "raw_metal", 999),
+        "bronze_ingot": ("Lingot de bronze", "🟤", "metal", 999),
+        "silver_ingot": ("Lingot d'argent", "🥈", "metal", 999),
+        "gold_ingot": ("Lingot d'or", "🥇", "metal", 999),
+        "diamond": ("Diamant", "💎", "gem", 99),
+    }
+    for key, (name, emoji, category, limit) in new_items.items():
+        if ("item", key) not in entities:
+            payload = {"name":name,"emoji":emoji,"description":f"Ressource de la chaîne minière et métallurgique. {BALANCE}",
+                       "category":category,"stack_limit":limit,"balance_status":BALANCE}
+            definitions.append({"type":"item","key":key,"payload":payload})
+            entities["item", key] = payload
+
+    products, pages = [], {}
+    for key, name, description, emoji, costs, quantity, category in entries:
+        if ("item", key) not in entities:
+            payload = {"name":name,"emoji":emoji,"description":description,"category":"equipment" if quantity == 1 else "ammunition",
+                       "stack_limit":max(quantity, 99),"balance_status":BALANCE}
+            definitions.append({"type":"item","key":key,"payload":payload})
+            entities["item", key] = payload
+        product = {"item_key":key,"name":name,"emoji":emoji,"description":description,"category":category,
+                   "price":0,"currency":"money","costs":deepcopy(costs),"initial_stock":999,
+                   "maximum_per_purchase":99,"active":True,"balance_status":BALANCE}
+        products.append(product)
+        pages.setdefault(category, []).append(key)
+    _merge(forge["modules"].setdefault("products", []), products, "item_key")
+    _merge(forge["actions"], actions_from_modules("royal_forge", {"products":products}))
+
+    # Les lingots sont des recettes de joueur : minerais apportés au forgeron,
+    # ressources prélevées atomiquement et production récupérée par timer V2.
+    recipes = []
+    for key, ore, coal, duration in [
+        ("prompt_smelt_iron_ingot", "iron_ore", 1, 35),
+        ("smelt_bronze_ingot", "bronze_ore", 1, 35),
+        ("smelt_silver_ingot", "silver_ore", 2, 55),
+        ("smelt_gold_ingot", "gold_ore", 3, 75),
+    ]:
+        output_key = "iron_ingot" if key == "prompt_smelt_iron_ingot" else key.removeprefix("smelt_")
+        recipes.append({"key":key,"name":f"Fondre : {entities['item', output_key]['name']}",
+                        "profession":"blacksmith","required_level":1,"duration_seconds":duration,"energy_cost":5,
+                        "ingredients":{ore:3,"festival_coal":coal},"output_item_key":output_key,
+                        "output_quantity":1,"ingredient_source":"player_inventory","output_destination":"player",
+                        "experience":15,"balance_status":BALANCE})
+    _merge(forge["modules"].setdefault("recipes", []), recipes)
+    recipe_actions = actions_from_modules("royal_forge", {"recipes":recipes})
+    _merge(forge["actions"], recipe_actions)
+    _home_link(forge, "dragon_black_catalogue", "⚔️ Catalogue du Dragon Noir")
+    for category, item_keys in pages.items():
+        _page(forge, f"dragon_black_{category}", f"Catalogue · {category.capitalize()}", [
+            {"id":f"select_dragon_black_{category}","type":"dynamic_product_selector",
+             "props":{"item_keys":item_keys,"placeholder":"Choisir une pièce et payer en minerais…"}},
+        ], "dragon_black_catalogue")
+    _page(forge, "dragon_black_catalogue", "Catalogue du Dragon Noir", [
+        _nav(f"nav_dragon_black_{category}", category.capitalize(), f"dragon_black_{category}") for category in pages
+    ])
+    _home_link(forge, "dragon_black_recipes", "🔥 Fondre les lingots")
+    recipe_components = []
+    for action in recipe_actions:
+        button = _button(forge, "royal_forge", action)
+        button["visible_when"] = {"pending_action": action["key"][6:]} if action["key"].startswith("claim_") else {"profession": "blacksmith"}
+        recipe_components.append(button)
+    _page(forge, "dragon_black_recipes", "Fondre les lingots", recipe_components)
+
+
+def _add_balance_draft_mining(definitions, entities):
+    """Ajoute les ressources minières absentes de la source V1 en mode à valider."""
+    from import_v1 import actions_from_modules
+
+    mine = entities["building", "deep_mine"]
+    additions = []
+    for key, name, level, duration, energy, yield_min, yield_max, xp in [
+        ("bronze_vein", "Filon de bronze", 1, 45, 15, 2, 4, 20),
+        ("silver_vein", "Filon d'argent", 4, 75, 25, 1, 3, 35),
+        ("gold_vein", "Filon d'or", 7, 120, 35, 1, 2, 50),
+        ("diamond_cavern", "Géode de diamant", 10, 180, 45, 1, 1, 70),
+    ]:
+        if any(row.get("key") == key for row in mine["modules"].setdefault("activities", [])):
+            continue
+        resource = {"bronze_vein":"bronze_ore","silver_vein":"silver_ore","gold_vein":"gold_ore","diamond_cavern":"diamond"}[key]
+        additions.append({"key":key,"name":name,"emoji":"⛏️","description":BALANCE,"profession":"miner",
+                          "required_level":level,"duration_seconds":duration,"energy_cost":energy,
+                          "durability_cost":2,"tool":"iron_pickaxe","tool_max_durability":100,
+                          "experience":xp,"balance_status":BALANCE,
+                          "outcomes":[{"key":resource,"weight":100,"rewards":{resource:[yield_min,yield_max]}}]})
+    mine["modules"]["activities"].extend(additions)
+    actions = actions_from_modules("deep_mine", {"activities":additions})
+    _merge(mine["actions"], actions)
+    if actions:
+        _home_link(mine, "balance_metal_galleries", "⛏️ Métaux précieux · à valider")
+        components = [_button(mine, "deep_mine", action) for action in actions]
+        _page(mine, "balance_metal_galleries", "Galeries des métaux · BALANCE_DRAFT / À VALIDER", components)
+
+
+def _set_historical_tavern_welcome(entities):
+    tavern = entities["building", "edgar_tavern"]
+    tavern.update(name="À la Gueuse Cocu", description="Menu de la Taverne Médiévale – Année de Grâce 1426 (et quelques). Bienvenue, noble voyageur !")
+    npc = tavern["modules"].get("npc", {})
+    welcome = "Bienvenue, noble voyageur ! Ici, on trinque à la santé des rois, des dragons et des bardeaux bien remplis. Que ton gosier soit assoiffé et ton estomac vaillant !"
+    phrases = list(npc.get("phrases", []))
+    if welcome not in phrases:
+        npc["phrases"] = [welcome, *phrases]
+    from import_v1 import actions_from_modules
+    _merge(tavern["actions"], actions_from_modules("edgar_tavern", {"npc":npc}), replace=True)
 
 
 def _bridge_quest(building, project):

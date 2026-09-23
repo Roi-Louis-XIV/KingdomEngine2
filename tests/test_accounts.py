@@ -331,8 +331,9 @@ def test_world_preset_api_and_picker_expose_and_instantiate_royal_festival(tmp_p
         ]
         festival = next(item for item in presets if item["key"] == "royal_festival")
         assert festival["catalog_scope"] == "official"
+        assert festival["name"] == "Le Royaume"
         assert response.json()["catalog"]["source"] == "official_content_packs"
-        assert response.json()["catalog"]["royal_festival_revision"] == 3
+        assert response.json()["catalog"]["royal_festival_revision"] == 4
         assert response.json()["catalog"]["royal_festival_persistence"] == {
             "versions": [{"version": 1, "status": "published", "origin": "legacy_world_presets"}],
             "tombstoned": False,
@@ -353,7 +354,7 @@ def test_world_preset_api_and_picker_expose_and_instantiate_royal_festival(tmp_p
         assert created.status_code == 200
         assert created.json()["preset"] == "royal_festival"
         world = ContentStore(created.json()["database_path"])
-        assert world.get("server_settings", "kingdom_server")["payload"]["template_revision"] == 3
+        assert world.get("server_settings", "kingdom_server")["payload"]["template_revision"] == 4
 
 
 def test_managed_server_install_and_safe_removal_lifecycle(tmp_path, monkeypatch):

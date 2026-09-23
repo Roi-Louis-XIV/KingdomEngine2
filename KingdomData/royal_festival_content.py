@@ -62,7 +62,7 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
     )]
 
     settings = _entity(definitions, "server_settings", "kingdom_server")
-    settings["template_revision"] = 3
+    settings["template_revision"] = 4
     settings["balance_status"] = BALANCE
     settings["onboarding"]["starting_money"] = 25
     settings["live_ops"]["status"] = "preparation"
@@ -141,6 +141,7 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
     market["interface_texts"] = {"home_title":"Intendance royale","home_subtitle":"Préparatifs, contributions et annonces du royaume."}
 
     forest = _entity(definitions, "building", "forester_lodge")
+    forest.update(name="La Forêt", description="Zone forestière de Sylvain : coupe de bois, expéditions et chasse.")
     forest["actions"] = [
         _join("forester", "Devenir forestier", "🪓"),
         _leave("forester", "Quitter le métier de forestier", "↩️"),
@@ -151,6 +152,7 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
     ]
 
     mine = _entity(definitions, "building", "deep_mine")
+    mine.update(name="La Mine", description="Galeries de Roland : extraction chronométrée, minerais, charbon et livraisons.")
     mine["actions"] = [
         _join("miner", "Devenir mineur", "⛏️"),
         _leave("miner", "Quitter le métier de mineur", "↩️"),
@@ -160,6 +162,7 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
     ]
 
     forge = _entity(definitions, "building", "royal_forge")
+    forge.update(name="La Forge du Dragon Noir", description="Atelier de Wagner : recettes, réparations et catalogue payé en ressources.")
     forge["actions"] = [
         _join("blacksmith", "Devenir forgeron", "⚒️"),
         _leave("blacksmith", "Quitter le métier de forgeron", "↩️"),
@@ -169,6 +172,7 @@ def enrich_royal_festival(definitions: list[dict[str, Any]]) -> None:
     ]
 
     tavern = _entity(definitions, "building", "edgar_tavern")
+    tavern.update(name="À la Gueuse Cocu", description="Menu de la Taverne Médiévale – Année de Grâce 1426 (et quelques).")
     tavern["actions"] = [
         _join("innkeeper", "Devenir tavernier", "🍺"),
         _leave("innkeeper", "Quitter le métier de tavernier", "↩️"),

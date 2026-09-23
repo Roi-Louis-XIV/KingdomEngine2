@@ -639,7 +639,7 @@ class InterfaceView(discord.ui.View):
 
     def _delivery_notice(self, result: dict[str, Any]) -> str:
         lines = " · ".join(f"{line['quantity']} × {line.get('resource_name') or self.engine._item_name(line['resource'])}" for line in result.get("delivery", []))
-        payments = " · ".join(f"{amount} {'écus' if currency == 'money' else self.engine._item_name(currency)}" for currency, amount in result.get("payments", {}).items())
+        payments = " · ".join(f"{amount} {self._currency_label(currency)}" for currency, amount in result.get("payments", {}).items())
         return f"Livraison effectuée : {lines}." + (f" Paiement : **{payments}**." if payments else "")
 
     def _add_dynamic_delivery(self, component: dict[str, Any], row: int) -> None:
@@ -669,13 +669,27 @@ class InterfaceView(discord.ui.View):
             await interaction.response.send_modal(QuantityModal())
         select.callback = choose; self.add_item(select)
 
+    def _currency_label(self, currency: str) -> str:
+        if currency != "money":
+            return self.engine._item_name(currency)
+        try:
+            return str(self.engine.store.get("server_settings", "kingdom_server", published=True)["payload"].get("onboarding", {}).get("currency_label", "écus"))
+        except (KeyError, LookupError, TypeError):
+            return "écus"
+
+    def _product_cost_label(self, product: dict[str, Any]) -> str:
+        costs = product.get("costs")
+        if isinstance(costs, dict) and costs:
+            return " + ".join(f"{amount} {self.engine._item_name(str(resource))}" for resource, amount in costs.items())
+        return f"{product.get('price', 0)} {self._currency_label(str(product.get('currency', 'money')))}"
+
     def _add_dynamic_product(self, component: dict[str, Any], row: int) -> None:
         products = [item for item in self.engine.commerce_options(self._building_key()) if int(item.get("quantity", 0)) > 0]
         allowed = component.get("props", {}).get("item_keys")
         if allowed is not None:
             products = [item for item in products if item["item_key"] in allowed]
         if not products: return
-        select = discord.ui.Select(placeholder=str(component.get("props", {}).get("placeholder", "Choisir un produit…"))[:150], options=[discord.SelectOption(label=str(item["name"])[:100], value=item["item_key"][:100], description=f"{item.get('price', 0)} écus · stock {item.get('quantity', 0)}"[:100], emoji=item.get("emoji") or None) for item in products[:25]], row=row)
+        select = discord.ui.Select(placeholder=str(component.get("props", {}).get("placeholder", "Choisir un produit…"))[:150], options=[discord.SelectOption(label=str(item["name"])[:100], value=item["item_key"][:100], description=f"{self._product_cost_label(item)} · stock {item.get('quantity', 0)}"[:100], emoji=item.get("emoji") or None) for item in products[:25]], row=row)
         async def choose(interaction: discord.Interaction):
             await self._show_purchase_modal(interaction, select.values[0])
         select.callback = choose; self.add_item(select)
@@ -693,7 +707,8 @@ class InterfaceView(discord.ui.View):
             async def on_submit(modal_self, modal_interaction: discord.Interaction):
                 try:
                     amount = int(str(modal_self.quantity)); result = await parent.engine.execute_purchase(str(modal_interaction.user.id), parent._building_key(), str(modal_interaction.id), item_key, amount)
-                    parent.notice = f"Commande servie : {amount} × {product['name']} · **{result['purchase']['total']} écus**."
+                    payment = " + ".join(f"{value} {parent._currency_label(key)}" for key, value in result["purchase"].get("payments", {}).items())
+                    parent.notice = f"Commande servie : {amount} × {product['name']}" + (f" · **{payment}**." if payment else ".")
                 except Exception as exc: parent.notice = str(exc)
                 parent._render_interactions(); await modal_interaction.response.edit_message(embed=parent.embed(), view=parent)
         await interaction.response.send_modal(PurchaseModal())

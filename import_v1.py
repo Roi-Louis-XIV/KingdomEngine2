@@ -683,8 +683,14 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
         _append_timed(actions, action, immediate_effects, deferred_effects)
     for product in modules.get("products", []):
         item = product["item_key"]
+        configured_costs = product.get("costs")
+        payment_effects = (
+            [{"type": "cost", "resource": str(resource), "amount": int(amount)} for resource, amount in configured_costs.items()]
+            if isinstance(configured_costs, dict) and configured_costs else
+            [{"type": "cost", "resource": str(product.get("currency", "money")), "amount": int(product.get("price", 0))}]
+        )
         product_effects = [
-            {"type": "cost", "resource": "money", "amount": int(product.get("price", 0))},
+            *payment_effects,
             {"type": "stock_cost", "item": item, "amount": 1, "initial_stock": int(product.get("initial_stock", 0))},
             {"type": "reward", "resource": item, "amount": 1},
         ]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 
 import pytest
@@ -24,6 +25,26 @@ def test_legacy_presets_are_migrated_idempotently(official):
     official.migrate_legacy_presets()
     items = official.list(content_type="world_template", published_only=True)
     assert {item["key"] for item in items} == {"medieval_kingdom", "royal_festival", "space_station"}
+
+
+def test_existing_kingdom_pack_migrates_in_place_to_revision_four(official):
+    with official.connection() as db:
+        pack_id = db.execute("SELECT id FROM official_content_packs WHERE pack_key='royal_festival'").fetchone()[0]
+        row = db.execute("SELECT payload_json FROM official_content_entities WHERE pack_id=? AND entity_type='server_settings' AND entity_key='kingdom_server'", (pack_id,)).fetchone()
+        settings = json.loads(row[0]); settings["template_revision"] = 3
+        db.execute("UPDATE official_content_entities SET payload_json=? WHERE pack_id=? AND entity_type='server_settings' AND entity_key='kingdom_server'", (json.dumps(settings), pack_id))
+        db.execute("UPDATE official_content_packs SET name='La Fête du Royaume' WHERE id=?", (pack_id,))
+
+    official.migrate_legacy_presets()
+    official.migrate_legacy_presets()
+
+    current = official.get("royal_festival", published_only=True)
+    settings = next(entity["payload"] for entity in current["entities"] if entity["type"] == "server_settings")
+    buildings = {entity["key"]: entity["payload"]["name"] for entity in current["entities"] if entity["type"] == "building"}
+    assert current["name"] == "Le Royaume"
+    assert settings["template_revision"] == settings["workshop_content_revision"] == 4
+    assert buildings["edgar_tavern"] == "À la Gueuse Cocu"
+    assert len(official.list(content_type="world_template", published_only=True)) == 3
 
 
 def test_archived_bundled_template_is_restored_without_duplication(official):
@@ -122,7 +143,7 @@ def test_required_royal_festival_is_restored_after_legacy_tombstone(official):
         if entity["type"] == "server_settings" and entity["key"] == "kingdom_server"
     )
     state = official.catalog_state("royal_festival")
-    assert settings["template_revision"] == 3
+    assert settings["template_revision"] == 4
     assert state["tombstoned"] is False
     assert state["versions"] == [{
         "version": 1, "status": "published", "origin": "legacy_world_presets",

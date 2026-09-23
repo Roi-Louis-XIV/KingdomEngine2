@@ -1707,7 +1707,7 @@ function worldPresetPicker() {
     },
     {
       key: "royal_festival",
-      name: "La Fête du Royaume",
+      name: "Le Royaume",
       emoji: "🎉",
       description:
         "Préparation coopérative complète d’une fête en trois heures.",

@@ -202,15 +202,27 @@ class GameEngine:
             if previous: return json.loads(previous[0])
             self._ensure_player(db, discord_id)
             self._change_stock(db, building_key, item_key, -quantity, int(product.get("initial_stock", 0)))
-            unit_price = self._effective_number(product.get("price", 0), "economy.price", {"building_key": building_key, "item_key": item_key})
-            total = quantity * unit_price
-            self._change_resource(db, discord_id, str(product.get("currency", "money")), -total)
+            configured_costs = product.get("costs")
+            payments: dict[str, int] = {}
+            if isinstance(configured_costs, dict) and configured_costs:
+                for resource, unit_amount in configured_costs.items():
+                    amount = quantity * int(unit_amount)
+                    if amount < 1: raise ValidationError("Le coût en ressources doit être positif.")
+                    self._change_resource(db, discord_id, str(resource), -amount)
+                    payments[str(resource)] = amount
+                total = 0
+            else:
+                unit_price = self._effective_number(product.get("price", 0), "economy.price", {"building_key": building_key, "item_key": item_key})
+                total = quantity * unit_price
+                currency = str(product.get("currency", "money"))
+                self._change_resource(db, discord_id, currency, -total)
+                payments[currency] = total
             self._change_resource(db, discord_id, item_key, quantity)
             maximum_durability = self.building(building_key)["payload"].get("modules", {}).get("repairs", {}).get("durability", {}).get(item_key)
             if maximum_durability:
                 self._grant_tool(db, discord_id, {"tool": item_key, "max_durability": maximum_durability})
             result = {"purchase": {"item": item_key, "name": product["name"], "quantity": quantity,
-                                    "total": total}, "player": self.player(discord_id, db)}
+                                    "total": total, "payments": payments}, "player": self.player(discord_id, db)}
             db.execute("INSERT INTO action_log(interaction_id,discord_id,building_key,action_key,result_json,created_at) VALUES(?,?,?,?,?,?)",
                        (interaction_id, discord_id, building_key, "commerce", json.dumps(result, ensure_ascii=False), _now()))
         await self._publish_configured_events(product.get("events", {}), "on_success", discord_id, building_key, "commerce", result)

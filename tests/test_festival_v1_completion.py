@@ -152,7 +152,43 @@ def test_all_eight_legacy_recipes_are_present_and_configurable():
     assert {"cook_onion_soup", "cook_honey_chicken", "cook_boar_pate", "cook_smoked_sausages"} <= {r["key"] for r in tavern}
     forge = definitions["building", "royal_forge"]["modules"]["recipes"]
     assert {"forge_iron_pickaxe_from_ore", "forge_iron_sword_from_ore", "forge_simple_axe_from_ore", "forge_halberd_from_ore"} <= {r["key"] for r in forge}
-    for recipe in tavern + forge:
+    legacy_recipes = [recipe for recipe in tavern + forge if recipe.get("category", "").startswith("v1_")]
+    for recipe in legacy_recipes:
         assert recipe["ingredient_source"] == recipe["output_destination"] == "building_stock"
         for item in [recipe["output_item_key"], *recipe["ingredients"]]:
             assert ("item", item) in definitions
+
+
+def test_prompt_metals_are_mined_and_paid_to_wagner_from_player_inventory(world):
+    store, engine = world
+    run(engine.execute("42", "deep_mine", "join_miner", "prompt-miner"))
+    run(engine.execute("42", "deep_mine", "bronze_vein", "prompt-bronze"))
+    with store.connection() as db:
+        db.execute("UPDATE scheduled_actions SET ready_at=0 WHERE discord_id='42'")
+    mined = run(engine.execute("42", "deep_mine", "claim_bronze_vein", "prompt-bronze-claim"))
+    assert mined["player"]["inventory"]["bronze_ore"] >= 2
+    run(engine.execute("42", "deep_mine", "leave_miner", "prompt-leave-miner"))
+    run(engine.execute("42", "royal_forge", "join_blacksmith", "prompt-blacksmith"))
+    with store.connection() as db:
+        db.executemany("INSERT INTO inventory(discord_id,item_key,quantity) VALUES('42',?,?)", [
+            ("iron_ingot", 5), ("silver_ingot", 1),
+        ])
+    with pytest.raises(ValidationError):
+        run(engine.execute_purchase("42", "royal_forge", "prompt-forge-insufficient", "war_axe_iron_silver", 1))
+    assert engine.player("42")["inventory"]["iron_ingot"] == 5
+    assert engine.player("42")["inventory"]["silver_ingot"] == 1
+    with store.connection() as db:
+        db.execute("UPDATE inventory SET quantity=2 WHERE discord_id='42' AND item_key='silver_ingot'")
+    crafted = run(engine.execute_purchase("42", "royal_forge", "prompt-forge", "war_axe_iron_silver", 1))
+    assert crafted["purchase"]["payments"] == {"iron_ingot":5,"silver_ingot":2}
+    assert crafted["player"]["inventory"]["war_axe_iron_silver"] == 1
+    assert crafted["player"]["inventory"].get("iron_ingot", 0) == 0
+    assert crafted["player"]["inventory"].get("silver_ingot", 0) == 0
+    forge_interface = store.get("building", "royal_forge", published=True)["payload"]["interface"]
+    rendered = InterfaceView(engine, forge_interface, owner_id=42)
+    assert rendered._currency_label("money") == "deniers"
+    assert "Lingot de fer" in rendered._product_cost_label(next(
+        row for row in engine.commerce_options("royal_forge") if row["item_key"] == "war_axe_iron_silver"
+    ))
+    forge_products = store.get("building", "royal_forge", published=True)["payload"]["modules"]["products"]
+    assert all(not row.get("active", True) for row in forge_products if not row.get("costs"))

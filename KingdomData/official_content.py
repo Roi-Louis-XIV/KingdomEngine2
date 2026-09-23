@@ -112,17 +112,17 @@ class OfficialContentStore:
                         "SELECT 1 FROM official_content_entities WHERE pack_id=? AND entity_type='audio' LIMIT 1",
                         (current["id"],),
                     ).fetchone()
-                    needs_bundled_update = current_revision < 3 if key == "royal_festival" else not has_audio
+                    needs_bundled_update = current_revision < 4 if key == "royal_festival" else not has_audio
                     if key == "royal_festival" and settings_row:
-                        needs_bundled_update |= int(json.loads(settings_row[0]).get("workshop_content_revision", 0)) < 3
+                        needs_bundled_update |= int(json.loads(settings_row[0]).get("workshop_content_revision", 0)) < 4
                     # Migration ciblée des seuls presets livrés avec le code.
                     # Les copies et contenus créés par les administrateurs ne
                     # sont jamais réécrits par un démarrage de KingdomWeb.
                     if current and current["origin"] == "legacy_world_presets" and needs_bundled_update:
                         self._replace_entities(db, int(current["id"]), world_preset(key))
                         db.execute(
-                            "UPDATE official_content_packs SET updated_at=? WHERE id=?",
-                            (_now(), current["id"]),
+                            "UPDATE official_content_packs SET name=?,description=?,emoji=?,updated_at=? WHERE id=?",
+                            (meta["name"], meta["description"], meta["emoji"], _now(), current["id"]),
                         )
                     continue
                 now = _now()
