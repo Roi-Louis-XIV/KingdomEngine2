@@ -101,26 +101,44 @@ class WorldClock:
         day, hour = int(total_hours // 24) + 1, int(total_hours % 24)
         minute = int((total_hours % 1) * 60)
         calendar=CalendarEngine(config.get("calendar")); world_date=calendar.from_world_hours(total_hours); season=calendar.season(world_date)
-        weather = self._weather(config, runtime, now)
+        base_weather = self._weather(config, runtime, now)
         period = "morning" if 5 <= hour < 12 else "day" if 12 <= hour < 18 else "evening" if 18 <= hour < 22 else "night"
         events = []
         occurrences = EventLifecycle(self.store).list(now=now)
         occurrence_keys = {item["event_key"] for item in occurrences}
+        weather_overrides: list[tuple[float, str, str]] = []
         for row in self.store.list("event", published=True):
-            occurrence=next((item for item in occurrences if item["event_key"]==row["entity_key"] and item["status"]=="active"),None)
-            if occurrence or (row["entity_key"] not in occurrence_keys and event_is_active(row["payload"], now)):
+            active_occurrences = [item for item in occurrences if item["event_key"] == row["entity_key"] and item["status"] == "active"]
+            occurrence = max(active_occurrences, key=lambda item: (float(item["started_at"] or 0), item["occurrence_id"]), default=None)
+            legacy_active = row["entity_key"] not in occurrence_keys and event_is_active(row["payload"], now)
+            if occurrence or legacy_active:
                 events.append({"key": row["entity_key"], "name": row["payload"].get("name", row["entity_key"]), "emoji": row["payload"].get("emoji", "✦"), "ends_at": occurrence["ends_at"] if occurrence else row["payload"].get("ends_at"),"occurrence_id":occurrence["occurrence_id"] if occurrence else None})
-        forecasts=self._forecasts(config,runtime,day,weather,season)
+                weather_key = row["payload"].get("weather_key")
+                if weather_key:
+                    started_at = float(occurrence["started_at"] or 0) if occurrence else (_timestamp(row["payload"].get("starts_at")) or 0)
+                    weather_overrides.append((started_at, row["entity_key"], str(weather_key)))
+        weather = self._event_weather(config, base_weather, max(weather_overrides)[2]) if weather_overrides else base_weather
+        forecasts=self._forecasts(config,runtime,day,base_weather,season,now=now)
         return {"day": day, "world_hours":total_hours,"date":world_date.dict(),"calendar":{"name":calendar.definition.get("name"),"days_per_year":calendar.days_per_year},"season":season,"hour": hour, "minute": minute, "time_of_day": period, "speed": speed, "weather": weather, "forecasts": forecasts, "active_events": events, "event_occurrences":occurrences, "updated_at": _iso_now()}
 
-    def _forecasts(self, config: dict[str, Any], runtime: dict[str, Any], day: int, current: dict[str, Any], season:dict[str,Any]|None=None) -> list[dict[str, Any]]:
+    @staticmethod
+    def _event_weather(config: dict[str, Any], base_weather: dict[str, Any], weather_key: str) -> dict[str, Any]:
+        options = [*config.get("weather_options", []), *DEFAULT_CLIMATE]
+        if base_weather.get("key") == weather_key:
+            options.insert(0, base_weather)
+        selected = next((item for item in options if item.get("key") == weather_key), None)
+        if selected is None:
+            return {"key": weather_key, "name": weather_key}
+        return {key: value for key, value in selected.items() if key not in {"weight", "hour"}}
+
+    def _forecasts(self, config: dict[str, Any], runtime: dict[str, Any], day: int, current: dict[str, Any], season:dict[str,Any]|None=None, *, now: float | None = None) -> list[dict[str, Any]]:
         """Maintient une file glissante; un GET ne rerolle jamais une journée existante."""
         count=max(5,min(7,int(config.get("forecast_days",5))))
         queue=[item for item in runtime.get("forecasts",[]) if int(item.get("day",0))>=day]
         options=config.get("weather_options") or DEFAULT_CLIMATE
         previous=queue[-1] if queue else {**current,"day":day}
         if not queue: queue=[previous]
-        event_factors=self._climate_factors()
+        event_factors=self._climate_factors(now=now)
         for modifier in (season or {}).get("modifiers",[]):
             prop=str(modifier.get("property",""))
             if prop.startswith("weather.probability."):
@@ -133,9 +151,9 @@ class WorldClock:
         with self.store.connection() as db: db.execute("UPDATE world_runtime SET value_json=?,updated_at=? WHERE runtime_key=?",(json.dumps(runtime,ensure_ascii=False),_iso_now(),self.KEY))
         return runtime["forecasts"]
 
-    def _climate_factors(self) -> dict[str,float]:
+    def _climate_factors(self, *, now: float | None = None) -> dict[str,float]:
         factors={}
-        for event in EventLifecycle(self.store).active_definitions():
+        for event in EventLifecycle(self.store).active_definitions(now=now):
             for modifier in event.get("modifiers",[]):
                 prop=str(modifier.get("property",""))
                 if not prop.startswith("weather.probability."): continue

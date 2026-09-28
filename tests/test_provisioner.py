@@ -58,6 +58,62 @@ def test_historic_kingdom_resident_role_is_reused_for_oath():
     assert find_player_role(guild, "⚔️ Habitants") is resident
 
 
+def test_unmanageable_historic_player_role_does_not_block_server_installation(tmp_path):
+    class Role:
+        def __init__(self, name, position): self.name, self.position = name, position
+        def __ge__(self, other): return self.position >= other.position
+        def __lt__(self, other): return self.position < other.position
+        async def edit(self, **_kwargs): raise AssertionError("Le rôle historique protégé ne doit pas être modifié")
+
+    class Guild:
+        me = SimpleNamespace(top_role=Role("KingdomCore", 5))
+        roles = [Role("Habitant du Royaume", 10)]
+        async def create_role(self, **kwargs):
+            role = Role(kwargs["name"], 1)
+            self.roles.append(role)
+            return role
+
+    store = ContentStore(tmp_path / "protected-player-role.db")
+    store.initialize()
+    guild = Guild()
+    provisioner = DiscordProvisioner(guild, store)
+    report = SimpleNamespace(created_roles=[])
+
+    player = asyncio.run(provisioner._ensure_player_role("👤 Participant", report))
+
+    assert player.name == "👤 Participant"
+    assert player.position < guild.me.top_role.position
+    assert report.created_roles == ["👤 Participant"]
+
+
+def test_configured_player_role_above_core_uses_a_separate_managed_role(tmp_path):
+    class Role:
+        def __init__(self, name, position): self.name, self.position = name, position
+        def __ge__(self, other): return self.position >= other.position
+        def __lt__(self, other): return self.position < other.position
+        async def edit(self, **_kwargs): raise AssertionError("Le rôle protégé ne doit pas être modifié")
+
+    class Guild:
+        me = SimpleNamespace(top_role=Role("KingdomCore", 5))
+        roles = [Role("Habitant du Royaume", 10)]
+        async def create_role(self, **kwargs):
+            role = Role(kwargs["name"], 1)
+            self.roles.append(role)
+            return role
+
+    store = ContentStore(tmp_path / "same-name-protected-role.db")
+    store.initialize()
+    guild = Guild()
+    provisioner = DiscordProvisioner(guild, store)
+    report = SimpleNamespace(created_roles=[])
+
+    player = asyncio.run(provisioner._ensure_player_role("Habitant du Royaume", report))
+
+    assert player.name == "Habitant du Royaume · KingdomEngine"
+    assert player.position < guild.me.top_role.position
+    assert report.created_roles == [player.name]
+
+
 def test_building_access_role_name_is_data_driven():
     settings = {"discord": {"building_role_template": "🔑 {name} · {key}"}}
     assert building_role_name(settings, "forge", {"name": "Forge Dorée", "emoji": "⚒️"}) == "🔑 Forge Dorée · forge"
@@ -245,3 +301,31 @@ def test_discord_uninstall_uses_the_persistent_provision_queue(tmp_path):
     assert claimed[0]["scope"] == "uninstall"
     store.finish_discord_provision(request_id, report="Discord désinstallé")
     assert store.discord_provision_status()["report"] == "Discord désinstallé"
+
+
+def test_uninstall_kicks_platform_voice_workers_even_when_world_catalog_is_incomplete(tmp_path, monkeypatch):
+    store = ContentStore(tmp_path / "uninstall-workers.db")
+    store.initialize()
+    kicked = []
+
+    class Member:
+        def __init__(self, member_id): self.id, self.member_id = member_id, member_id
+        async def kick(self, reason=None): kicked.append((self.member_id, reason))
+        def __str__(self): return f"worker-{self.id}"
+
+    class BotMember:
+        guild_permissions = SimpleNamespace(manage_channels=True, manage_roles=True, kick_members=True)
+        top_role = SimpleNamespace()
+
+    monkeypatch.setenv("VOICE_WORKER_1_APPLICATION_ID", "501")
+    monkeypatch.setenv("VOICE_WORKER_2_APPLICATION_ID", "502")
+    monkeypatch.setenv("EDGAR_APPLICATION_ID", "501")
+    guild = SimpleNamespace(
+        me=BotMember(), members=[Member(501), Member(502), Member(999)],
+        categories=[], roles=[],
+    )
+
+    report = asyncio.run(DiscordProvisioner(guild, store).uninstall())
+
+    assert [member_id for member_id, _reason in kicked] == [501, 502]
+    assert report.removed_voice_bots == ["worker-501", "worker-502"]

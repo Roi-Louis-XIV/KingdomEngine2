@@ -573,6 +573,10 @@ async def _administrateur_plateforme(request: Request, compte: dict[str, Any] = 
 def platform_admin_page(): return FileResponse(STATIC / "platform-admin.html")
 
 
+@app.get("/platform-admin/templates", dependencies=[Depends(_administrateur_plateforme)])
+def platform_admin_templates_page(): return FileResponse(STATIC / "platform-templates.html")
+
+
 @app.get("/api/product/foundations", dependencies=[Depends(authenticate_account)])
 def product_foundations(request: Request):
     return comptes.fondations_produit(int(request.state.compte["id"]))

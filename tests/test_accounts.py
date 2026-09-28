@@ -164,11 +164,15 @@ def test_platform_admin_page_and_api_are_server_side_protected(tmp_path, monkeyp
         normal = client.post("/api/auth/register", json={"username": "client-normal", "display_name": "Client", "email": "", "password": "client-password-123", "password_confirmation": "client-password-123"})
         assert normal.status_code == 200
         assert client.get("/platform-admin").status_code == 403
+        assert client.get("/platform-admin/templates").status_code == 403
         assert client.get("/api/platform/overview").status_code == 403
         assert client.post("/api/platform/deployment/synchronize").status_code == 403
         client.post("/api/auth/logout")
         assert client.post("/api/auth/login", json={"username": "platform-owner", "password": "platform-password-123"}).status_code == 200
         assert client.get("/platform-admin").status_code == 200
+        templates_page = client.get("/platform-admin/templates")
+        assert templates_page.status_code == 200
+        assert 'id="templates-community"' in templates_page.text
         assert client.get("/api/platform/overview").status_code == 200
         update = client.post("/api/platform/deployment/synchronize")
         assert update.status_code == 200
@@ -327,7 +331,7 @@ def test_world_preset_api_and_picker_expose_and_instantiate_royal_festival(tmp_p
         assert response.status_code == 200
         presets = response.json()["presets"]
         assert [item["key"] for item in presets] == [
-            "blank", "medieval_kingdom", "royal_festival", "space_station",
+            "blank", "medieval_kingdom", "royal_festival", "storm_sainte_pelle", "space_station",
         ]
         festival = next(item for item in presets if item["key"] == "royal_festival")
         assert festival["catalog_scope"] == "official"
@@ -340,7 +344,7 @@ def test_world_preset_api_and_picker_expose_and_instantiate_royal_festival(tmp_p
             "workspaces": 0,
         }
         assert response.json()["catalog"]["keys"] == [
-            "blank", "medieval_kingdom", "royal_festival", "space_station",
+            "blank", "medieval_kingdom", "royal_festival", "storm_sainte_pelle", "space_station",
         ]
 
         script = client.get("/static/app.js").text

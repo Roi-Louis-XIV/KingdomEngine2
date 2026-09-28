@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import time
+from uuid import uuid4
 from datetime import datetime, timezone
 from typing import Any
 
 from KingdomData.store import ContentStore, NotFoundError
+from kingdomCore.quests import QuestRuntime
 
 
 class WorldError(ValueError):
@@ -23,6 +25,7 @@ class WorldEngine:
 
     def __init__(self, store: ContentStore):
         self.store = store
+        self.quests = QuestRuntime(store)
 
     def locations(self, published: bool = True) -> dict[str, dict[str, Any]]:
         rows = self.store.list("location", published=published)
@@ -129,6 +132,9 @@ class WorldEngine:
                 discovered_locations = sorted(set(state["discovered_locations"]) | {destination})
                 discovered_routes = sorted(set(state["discovered_routes"]) | {str(travel["route_key"])})
                 db.execute("UPDATE player_world_state SET location_key=?,active_building_key='',discovered_locations_json=?,discovered_routes_json=?,updated_at=? WHERE discord_id=?", (destination, json.dumps(discovered_locations), json.dumps(discovered_routes), _now(), str(discord_id)))
+                self.quests.advance_event(db, str(discord_id), "travel_arrival",
+                                          f"{discord_id}:{travel['route_key']}:{travel['started_at']}",
+                                          [{"type": "visit", "location_key": destination}])
             db.execute("DELETE FROM player_travel_state WHERE discord_id=?", (str(discord_id),))
             return destination_exists
 
@@ -138,6 +144,7 @@ class WorldEngine:
             raise WorldError("Lieu publié introuvable.")
         current = self.player_state(discord_id)
         with self.store.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
             if not db.execute("SELECT 1 FROM players WHERE discord_id=?", (str(discord_id),)).fetchone():
                 db.execute("INSERT INTO players(discord_id,updated_at,created_at) VALUES(?,?,?)", (str(discord_id), _now(), _now()))
             discovered = sorted(set(current["discovered_locations"]) | {location_key})
@@ -148,6 +155,8 @@ class WorldEngine:
             # Un déplacement administratif explicite annule proprement le
             # trajet précédent au lieu de laisser deux positions concurrentes.
             db.execute("DELETE FROM player_travel_state WHERE discord_id=?", (str(discord_id),))
+            self.quests.advance_event(db, str(discord_id), "placement", str(uuid4()),
+                                      [{"type": "visit", "location_key": location_key}])
         return self.player_state(discord_id)
 
     def available_routes(self, discord_id: str, location_key: str | None = None) -> list[dict[str, Any]]:
@@ -209,6 +218,8 @@ class WorldEngine:
                 discovered_locations = sorted(set(state["discovered_locations"]) | {destination})
                 discovered_routes = sorted(set(state["discovered_routes"]) | {route["key"]})
                 db.execute("UPDATE player_world_state SET location_key=?,active_building_key='',discovered_locations_json=?,discovered_routes_json=?,updated_at=? WHERE discord_id=?", (destination, json.dumps(discovered_locations), json.dumps(discovered_routes), _now(), str(discord_id)))
+                self.quests.advance_event(db, str(discord_id), "travel_arrival", str(uuid4()),
+                                          [{"type": "visit", "location_key": destination}])
         if duration > 0:
             return {"state": state, "travel": self.get_travel_state(discord_id, now=current_time), "route": route}
         return {"state": self.player_state(discord_id), "travel": None, "route": route}
@@ -225,7 +236,10 @@ class WorldEngine:
             raise WorldError("Ce bâtiment n’est pas encore situé dans le monde.")
         self.place(discord_id, location_key)
         with self.store.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
             db.execute("UPDATE player_world_state SET active_building_key=?,updated_at=? WHERE discord_id=?", (building_key, _now(), str(discord_id)))
+            self.quests.advance_event(db, str(discord_id), "building_entry", str(uuid4()),
+                                      [{"type": "visit", "building_key": building_key}])
         return self.player_state(discord_id)
 
     def leave_building(self, discord_id: str) -> dict[str, Any]:

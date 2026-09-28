@@ -24,7 +24,7 @@ def official(tmp_path):
 def test_legacy_presets_are_migrated_idempotently(official):
     official.migrate_legacy_presets()
     items = official.list(content_type="world_template", published_only=True)
-    assert {item["key"] for item in items} == {"medieval_kingdom", "royal_festival", "space_station"}
+    assert {item["key"] for item in items} == {"medieval_kingdom", "royal_festival", "storm_sainte_pelle", "space_station"}
 
 
 def test_existing_kingdom_pack_migrates_in_place_to_revision_four(official):
@@ -44,7 +44,7 @@ def test_existing_kingdom_pack_migrates_in_place_to_revision_four(official):
     assert current["name"] == "Le Royaume"
     assert settings["template_revision"] == settings["workshop_content_revision"] == 4
     assert buildings["edgar_tavern"] == "À la Gueuse Cocu"
-    assert len(official.list(content_type="world_template", published_only=True)) == 3
+    assert len(official.list(content_type="world_template", published_only=True)) == 4
 
 
 def test_archived_bundled_template_is_restored_without_duplication(official):

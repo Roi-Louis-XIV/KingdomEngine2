@@ -210,6 +210,130 @@ class WorldExplorerView(discord.ui.View):
         if len(self.children)<25:self.add_item(refresh)
 
 
+class QuestBoardView(discord.ui.View):
+    """Panneau privé ouvert depuis le bâtiment qui porte les quêtes."""
+
+    def __init__(self, engine: GameEngine, owner_id: int, building_key: str, notice: str = "") -> None:
+        super().__init__(timeout=300)
+        self.engine, self.owner_id, self.building_key, self.notice = engine, owner_id, building_key, notice
+        self._render()
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message("Ce panneau appartient à un autre joueur.", ephemeral=True)
+            return False
+        member = interaction.user if isinstance(interaction.user, discord.Member) else None
+        voice = member.voice.channel if member and member.voice else None
+        building = building_for_voice(self.engine.store, voice if isinstance(voice, discord.VoiceChannel) else None)
+        if not building or building["entity_key"] != self.building_key:
+            await interaction.response.send_message("Rejoins la place pour utiliser ce panneau.", ephemeral=True)
+            return False
+        return True
+
+    @staticmethod
+    def _objective_label(objective: dict[str, Any]) -> str:
+        if objective.get("description"):
+            return str(objective["description"])
+        if objective["type"] == "action":
+            return f"{objective['action_key']} · {objective['building_key']}"
+        if objective["type"] == "delivery":
+            return f"{objective['item_key']} → {objective['destination_building_key']}"
+        return f"Visiter {objective.get('location_key') or objective.get('building_key')}"
+
+    def embed(self) -> discord.Embed:
+        board = self.engine.quest_board(str(self.owner_id))
+        embed = discord.Embed(title="📜 Panneau des quêtes", color=0x7A1F1F)
+        if self.notice:
+            embed.description = self.notice
+        active = board["active"]
+        if active:
+            lines = [
+                f"{'✅' if item['progress'] >= item['required'] else '▫️'} "
+                f"{self._objective_label(item)} : {item['progress']}/{item['required']}"
+                for item in active["objectives"]
+            ]
+            lines.append(f"Récompense : **{active['reward_xp']} XP**")
+            if active["status"] == "ready":
+                lines.append("Prête à rendre : réclame ta récompense ici avant d'en choisir une autre.")
+            embed.add_field(name=f"Quête active · {active['name']}", value="\n".join(lines)[:1024], inline=False)
+        else:
+            embed.add_field(name="Quête active", value="Aucune. Choisis une proposition ci-dessous.", inline=False)
+            for offer in board["offers"]:
+                goals = "; ".join(f"{self._objective_label(item)} ×{item['required']}" for item in offer["objectives"])
+                embed.add_field(name=offer["name"][:256], value=f"{offer['description']}\n{goals}\n**{offer['reward_xp']} XP**"[:1024], inline=False)
+        embed.set_footer(text=f"XP des quêtes : {board['quest_experience']} · récompense sur ce panneau uniquement")
+        return embed
+
+    def _render(self) -> None:
+        self.clear_items()
+        board = self.engine.quest_board(str(self.owner_id))
+        active = board["active"]
+        if active:
+            if active["status"] == "ready":
+                claim = discord.ui.Button(label="Récupérer la récompense", emoji="✨", style=discord.ButtonStyle.success)
+
+                async def claim_callback(interaction: discord.Interaction):
+                    try:
+                        result = self.engine.claim_quest(str(self.owner_id), active["key"], str(interaction.id))
+                        self.notice = f"Récompense réclamée : +{result['reward_xp']} XP."
+                    except Exception as exc:
+                        self.notice = str(exc)
+                    self._render()
+                    await interaction.response.edit_message(embed=self.embed(), view=self)
+
+                claim.callback = claim_callback
+                self.add_item(claim)
+            abandon = discord.ui.Button(label="Abandonner", emoji="🗑️", style=discord.ButtonStyle.danger)
+
+            async def abandon_callback(interaction: discord.Interaction):
+                confirmation = discord.ui.View(timeout=120)
+                confirm = discord.ui.Button(label="Confirmer l'abandon", style=discord.ButtonStyle.danger)
+
+                async def confirm_callback(confirm_interaction: discord.Interaction):
+                    if not await self.interaction_check(confirm_interaction):
+                        return
+                    try:
+                        self.engine.abandon_quest(str(self.owner_id), active["key"], str(confirm_interaction.id), confirmed=True)
+                        self.notice = "Quête abandonnée sans XP."
+                    except Exception as exc:
+                        self.notice = str(exc)
+                    self._render()
+                    await confirm_interaction.response.edit_message(content=self.notice, view=None)
+
+                confirm.callback = confirm_callback
+                confirmation.add_item(confirm)
+                await interaction.response.send_message("Abandonner cette quête sans récompense ?", view=confirmation, ephemeral=True)
+
+            abandon.callback = abandon_callback
+            self.add_item(abandon)
+        elif board["offers"]:
+            options = [discord.SelectOption(label=offer["name"][:100], value=offer["key"],
+                                            description=f"{offer['reward_xp']} XP"[:100])
+                       for offer in board["offers"]]
+            select = discord.ui.Select(placeholder="Choisir une quête personnelle", options=options, row=0)
+
+            async def select_callback(interaction: discord.Interaction):
+                try:
+                    result = self.engine.accept_quest(str(self.owner_id), select.values[0], str(interaction.id))
+                    self.notice = f"Quête acceptée : {result['quest']['name']}."
+                except Exception as exc:
+                    self.notice = str(exc)
+                self._render()
+                await interaction.response.edit_message(embed=self.embed(), view=self)
+
+            select.callback = select_callback
+            self.add_item(select)
+        refresh = discord.ui.Button(label="Actualiser", emoji="🔄", style=discord.ButtonStyle.secondary)
+
+        async def refresh_callback(interaction: discord.Interaction):
+            self.notice = ""
+            self._render()
+            await interaction.response.edit_message(embed=self.embed(), view=self)
+
+        refresh.callback = refresh_callback
+        self.add_item(refresh)
+
+
 class InterfaceView(discord.ui.View):
     """Rend les pages, boutons et menus produits par le constructeur KingdomWeb."""
 
@@ -335,7 +459,16 @@ class InterfaceView(discord.ui.View):
                 with self.engine.store.connection() as db:
                     row = db.execute("SELECT COALESCE(SUM(amount),0) FROM collective_contributions WHERE objective_key=?", (objective_key,)).fetchone()
                 current = int(row[0]) if row else 0
-                embed.add_field(name=str(props.get("title") or "Progression collective")[:256], value=f"**{current}** contribution(s)"[:1024], inline=False)
+                try:
+                    target = int(props["target"]) if props.get("target") is not None else None
+                except (TypeError, ValueError):
+                    target = None
+                if target is not None and target > 0:
+                    unit = str(props.get("unit") or "").strip()
+                    value = f"**{current} / {target}**" + (f" {unit}" if unit else "")
+                else:
+                    value = f"**{current}** contribution(s)"
+                embed.add_field(name=str(props.get("title") or "Progression collective")[:256], value=value[:1024], inline=False)
                 field_count += 1
             elif component["type"] == "profession_status" and self.owner_id is not None and field_count < 25:
                 professions = self.engine.player(str(self.owner_id)).get("professions", {})
@@ -601,6 +734,12 @@ class InterfaceView(discord.ui.View):
                 self._render_interactions()
                 await discord_interaction.response.edit_message(embed=self.embed(), view=self)
             button.callback = refresh_callback
+        elif interaction.get("type") == "quest_board":
+            async def quest_board_callback(discord_interaction: discord.Interaction):
+                view = QuestBoardView(self.engine, discord_interaction.user.id, self._building_key())
+                await discord_interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
+                remember_active_building_interface(discord_interaction, self._building_key())
+            button.callback = quest_board_callback
         elif interaction.get("type") == "world_state":
             async def world_state_callback(discord_interaction: discord.Interaction):
                 view = WorldExplorerView(self.engine, discord_interaction.user.id)

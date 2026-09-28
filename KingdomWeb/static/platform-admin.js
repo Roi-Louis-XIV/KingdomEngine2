@@ -271,6 +271,17 @@ async function load() {
     setTimeout(load, 1800);
   };
   bindOfficialContent();
+  const deepLink = new URL(window.location.href);
+  if (deepLink.searchParams.has("official_key") || deepLink.searchParams.has("new_official")) {
+    const key = deepLink.searchParams.get("official_key") || "";
+    const version = deepLink.searchParams.get("official_version") || "";
+    const contentType = deepLink.searchParams.get("official_type") || "world_template";
+    for (const name of ["official_key", "official_version", "official_type", "new_official"]) {
+      deepLink.searchParams.delete(name);
+    }
+    window.history.replaceState(null, "", deepLink.pathname + deepLink.search + deepLink.hash);
+    await openOfficialEditor(key, version, contentType);
+  }
 }
 
 // ==============================

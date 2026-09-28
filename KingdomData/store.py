@@ -62,6 +62,7 @@ class ContentStore:
                 "display_name": "TEXT NOT NULL DEFAULT ''",
                 "avatar_url": "TEXT NOT NULL DEFAULT ''",
                 "created_at": "TEXT NOT NULL DEFAULT ''",
+                "quest_experience": "INTEGER NOT NULL DEFAULT 0",
             }.items():
                 if name not in player_columns:
                     db.execute(f"ALTER TABLE players ADD COLUMN {name} {definition}")
@@ -280,7 +281,7 @@ class ContentStore:
 
     def delete(self, entity_type: str, key: str, author: str = "web") -> dict[str, Any]:
         """Masque une définition sans détruire son historique versionné."""
-        if entity_type not in {"building", "item", "event", "audio", "audio_group", "audio_story", "voice_presence", "voice_profile", "profession", "environment", "location", "npc", "bot"}:
+        if entity_type not in {"building", "item", "event", "audio", "audio_group", "audio_story", "voice_presence", "voice_profile", "profession", "environment", "location", "npc", "bot", "quest"}:
             raise ValidationError("Ce type de contenu ne peut pas être supprimé.")
         current = self.get(entity_type, key)
         with self._lock, self.connection() as db:
@@ -464,7 +465,12 @@ CREATE TABLE IF NOT EXISTS building_discord_channels(building_key TEXT PRIMARY K
 CREATE TABLE IF NOT EXISTS building_entry_messages(discord_id TEXT NOT NULL,building_key TEXT NOT NULL,channel_id TEXT NOT NULL,message_id TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(discord_id,building_key));
 CREATE TABLE IF NOT EXISTS discord_provision_queue(id INTEGER PRIMARY KEY AUTOINCREMENT,scope TEXT NOT NULL DEFAULT 'server',building_key TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'pending',requested_by TEXT NOT NULL DEFAULT 'web',attempts INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,processed_at TEXT,error TEXT NOT NULL DEFAULT '',report TEXT NOT NULL DEFAULT '');
 CREATE INDEX IF NOT EXISTS discord_provision_pending ON discord_provision_queue(status,id);
-CREATE TABLE IF NOT EXISTS players(discord_id TEXT PRIMARY KEY,money INTEGER NOT NULL DEFAULT 0,energy INTEGER NOT NULL DEFAULT 100,updated_at TEXT NOT NULL,display_name TEXT NOT NULL DEFAULT '',avatar_url TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS players(discord_id TEXT PRIMARY KEY,money INTEGER NOT NULL DEFAULT 0,energy INTEGER NOT NULL DEFAULT 100,updated_at TEXT NOT NULL,display_name TEXT NOT NULL DEFAULT '',avatar_url TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL DEFAULT '',quest_experience INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS player_quests(id INTEGER PRIMARY KEY AUTOINCREMENT,discord_id TEXT NOT NULL,quest_key TEXT NOT NULL,quest_version INTEGER NOT NULL,definition_json TEXT NOT NULL,progress_json TEXT NOT NULL DEFAULT '{}',status TEXT NOT NULL CHECK(status IN ('accepted','ready','claimed','abandoned')),accepted_at TEXT NOT NULL,ready_at TEXT,closed_at TEXT,FOREIGN KEY(discord_id) REFERENCES players(discord_id));
+CREATE UNIQUE INDEX IF NOT EXISTS player_quests_one_active ON player_quests(discord_id) WHERE status IN ('accepted','ready');
+CREATE TABLE IF NOT EXISTS quest_progress_events(player_quest_id INTEGER NOT NULL,source_kind TEXT NOT NULL,source_id TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(player_quest_id,source_kind,source_id),FOREIGN KEY(player_quest_id) REFERENCES player_quests(id));
+CREATE UNIQUE INDEX IF NOT EXISTS quest_progress_source_once ON quest_progress_events(source_kind,source_id);
+CREATE TABLE IF NOT EXISTS quest_interactions(interaction_id TEXT PRIMARY KEY,discord_id TEXT NOT NULL,operation TEXT NOT NULL,result_json TEXT NOT NULL,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS inventory(discord_id TEXT NOT NULL,item_key TEXT NOT NULL,quantity INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(discord_id,item_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
 CREATE TABLE IF NOT EXISTS player_professions(discord_id TEXT NOT NULL,profession_key TEXT NOT NULL,level INTEGER NOT NULL DEFAULT 1,experience INTEGER NOT NULL DEFAULT 0,active INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(discord_id,profession_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));
 CREATE TABLE IF NOT EXISTS player_tools(discord_id TEXT NOT NULL,tool_key TEXT NOT NULL,durability INTEGER NOT NULL,max_durability INTEGER NOT NULL,level INTEGER NOT NULL DEFAULT 1,loot_bonus INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(discord_id,tool_key),FOREIGN KEY(discord_id) REFERENCES players(discord_id));

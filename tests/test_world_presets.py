@@ -14,7 +14,7 @@ def _seed(tmp_path, key):
 
 def test_catalog_exposes_blank_medieval_and_space_starters():
     assert [preset["key"] for preset in PRESET_CATALOG] == [
-        "blank", "medieval_kingdom", "royal_festival", "space_station",
+        "blank", "medieval_kingdom", "royal_festival", "storm_sainte_pelle", "space_station",
     ]
     assert all(preset["name"] and preset["description"] for preset in PRESET_CATALOG)
 
@@ -204,7 +204,7 @@ def test_historic_oath_keeps_its_medieval_currency_label(tmp_path):
     assert onboarding["currency_label"] == "écus"
 
 
-@pytest.mark.parametrize("preset_key", ["medieval_kingdom", "royal_festival", "space_station"])
+@pytest.mark.parametrize("preset_key", ["medieval_kingdom", "royal_festival", "storm_sainte_pelle", "space_station"])
 def test_playable_templates_install_audio_groups_and_automatic_presences(tmp_path, preset_key):
     store = _seed(tmp_path, preset_key)
     assert store.list("audio", published=True)

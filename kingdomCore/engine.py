@@ -15,13 +15,33 @@ from kingdomEvent import Event, EventBus
 from kingdomEvent.modifiers import ModifierEngine
 from kingdomEvent.runtime import WorldClock, event_is_active
 from kingdomCore.world import WorldEngine, WorldError
+from kingdomCore.quests import QuestRuntime
 
 
 class GameEngine:
     def __init__(self, store: ContentStore, bus: EventBus | None = None, rng: random.Random | None = None) -> None:
         self.store, self.bus, self.rng = store, bus or EventBus(), rng or random.Random()
         self.world_clock = WorldClock(store)
+        self.quests = QuestRuntime(store, self._quest_available_condition)
         self._world_snapshot: dict[str, Any] | None = None
+
+    def _quest_available_condition(self, db, discord_id: str, condition: dict[str, Any]) -> bool:
+        return self._condition_value(db, discord_id, "", "quest_availability", condition, {})
+
+    def quest_board(self, discord_id: str) -> dict[str, Any]:
+        return self.quests.board(discord_id)
+
+    def accept_quest(self, discord_id: str, quest_key: str, interaction_id: str) -> dict[str, Any]:
+        return self.quests.accept(discord_id, quest_key, interaction_id)
+
+    def claim_quest(self, discord_id: str, quest_key: str, interaction_id: str) -> dict[str, Any]:
+        return self.quests.claim(discord_id, quest_key, interaction_id)
+
+    def abandon_quest(self, discord_id: str, quest_key: str, interaction_id: str, *, confirmed: bool = False) -> dict[str, Any]:
+        return self.quests.abandon(discord_id, quest_key, interaction_id, confirmed=confirmed)
+
+    def record_quest_visit(self, discord_id: str, interaction_id: str, *, location_key: str = "", building_key: str = "") -> dict[str, Any] | None:
+        return self.quests.record_visit(discord_id, interaction_id, location_key=location_key, building_key=building_key)
 
     def buildings(self) -> list[dict[str, Any]]:
         buildings = [
@@ -256,8 +276,13 @@ class GameEngine:
                 elif kind == "emit": emitted.append(Event(str(effect["event"]), f"building:{building_key}", {"discord_id": discord_id, "building": building_key, "item": item_key, **effect.get("payload", {})}))
                 elif kind == "state": self._change_state(db, discord_id, str(effect["key"]), str(effect.get("operation", "set")), effect.get("value"))
                 else: raise ValidationError(f"Effet de consommation inconnu : {kind}.")
+            quest = self.quests.advance_event(db, discord_id, "consumption", interaction_id, [
+                {"type": "action", "building_key": building_key, "action_key": f"consume_{item_key}"}
+            ])
             result = {"consumption": {"item": item_key, "name": item.get("name", item_key), "quantity": quantity},
                       "messages": messages, "stats": self.player_stats(discord_id, db), "player": self.player(discord_id, db)}
+            if quest is not None:
+                result["quest"] = quest
             db.execute("INSERT INTO action_log(interaction_id,discord_id,building_key,action_key,result_json,created_at) VALUES(?,?,?,?,?,?)",
                        (interaction_id, discord_id, building_key, f"consume:{item_key}", json.dumps(result, ensure_ascii=False), _now()))
         for event in emitted: await self.bus.publish(event)
@@ -367,7 +392,14 @@ class GameEngine:
                 lines.append({"resource": resource, "resource_name": self._item_name(resource), "quantity": quantity, "destination": destination, "destination_name": self._building_name(destination), "unit_price": unit_price, "payment": payment})
             for currency, payment in total_by_currency.items():
                 if payment: self._change_resource(db, discord_id, currency, payment)
+            quest = self.quests.advance_event(db, discord_id, "delivery", interaction_id, [
+                {"type": "delivery", "item_key": line["resource"],
+                 "destination_building_key": line["destination"], "quantity": line["quantity"]}
+                for line in lines
+            ])
             result = {"delivery": lines, "payments": total_by_currency, "player": self.player(discord_id, db)}
+            if quest is not None:
+                result["quest"] = quest
             db.execute("INSERT INTO action_log(interaction_id,discord_id,building_key,action_key,result_json,created_at) VALUES(?,?,?,?,?,?)", (interaction_id, discord_id, building_key, "delivery", json.dumps(result, ensure_ascii=False), _now()))
         return result
 
@@ -394,6 +426,11 @@ class GameEngine:
         emitted: list[Event] = []
         messages: list[str] = []
         selected_results: list[str] = []
+        quest_deliveries: list[dict[str, Any]] = []
+        quest_costs: dict[str, int] = {}
+        quest_deposit_candidates: list[tuple[str, str, int]] = []
+        quest_started_timed = False
+        quest_claimed_action: str | None = None
         with self.store.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             previous = db.execute("SELECT result_json FROM action_log WHERE interaction_id=?", (interaction_id,)).fetchone()
@@ -430,6 +467,10 @@ class GameEngine:
                     minimum, maximum = self._effective_range(effect.get("amount", 0), property_name, effect_context)
                     amount = self.rng.randint(minimum, maximum) * (1 if kind == "reward" else -1)
                     self._change_resource(db, discord_id, effect.get("resource", "money"), amount)
+                    if kind == "cost" and amount < 0:
+                        resource = str(effect.get("resource", "money"))
+                        if resource not in {"money", "energy"}:
+                            quest_costs[resource] = quest_costs.get(resource, 0) - amount
                 elif kind == "production":
                     minimum, maximum = self._effective_range(effect.get("amount", 0), "production.quantity", {"building_key": building_key, "action_key": action_key, "item_key": effect.get("resource", effect.get("item"))})
                     amount = self.rng.randint(minimum, maximum)
@@ -483,6 +524,8 @@ class GameEngine:
                     amount = self.rng.randint(minimum, maximum) * (1 if kind == "stock_reward" else -1)
                     stock_building = str(effect.get("building", building_key))
                     self._change_stock(db, stock_building, str(effect["item"]), amount, int(effect.get("initial_stock", 0)))
+                    if kind == "stock_reward" and amount > 0:
+                        quest_deposit_candidates.append((str(effect["item"]), stock_building, amount))
                 elif kind == "deliver_inventory":
                     delivered, total = [], 0
                     for entry in effect.get("items", []):
@@ -491,7 +534,10 @@ class GameEngine:
                         quantity = int(row[0]) if row else 0
                         if quantity <= 0: continue
                         db.execute("DELETE FROM inventory WHERE discord_id=? AND item_key=?", (discord_id, item))
-                        self._change_stock(db, str(entry.get("building", effect.get("building", building_key))), item, quantity)
+                        destination = str(entry.get("building", effect.get("building", building_key)))
+                        self._change_stock(db, destination, item, quantity)
+                        quest_deliveries.append({"type": "delivery", "item_key": item,
+                                                 "destination_building_key": destination, "quantity": quantity})
                         total += quantity * int(entry.get("unit_price", 0)); delivered.append(f"{quantity} × {self._item_name(item)}")
                     if not delivered: raise ValidationError(str(effect.get("empty_message") or "Tu ne possèdes aucune ressource acceptée à livrer."))
                     self._change_resource(db, discord_id, "money", total)
@@ -535,11 +581,14 @@ class GameEngine:
                 elif kind == "contribution":
                     amount = int(effect.get("amount", 1))
                     resource = str(effect.get("resource", "progress"))
+                    if amount > 0:
+                        quest_deposit_candidates.append((resource, building_key, amount))
                     db.execute(
                         "INSERT INTO collective_contributions(objective_key,discord_id,building_key,resource_key,amount,metadata_json,created_at) VALUES(?,?,?,?,?,?,?)",
                         (str(effect["objective"]), discord_id, building_key, resource, amount, json.dumps(effect.get("metadata", {}), ensure_ascii=False), _now()),
                     )
                 elif kind == "schedule":
+                    quest_started_timed = True
                     scope = self._normalise_activity_scope(str(effect.get("limit_scope", "player_action")))
                     if scope not in {"player", "player_building", "player_action", "category", "shared_action"}:
                         raise ValidationError(f"Portée d'activité inconnue : {scope}.")
@@ -567,6 +616,7 @@ class GameEngine:
                         raise ValidationError("Aucune activite terminee a recuperer.")
                     if float(job["ready_at"]) > time.time():
                         raise ValidationError(f"Cette activite sera terminee dans {int(float(job['ready_at']) - time.time()) + 1} seconde(s).")
+                    quest_claimed_action = str(effect["action"])
                     db.execute("UPDATE scheduled_actions SET status='completed',completed_at=? WHERE id=?", (_now(), job["id"]))
                     scheduled_result = json.loads(job["result_json"] or "{}")
                     scheduled_context = scheduled_result.get("modifier_context", {})
@@ -587,6 +637,17 @@ class GameEngine:
                 elif kind == "set_audio_group":
                     self.store.queue_audio(db, "set_group", building_key, group_key=str(effect["group_key"]), bot_key=str(effect.get("bot_key", "")), context={"discord_id": discord_id, "action": action_key})
             emitted.extend(self._hook_events(action.get("hooks", {}), "on_success", discord_id, building_key, action_key, {"selected_results": selected_results}))
+            for resource, destination, amount in quest_deposit_candidates:
+                consumed = min(amount, quest_costs.get(resource, 0))
+                if consumed > 0:
+                    quest_costs[resource] -= consumed
+                    quest_deliveries.append({"type": "delivery", "item_key": resource,
+                                             "destination_building_key": destination, "quantity": consumed})
+            quest_events = list(quest_deliveries)
+            if not quest_started_timed:
+                quest_events.append({"type": "action", "building_key": building_key,
+                                     "action_key": quest_claimed_action or action_key})
+            quest = self.quests.advance_event(db, discord_id, "action", interaction_id, quest_events)
             sound_module = building.get("modules", {}).get("audio", {})
             for event in emitted:
                 for route in sound_module.get("event_routes", []):
@@ -603,6 +664,8 @@ class GameEngine:
                 "selected_results": selected_results,
                 "workstations": self._workstation_states(db, building_key),
             }
+            if quest is not None:
+                result["quest"] = quest
             self._set_cooldowns(db, discord_id, building_key, action)
             db.execute("INSERT INTO action_log(interaction_id,discord_id,building_key,action_key,result_json,created_at) VALUES(?,?,?,?,?,?)", (interaction_id, discord_id, building_key, action_key, json.dumps(result, ensure_ascii=False), _now()))
         for event in emitted: await self.bus.publish(event)
@@ -620,6 +683,7 @@ class GameEngine:
                 "discord_id": discord_id,
                 "money": int(row["money"]) if row else 0,
                 "energy": int(row["energy"]) if row else 100,
+                "quest_experience": int(row["quest_experience"]) if row else 0,
                 "inventory": {r[0]: int(r[1]) for r in inventory},
                 "professions": {r[0]: {"level": int(r[1]), "experience": int(r[2])} for r in professions},
                 "tools": {r[0]: {"durability": int(r[1]), "max_durability": int(r[2]), "level": int(r[3]), "loot_bonus": int(r[4])} for r in tools},
@@ -861,7 +925,8 @@ class GameEngine:
         if kind == "resource":
             resource = str(condition["resource"])
             if resource in {"money", "energy"}:
-                actual = db.execute(f"SELECT {resource} FROM players WHERE discord_id=?", (discord_id,)).fetchone()[0]
+                row = db.execute(f"SELECT {resource} FROM players WHERE discord_id=?", (discord_id,)).fetchone()
+                actual = int(row[0]) if row else (100 if resource == "energy" else 0)
             else:
                 row = db.execute("SELECT quantity FROM inventory WHERE discord_id=? AND item_key=?", (discord_id, resource)).fetchone(); actual = int(row[0]) if row else 0
         elif kind in {"item_present", "item_absent"}:
@@ -898,6 +963,11 @@ class GameEngine:
                 "SELECT COALESCE(SUM(amount),0) FROM collective_contributions WHERE objective_key=? AND building_key=? AND resource_key=?",
                 (condition["objective"], str(condition.get("building", building_key)), str(condition.get("resource", "progress"))),
             ).fetchone()[0])
+        elif kind == "scenario_elapsed_minutes":
+            minute = self.quests._scenario_minute(db, time.time())
+            if minute is None:
+                return False
+            actual = minute
         else:
             raise ValidationError(f"Condition inconnue : {kind}.")
         return self._compare(actual, expected, operator)

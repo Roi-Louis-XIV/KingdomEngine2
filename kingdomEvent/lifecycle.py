@@ -68,6 +68,35 @@ class EventLifecycle:
             if objective.get("state", "active") not in {"disabled", "failed"}
         )
 
+    def _collective_condition(self, condition: dict[str, Any], *, scheduled_at: float) -> bool:
+        """Évalue une expression collective à l'instant prévu, même après redémarrage."""
+        cutoff = datetime.fromtimestamp(scheduled_at, timezone.utc).isoformat()
+        with self.store.connection() as db:
+            def total_for(node: dict[str, Any]) -> int:
+                query = "SELECT COALESCE(SUM(amount),0) FROM collective_contributions WHERE objective_key=? AND created_at<=?"
+                params: list[Any] = [node["key"], cutoff]
+                for field in ("resource_key", "building_key"):
+                    if node.get(field):
+                        query += f" AND {field}=?"
+                        params.append(node[field])
+                return int(db.execute(query, params).fetchone()[0])
+
+            def evaluate(node: dict[str, Any]) -> bool:
+                if "all" in node:
+                    return all(evaluate(child) for child in node["all"])
+                if "any" in node:
+                    return any(evaluate(child) for child in node["any"])
+                if "not" in node:
+                    return not evaluate(node["not"])
+                if "progress" in node:
+                    progress = node["progress"]
+                    objectives = progress["objectives"]
+                    maximum = sum(int(item["target"]) for item in objectives)
+                    completed = sum(min(int(item["target"]), max(0, total_for(item))) for item in objectives)
+                    return completed / maximum >= float(progress["minimum_ratio"])
+                return total_for(node) >= int(node["target"])
+            return evaluate(condition)
+
     def _advance(self, now: float) -> None:
         with self.store.connection() as db:
             rows = db.execute(
@@ -76,14 +105,29 @@ class EventLifecycle:
                 (SCHEDULED, now),
             ).fetchall()
         for row in rows:
+            definition = self.store.get("event", str(row["event_key"]), published=True)["payload"]
+            conditions = definition.get("activation_conditions", {})
+            collective = conditions.get("collective")
+            if collective is not None and not self._collective_condition(collective, scheduled_at=float(row["scheduled_at"])):
+                with self.store.connection() as db:
+                    db.execute(
+                        "UPDATE event_occurrences SET status=?,updated_at=? "
+                        "WHERE occurrence_id=? AND status=?",
+                        (DISABLED, _iso(), row["occurrence_id"], SCHEDULED),
+                    )
+                continue
             if not self._activation_allowed(str(row["event_key"])):
                 continue
             duration = max(0, float(row["remaining_seconds"] or 0))
+            started_at = float(row["scheduled_at"])
+            ends_at = started_at + duration
             with self.store.connection() as db:
                 db.execute(
                     "UPDATE event_occurrences SET status=?,started_at=?,ends_at=?,"
-                    "scheduled_at=NULL,remaining_seconds=NULL,updated_at=? WHERE occurrence_id=?",
-                    (ACTIVE, now, now + duration, _iso(), row["occurrence_id"]),
+                    "scheduled_at=NULL,remaining_seconds=NULL,updated_at=? "
+                    "WHERE occurrence_id=? AND status=?",
+                    (ACTIVE if now < ends_at else FINISHED, started_at, ends_at,
+                     _iso(), row["occurrence_id"], SCHEDULED),
                 )
         with self.store.connection() as db:
             db.execute(
@@ -91,6 +135,34 @@ class EventLifecycle:
                 "WHERE status=? AND ends_at IS NOT NULL AND ends_at<=?",
                 (FINISHED, _iso(), ACTIVE, now),
             )
+            active = db.execute(
+                "SELECT occurrence_id,event_key FROM event_occurrences WHERE status=?",
+                (ACTIVE,),
+            ).fetchall()
+        if not active:
+            return
+        definitions = {
+            row["entity_key"]: row["payload"]
+            for row in self.store.list("event", published=True)
+        }
+        with self.store.connection() as db:
+            for occurrence in active:
+                objective = definitions.get(str(occurrence["event_key"]), {}).get("completion_objective")
+                if not objective:
+                    continue
+                query = "SELECT COALESCE(SUM(amount),0) FROM collective_contributions WHERE objective_key=?"
+                params: list[Any] = [objective["key"]]
+                for field in ("resource_key", "building_key"):
+                    if objective.get(field):
+                        query += f" AND {field}=?"
+                        params.append(objective[field])
+                total = int(db.execute(query, params).fetchone()[0])
+                if total >= int(objective["target"]):
+                    db.execute(
+                        "UPDATE event_occurrences SET status=?,ends_at=?,updated_at=? "
+                        "WHERE occurrence_id=? AND status=?",
+                        (FINISHED, now, _iso(), occurrence["occurrence_id"], ACTIVE),
+                    )
 
     def list(self, *, now: float | None = None) -> list[dict[str, Any]]:
         now=time.time() if now is None else float(now); self._advance(now)

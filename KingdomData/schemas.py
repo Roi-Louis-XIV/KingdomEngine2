@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-ENTITY_TYPES = {"building", "item", "event", "bot", "audio", "audio_group", "audio_story", "voice_presence", "voice_profile", "npc", "recipe", "interface", "server_settings", "profession", "environment", "location"}
+ENTITY_TYPES = {"building", "item", "event", "bot", "audio", "audio_group", "audio_story", "voice_presence", "voice_profile", "npc", "recipe", "interface", "server_settings", "profession", "environment", "location", "quest"}
 KEY_RE = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
 ACTION_TYPES = {
     "message", "reward", "cost", "emit", "random_reward", "random_bundle", "random_result",
@@ -20,7 +20,7 @@ CONDITION_TYPES = {
     "resource", "item_present", "item_absent", "profession_active", "no_active_profession",
     "profession_level", "tool_present", "tool_level", "tool_durability", "voice_presence",
     "discord_role", "no_pending_activity", "activity_limit_available", "cooldown_available",
-    "building_stock", "state", "player_stat", "collective_progress",
+    "building_stock", "state", "player_stat", "collective_progress", "scenario_elapsed_minutes",
 }
 CONDITION_OPERATORS = {"=", "!=", ">", ">=", "<", "<="}
 ACTIVITY_SCOPES = {"player", "player_building", "player_action", "category", "building", "action", "shared_action"}
@@ -38,6 +38,58 @@ def validate_key(value: str) -> str:
     return key
 
 
+def _validate_collective_leaf(node: Any) -> None:
+    if not isinstance(node, dict):
+        raise ValidationError("Une condition collective doit être un objet.")
+    if set(node) - {"key", "target", "resource_key", "building_key"}:
+        raise ValidationError("Champ inconnu dans la condition collective.")
+    validate_key(str(node.get("key", "")))
+    try:
+        target = int(node.get("target", 0))
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("La cible collective doit être un entier positif.") from exc
+    if target < 1:
+        raise ValidationError("La cible collective doit être un entier positif.")
+    for field in ("resource_key", "building_key"):
+        if node.get(field):
+            validate_key(str(node[field]))
+
+
+def _validate_collective_expression(node: Any) -> None:
+    if not isinstance(node, dict):
+        raise ValidationError("Une condition collective doit être un objet.")
+    operators = [key for key in ("all", "any", "not", "progress") if key in node]
+    if operators:
+        if len(operators) != 1 or len(node) != 1:
+            raise ValidationError("Une condition collective ne peut avoir qu'un opérateur logique.")
+        operator = operators[0]
+        if operator == "not":
+            _validate_collective_expression(node[operator])
+        elif operator == "progress":
+            progress = node[operator]
+            if not isinstance(progress, dict) or set(progress) != {"objectives", "minimum_ratio"}:
+                raise ValidationError("La progression collective attend des objectifs et un ratio minimum.")
+            objectives = progress["objectives"]
+            if not isinstance(objectives, list) or not objectives:
+                raise ValidationError("La progression collective doit contenir des objectifs.")
+            try:
+                ratio = float(progress["minimum_ratio"])
+            except (TypeError, ValueError) as exc:
+                raise ValidationError("Le ratio collectif doit être compris entre 0 et 1.") from exc
+            if not 0 < ratio <= 1:
+                raise ValidationError("Le ratio collectif doit être compris entre 0 et 1.")
+            for objective in objectives:
+                _validate_collective_leaf(objective)
+        else:
+            children = node[operator]
+            if not isinstance(children, list) or not children:
+                raise ValidationError("Les groupes collectifs doivent contenir des conditions.")
+            for child in children:
+                _validate_collective_expression(child)
+        return
+    _validate_collective_leaf(node)
+
+
 def validate_entity(entity_type: str, payload: dict[str, Any]) -> dict[str, Any]:
     if entity_type not in ENTITY_TYPES:
         raise ValidationError(f"Type inconnu : {entity_type}")
@@ -45,6 +97,8 @@ def validate_entity(entity_type: str, payload: dict[str, Any]) -> dict[str, Any]
         raise ValidationError("La définition doit être un objet JSON.")
     if not str(payload.get("name", "")).strip():
         raise ValidationError("Le champ name est obligatoire.")
+    if entity_type == "quest":
+        _validate_quest(payload)
     if entity_type == "item":
         if int(payload.get("stack_limit", 999)) < 1:
             raise ValidationError("stack_limit doit être positif.")
@@ -121,6 +175,16 @@ def validate_entity(entity_type: str, payload: dict[str, Any]) -> dict[str, Any]
     if entity_type == "event":
         if payload.get("trigger", {}).get("type", "manual") not in {"manual", "scheduled", "recurring", "action", "players"}:
             raise ValidationError("Déclencheur d’événement invalide.")
+        if payload.get("weather_key"):
+            validate_key(str(payload["weather_key"]))
+        completion = payload.get("completion_objective")
+        if completion is not None:
+            _validate_collective_leaf(completion)
+        activation = payload.get("activation_conditions", {})
+        if not isinstance(activation, dict):
+            raise ValidationError("Les conditions d'activation d'un événement doivent former un objet.")
+        if "collective" in activation:
+            _validate_collective_expression(activation["collective"])
         for modifier in payload.get("modifiers", []):
             if modifier.get("operator", "multiply") not in {"set", "add", "multiply", "min", "max"}:
                 raise ValidationError("Opérateur de modificateur invalide.")
@@ -271,6 +335,13 @@ def _validate_condition(condition: Any) -> None:
         raise ValidationError(f"Type de condition inconnu : {kind}")
     if condition.get("operator", ">=") not in CONDITION_OPERATORS:
         raise ValidationError("Opérateur de condition invalide.")
+    if kind == "scenario_elapsed_minutes":
+        try:
+            value = float(condition.get("value", 0))
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("La minute du scénario doit être numérique.") from exc
+        if value < 0:
+            raise ValidationError("La minute du scénario ne peut pas être négative.")
     required = {
         "resource": "resource", "item_present": "item", "item_absent": "item",
         "profession_active": "profession", "profession_level": "profession",
@@ -488,10 +559,63 @@ def _validate_interface(payload: dict[str, Any]) -> None:
                     raise ValidationError(f"Page cible inconnue : {option_interaction.get('page')}")
 
 
+def _validate_quest(payload: dict[str, Any]) -> None:
+    """Une quête décrit des événements observables, jamais un état d'inventaire."""
+    try:
+        reward = int(payload.get("reward_xp", 0))
+        int(payload.get("priority", 0))
+        start = payload.get("available_from_minute")
+        end = payload.get("available_until_minute")
+        start = None if start is None else int(start)
+        end = None if end is None else int(end)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("Les bornes de disponibilité et la récompense doivent être des entiers.") from exc
+    if reward < 0 or (start is not None and start < 0) or (end is not None and end < 0):
+        raise ValidationError("Les bornes et la récompense d'une quête ne peuvent pas être négatives.")
+    if start is not None and end is not None and end <= start:
+        raise ValidationError("La fin de disponibilité doit suivre le début.")
+    if not isinstance(payload.get("repeatable", False), bool):
+        raise ValidationError("repeatable doit être un booléen.")
+    if "available_conditions" in payload:
+        _validate_condition(payload["available_conditions"])
+    objectives = payload.get("objectives")
+    if not isinstance(objectives, list) or not objectives:
+        raise ValidationError("Une quête doit avoir au moins un objectif.")
+    seen: set[str] = set()
+    for objective in objectives:
+        if not isinstance(objective, dict):
+            raise ValidationError("Chaque objectif doit être un objet.")
+        key = validate_key(objective.get("key", ""))
+        if key in seen:
+            raise ValidationError(f"Objectif dupliqué : {key}")
+        seen.add(key)
+        kind = objective.get("type")
+        if kind not in {"action", "delivery", "visit"}:
+            raise ValidationError(f"Type d'objectif de quête inconnu : {kind}")
+        try:
+            quantity = int(objective.get("quantity", 1))
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("La quantité d'un objectif doit être un entier.") from exc
+        if quantity < 1:
+            raise ValidationError("La quantité d'un objectif doit être positive.")
+        if kind == "action":
+            validate_key(objective.get("building_key", ""))
+            validate_key(objective.get("action_key", ""))
+        elif kind == "delivery":
+            validate_key(objective.get("item_key", ""))
+            validate_key(objective.get("destination_building_key", ""))
+        else:
+            location = bool(objective.get("location_key"))
+            building = bool(objective.get("building_key"))
+            if location == building:
+                raise ValidationError("Une visite cible soit un lieu, soit un bâtiment.")
+            validate_key(objective.get("location_key") or objective.get("building_key"))
+
+
 def _validate_interaction(interaction: dict[str, Any] | None) -> None:
     if not interaction:
         return
-    if interaction.get("type") not in {"navigate", "action", "purchase", "refresh", "close", "deliver_all"}:
+    if interaction.get("type") not in {"navigate", "action", "purchase", "refresh", "close", "deliver_all", "quest_board"}:
         raise ValidationError("Type d'interaction inconnu.")
     if interaction.get("type") == "action" and not (interaction.get("building") and interaction.get("action")):
         raise ValidationError("Une action doit cibler un bâtiment et une action publiée.")

@@ -11,6 +11,7 @@ from typing import Any
 import discord
 
 from KingdomData import ContentStore, get_server_settings
+from KingdomVoice.configuration import discover_platform_workers
 
 ROLE_GAME_MASTER = "👑 Roi"
 ROLE_PLAYER = "⚔️ Habitant du Royaume"
@@ -128,24 +129,7 @@ class DiscordProvisioner:
         report = ProvisionReport([], [])
         role_names = self.settings["roles"]
         master = await self._ensure_role(role_names["game_master"], discord.Colour.gold(), game_master_permissions(), report)
-        player = find_player_role(self.guild, role_names["player"])
-        if player is None:
-            player = await self._ensure_role(
-                role_names["player"], discord.Colour.dark_red(), player_permissions(), report
-            )
-        else:
-            if player >= me.top_role:
-                raise PermissionError(
-                    f"Le rôle `{player.name}` doit être placé sous le rôle principal du bot."
-                )
-            # Conserve le nom choisi sur un serveur historique, notamment
-            # « Habitant du Royaume », tout en synchronisant ses permissions.
-            await player.edit(
-                colour=discord.Colour.dark_red(),
-                permissions=player_permissions(),
-                hoist=True,
-                reason=AUDIT_REASON,
-            )
+        player = await self._ensure_player_role(role_names["player"], report)
         bot_role = await self._ensure_role(role_names["bot"], discord.Colour.green(), managed_bot_permissions(), report)
 
         general_overwrites = self._general_overwrites(master, player, bot_role, me)
@@ -196,8 +180,24 @@ class DiscordProvisioner:
                 token_variable = str(configuration.get("token_env", ""))
                 variable = token_variable.removesuffix("_BOT_TOKEN") + "_APPLICATION_ID" if token_variable.endswith("_BOT_TOKEN") else ""
             application_id = str(os.getenv(variable, configuration.get("application_id", ""))).strip()
+            if not application_id.isdigit():
+                legacy_variable = str(configuration.get("legacy_application_id_env", "")).strip()
+                application_id = str(os.getenv(legacy_variable, "")).strip()
             if application_id.isdigit():
                 voice_application_ids.add(int(application_id))
+
+        # Les workers plateforme sont un catalogue global : une base de monde
+        # ancienne ou incomplète peut ne pas encore contenir leurs fiches.
+        # Découvrir leurs IDs depuis l'environnement évite de laisser ces bots
+        # dans le serveur lors de la désinstallation de KingdomCore.
+        for worker in discover_platform_workers():
+            for variable in (
+                worker.get("application_id_env", ""),
+                worker.get("legacy_application_id_env", ""),
+            ):
+                application_id = str(os.getenv(str(variable), "")).strip() if variable else ""
+                if application_id.isdigit():
+                    voice_application_ids.add(int(application_id))
 
         for member in list(self.guild.members):
             if member.id not in voice_application_ids:
@@ -235,6 +235,13 @@ class DiscordProvisioner:
                 raise PermissionError(f"Le rôle `{role_name}` doit être placé sous KingdomCore avant la désinstallation.")
             await role.delete(reason="Désinstallation de KingdomEngine 2")
             report.removed_roles.append(role.name)
+        managed_player_fallback = f"{self.settings['roles']['player']} · KingdomEngine"
+        fallback_role = discord.utils.get(self.guild.roles, name=managed_player_fallback)
+        if fallback_role is not None:
+            if fallback_role >= me.top_role:
+                raise PermissionError(f"Le rôle `{managed_player_fallback}` doit être placé sous le rôle principal du bot.")
+            await fallback_role.delete(reason="Désinstallation de KingdomEngine 2")
+            report.removed_roles.append(fallback_role.name)
         return report
 
     async def remove_building_channels(self, building_key: str, payload: dict[str, Any]) -> list[str]:
@@ -416,6 +423,31 @@ class DiscordProvisioner:
                 raise PermissionError(f"Le rôle `{name}` doit être placé sous le rôle principal du bot.")
             await role.edit(colour=colour, permissions=permissions, hoist=hoist, reason=AUDIT_REASON)
         return role
+
+    async def _ensure_player_role(self, configured_name: str, report: ProvisionReport) -> discord.Role:
+        """Réutilise un rôle joueur gérable, sans bloquer sur un rôle historique protégé."""
+        me = self.guild.me
+        player = find_player_role(self.guild, configured_name)
+        if player is not None and player < me.top_role:
+            # Conserve le nom historique, notamment « Habitant du Royaume ».
+            await player.edit(
+                colour=discord.Colour.dark_red(),
+                permissions=player_permissions(),
+                hoist=True,
+                reason=AUDIT_REASON,
+            )
+            return player
+
+        # Un ancien rôle au-dessus de KingdomCore n'est ni modifiable ni
+        # attribuable. Utilise le rôle configuré, ou un rôle dédié si son nom
+        # est lui-même occupé par un rôle protégé.
+        configured_role = discord.utils.get(self.guild.roles, name=configured_name)
+        name = configured_name
+        if configured_role is not None and configured_role >= me.top_role:
+            name = f"{configured_name} · KingdomEngine"
+        return await self._ensure_role(
+            name, discord.Colour.dark_red(), player_permissions(), report
+        )
 
     async def _ensure_category(self, name: str, overwrites: dict[Any, discord.PermissionOverwrite], report: ProvisionReport) -> discord.CategoryChannel:
         category = discord.utils.get(self.guild.categories, name=name)

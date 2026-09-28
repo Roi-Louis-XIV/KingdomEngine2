@@ -42,6 +42,19 @@ body > header p {
   margin: 3px 0;
 }
 
+body > header nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+body > header .templates-entry {
+  border-color: #3d9e79;
+  color: #08150f;
+  background: var(--ops-accent);
+  font-weight: 700;
+}
+
 body > main {
   width: min(1500px, calc(100% - 48px));
   padding-bottom: 60px;

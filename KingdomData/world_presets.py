@@ -18,11 +18,15 @@ PRESET_CATALOG = [
     {"key": "blank", "name": "Monde vierge", "emoji": "◇", "description": "Une configuration propre, sans lieu ni mécanique imposée.", "tone": "neutral"},
     {"key": "medieval_kingdom", "name": "Royaume médiéval", "emoji": "🏰", "description": "Village, forêt, mine, métiers, économie, météo et événement saisonnier.", "tone": "emerald"},
     {"key": "royal_festival", "name": "Le Royaume", "emoji": "🏰", "description": "Royaume jouable complet : contenus historiques V1, métiers, économie, PNJ et scénario V2 de la Fête du Royaume en trois heures.", "tone": "gold"},
+    {"key": "storm_sainte_pelle", "name": "La Tempête de la Sainte Pelle", "emoji": "⛈️", "description": "Bêta de trois heures : quêtes personnelles, tempête, secours à la mine et reconstruction collective de l'église.", "tone": "emerald"},
     {"key": "space_station", "name": "Station spatiale", "emoji": "🛰️", "description": "Pont de commandement, hydroponie, exploration, crédits et météo spatiale.", "tone": "violet"},
 ]
 
 
 def world_preset(key: str) -> list[dict[str, Any]]:
+    if key == "storm_sainte_pelle":
+        from .storm_sainte_pelle_content import build_storm_template
+        return build_storm_template(world_preset("royal_festival"))
     builders = {"blank": _blank, "medieval_kingdom": _medieval, "royal_festival": _royal_festival, "space_station": _space}
     if key not in builders:
         raise ValueError("Modèle de monde inconnu.")
