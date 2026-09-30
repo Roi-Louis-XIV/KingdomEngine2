@@ -213,9 +213,11 @@ class WorldExplorerView(discord.ui.View):
 class QuestBoardView(discord.ui.View):
     """Panneau privé ouvert depuis le bâtiment qui porte les quêtes."""
 
-    def __init__(self, engine: GameEngine, owner_id: int, building_key: str, notice: str = "") -> None:
+    def __init__(self, engine: GameEngine, owner_id: int, building_key: str, notice: str = "",
+                 return_view: Any | None = None) -> None:
         super().__init__(timeout=300)
         self.engine, self.owner_id, self.building_key, self.notice = engine, owner_id, building_key, notice
+        self.return_view = return_view
         self._render()
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -230,15 +232,30 @@ class QuestBoardView(discord.ui.View):
             return False
         return True
 
-    @staticmethod
-    def _objective_label(objective: dict[str, Any]) -> str:
+    def _entity_name(self, kind: str, key: str) -> str:
+        try:
+            return str(self.engine.store.get(kind, key, published=True)["payload"].get("name") or key)
+        except Exception:
+            return key.replace("_", " ").capitalize()
+
+    def _objective_label(self, objective: dict[str, Any]) -> str:
         if objective.get("description"):
             return str(objective["description"])
         if objective["type"] == "action":
-            return f"{objective['action_key']} · {objective['building_key']}"
+            building_key = str(objective["building_key"])
+            try:
+                action = next(item for item in self.engine.building(building_key)["payload"].get("actions", [])
+                              if str(item.get("key")) == str(objective["action_key"]))
+                action_name = str(action.get("name") or "Terminer l’activité")
+            except Exception:
+                action_name = "Terminer l’activité"
+            return f"{action_name} · {self._entity_name('building', building_key)}"
         if objective["type"] == "delivery":
-            return f"{objective['item_key']} → {objective['destination_building_key']}"
-        return f"Visiter {objective.get('location_key') or objective.get('building_key')}"
+            return (f"{self._entity_name('item', str(objective['item_key']))} → "
+                    f"{self._entity_name('building', str(objective['destination_building_key']))}")
+        target = str(objective.get("location_key") or objective.get("building_key"))
+        kind = "location" if objective.get("location_key") else "building"
+        return f"Visiter {self._entity_name(kind, target)}"
 
     def embed(self) -> discord.Embed:
         board = self.engine.quest_board(str(self.owner_id))
@@ -332,6 +349,16 @@ class QuestBoardView(discord.ui.View):
 
         refresh.callback = refresh_callback
         self.add_item(refresh)
+        if self.return_view is not None:
+            back = discord.ui.Button(label="Retour", emoji="↩️", style=discord.ButtonStyle.secondary)
+
+            async def back_callback(interaction: discord.Interaction):
+                self.return_view.notice = ""
+                self.return_view._render_interactions()
+                await interaction.response.edit_message(embed=self.return_view.embed(), view=self.return_view)
+
+            back.callback = back_callback
+            self.add_item(back)
 
 
 class InterfaceView(discord.ui.View):
@@ -538,6 +565,12 @@ class InterfaceView(discord.ui.View):
                         return False
                 except (StopIteration, KeyError, AttributeError):
                     return False
+            if condition.get("ready_action"):
+                ready_action = str(condition["ready_action"])
+                jobs = self.engine.pending_actions(str(self.owner_id), pending_building)
+                if not any(item["action"] == ready_action and float(item["ready_at"]) <= time.time()
+                           for item in jobs):
+                    return False
         generic_condition = component.get("visibility_conditions")
         if interaction.get("type") == "action" and interaction.get("inherit_action_conditions", True):
             try:
@@ -736,8 +769,9 @@ class InterfaceView(discord.ui.View):
             button.callback = refresh_callback
         elif interaction.get("type") == "quest_board":
             async def quest_board_callback(discord_interaction: discord.Interaction):
-                view = QuestBoardView(self.engine, discord_interaction.user.id, self._building_key())
-                await discord_interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
+                view = QuestBoardView(self.engine, discord_interaction.user.id, self._building_key(),
+                                      return_view=self)
+                await discord_interaction.response.edit_message(embed=view.embed(), view=view)
                 remember_active_building_interface(discord_interaction, self._building_key())
             button.callback = quest_board_callback
         elif interaction.get("type") == "world_state":

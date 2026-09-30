@@ -39,6 +39,8 @@ def _button(building: str, action: str, label: str, slot: int, *, emoji: str = "
                  "interaction": {"type": "action", "building": building, "action": action}}
     if conditions:
         component["visibility_conditions"] = conditions
+    if action.startswith("claim_"):
+        component["visible_when"] = {"ready_action": action.removeprefix("claim_")}
     return component
 
 
@@ -317,6 +319,12 @@ def _finish_template(rows: list[dict[str, Any]], buildings: dict[str, dict[str, 
     tavern["description"] = "Edgar sert des repas, même quand la pluie frappe les volets."
     farm["description"] = "Approvisionnement ordinaire de la cuisine du village."
 
+    _add(rows, "item", "river_fish", {"name": "Poisson de rivière", "emoji": "🐟",
+         "description": "Poisson pêché depuis le vieux pont et apprécié par Edgar.",
+         "category": "food", "stack_limit": 100,
+         "building_relations": [{"building_key": "old_bridge", "relation": "produced_by"},
+                                {"building_key": "edgar_tavern", "relation": "accepted_by"}]})
+
     # Les productions de la bêta sont ouvertes à tous avec l'outil requis :
     # rejoindre un métier reste utile, jamais imposé pour une quête personnelle.
     def harvest(building_key: str, key: str, name: str, item: str, quantity: int,
@@ -343,6 +351,7 @@ def _finish_template(rows: list[dict[str, Any]], buildings: dict[str, dict[str, 
     harvest("deep_mine", "quarry_storm_stone", "Extraire 4 pierres", "stone_block", 4, "iron_pickaxe", 120, 5)
     harvest("deep_mine", "extract_storm_iron", "Extraire 2 minerais", "iron_ore", 2, "iron_pickaxe", 120, 6)
     harvest("festival_farm", "gather_storm_ingredients", "Ramasser 2 ingrédients", "egg", 2, None, 180, 4)
+    harvest("old_bridge", "fish_old_bridge", "Pêcher", "river_fish", 1, None, 90, 3)
     for building_key, page_key, label, actions in [
         ("forester_lodge", "storm_resources", "Bois du chantier", ["cut_storm_wood", "claim_cut_storm_wood"]),
         ("deep_mine", "storm_resources", "Pierre et minerai", ["quarry_storm_stone", "claim_quarry_storm_stone", "extract_storm_iron", "claim_extract_storm_iron"]),
@@ -430,7 +439,8 @@ def _finish_template(rows: list[dict[str, Any]], buildings: dict[str, dict[str, 
         "deep_mine": [("stone_block", 1, "Livrer une pierre à Roland")],
         "forester_lodge": [("oak_timber", 1, "Livrer un bois à Sylvain")],
         "royal_forge": [("oak_timber", 1, "Livrer un bois à Wagner"), ("iron_ore", 1, "Livrer un minerai à Wagner")],
-        "edgar_tavern": [("egg", 1, "Livrer un ingrédient à Edgar"), ("storm_ration", 1, "Livrer une portion à Edgar")],
+        "edgar_tavern": [("egg", 1, "Livrer un ingrédient à Edgar"), ("storm_ration", 1, "Livrer une portion à Edgar"),
+                         ("river_fish", 2, "Apporter deux poissons à Edgar")],
     }
     for building_key, entries in deliveries.items():
         actions = [delivery_action(building_key, item, count, label) for item, count, label in entries]
@@ -492,8 +502,17 @@ def _finish_template(rows: list[dict[str, Any]], buildings: dict[str, dict[str, 
                         emoji=action["emoji"])
                 for slot, action in enumerate(church["actions"])],
           ])
+    church_nav = next(component for component in church["interface"]["pages"][0]["components"]
+                      if component.get("id") == "storm_nav_church_worksite")
+    church_nav["visibility_conditions"] = _minute(120)
+    church["actions"].append({"key": "pray_saint_shovel", "name": "Prier", "emoji": "🙏",
+                              "enabled": True, "cooldown_seconds": 60,
+                              "effects": [{"type": "emit", "event": "church_prayer"}]})
     church_home = church["interface"]["pages"][0]["components"]
+    church_used = {int(component["slot"]) for component in church_home if component.get("slot") is not None}
+    prayer_slot = next(slot for slot in range(25) if slot not in church_used)
     church_home.extend([
+        _button("saint_shovel_church", "pray_saint_shovel", "Prier", prayer_slot, emoji="🙏"),
         {"id": "church_state_worn", "type": "text", "props": {"text": "L'église est vétuste, mais ouverte. Le prêtre évoque les tuiles et la charpente."},
          "visibility_conditions": _minute(110, "<")},
         {"id": "church_state_damaged", "type": "text", "props": {"text": "Un arbre est tombé sur la toiture. Restez sur le parvis sûr ; le chantier collectif ouvre à T+120."},
@@ -502,9 +521,15 @@ def _finish_template(rows: list[dict[str, Any]], buildings: dict[str, dict[str, 
          "visibility_conditions": {"all": [_progress("church_tree_cleared", "progress", 3),
                                            _progress("church_assembly", "progress", 1, "<=")]}},
     ])
-    bridge["interface"]["pages"][0]["components"].append({
-        "id": "bridge_open_notice", "type": "text",
-        "props": {"text": "Pont ouvert avant, pendant et après l'orage. La pêche n'est pas activée dans cette bêta."}})
+    bridge_home = bridge["interface"]["pages"][0]["components"]
+    bridge_used = {int(component["slot"]) for component in bridge_home if component.get("slot") is not None}
+    fish_slots = [slot for slot in range(25) if slot not in bridge_used][:2]
+    bridge_home.extend([
+        {"id": "bridge_open_notice", "type": "text",
+         "props": {"text": "Le vieux pont reste praticable. La rivière permet de pêcher pour approvisionner Edgar."}},
+        _button("old_bridge", "fish_old_bridge", "Pêcher", fish_slots[0], emoji="🎣"),
+        _button("old_bridge", "claim_fish_old_bridge", "Récupérer le poisson", fish_slots[1], emoji="🐟"),
+    ])
     _page(bridge, "bridge_route", "Traverser", "Vers l'église",
           "La rive de la Sainte Pelle se rejoint par la carte du monde et par son salon Discord.", [])
 
@@ -523,6 +548,12 @@ def _finish_template(rows: list[dict[str, Any]], buildings: dict[str, dict[str, 
         "id": "storm_quest_nav", "type": "button", "slot": 6,
         "props": {"label": "Panneau des quêtes", "emoji": "📜", "style": "primary"},
         "interaction": {"type": "navigate", "page": "storm_quests"}})
+    market["interface"]["pages"][0]["components"].extend([
+        {"id": "storm_kingdom_summary", "type": "text",
+         "props": {"text": "Le Royaume en direct : météo, calendrier, annonces et quêtes du village."}},
+        {"id": "storm_home_weather", "type": "world_weather", "props": {"title": "Météo du Royaume"}},
+        {"id": "storm_home_calendar", "type": "world_calendar", "props": {"title": "Calendrier du Royaume"}},
+    ])
     _page(market, "storm_collective", "Royaume en direct", "Relever l'église de la Sainte Pelle",
           "La quête commune débute à T+120. Les dépôts sont comptés seulement à l'église ; vos quêtes personnelles restent indépendantes.", [
               *[{"id": f"market_progress_{objective}", "type": "collective_objective",
@@ -536,6 +567,9 @@ def _finish_template(rows: list[dict[str, Any]], buildings: dict[str, dict[str, 
                     ("church_assembly", "Assemblages", 2, "actions"),
                 ]],
           ])
+    collective_nav = next(component for component in market["interface"]["pages"][0]["components"]
+                          if component.get("id") == "storm_nav_storm_collective")
+    collective_nav["visibility_conditions"] = _minute(120)
     return _finish_events_and_quests(rows, settings)
 
 
@@ -639,6 +673,9 @@ def _finish_events_and_quests(rows: list[dict[str, Any]], settings: dict[str, An
         ("p11_tired_tool", "Outil fatigué", 50, [_action_goal("repair", "royal_forge", "repair_iron_pickaxe")], 0),
         ("p12_neighbors", "Tournée des voisins", 70, [_delivery("forge", "oak_timber", "royal_forge", 1), _delivery("tavern", "egg", "edgar_tavern", 1)], 0),
         ("p13_workers_meal", "Le repas du travailleur", 35, [_action_goal("work", "forester_lodge", "claim_cut_storm_wood"), _action_goal("eat", "edgar_tavern", "consume_storm_ration")], 0),
+        ("p14_bridge_fishing", "Les poissons d'Edgar", 55,
+         [_action_goal("fish", "old_bridge", "claim_fish_old_bridge", 2),
+          _delivery("fish_delivery", "river_fish", "edgar_tavern", 2)], 0),
         ("s01_clear_branches", "Débarrasser les branches", 50, [_action_goal("clear", "saint_shovel_church", "claim_church_tree_cleared")], 120),
         ("s02_timber", "Bois de charpente", 55, [_delivery("wood", "oak_timber", "saint_shovel_church", 8)], 120),
         ("s03_stone", "Pierres pour les murs", 55, [_delivery("stone", "stone_block", "saint_shovel_church", 8)], 120),
@@ -654,15 +691,50 @@ def _finish_events_and_quests(rows: list[dict[str, Any]], settings: dict[str, An
         item["payload"]["priority"] = 100 if minute == 120 else 10
         if key in {"p01_first_steps", "p02_old_bridge"}:
             item["payload"]["priority"] = 50
+        names = {row["key"]: row["payload"].get("name", row["key"])
+                 for row in rows if row["type"] in {"building", "item"}}
+        action_names = {(row["key"], action["key"]): action.get("name", action["key"])
+                        for row in rows if row["type"] == "building"
+                        for action in row["payload"].get("actions", [])}
         for goal in objectives:
             target = goal.get("destination_building_key") or goal.get("building_key")
             if goal["type"] == "delivery":
-                goal["description"] = f"Livrer {goal['quantity']} × {goal['item_key']} à {target}"
+                goal["description"] = f"Livrer {goal['quantity']} × {names.get(goal['item_key'], goal['item_key'])} à {names.get(target, target)}"
             elif goal["type"] == "visit":
-                goal["description"] = f"Visiter {target}"
+                goal["description"] = f"Visiter {names.get(target, target)}"
             else:
-                goal["description"] = f"Terminer {goal['action_key']} à {target}"
+                goal["description"] = f"{action_names.get((target, goal['action_key']), 'Terminer l’activité')} · {names.get(target, target)}"
         rows.append(item)
+
+    obsolete_market_pages = {"preparations", "contribution", "announcements"}
+    market = next(row["payload"] for row in rows if row["type"] == "building" and row["key"] == "market_square")
+    market_interface = market.get("interface", {})
+    market_interface["pages"] = [page for page in market_interface.get("pages", [])
+                                 if page.get("key") not in obsolete_market_pages]
+    for page in market_interface.get("pages", []):
+        page["components"] = [component for component in page.get("components", [])
+                              if component.get("interaction", {}).get("page") not in obsolete_market_pages]
+
+    def clean_visible_content(value: Any) -> Any:
+        if isinstance(value, dict):
+            value.pop("balance_status", None)
+            for key, child in list(value.items()):
+                value[key] = clean_visible_content(child)
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                value[index] = clean_visible_content(child)
+        elif isinstance(value, str):
+            return (value.replace("La Fête du Royaume", "Le Royaume")
+                    .replace("la Fête du Royaume", "le Royaume")
+                    .replace("Fête du Royaume", "Royaume")
+                    .replace("BALANCE_DRAFT / À VALIDER", "")
+                    .replace("Préparatifs", "Vie du Royaume")
+                    .replace("préparatifs", "activités du Royaume")
+                    .replace("  ", " ").strip(" ·"))
+        return value
+
+    for row in rows:
+        clean_visible_content(row["payload"])
 
     # Les packs officiels sont importés par type dans l'ordre de dépendance.
     # Aucune entité du pack « Le Royaume » n'est modifiée en place.
