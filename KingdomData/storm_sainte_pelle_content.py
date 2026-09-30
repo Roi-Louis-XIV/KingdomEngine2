@@ -164,7 +164,45 @@ def build_storm_template(source: list[dict[str, Any]]) -> list[dict[str, Any]]:
     settings = _row(rows, "server_settings", "kingdom_server")
     settings.update(name="La Tempête de la Sainte Pelle",
                     description="Bêta coopérative de trois heures, depuis le vieux pont jusqu'à l'église.",
-                    template_revision=1, balance_status=BALANCE)
+                    template_revision=2, balance_status=BALANCE)
+    settings["onboarding"].update(
+        starting_money=100,
+        currency_label="écus",
+        currency_label_singular="écu",
+        currency_label_plural="écus",
+    )
+    settings["roles"].update(game_master="Roi", player="Habitants du Royaume")
+
+    # Bibliothèque vocale réellement fournie avec la mission. Les numéros de
+    # scène sont conservés tels quels : ils restent filtrables et éditables
+    # dans KingdomWeb sans inventer une transcription absente des fichiers.
+    supplied_voices = {"edgar": (13, 4), "roland": (13, 2), "wagner": (13, 2)}
+    for npc_key, (scene_count, first_scene_variants) in supplied_voices.items():
+        profile = _row(rows, "voice_profile", f"voice_{npc_key}")
+        clips = []
+        for scene in range(scene_count):
+            variants = first_scene_variants if npc_key == "edgar" and scene == 0 else 2
+            for variant in range(1, variants + 1):
+                stem = f"{npc_key}_{scene:02d}_{variant:02d}"
+                audio_key = f"storm_voice_{stem}"
+                path = f"assets/storm_sainte_pelle/voices/{npc_key}/{stem}.mp3"
+                _add(rows, "audio", audio_key, {
+                    "name": f"{profile['name']} · scène {scene:02d} · variante {variant:02d}",
+                    "emoji": "🗣️", "description": "Enregistrement fourni avec la mission bêta.",
+                    "storage_path": path, "file_name": f"{stem}.mp3", "audio_type": "voice",
+                    "volume": 1, "loop": False,
+                    "tags": ["storm_sainte_pelle", npc_key, f"scene_{scene:02d}", "provided"],
+                })
+                clips.append({
+                    "key": f"scene_{scene:02d}_{variant:02d}",
+                    "name": f"Scène {scene:02d} · variante {variant:02d}",
+                    "trigger": "manual", "audio_key": audio_key,
+                    "text": "Information importante également disponible dans les textes du scénario.",
+                    "metadata": {"provided_file": f"{stem}.mp3", "scene_index": scene},
+                })
+        profile["clips"] = clips
+        profile["tags"] = ["storm_sainte_pelle", "provided"]
+        profile["missing_assets_status"] = "Voix fournie — scènes événementielles exactes listées dans le rapport audio"
     settings["live_ops"] = {
         "scenario_duration_minutes": 180, "status": "preparation",
         "objectives": [

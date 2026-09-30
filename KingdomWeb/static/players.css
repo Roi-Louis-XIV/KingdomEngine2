@@ -661,6 +661,27 @@ progress {
   align-items: center;
 }
 
+.live-ops-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  margin: 22px 0;
+}
+
+.live-ops-controls label { display: grid; gap: 6px; }
+.live-ops-controls input { min-width: 220px; }
+.live-ops-controls button:disabled { opacity: .45; cursor: not-allowed; }
+
+.installation-flow-dialog { width: min(560px, calc(100vw - 32px)); }
+.installation-flow-steps { display: grid; gap: 8px; margin: 20px 0; }
+.installation-flow-steps article { display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.installation-flow-steps article > span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--panel); }
+.installation-flow-steps article.done { border-color: var(--green); }
+.installation-flow-steps article.done > span { background: var(--green); color: #08110c; }
+.installation-flow-steps article.current { box-shadow: 0 0 0 1px var(--green); }
+.installation-flow-steps small { display: block; margin-top: 3px; }
+
 .objective-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

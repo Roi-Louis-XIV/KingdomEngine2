@@ -297,6 +297,35 @@ def workstation_states(building_key: str):
 def world_live_operations(): return WorldCreatorService(store).live_operations()
 
 
+@app.post("/api/world/live-operations/start", dependencies=[Depends(authorize)])
+def world_live_operations_start():
+    return WorldCreatorService(store).start_live_operations()
+
+
+@app.post("/api/world/live-operations/schedule", dependencies=[Depends(authorize)])
+def world_live_operations_schedule(body: dict[str, Any]):
+    from datetime import datetime
+    value = body.get("start_at")
+    if value is None:
+        raise HTTPException(422, "La date de lancement est requise.")
+    try:
+        start_at = float(value) if isinstance(value, (int, float)) else datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(422, "Date de lancement invalide.") from exc
+    return WorldCreatorService(store).start_live_operations(start_at=start_at)
+
+
+@app.post("/api/world/live-operations/stop", dependencies=[Depends(authorize)])
+def world_live_operations_stop(): return WorldCreatorService(store).stop_live_operations()
+
+
+@app.post("/api/world/live-operations/reset", dependencies=[Depends(authorize)])
+def world_live_operations_reset(body: dict[str, Any]):
+    if str(body.get("confirmation", "")) != "RESET":
+        raise HTTPException(422, "Saisissez RESET pour confirmer la remise à zéro de la session.")
+    return WorldCreatorService(store).reset_live_operations()
+
+
 @app.get("/api/world/impacts", dependencies=[Depends(authorize)])
 def world_impacts(): return WorldCreatorService(store).impacts()
 
@@ -788,7 +817,7 @@ def creer_serveur(request: Request, body: dict[str, Any]):
         magasin = ContentStore(serveur["database_path"])
         magasin.initialize()
         magasin.seed(definitions)
-        live_ops = WorldCreatorService(magasin).start_live_operations()
+        live_ops = WorldCreatorService(magasin).prepare_live_operations()
         comptes.definir_source_modele(str(serveur["slug"]), preset_key, template_version)
         store._magasins[str(magasin.path.resolve())] = magasin
         return {**serveur, "preset": preset_key, "preset_version": template_version,
@@ -1392,22 +1421,81 @@ def _magasin_serveur(serveur: dict[str, Any]) -> ContentStore:
     return magasin
 
 
+def _installation_flow(serveur: dict[str, Any], compte_id: int) -> dict[str, Any]:
+    """Décrit le parcours OAuth autorisé, sans jamais exposer de secret."""
+    guild_id = str(serveur.get("guild_id", ""))
+    plan = comptes.plan_vocal(compte_id)
+    runtime = read_voice_status()
+    runtime_by_key = {str(row.get("key", "")): row for row in runtime.get("workers", [])}
+    workers = sorted(discover_platform_workers(), key=lambda row: int(row.get("worker_number", 0)))
+    workers = [row for row in workers if 0 < int(row.get("worker_number", 0)) <= int(plan["voice_workers"])]
+    core_application = str(os.getenv("KINGDOM_APPLICATION_ID", "")).strip()
+    steps: list[dict[str, Any]] = [{
+        "key": "kingdom_core", "name": "KingdomCore", "kind": "core",
+        "installed": bool(serveur.get("bot_installed")),
+        "configured": core_application.isdigit(),
+        "application_id_env": "KINGDOM_APPLICATION_ID",
+    }]
+    for worker in workers:
+        application_env, application_id = _configured_environment(worker, "application_id_env", "legacy_application_id_env")
+        status = runtime_by_key.get(str(worker["key"]), {})
+        steps.append({
+            "key": worker["key"], "name": worker["name"], "kind": "voice",
+            "worker_number": int(worker["worker_number"]),
+            "installed": guild_id in status.get("guild_ids", []),
+            "configured": str(application_id).isdigit(),
+            "application_id_env": application_env or str(worker.get("application_id_env", "")),
+        })
+    next_step = next((step for step in steps if not step["installed"]), None)
+    if next_step and next_step["configured"] and guild_id.isdigit():
+        if next_step["kind"] == "core":
+            application_id, permissions = core_application, required_bot_permissions()
+        else:
+            worker = next(row for row in workers if row["key"] == next_step["key"])
+            _, application_id = _configured_environment(worker, "application_id_env", "legacy_application_id_env")
+            permissions = managed_bot_permissions()
+        next_step = {**next_step, "url": discord.utils.oauth_url(
+            int(application_id), permissions=permissions, scopes=("bot",),
+            guild=discord.Object(id=int(guild_id)), disable_guild_select=True,
+        )}
+    return {
+        "ok": True, "server_slug": serveur["slug"], "guild_id": guild_id,
+        "voice_plan": plan, "steps": steps, "next": next_step,
+        "url": next_step.get("url", "") if next_step else "",
+        "complete": all(step["installed"] for step in steps),
+        "installed": sum(bool(step["installed"]) for step in steps), "total": len(steps),
+    }
+
+
 @app.post("/api/servers/{slug}/install", dependencies=[Depends(authenticate_account)])
 def installer_kingdomengine(slug: str, request: Request):
     serveur = _serveur_administrable(request.state.compte, slug)
     guild_id = str(serveur.get("guild_id", ""))
     if not guild_id.isdigit():
         raise HTTPException(422, "Renseignez d'abord l'identifiant Discord du serveur.")
-    application_id = str(os.getenv("KINGDOM_APPLICATION_ID", "")).strip()
-    if not application_id.isdigit():
-        raise HTTPException(422, "Renseignez KINGDOM_APPLICATION_ID dans le fichier .env.")
+    flow = _installation_flow(serveur, int(request.state.compte["id"]))
+    if flow["next"] and not flow["next"]["configured"]:
+        raise HTTPException(422, f"Renseignez {flow['next']['application_id_env']} dans le fichier .env.")
+    return flow
+
+
+@app.get("/api/servers/{slug}/install-flow", dependencies=[Depends(authenticate_account)])
+def installation_kingdomengine_progress(slug: str, request: Request):
+    serveur = _serveur_administrable(request.state.compte, slug)
+    # La présence Core est synchronisée par on_guild_join dans le registre.
+    serveur = comptes.serveur(slug)
+    return _installation_flow(serveur, int(request.state.compte["id"]))
+
+
+@app.post("/api/servers/{slug}/install-flow/complete", dependencies=[Depends(authenticate_account)])
+def terminer_installation_kingdomengine(slug: str, request: Request):
+    serveur = _serveur_administrable(request.state.compte, slug)
+    flow = _installation_flow(comptes.serveur(slug), int(request.state.compte["id"]))
+    if not flow["complete"]:
+        raise HTTPException(409, "Tous les bots autorisés doivent être installés avant le provisionnement.")
     magasin = _magasin_serveur(serveur)
     request_id = magasin.request_discord_provision("server", requested_by=f"KingdomWeb:{request.state.compte['username']}")
-    url = discord.utils.oauth_url(
-        int(application_id), permissions=required_bot_permissions(), scopes=("bot",),
-        guild=discord.Object(id=int(guild_id)), disable_guild_select=True,
-    )
-    return {"ok": True, "request_id": request_id, "status": "pending", "url": url}
+    return {**flow, "request_id": request_id, "status": "pending"}
 
 
 @app.post("/api/servers/{slug}/uninstall", dependencies=[Depends(authenticate_account)])

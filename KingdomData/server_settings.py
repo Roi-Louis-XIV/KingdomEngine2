@@ -33,6 +33,8 @@ DEFAULT_SERVER_SETTINGS: dict[str, Any] = {
         "confirmation": "Bienvenue ! Ton accès au monde est maintenant ouvert.",
         "action_name": "validation d'arrivée",
         "currency_label": "unités",
+        "currency_label_singular": "unité",
+        "currency_label_plural": "unités",
     },
     "roles": {
         "game_master": "🛡️ Administrateur du monde",

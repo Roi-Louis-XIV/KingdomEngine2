@@ -323,7 +323,43 @@ class ContentStore:
         # la validation stricte soit également applicable aux imports V1.
         # Les catalogues précèdent les bâtiments, puis les bots qui peuvent
         # désormais référencer explicitement un bâtiment provisionné.
+        definitions = list(definitions)
+        # Les lieux forment un graphe parent/enfant. Les packs officiels et les
+        # imports no-code peuvent arriver dans n'importe quel ordre : trions ce
+        # graphe avant validation et refusons explicitement parents absents et
+        # cycles au lieu de produire un monde partiellement installé.
+        locations = [item for item in definitions if item["type"] == "location"]
+        location_keys = {item["key"] for item in locations}
+        existing_locations = {row["entity_key"] for row in self.list("location")}
+        by_key = {item["key"]: item for item in locations}
+        visiting: set[str] = set()
+        visited: set[str] = set()
+        location_order: list[dict[str, Any]] = []
+
+        def visit_location(key: str, trail: list[str]) -> None:
+            if key in visited:
+                return
+            if key in visiting:
+                cycle = " -> ".join([*trail, key])
+                raise ValidationError(f"Cycle de lieux détecté : {cycle}.")
+            visiting.add(key)
+            item = by_key[key]
+            parent = str(item.get("payload", {}).get("parent_key", "")).strip()
+            if parent:
+                if parent in by_key:
+                    visit_location(parent, [*trail, key])
+                elif parent not in existing_locations:
+                    raise ValidationError(f"Lieu parent introuvable : {parent}.")
+            visiting.remove(key)
+            visited.add(key)
+            location_order.append(item)
+
+        for location in locations:
+            visit_location(location["key"], [])
+
+        location_rank = {item["key"]: index for index, item in enumerate(location_order)}
         rank = {
+            "location": 0,
             "audio_group": 1,
             "voice_profile": 1,
             "voice_presence": 2,
@@ -332,7 +368,13 @@ class ContentStore:
             "event": 4,
             "bot": 5,
         }
-        ordered = sorted(enumerate(definitions), key=lambda pair: (rank.get(pair[1]["type"], 0), pair[0]))
+        ordered = sorted(
+            enumerate(definitions),
+            key=lambda pair: (
+                rank.get(pair[1]["type"], 0),
+                location_rank.get(pair[1]["key"], pair[0]) if pair[1]["type"] == "location" else pair[0],
+            ),
+        )
         for _, item in ordered:
             try: self.get(item["type"], item["key"])
             except NotFoundError:

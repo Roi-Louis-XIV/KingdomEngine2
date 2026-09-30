@@ -385,7 +385,7 @@ def test_managed_server_install_and_safe_removal_lifecycle(tmp_path, monkeypatch
         assert install.status_code == 200
         assert "discord.com" in install.json()["url"]
         target = ContentStore(server["database_path"])
-        assert target.discord_provision_status()["scope"] == "server"
+        assert target.discord_provision_status()["status"] == "never"
 
         with primary.connection() as database:
             database.execute("UPDATE managed_servers SET bot_installed=1 WHERE slug=?", (server["slug"],))
@@ -408,6 +408,46 @@ def test_managed_server_install_and_safe_removal_lifecycle(tmp_path, monkeypatch
         assert recreated.json()["reactivated"] is False
         fresh = ContentStore(recreated.json()["database_path"])
         assert fresh.discord_provision_status()["status"] == "never"
+
+
+def test_guided_install_uses_voice_plan_and_provisions_only_when_complete(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "guided-install.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "guided-admin")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "guided-password")
+    monkeypatch.setenv("KINGDOM_APPLICATION_ID", "123456789012345678")
+    monkeypatch.setenv("VOICE_WORKER_1_APPLICATION_ID", "223456789012345678")
+    monkeypatch.setenv("VOICE_WORKER_2_APPLICATION_ID", "323456789012345678")
+    monkeypatch.setattr(web, "magasin_principal", primary)
+    monkeypatch.setattr(web, "store", web.MagasinsServeurs(primary))
+    monkeypatch.setattr(web, "comptes", registry)
+    monkeypatch.setattr(registry, "plan_vocal", lambda _account_id: {"key": "basic", "name": "Basic", "voice_workers": 2, "custom_workers": False})
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+    runtime = {"workers": []}
+    monkeypatch.setattr(web, "read_voice_status", lambda: runtime)
+
+    with TestClient(web.app) as client:
+        assert client.post("/api/auth/login", json={"username": "guided-admin", "password": "guided-password"}).status_code == 200
+        created = client.post("/api/servers", json={"name": "Bêta guidée", "guild_id": "987654321012345679", "preset": "blank"}).json()
+        install = client.post(f'/api/servers/{created["slug"]}/install', json={})
+        assert install.status_code == 200
+        install_payload = install.json()
+        assert [step["name"] for step in install_payload["steps"]] == ["KingdomCore", "Voice Worker 1", "Voice Worker 2"]
+        target = ContentStore(created["database_path"])
+        assert target.discord_provision_status()["status"] == "never"
+
+        with primary.connection() as database:
+            database.execute("UPDATE managed_servers SET bot_installed=1 WHERE slug=?", (created["slug"],))
+        runtime["workers"] = [
+            {"key": step["key"], "guild_ids": [created["guild_id"]]}
+            for step in install_payload["steps"] if step["kind"] == "voice"
+        ]
+        progress = client.get(f'/api/servers/{created["slug"]}/install-flow').json()
+        assert progress["complete"] is True
+        completed = client.post(f'/api/servers/{created["slug"]}/install-flow/complete', json={})
+        assert completed.status_code == 200
+        assert target.discord_provision_status()["scope"] == "server"
 
 
 def test_login_interface_exposes_registration_and_account_statistics():

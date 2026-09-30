@@ -22,7 +22,7 @@ const state = {
   supervisionTab: "overview",
   settingsTab: "onboarding",
   playerTab: "overview",
-  liveOpsTab: "map",
+  liveOpsTab: "control",
   playerId: null,
   playerPage: 1,
   itemFilters: { search: "", category: "", building: "", sort: "name_asc" },
@@ -1732,7 +1732,7 @@ function installLiveOperationsTabs(operations) {
   [...root.children].forEach((child) => child.classList.add("live-ops-base"));
   const navigation = document.createElement("nav");
   navigation.className = "section-tabs live-ops-tabs";
-  navigation.innerHTML = [["map", "Carte Live"], ["progress", "Progression"], ["activity", "Activité"], ["health", "Santé"]]
+  navigation.innerHTML = [["control", "Pilotage"], ["map", "Carte Live"], ["players", "Joueurs"], ["progress", "Objectifs"], ["activity", "Timeline"], ["history", "Historique"], ["health", "Santé"]]
     .map(([key, label]) => `<button type="button" data-live-ops-tab="${key}" class="${state.liveOpsTab === key ? "active" : ""}">${label}</button>`)
     .join("");
   const panels = document.createElement("section");
@@ -1740,6 +1740,8 @@ function installLiveOperationsTabs(operations) {
   panels.hidden = true;
   const objectives = operations.objectives || [], timeline = operations.timeline || [], health = operations.health || {};
   panels.innerHTML = `<div data-live-ops-panel="progress"><div class="live-ops-heading"><div><small>OBJECTIFS COLLECTIFS</small><h2>Progression du monde</h2></div><b>${operations.elapsed_minutes || 0} / ${operations.scenario_duration_minutes || "—"} min</b></div>${objectives.length ? `<div class="objective-grid">${objectives.map((objective) => `<article><div><span>${escapeHtml(objective.name)}</span><b>${objective.current} / ${objective.target} ${escapeHtml(objective.unit || "")}</b></div><progress max="100" value="${objective.progress}"></progress><small>${objective.progress} %</small></article>`).join("")}</div>` : '<p class="empty-admin">Ce monde ne définit pas encore d’objectifs Live Ops.</p>'}</div><div data-live-ops-panel="activity" hidden><div class="live-ops-heading"><div><small>TIMELINE</small><h2>Déroulé du scénario</h2></div><b>${operations.activity?.actions || 0} actions journalisées</b></div><div class="scenario-timeline">${timeline.map((step) => `<article class="${escapeHtml(step.status)}"><time>H+${Math.floor(Number(step.minute) / 60)}:${String(Number(step.minute) % 60).padStart(2, "0")}</time><span>${escapeHtml(step.label)}</span></article>`).join("") || '<p class="empty-admin">Aucune timeline configurée.</p>'}</div></div><div data-live-ops-panel="health" hidden><div class="live-ops-heading"><div><small>DIAGNOSTICS</small><h2>Santé du gameplay</h2></div><b>${health.players_with_issues || 0} joueur(s) à vérifier</b></div><div class="health-summary">${metricCard("JOUEURS CONTRÔLÉS", health.players_checked || 0)}${metricCard("ÉTATS À VÉRIFIER", health.players_with_issues || 0)}${metricCard("COOLDOWNS EXPIRÉS", health.expired_cooldowns || 0)}${metricCard("ACTIVITÉS EN COURS", operations.activity?.pending || 0)}</div>${(health.diagnostics || []).map((entry) => `<button type="button" data-health-player="${escapeHtml(entry.player_id)}"><b>Joueur ${escapeHtml(entry.player_id)}</b><span>${entry.issues.length} anomalie(s) · ouvrir la fiche</span></button>`).join("") || '<p class="success-box">Aucun état bloquant déterministe détecté.</p>'}</div>`;
+  const liveState = operations.state || {}, statusLabels = { prepared: "Préparé", scheduled: "Programmé", running: "En cours", stopped: "Arrêté", completed: "Terminé" };
+  panels.insertAdjacentHTML("afterbegin", `<div data-live-ops-panel="control"><div class="live-ops-heading"><div><small>SESSION DE TEST</small><h2>${escapeHtml(statusLabels[liveState.status] || liveState.status || "Non préparée")}</h2></div><b>${operations.progress || 0} % · ${operations.elapsed_minutes || 0}/${operations.scenario_duration_minutes || "—"} min</b></div><div class="live-ops-controls"><button class="primary" data-live-command="start" ${liveState.status !== "prepared" ? "disabled" : ""}>▶ Démarrer</button><label>Programmer<input type="datetime-local" data-live-start-at></label><button data-live-command="schedule" ${liveState.status !== "prepared" ? "disabled" : ""}>🕒 Programmer</button><button data-live-command="stop" ${!["scheduled","running"].includes(liveState.status) ? "disabled" : ""}>■ Arrêter</button><button class="danger" data-live-command="reset">↺ Réinitialiser</button></div><div class="dashboard-columns"><section class="royal-panel"><div class="royal-panel-title"><small>ÉVÉNEMENTS EN COURS</small></div>${(operations.current_events || []).map((row) => `<article class="dashboard-event"><span>${escapeHtml(row.definition?.emoji || "✦")}</span><div><b>${escapeHtml(row.definition?.name || row.event_key)}</b><small>${escapeHtml(row.definition?.description || row.status)}</small></div></article>`).join("") || '<p class="empty-admin">Aucun événement en cours.</p>'}</section><section class="royal-panel"><div class="royal-panel-title"><small>5 PROCHAINS ÉVÉNEMENTS</small></div>${(operations.upcoming || []).slice(0,5).map((step) => `<article class="dashboard-event"><time>H+${Math.floor(Number(step.minute)/60)}:${String(Number(step.minute)%60).padStart(2,"0")}</time><div><b>${escapeHtml(step.name || step.label)}</b><small>${step.countdown_seconds == null ? "En attente du lancement" : `${Math.max(0,step.countdown_seconds)} s`}</small></div></article>`).join("") || '<p class="empty-admin">Aucun événement à venir.</p>'}</section></div></div><div data-live-ops-panel="players" hidden><div class="live-ops-heading"><div><small>JOUEURS</small><h2>Situation individuelle</h2></div><b>${(operations.players || []).filter((player) => player.online).length} en ligne / ${(operations.players || []).length}</b></div><div class="objective-grid">${(operations.players || []).map((player) => `<button type="button" data-health-player="${escapeHtml(player.discord_id)}"><b>${escapeHtml(player.display_name || player.discord_id)}</b><small>${player.online ? "● En ligne" : "○ Hors ligne"} · ${escapeHtml(player.building_key || player.location_key || "position inconnue")}</small><span>${escapeHtml(player.pending_action || player.recent_action || "aucune action")}</span><small>${player.contribution || 0} contribution(s) · ${player.money} écus · ${player.energy} énergie</small></button>`).join("") || '<p class="empty-admin">Aucun joueur connu.</p>'}</div></div><div data-live-ops-panel="history" hidden><div class="live-ops-heading"><div><small>HISTORIQUE</small><h2>Événements exécutés</h2></div><b>${(operations.history || []).length}</b></div>${(operations.history || []).map((row) => `<article class="dashboard-event"><span>✓</span><div><b>${escapeHtml(row.name || row.event_key)}</b><small>${escapeHtml(row.status)}</small></div></article>`).join("") || '<p class="empty-admin">Aucun événement terminé.</p>'}</div>`);
   root.prepend(navigation);
   root.append(panels);
   const select = (key) => {
@@ -1751,6 +1753,26 @@ function installLiveOperationsTabs(operations) {
   };
   $$("[data-live-ops-tab]", navigation).forEach((button) => { button.onclick = () => select(button.dataset.liveOpsTab); });
   $$("[data-health-player]", panels).forEach((button) => { button.onclick = () => openPlayer(button.dataset.healthPlayer); });
+  $$("[data-live-command]", panels).forEach((button) => { button.onclick = async () => {
+    const command = button.dataset.liveCommand;
+    let body = {};
+    if (command === "schedule") {
+      const value = $("[data-live-start-at]", panels)?.value;
+      if (!value) return;
+      body = { start_at: new Date(value).toISOString() };
+    }
+    if (command === "reset") {
+      const confirmation = prompt("Tapez RESET pour remettre uniquement la session de test à zéro.");
+      if (confirmation !== "RESET") return;
+      body = { confirmation };
+    }
+    button.disabled = true;
+    const response = await fetch(`/api/world/live-operations/${command}`, {
+      method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    if (!response.ok) alert((await response.json()).detail || "Commande Live Ops impossible.");
+    await loadLiveWorld(true);
+  }; });
   select(state.liveOpsTab);
 }
 
@@ -2069,9 +2091,8 @@ async function inviteBotForServer(botKey, serverSlug) {
   } else window.location.href = data.url;
 }
 async function installKingdomEngine(slug) {
-  const popup = window.open("about:blank", "_blank"),
-    status = $(`[data-server-operation="${slug}"]`);
-  status.textContent = "Préparation de l’installation…";
+  const popup = window.open("about:blank", "kingdomengine-install"), status = $(`[data-server-operation="${slug}"]`);
+  status.textContent = "Préparation du parcours Core + Voice Workers…";
   const response = await fetch(
       `/api/servers/${encodeURIComponent(slug)}/install`,
       { method: "POST", headers, body: "{}" },
@@ -2082,12 +2103,46 @@ async function installKingdomEngine(slug) {
     status.textContent = result.detail;
     return;
   }
-  status.textContent =
-    "Autorisez KingdomCore dans Discord. Les salons seront ensuite créés automatiquement.";
-  if (popup) {
-    popup.opener = null;
-    popup.location.href = result.url;
-  } else window.location.href = result.url;
+  if (!popup) {
+    status.textContent = "Autorisez les fenêtres contextuelles pour lancer l’installation guidée.";
+    return;
+  }
+  const dialog = document.createElement("dialog");
+  dialog.className = "worker-credentials-dialog installation-flow-dialog";
+  document.body.append(dialog);
+  const render = (flow, message = "") => {
+    dialog.innerHTML = `<div><header><div><small>INSTALLATION DISCORD GUIDÉE</small><h2>KingdomEngine · offre ${escapeHtml(flow.voice_plan?.name || "")}</h2><p>${flow.installed}/${flow.total} applications autorisées sur ce serveur.</p></div></header><div class="installation-flow-steps">${flow.steps.map((step) => `<article class="${step.installed ? "done" : step.key === flow.next?.key ? "current" : ""}"><span>${step.installed ? "✓" : "○"}</span><div><b>${escapeHtml(step.name)}</b><small>${step.installed ? "Installé" : step.configured ? "À autoriser" : `${escapeHtml(step.application_id_env)} manquant`}</small></div></article>`).join("")}</div><p data-install-message>${escapeHtml(message || (flow.complete ? "Autorisations terminées. Provisionnement en cours…" : `Autorisez ${flow.next?.name || "l’étape suivante"} dans la fenêtre Discord.`))}</p></div>`;
+  };
+  dialog.addEventListener("cancel", (event) => event.preventDefault());
+  dialog.showModal();
+  let flow = result;
+  render(flow);
+  const deadline = Date.now() + 5 * 60 * 1000;
+  while (!flow.complete && Date.now() < deadline) {
+    if (!flow.next?.configured || !flow.next?.url) {
+      render(flow, `${flow.next?.application_id_env || "Application ID"} doit être configuré côté serveur.`);
+      break;
+    }
+    popup.location.href = flow.next.url;
+    const currentKey = flow.next.key;
+    do {
+      await new Promise((resolve) => setTimeout(resolve, 1800));
+      const progressResponse = await fetch(`/api/servers/${encodeURIComponent(slug)}/install-flow`, { headers, cache: "no-store" });
+      if (!progressResponse.ok) { render(flow, (await progressResponse.json()).detail); break; }
+      flow = await progressResponse.json();
+      render(flow);
+    } while (!flow.complete && flow.next?.key === currentKey && Date.now() < deadline);
+  }
+  if (flow.complete) {
+    popup.close();
+    const completeResponse = await fetch(`/api/servers/${encodeURIComponent(slug)}/install-flow/complete`, { method: "POST", headers, body: "{}" });
+    const completed = await completeResponse.json();
+    status.textContent = completeResponse.ok ? "Tous les bots sont installés. Provisionnement Discord lancé." : completed.detail;
+    render(flow, status.textContent);
+    setTimeout(() => { dialog.close(); dialog.remove(); }, 1800);
+  } else if (Date.now() >= deadline) {
+    render(flow, "Délai dépassé. Relancez l’installation : les étapes déjà validées seront conservées.");
+  }
 }
 async function removeManagedServer(slug, name) {
   if (

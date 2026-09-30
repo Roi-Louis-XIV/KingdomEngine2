@@ -112,7 +112,9 @@ class OfficialContentStore:
                         "SELECT 1 FROM official_content_entities WHERE pack_id=? AND entity_type='audio' LIMIT 1",
                         (current["id"],),
                     ).fetchone()
-                    needs_bundled_update = current_revision < 4 if key == "royal_festival" else not has_audio
+                    required_revisions = {"royal_festival": 4, "storm_sainte_pelle": 2}
+                    required_revision = required_revisions.get(key, 0)
+                    needs_bundled_update = current_revision < required_revision if required_revision else not has_audio
                     if key == "royal_festival" and settings_row:
                         needs_bundled_update |= int(json.loads(settings_row[0]).get("workshop_content_revision", 0)) < 4
                     # Migration ciblée des seuls presets livrés avec le code.

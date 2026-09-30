@@ -778,7 +778,7 @@ class InterfaceView(discord.ui.View):
 
     def _delivery_notice(self, result: dict[str, Any]) -> str:
         lines = " · ".join(f"{line['quantity']} × {line.get('resource_name') or self.engine._item_name(line['resource'])}" for line in result.get("delivery", []))
-        payments = " · ".join(f"{amount} {self._currency_label(currency)}" for currency, amount in result.get("payments", {}).items())
+        payments = " · ".join(f"{amount} {self._currency_label(currency, amount)}" for currency, amount in result.get("payments", {}).items())
         return f"Livraison effectuée : {lines}." + (f" Paiement : **{payments}**." if payments else "")
 
     def _add_dynamic_delivery(self, component: dict[str, Any], row: int) -> None:
@@ -808,11 +808,14 @@ class InterfaceView(discord.ui.View):
             await interaction.response.send_modal(QuantityModal())
         select.callback = choose; self.add_item(select)
 
-    def _currency_label(self, currency: str) -> str:
+    def _currency_label(self, currency: str, amount: int | float | None = None) -> str:
         if currency != "money":
             return self.engine._item_name(currency)
         try:
-            return str(self.engine.store.get("server_settings", "kingdom_server", published=True)["payload"].get("onboarding", {}).get("currency_label", "écus"))
+            onboarding = self.engine.store.get("server_settings", "kingdom_server", published=True)["payload"].get("onboarding", {})
+            if amount == 1:
+                return str(onboarding.get("currency_label_singular", onboarding.get("currency_label", "écu")))
+            return str(onboarding.get("currency_label_plural", onboarding.get("currency_label", "écus")))
         except (KeyError, LookupError, TypeError):
             return "écus"
 
@@ -820,7 +823,8 @@ class InterfaceView(discord.ui.View):
         costs = product.get("costs")
         if isinstance(costs, dict) and costs:
             return " + ".join(f"{amount} {self.engine._item_name(str(resource))}" for resource, amount in costs.items())
-        return f"{product.get('price', 0)} {self._currency_label(str(product.get('currency', 'money')))}"
+        price = product.get('price', 0)
+        return f"{price} {self._currency_label(str(product.get('currency', 'money')), price)}"
 
     def _add_dynamic_product(self, component: dict[str, Any], row: int) -> None:
         products = [item for item in self.engine.commerce_options(self._building_key()) if int(item.get("quantity", 0)) > 0]
@@ -846,7 +850,7 @@ class InterfaceView(discord.ui.View):
             async def on_submit(modal_self, modal_interaction: discord.Interaction):
                 try:
                     amount = int(str(modal_self.quantity)); result = await parent.engine.execute_purchase(str(modal_interaction.user.id), parent._building_key(), str(modal_interaction.id), item_key, amount)
-                    payment = " + ".join(f"{value} {parent._currency_label(key)}" for key, value in result["purchase"].get("payments", {}).items())
+                    payment = " + ".join(f"{value} {parent._currency_label(key, value)}" for key, value in result["purchase"].get("payments", {}).items())
                     parent.notice = f"Commande servie : {amount} × {product['name']}" + (f" · **{payment}**." if payment else ".")
                 except Exception as exc: parent.notice = str(exc)
                 parent._render_interactions(); await modal_interaction.response.edit_message(embed=parent.embed(), view=parent)
@@ -1123,7 +1127,10 @@ class OathView(discord.ui.View):
             confirmation = settings["onboarding"]["confirmation"]
             if granted:
                 amount = int(settings["onboarding"].get("starting_money", 100))
-                currency_label = str(settings["onboarding"].get("currency_label", "unités"))
+                currency_label = str(settings["onboarding"].get(
+                    "currency_label_singular" if amount == 1 else "currency_label_plural",
+                    settings["onboarding"].get("currency_label", "unités"),
+                ))
                 confirmation += f"\n\n🪙 **{amount} {currency_label}** ont été ajoutés à ton compte pour commencer."
             await interaction.followup.send(confirmation, ephemeral=True)
         except discord.Forbidden:

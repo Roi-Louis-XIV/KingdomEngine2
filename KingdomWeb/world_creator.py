@@ -16,7 +16,37 @@ from kingdomCore.world import WorldEngine
 class WorldCreatorService:
     def __init__(self, store): self.store = store
 
-    def start_live_operations(self, *, now: float | None = None) -> dict[str, Any]:
+    def _live_state(self) -> dict[str, Any] | None:
+        import json
+        with self.store.connection() as db:
+            row = db.execute("SELECT value_json FROM world_runtime WHERE runtime_key='live_ops_scenario'").fetchone()
+        return json.loads(row[0]) if row else None
+
+    def _write_live_state(self, state: dict[str, Any]) -> None:
+        import json
+        from datetime import datetime, timezone
+        with self.store.connection() as db:
+            db.execute(
+                "INSERT OR REPLACE INTO world_runtime(runtime_key,value_json,updated_at) VALUES(?,?,?)",
+                ("live_ops_scenario", json.dumps(state, ensure_ascii=False), datetime.now(timezone.utc).isoformat()),
+            )
+
+    def prepare_live_operations(self) -> dict[str, Any]:
+        """Prépare le cockpit sans lancer ni planifier le scénario."""
+        configuration = get_server_settings(self.store).get("live_ops", {})
+        current = self._live_state()
+        if current:
+            return {"prepared": False, **current}
+        state = {
+            "status": "prepared", "scheduled": 0, "start_at": None,
+            "started_at": None, "stopped_at": None, "completed_at": None,
+            "scenario_duration_minutes": int(configuration.get("scenario_duration_minutes", 0)),
+            "run_id": 0,
+        }
+        self._write_live_state(state)
+        return {"prepared": True, **state}
+
+    def start_live_operations(self, *, now: float | None = None, start_at: float | None = None) -> dict[str, Any]:
         """Planifie une timeline relative déclarée par n'importe quel template.
 
         L'ancre et les occurrences sont persistantes et idempotentes : un
@@ -24,33 +54,35 @@ class WorldCreatorService:
         """
         import json
         import time
-        from datetime import datetime, timezone
 
         configuration = get_server_settings(self.store).get("live_ops", {})
         timeline = configuration.get("timeline", [])
         now = time.time() if now is None else float(now)
+        anchor = now if start_at is None else float(start_at)
         if not timeline:
             return {"started": False, "scheduled": 0}
         with self.store.connection() as db:
-            row = db.execute(
-                "SELECT value_json FROM world_runtime WHERE runtime_key='live_ops_scenario'"
-            ).fetchone()
+            row = db.execute("SELECT value_json FROM world_runtime WHERE runtime_key='live_ops_scenario'").fetchone()
             if row:
                 state = json.loads(row[0])
+                if state.get("status") in {"scheduled", "running", "completed"}:
+                    return {"started": False, "scheduled": int(state.get("scheduled", 0)), **state}
+            else:
+                state = {"run_id": 0}
+            if state.get("status") == "stopped":
                 return {"started": False, "scheduled": int(state.get("scheduled", 0)), **state}
             state = {
-                "started_at": now,
+                "status": "scheduled" if anchor > now else "running",
+                "start_at": anchor,
+                "started_at": anchor,
+                "stopped_at": None,
+                "completed_at": None,
                 "scenario_duration_minutes": int(configuration.get("scenario_duration_minutes", 0)),
                 "scheduled": 0,
+                "run_id": int(state.get("run_id", 0)) + 1,
             }
-            db.execute(
-                "INSERT INTO world_runtime VALUES(?,?,?)",
-                (
-                    "live_ops_scenario",
-                    json.dumps(state, ensure_ascii=False),
-                    datetime.now(timezone.utc).isoformat(),
-                ),
-            )
+            db.execute("INSERT OR REPLACE INTO world_runtime(runtime_key,value_json,updated_at) VALUES(?,?,datetime('now'))",
+                       ("live_ops_scenario", json.dumps(state, ensure_ascii=False)))
         lifecycle = EventLifecycle(self.store)
         scheduled = 0
         for step in timeline:
@@ -68,12 +100,13 @@ class WorldCreatorService:
             )
             lifecycle.schedule(
                 event_key,
-                now + max(0, int(step.get("minute", 0))) * 60,
+                anchor + max(0, int(step.get("minute", 0))) * 60,
                 duration,
                 metadata={
                     "source": "live_ops_timeline",
-                    "scenario_started_at": now,
+                    "scenario_started_at": anchor,
                     "scenario_minute": int(step.get("minute", 0)),
+                    "run_id": state["run_id"],
                 },
             )
             scheduled += 1
@@ -84,6 +117,44 @@ class WorldCreatorService:
                 (json.dumps(state, ensure_ascii=False),),
             )
         return {"started": True, **state}
+
+    def stop_live_operations(self, *, now: float | None = None) -> dict[str, Any]:
+        import time
+        state = self._live_state() or self.prepare_live_operations()
+        if state.get("status") not in {"scheduled", "running"}:
+            return {"stopped": False, **state}
+        now = time.time() if now is None else float(now)
+        with self.store.connection() as db:
+            db.execute(
+                "UPDATE event_occurrences SET status='finished',ends_at=? "
+                "WHERE status IN ('scheduled','active','paused') AND metadata_json LIKE '%\"source\": \"live_ops_timeline\"%'",
+                (now,),
+            )
+        state.update(status="stopped", stopped_at=now)
+        self._write_live_state(state)
+        return {"stopped": True, **state}
+
+    def reset_live_operations(self) -> dict[str, Any]:
+        """Remet une session de test à zéro sans toucher au contenu ni à Discord."""
+        current = self._live_state() or {}
+        transient_tables = (
+            "event_occurrences", "scheduled_actions", "action_cooldowns", "action_log",
+            "collective_contributions", "delivery_log", "transformation_jobs",
+            "player_quests", "player_professions", "inventory", "player_tools",
+            "player_state", "player_world_state", "player_travel_state", "world_travel_log",
+            "building_stock", "audio_queue", "game_sessions", "npc_player_memory",
+            "player_stats", "player_telemetry", "random_result_memory",
+        )
+        with self.store.connection() as db:
+            for table in transient_tables:
+                db.execute(f"DELETE FROM {table}")
+            starting_money = int(get_server_settings(self.store).get("onboarding", {}).get("starting_money", 0))
+            db.execute("UPDATE players SET money=?,energy=100,quest_experience=0", (starting_money,))
+            db.execute("DELETE FROM world_runtime WHERE runtime_key='live_ops_scenario'")
+        prepared = self.prepare_live_operations()
+        prepared["run_id"] = int(current.get("run_id", 0))
+        self._write_live_state({key: value for key, value in prepared.items() if key != "prepared"})
+        return {"reset": True, **prepared}
 
     def professions(self) -> list[dict[str, Any]]:
         rows: dict[str, dict[str, Any]] = {}
@@ -228,6 +299,16 @@ class WorldCreatorService:
         settings = get_server_settings(self.store)
         configuration = settings.get("live_ops", {})
         objectives = copy.deepcopy(configuration.get("objectives", []))
+        import time
+        now = time.time()
+        state = self._live_state() or self.prepare_live_operations()
+        if state.get("status") == "scheduled" and float(state.get("start_at") or 0) <= now:
+            state["status"] = "running"
+            self._write_live_state(state)
+        duration = int(configuration.get("scenario_duration_minutes", 0))
+        if state.get("status") == "running" and state.get("started_at") and now >= float(state["started_at"]) + duration * 60:
+            state.update(status="completed", completed_at=float(state["started_at"]) + duration * 60)
+            self._write_live_state(state)
         with self.store.connection() as db:
             action_rows = db.execute("SELECT action_key,COUNT(*) count FROM action_log GROUP BY action_key").fetchall()
             action_counts = {str(row["action_key"]): int(row["count"]) for row in action_rows}
@@ -239,6 +320,16 @@ class WorldCreatorService:
             player_ids = [str(row[0]) for row in db.execute("SELECT discord_id FROM players")]
             activity_count = int(db.execute("SELECT COUNT(*) FROM scheduled_actions WHERE status='pending'").fetchone()[0])
             cooldown_count = int(db.execute("SELECT COUNT(*) FROM action_cooldowns WHERE ready_at<=?", (__import__("time").time(),)).fetchone()[0])
+            player_rows = [dict(row) for row in db.execute(
+                """SELECT p.discord_id,p.display_name,p.money,p.energy,p.quest_experience,
+                COALESCE(pr.online,0) online,COALESCE(pr.building_key,'') building_key,
+                COALESCE(ws.location_key,'') location_key,
+                (SELECT action_key FROM action_log a WHERE a.discord_id=p.discord_id ORDER BY a.id DESC LIMIT 1) recent_action,
+                (SELECT action_key FROM scheduled_actions s WHERE s.discord_id=p.discord_id AND s.status='pending' ORDER BY s.id DESC LIMIT 1) pending_action,
+                (SELECT COALESCE(SUM(amount),0) FROM collective_contributions c WHERE c.discord_id=p.discord_id) contribution
+                FROM players p LEFT JOIN player_presence pr ON pr.discord_id=p.discord_id
+                LEFT JOIN player_world_state ws ON ws.discord_id=p.discord_id ORDER BY p.display_name,p.discord_id"""
+            )]
         for objective in objectives:
             sources = objective.get("action_keys", [])
             # Les contributions sont la source de vérité quand le scénario les
@@ -270,7 +361,22 @@ class WorldCreatorService:
                 elapsed_minutes = max(0, int((datetime.now(timezone.utc) - started).total_seconds() / 60))
             except ValueError:
                 elapsed_minutes = 0
-        timeline = [{**step, "status": "past" if int(step.get("minute", 0)) < elapsed_minutes else "current" if int(step.get("minute", 0)) == elapsed_minutes else "upcoming"} for step in configuration.get("timeline", [])]
+        definitions = {row["entity_key"]: row["payload"] for row in self.store.list("event", published=True)}
+        occurrences = EventLifecycle(self.store).list(now=now)
+        occurrence_by_event = {row["event_key"]: row for row in occurrences}
+        timeline = []
+        for step in configuration.get("timeline", []):
+            minute = int(step.get("minute", 0)); event_key = str(step.get("event_key", ""))
+            occurrence = occurrence_by_event.get(event_key, {})
+            definition = definitions.get(event_key, {})
+            starts_at = (float(state.get("started_at")) + minute * 60) if state.get("started_at") else None
+            timeline.append({**step, "name": definition.get("name", step.get("label", event_key)),
+                             "status": occurrence.get("status", "pending" if state.get("status") == "prepared" else "upcoming"),
+                             "starts_at": starts_at,
+                             "countdown_seconds": None if starts_at is None else int(starts_at - now),
+                             "modifiers": definition.get("modifiers", []),
+                             "weather_key": definition.get("weather_key", ""),
+                             "conditions": definition.get("activation_conditions", {})})
         diagnostics = []
         if player_ids:
             from KingdomWeb.player_admin import PlayerAdministrationService
@@ -280,6 +386,15 @@ class WorldCreatorService:
         return {
             "configured": bool(configuration), "objectives": objectives, "timeline": timeline,
             "elapsed_minutes": elapsed_minutes, "scenario_duration_minutes": int(configuration.get("scenario_duration_minutes", 0)),
+            "state": state,
+            "progress": round(sum(item["progress"] for item in objectives) / max(1, len(objectives))),
+            "current_events": [{**row, "definition": definitions.get(row["event_key"], {})}
+                               for row in occurrences if row["status"] in {"active", "paused"}],
+            "upcoming": [item for item in timeline if item["status"] in {"scheduled", "upcoming", "pending"}][:5],
+            "history": [{**row, "name": definitions.get(row["event_key"], {}).get("name", row["event_key"])}
+                        for row in occurrences if row["status"] in {"finished", "disabled"}],
+            "players": player_rows,
+            "impacts": self.impacts()["impacts"],
             "activity": {"actions": sum(action_counts.values()), "pending": activity_count},
             "health": {"players_checked": len(player_ids), "players_with_issues": len(diagnostics), "expired_cooldowns": cooldown_count, "diagnostics": diagnostics},
         }
