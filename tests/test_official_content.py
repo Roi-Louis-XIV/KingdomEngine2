@@ -82,6 +82,23 @@ def test_storm_revision_five_syncs_pack_and_existing_workspaces_without_overwrit
 
     workspace = official.create_workspace("storm_sainte_pelle", 1, tmp_path)
     old_world = ContentStore(workspace["database_path"])
+    # Simule un atelier créé par l'ancienne version, avant la synchronisation
+    # automatique ajoutée à create_workspace().
+    with old_world.connection() as db:
+        db.execute("DELETE FROM content WHERE entity_type='audio' AND entity_key LIKE 'storm_voice_%'")
+        for profile_key in ("voice_edgar", "voice_roland", "voice_wagner"):
+            rows = db.execute(
+                "SELECT version,payload_json FROM content WHERE entity_type='voice_profile' "
+                "AND entity_key=?", (profile_key,),
+            ).fetchall()
+            for row in rows:
+                payload = json.loads(row["payload_json"])
+                payload["clips"] = [clip for clip in payload.get("clips", [])
+                                    if not clip.get("audio_key", "").startswith("storm_voice_")]
+                db.execute(
+                    "UPDATE content SET payload_json=? WHERE entity_type='voice_profile' "
+                    "AND entity_key=? AND version=?", (json.dumps(payload), profile_key, row["version"]),
+                )
     building = old_world.get("building", "edgar_tavern")
     changed = {**building["payload"], "name": "Taverne personnalisée"}
     saved = old_world.save("building", "edgar_tavern", changed, expected_version=building["version"])
@@ -99,6 +116,14 @@ def test_storm_revision_five_syncs_pack_and_existing_workspaces_without_overwrit
     saved_profile = old_world.save("voice_profile", "voice_edgar", profile_payload,
                                    expected_version=profile["version"])
     old_world.publish("voice_profile", "voice_edgar", saved_profile["version"])
+
+    assert not [row for row in old_world.list("audio") if row["entity_key"].startswith("storm_voice_")]
+    before_pack_id = official.workspace(workspace["workspace_token"], 1)["pack_id"]
+    saved_revision = official.save_workspace(workspace["workspace_token"], 1)
+    draft_workspace = official.workspace(workspace["workspace_token"], 1)
+    assert draft_workspace["pack_id"] != before_pack_id
+    assert draft_workspace["pack_id"] == saved_revision["id"]
+    assert draft_workspace["origin"] == f"workspace:{workspace['workspace_token']}"
 
     official.migrate_legacy_presets()
     official.migrate_legacy_presets()
@@ -135,6 +160,18 @@ def test_storm_revision_five_syncs_pack_and_existing_workspaces_without_overwrit
     fresh = ContentStore(fresh_workspace["database_path"])
     assert len([row for row in fresh.list("audio") if row["entity_key"].startswith("storm_voice_")]) == 80
 
+    # La même synchronisation reste active si la révision publiée courante
+    # provient elle-même de save_workspace(), et non plus du pack legacy.
+    official.set_status("storm_sainte_pelle", "published", version=saved_revision["version"])
+    with migrated.connection() as db:
+        db.execute("DELETE FROM content WHERE entity_type='audio' AND entity_key LIKE 'storm_voice_%'")
+    assert not [row for row in migrated.list("audio") if row["entity_key"].startswith("storm_voice_")]
+    assert official.get("storm_sainte_pelle", published_only=True)["origin"].startswith("workspace:")
+    official.migrate_legacy_presets()
+    official.migrate_legacy_presets()
+    assert len([row for row in migrated.list("audio") if row["entity_key"].startswith("storm_voice_")]) == 80
+    assert migrated.get("building", "edgar_tavern")["payload"]["name"] == "Taverne personnalisée"
+    assert migrated.get("audio", "custom_admin_voice")["payload"]["name"] == "Voix personnelle"
 
 def test_archived_bundled_template_is_restored_without_duplication(official):
     official.migrate_legacy_presets()

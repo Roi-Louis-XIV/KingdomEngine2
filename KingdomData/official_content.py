@@ -10,6 +10,7 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import datetime, timezone
 import json
+import logging
 import re
 import sqlite3
 import secrets
@@ -18,6 +19,9 @@ from typing import Any
 
 from .schemas import ValidationError, validate_entity, validate_key
 from .world_presets import PRESET_CATALOG, world_preset
+
+
+logger = logging.getLogger(__name__)
 
 
 CONTENT_TYPES = {
@@ -127,8 +131,11 @@ class OfficialContentStore:
                             "UPDATE official_content_packs SET name=?,description=?,emoji=?,updated_at=? WHERE id=?",
                             (meta["name"], meta["description"], meta["emoji"], _now(), current["id"]),
                         )
-                        if key == "storm_sainte_pelle":
-                            self._sync_storm_voice_workspaces(db, int(current["id"]), bundled_entities)
+                    if key == "storm_sainte_pelle":
+                        # Les ateliers peuvent désormais pointer vers une
+                        # révision sauvegardée (draft ou workspace:*), et non
+                        # plus vers le pack legacy courant.
+                        self._sync_storm_voice_workspaces(db, key, world_preset(key))
                     continue
                 now = _now()
                 cursor = db.execute(
@@ -142,8 +149,8 @@ class OfficialContentStore:
 
     @staticmethod
     def _sync_storm_voice_workspaces(
-        platform_db: sqlite3.Connection, pack_id: int, bundled_entities: list[dict[str, Any]],
-    ) -> None:
+        platform_db: sqlite3.Connection, pack_key: str, bundled_entities: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         """Fusionne uniquement les voix bundlées dans les ateliers existants."""
         from .store import ContentStore
 
@@ -152,14 +159,25 @@ class OfficialContentStore:
         bundled_profiles = {entity["key"]: entity["payload"] for entity in bundled_entities
                             if entity["type"] == "voice_profile"
                             and entity["key"] in {"voice_edgar", "voice_roland", "voice_wagner"}}
-        paths = [Path(row[0]) for row in platform_db.execute(
-            "SELECT database_path FROM official_edit_workspaces WHERE pack_id=?", (pack_id,)
-        )]
-        for path in paths:
+        workspaces = platform_db.execute(
+            "SELECT DISTINCT w.workspace_token,w.pack_id,w.database_path,p.origin "
+            "FROM official_edit_workspaces w "
+            "JOIN official_content_packs p ON p.id=w.pack_id "
+            "WHERE p.pack_key=? AND p.content_type='world_template'",
+            (pack_key,),
+        ).fetchall()
+        report: list[dict[str, Any]] = []
+        logger.info("storm_sainte_pelle voice sync: bundled assets=%s workspaces found=%s",
+                    len(bundled_audio), len(workspaces))
+        for row in workspaces:
+            path = Path(row["database_path"])
             if not path.is_file():
+                logger.warning("storm voice workspace absent: token=%s pack_id=%s origin=%s path=%s",
+                               f"{str(row['workspace_token'])[:8]}…", row["pack_id"], row["origin"], path)
                 continue
             world = ContentStore(path)
             world.initialize()
+            before = sum(item["entity_key"].startswith("storm_voice_") for item in world.list("audio"))
             # seed() ajoute et publie seulement les entités absentes.
             world.seed(bundled_audio)
             for profile_key, official_payload in bundled_profiles.items():
@@ -182,6 +200,15 @@ class OfficialContentStore:
                 )
                 if current["status"] == "published":
                     world.publish("voice_profile", profile_key, updated["version"], "bundled-voice-sync")
+            after = sum(item["entity_key"].startswith("storm_voice_") for item in world.list("audio"))
+            entry = {"workspace_token": str(row["workspace_token"]), "pack_id": int(row["pack_id"]),
+                     "origin": str(row["origin"]), "database_path": str(path),
+                     "storm_voices_before": before, "storm_voices_after": after}
+            report.append(entry)
+            logger.info("storm voice workspace: token=%s pack_id=%s origin=%s path=%s before=%s after=%s",
+                        f"{entry['workspace_token'][:8]}…", entry["pack_id"], entry["origin"],
+                        entry["database_path"], before, after)
+        return report
 
     def catalog_state(self, key: str, *, content_type: str = "world_template") -> dict[str, Any]:
         """Diagnostic en lecture seule de la persistance d'un pack officiel."""
@@ -396,6 +423,8 @@ class OfficialContentStore:
                 "INSERT INTO official_edit_workspaces(workspace_token,pack_id,account_id,database_path,created_at,updated_at) VALUES(?,?,?,?,?,?)",
                 (token, pack["id"], int(account_id), str(path), now, now),
             )
+            if key == "storm_sainte_pelle" and content_type == "world_template":
+                self._sync_storm_voice_workspaces(db, key, world_preset(key))
             db.commit()
         return {"workspace_token": token, "server_slug": f"official--{token}",
                 "database_path": str(path), "template": pack}
