@@ -16,7 +16,8 @@ from KingdomData.world_presets import world_preset
 from KingdomWeb.accounts import SCHEMA_COMPTES
 from KingdomWeb.world_creator import WorldCreatorService
 from kingdomCore.engine import GameEngine
-from kingdomCore.discord_bot import grant_oath_reward
+from kingdomCore.discord_bot import InterfaceView, QuestBoardView, grant_oath_reward
+from KingdomVoice.bot_manager import ManagedVoiceBot
 from kingdomEvent.lifecycle import EventLifecycle
 
 
@@ -94,6 +95,85 @@ def test_quest_board_and_mine_repair_survive_restart(tmp_path):
     with world.connection() as db:
         count = db.execute("SELECT COALESCE(SUM(amount),0) FROM collective_contributions WHERE objective_key='storm_mine_repaired'").fetchone()[0]
     assert count == 1
+
+
+def test_storm_player_ui_timeline_is_clean_and_lore_first(tmp_path):
+    world = _world(tmp_path, "ui-zero")
+    WorldCreatorService(world).start_live_operations(now=time.time())
+    engine = GameEngine(world)
+    buildings = {row["entity_key"]: row["payload"] for row in world.list("building", published=True)}
+
+    def home(key):
+        return next(page for page in buildings[key]["interface"]["pages"] if page["key"] == "home")
+
+    church = home("saint_shovel_church")
+    labels = [item.get("props", {}).get("label") for item in church["components"] if item.get("type") == "button"]
+    assert "Prier" in labels
+    worksite = next(item for item in church["components"] if item.get("id") == "storm_nav_church_worksite")
+    assert not engine.condition_met("42", "saint_shovel_church", "worksite", worksite["visibility_conditions"])
+    collective = next(item for item in home("market_square")["components"] if item.get("id") == "storm_nav_storm_collective")
+    assert not engine.condition_met("42", "market_square", "collective", collective["visibility_conditions"])
+    assert any(item.get("id") == "storm_quest_nav" for item in home("market_square")["components"])
+    for payload in buildings.values():
+        buttons = [item for item in next(page for page in payload["interface"]["pages"] if page["key"] == "home")["components"]
+                   if item.get("type") in {"button", "select"}]
+        assert len(buttons) <= 5
+    visible = json.dumps(world_preset("storm_sainte_pelle"), ensure_ascii=False)
+    assert all(marker not in visible for marker in ("Fête du Royaume", "Préparatifs", "BALANCE_DRAFT / À VALIDER"))
+
+    later = _world(tmp_path, "ui-later")
+    WorldCreatorService(later).start_live_operations(now=time.time() - 121 * 60)
+    later_engine = GameEngine(later)
+    later_church = next(page for page in later.get("building", "saint_shovel_church", published=True)["payload"]["interface"]["pages"] if page["key"] == "home")
+    later_worksite = next(item for item in later_church["components"] if item.get("id") == "storm_nav_church_worksite")
+    assert later_engine.condition_met("42", "saint_shovel_church", "worksite", later_worksite["visibility_conditions"])
+    damaged = next(item for item in later_church["components"] if item.get("id") == "church_state_damaged")
+    assert later_engine.condition_met("42", "saint_shovel_church", "damaged", damaged["visibility_conditions"])
+    church_definition = later.get("building", "saint_shovel_church", published=True)["payload"]["interface"]
+    waiting = InterfaceView(later_engine, church_definition, page_key="church_worksite", owner_id=42)
+    assert not any(str(getattr(item, "label", "")).startswith("Terminer") for item in waiting.children)
+    asyncio.run(later_engine.execute("42", "saint_shovel_church", "start_church_tree_cleared", "tree-start"))
+    with later.connection() as db:
+        db.execute("UPDATE scheduled_actions SET ready_at=0 WHERE discord_id='42' AND action_key='church_tree_cleared'")
+    ready = InterfaceView(later_engine, church_definition, page_key="church_worksite", owner_id=42)
+    assert any(str(getattr(item, "label", "")).startswith("Terminer") for item in ready.children)
+
+
+def test_fishing_completes_p14_and_delivers_two_real_fish(tmp_path):
+    world = _world(tmp_path, "fishing")
+    WorldCreatorService(world).start_live_operations(now=time.time())
+    engine = GameEngine(world)
+    engine.accept_quest("77", "p14_bridge_fishing", "accept-p14")
+
+    async def fish_twice():
+        for index in range(2):
+            await engine.execute("77", "old_bridge", "fish_old_bridge", f"fish-start-{index}")
+            with world.connection() as db:
+                db.execute("UPDATE scheduled_actions SET ready_at=0 WHERE discord_id='77' AND action_key='fish_old_bridge' AND status='pending'")
+            await engine.execute("77", "old_bridge", "claim_fish_old_bridge", f"fish-claim-{index}")
+        assert engine.player("77")["inventory"]["river_fish"] == 2
+        await engine.execute("77", "edgar_tavern", "deliver_river_fish", "fish-delivery")
+
+    asyncio.run(fish_twice())
+    active = engine.quest_board("77")["active"]
+    assert active["status"] == "ready", [(goal["key"], goal["progress"], goal["required"]) for goal in active["objectives"]]
+    assert [goal["progress"] for goal in active["objectives"]] == [2, 2]
+    board = QuestBoardView(engine, 77, "market_square", return_view=SimpleNamespace())
+    rendered = json.dumps(board.embed().to_dict(), ensure_ascii=False)
+    assert not any(key in rendered for key in ("old_bridge", "edgar_tavern", "river_fish", "claim_fish_old_bridge"))
+    assert any(getattr(item, "label", None) == "Retour" for item in board.children)
+
+
+def test_all_supplied_voice_files_resolve_through_kingdomvoice(tmp_path):
+    world = _world(tmp_path, "voice-paths")
+    bot = object.__new__(ManagedVoiceBot)
+    bot.store = world
+    bot.assets_root = tmp_path / "runtime-assets"
+    audio = [row for row in world.list("audio", published=True) if row["entity_key"].startswith("storm_voice_")]
+    assert len(audio) == 80
+    resolved = {row["entity_key"]: bot._entity_track(row["entity_key"])[0] for row in audio}
+    assert all(path.is_file() and path.stat().st_size > 0 for path in resolved.values())
+    assert all(any(key.startswith(f"storm_voice_{npc}_") for key in resolved) for npc in ("edgar", "roland", "wagner"))
 
 
 def test_only_the_true_mass_variant_activates_at_minute_170(tmp_path):

@@ -166,7 +166,7 @@ def build_storm_template(source: list[dict[str, Any]]) -> list[dict[str, Any]]:
     settings = _row(rows, "server_settings", "kingdom_server")
     settings.update(name="La Tempête de la Sainte Pelle",
                     description="Bêta coopérative de trois heures, depuis le vieux pont jusqu'à l'église.",
-                    template_revision=2, balance_status=BALANCE)
+                    template_revision=3, balance_status=BALANCE)
     settings["onboarding"].update(
         starting_money=100,
         currency_label="écus",
@@ -427,6 +427,16 @@ def _finish_template(rows: list[dict[str, Any]], buildings: dict[str, dict[str, 
 
     def delivery_action(building_key: str, item: str, count: int, label: str) -> str:
         building = buildings[building_key]
+        if building.get("action_mode") == "generated":
+            deliveries = building.setdefault("modules", {}).setdefault("deliveries", [])
+            existing = next((entry for entry in deliveries if entry.get("item_key") == item), None)
+            if existing is None:
+                deliveries.append({"item_key": item, "name": label.removeprefix("Livrer ").removeprefix("Apporter "),
+                                   "target_building_key": building_key, "unit_price": 0,
+                                   "minimum_quantity": count})
+            elif count > 1:
+                existing["minimum_quantity"] = count
+            return f"deliver_{item}"
         key = f"deliver_storm_{item}_{count}"
         building["actions"].append({"key": key, "name": label, "emoji": "📦", "enabled": True,
             "effects": [{"type": "cost", "resource": item, "amount": count,
@@ -443,11 +453,12 @@ def _finish_template(rows: list[dict[str, Any]], buildings: dict[str, dict[str, 
                          ("river_fish", 2, "Apporter deux poissons à Edgar")],
     }
     for building_key, entries in deliveries.items():
-        actions = [delivery_action(building_key, item, count, label) for item, count, label in entries]
+        actions = [(delivery_action(building_key, item, count, label), label)
+                   for item, count, label in entries]
         _page(buildings[building_key], "storm_delivery", "Livraisons de la bêta", "Livrer au stock du lieu",
               "Seuls les objets effectivement retirés de votre sac comptent pour la quête.",
-              [_button(building_key, action, next(a["name"] for a in buildings[building_key]["actions"] if a["key"] == action), slot,
-                       emoji="📦") for slot, action in enumerate(actions)])
+              [_button(building_key, action, label, slot, emoji="📦")
+               for slot, (action, label) in enumerate(actions)])
 
     # Le compteur collectif est tenu au bâtiment destinataire : chaque
     # transaction retire la ressource une seule fois, avec plafond vérifié.
@@ -469,6 +480,9 @@ def _finish_template(rows: list[dict[str, Any]], buildings: dict[str, dict[str, 
               *[_button("deep_mine", action["key"], action["name"], slot, emoji=action["emoji"])
                 for slot, action in enumerate(a for a in mine["actions"] if a["key"].startswith(("deposit_mine_", "start_storm_mine_", "claim_storm_mine_")))],
           ])
+    mine_incident_nav = next(component for component in mine["interface"]["pages"][0]["components"]
+                             if component.get("id") == "storm_nav_storm_incident")
+    mine_incident_nav["visibility_conditions"] = _minute(105)
 
     _timed_contribution(church, "church_tree_cleared", 3, 180, 120,
                         name="Dégager l'arbre (3 min)")
@@ -674,7 +688,7 @@ def _finish_events_and_quests(rows: list[dict[str, Any]], settings: dict[str, An
         ("p12_neighbors", "Tournée des voisins", 70, [_delivery("forge", "oak_timber", "royal_forge", 1), _delivery("tavern", "egg", "edgar_tavern", 1)], 0),
         ("p13_workers_meal", "Le repas du travailleur", 35, [_action_goal("work", "forester_lodge", "claim_cut_storm_wood"), _action_goal("eat", "edgar_tavern", "consume_storm_ration")], 0),
         ("p14_bridge_fishing", "Les poissons d'Edgar", 55,
-         [_action_goal("fish", "old_bridge", "claim_fish_old_bridge", 2),
+         [_action_goal("fish", "old_bridge", "fish_old_bridge", 2),
           _delivery("fish_delivery", "river_fish", "edgar_tavern", 2)], 0),
         ("s01_clear_branches", "Débarrasser les branches", 50, [_action_goal("clear", "saint_shovel_church", "claim_church_tree_cleared")], 120),
         ("s02_timber", "Bois de charpente", 55, [_delivery("wood", "oak_timber", "saint_shovel_church", 8)], 120),
@@ -714,6 +728,53 @@ def _finish_events_and_quests(rows: list[dict[str, Any]], settings: dict[str, An
     for page in market_interface.get("pages", []):
         page["components"] = [component for component in page.get("components", [])
                               if component.get("interaction", {}).get("page") not in obsolete_market_pages]
+
+    # Les fonctions héritées restent disponibles, mais les HOME Discord sont
+    # volontairement sobres : lore, PNJ/état, puis un accès aux services.
+    for row in (row for row in rows if row["type"] == "building"):
+        building_key, building = row["key"], row["payload"]
+        if building_key in {"market_square", "old_bridge", "saint_shovel_church"}:
+            continue
+        interface = building.get("interface", {})
+        home = next((page for page in interface.get("pages", []) if page.get("key") == "home"), None)
+        if not home:
+            continue
+        interactive = [component for component in home.get("components", [])
+                       if component.get("type") in {"button", "select"}]
+        if len(interactive) <= 5:
+            continue
+        passive = [component for component in home.get("components", [])
+                   if component.get("type") not in {"button", "select"}]
+        for index, component in enumerate(interactive[:24]):
+            component["slot"] = index
+            label = str(component.get("props", {}).get("label", "")).lower()
+            page_key = str(component.get("interaction", {}).get("page", "")).lower()
+            if building_key == "deep_mine" and ("incident" in label or "incident" in page_key):
+                component["visibility_conditions"] = _minute(105)
+        services_key = "storm_services"
+        interface["pages"] = [page for page in interface.get("pages", []) if page.get("key") != services_key]
+        interface["pages"].append({"key": services_key, "name": "Activités et services", "components": [
+            {"id": f"storm_services_hero_{building_key}", "type": "hero",
+             "props": {"title": building.get("name", "Activités"),
+                       "subtitle": "Choisissez une activité, un service ou une production.",
+                       "emoji": building.get("emoji", "🏰")}},
+            *interactive[:24],
+            {"id": f"storm_services_back_{building_key}", "type": "button", "slot": 24,
+             "props": {"label": "Retour", "emoji": "↩️", "style": "secondary"},
+             "interaction": {"type": "navigate", "page": "home"}},
+        ]})
+        home["components"] = [*passive, {
+            "id": f"storm_services_nav_{building_key}", "type": "button", "slot": 0,
+            "props": {"label": "Activités et services", "emoji": "🧭", "style": "primary"},
+            "interaction": {"type": "navigate", "page": services_key},
+        }]
+
+    # L'église ne propose à T+0 que la prière ; son chantier possède son propre
+    # accès temporisé. Les anciennes actions restent dans les données moteur.
+    church = next(row["payload"] for row in rows if row["type"] == "building" and row["key"] == "saint_shovel_church")
+    church_home = next(page for page in church["interface"]["pages"] if page["key"] == "home")
+    church_home["components"] = [component for component in church_home["components"]
+                                 if component.get("interaction", {}).get("page") != "actions_1"]
 
     def clean_visible_content(value: Any) -> Any:
         if isinstance(value, dict):

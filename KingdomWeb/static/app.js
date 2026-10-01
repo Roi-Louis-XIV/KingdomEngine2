@@ -61,6 +61,7 @@ const state = {
   referencePreview: false,
   referenceReturnType: null,
   botStatuses: [],
+  liveWorldStaticCache: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -887,6 +888,7 @@ async function updateWorldMapSettings(configuration) {
     }),
     result = await response.json();
   if (!response.ok) throw Error(result.detail || "Configuration impossible.");
+  state.liveWorldStaticCache = null;
   return result;
 }
 
@@ -1208,26 +1210,39 @@ async function loadLiveWorld(background = false) {
   if (state.liveAbort) state.liveAbort.abort();
   const controller = new AbortController();
   state.liveAbort = controller;
-  if (!background) showSystemView();
+  if (!background) {
+    showSystemView();
+    $("#admin-view").innerHTML =
+      '<div class="live-world"><section class="live-world-hero"><div><small>ROYAUME EN DIRECT</small><h2>Chargement de l’état essentiel…</h2><p>Horloge, scénario et opérations en direct</p></div></section><section class="royal-panel"><p class="empty-admin">La carte et les diagnostics arrivent ensuite.</p></section></div>';
+  }
   const impactPromise = fetch("/api/world/impacts", {
     headers,
     cache: "no-store",
     signal: controller.signal,
   });
+  const cacheKey = state.server || "default";
+  const cachedStatic = state.liveWorldStaticCache?.key === cacheKey
+    ? state.liveWorldStaticCache
+    : null;
+  const staticPromise = cachedStatic
+    ? Promise.resolve([cachedStatic.geography, cachedStatic.settingsEntity])
+    : Promise.all([
+        fetch("/api/world/geography", { headers, signal: controller.signal }).then((response) => {
+          if (!response.ok) throw Error("Géographie indisponible");
+          return response.json();
+        }),
+        fetch("/api/server/settings", { headers, signal: controller.signal }).then((response) => {
+          if (!response.ok) throw Error("Paramètres du monde indisponibles");
+          return response.json();
+        }),
+      ]).then(([geography, settingsEntity]) => {
+        state.liveWorldStaticCache = { key: cacheKey, geography, settingsEntity };
+        return [geography, settingsEntity];
+      });
   let responses;
   try {
     responses = await Promise.all([
       fetch("/api/world/state", {
-        headers,
-        cache: "no-store",
-        signal: controller.signal,
-      }),
-      fetch("/api/world/geography", {
-        headers,
-        cache: "no-store",
-        signal: controller.signal,
-      }),
-      fetch("/api/server/settings", {
         headers,
         cache: "no-store",
         signal: controller.signal,
@@ -1248,17 +1263,28 @@ async function loadLiveWorld(background = false) {
     requestId !== state.viewRequest
   )
     return;
-  const [stateResponse, geoResponse, settingsResponse, operationsResponse] = responses;
-  if (!stateResponse.ok || !geoResponse.ok || !settingsResponse.ok) {
+  const [stateResponse, operationsResponse] = responses;
+  if (!stateResponse.ok) {
     if (!background)
       $("#admin-view").innerHTML =
         '<p class="empty-admin">État du monde indisponible.</p>';
     return;
   }
   const world = await stateResponse.json(),
-    geography = await geoResponse.json(),
-    settingsEntity = await settingsResponse.json(),
     operations = operationsResponse.ok ? await operationsResponse.json() : { configured: false };
+  if (!background && state.type === "live_world" && requestId === state.viewRequest) {
+    $("#admin-view").innerHTML =
+      `<div class="live-world"><section class="live-world-hero"><div><small>ROYAUME EN DIRECT</small><h2>Jour ${world.day} · ${String(world.hour).padStart(2, "0")}:${String(world.minute).padStart(2, "0")}</h2><p>État essentiel chargé · carte et diagnostics en cours…</p></div></section></div>`;
+    installLiveOperationsTabs(operations);
+  }
+  let geography, settingsEntity;
+  try {
+    [geography, settingsEntity] = await staticPromise;
+  } catch (error) {
+    if (controller.signal.aborted) return;
+    if (!background) $("#admin-view").insertAdjacentHTML("beforeend", `<p class="empty-admin">${escapeHtml(error.message)}</p>`);
+    return;
+  }
   if (
     controller.signal.aborted ||
     state.type !== "live_world" ||
@@ -11193,6 +11219,7 @@ async function saveSettings() {
     return;
   }
   state.settingsEntity = data;
+  state.liveWorldStaticCache = null;
   renderSettings(data.payload);
 }
 

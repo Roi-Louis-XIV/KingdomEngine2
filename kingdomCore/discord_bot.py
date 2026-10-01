@@ -305,6 +305,7 @@ class QuestBoardView(discord.ui.View):
             async def abandon_callback(interaction: discord.Interaction):
                 confirmation = discord.ui.View(timeout=120)
                 confirm = discord.ui.Button(label="Confirmer l'abandon", style=discord.ButtonStyle.danger)
+                cancel = discord.ui.Button(label="Annuler", emoji="↩️", style=discord.ButtonStyle.secondary)
 
                 async def confirm_callback(confirm_interaction: discord.Interaction):
                     if not await self.interaction_check(confirm_interaction):
@@ -315,11 +316,18 @@ class QuestBoardView(discord.ui.View):
                     except Exception as exc:
                         self.notice = str(exc)
                     self._render()
-                    await confirm_interaction.response.edit_message(content=self.notice, view=None)
+                    await confirm_interaction.response.edit_message(content=None, embed=self.embed(), view=self)
+
+                async def cancel_callback(cancel_interaction: discord.Interaction):
+                    if not await self.interaction_check(cancel_interaction):
+                        return
+                    await cancel_interaction.response.edit_message(content=None, embed=self.embed(), view=self)
 
                 confirm.callback = confirm_callback
-                confirmation.add_item(confirm)
-                await interaction.response.send_message("Abandonner cette quête sans récompense ?", view=confirmation, ephemeral=True)
+                cancel.callback = cancel_callback
+                confirmation.add_item(confirm); confirmation.add_item(cancel)
+                await interaction.response.edit_message(content="Abandonner cette quête sans récompense ?",
+                                                        embed=None, view=confirmation)
 
             abandon.callback = abandon_callback
             self.add_item(abandon)
@@ -498,12 +506,12 @@ class InterfaceView(discord.ui.View):
                 embed.add_field(name=str(props.get("title") or "Progression collective")[:256], value=value[:1024], inline=False)
                 field_count += 1
             elif component["type"] == "profession_status" and self.owner_id is not None and field_count < 25:
-                professions = self.engine.player(str(self.owner_id)).get("professions", {})
+                professions = self._cached_player().get("professions", {})
                 value = "\n".join(f"**{key}** · niveau {entry.get('level', 1)} · {entry.get('experience', 0)} XP" for key, entry in professions.items()) or "Aucun métier actif"
                 embed.add_field(name=str(props.get("title") or "Votre métier")[:256], value=value[:1024], inline=False)
                 field_count += 1
         if field_count < 25 and hasattr(self.engine, "building") and not any(component.get("type") == "workstation_status" for component in visible_components):
-            building = self.engine.building(self._building_key())["payload"]
+            building = self._cached_building(self._building_key())
             action_keys = {str(component.get("interaction", {}).get("action")) for component in visible_components}
             page_actions = [action for action in building.get("actions", []) if str(action.get("key")) in action_keys]
             if any(effect.get("type") in {"start_transformation", "claim_transformation"} for action in page_actions for effect in action.get("effects", [])):
@@ -512,8 +520,8 @@ class InterfaceView(discord.ui.View):
         return embed
 
     def _add_workstation_status(self, embed: discord.Embed, building_key: str, title: str) -> None:
-        states = self.engine.workstation_states(building_key)
-        building = self.engine.building(building_key)["payload"]
+        states = self._cached_workstations(building_key)
+        building = self._cached_building(building_key)
         recipes = {str(item.get("key")): str(item.get("name") or item.get("key")) for item in building.get("modules", {}).get("recipes", [])}
         active = {(str(item["workstation_key"]), int(item["slot_index"])): item for item in states}
         lines = []
@@ -539,6 +547,35 @@ class InterfaceView(discord.ui.View):
     def _building_key(self) -> str:
         return str(self.definition.get("target_building_key") or "")
 
+    def _reset_render_cache(self) -> None:
+        self._render_cache: dict[str, Any] = {"pending": {}, "buildings": {}, "workstations": {}}
+
+    def _cached_player(self) -> dict[str, Any]:
+        if "player" not in self._render_cache:
+            self._render_cache["player"] = (self.engine.player(str(self.owner_id))
+                                             if self.owner_id is not None and hasattr(self.engine, "player")
+                                             else {"professions": {}})
+        return self._render_cache["player"]
+
+    def _cached_pending(self, building_key: str) -> list[dict[str, Any]]:
+        cache = self._render_cache["pending"]
+        if building_key not in cache:
+            cache[building_key] = (self.engine.pending_actions(str(self.owner_id), building_key)
+                                   if self.owner_id is not None else [])
+        return cache[building_key]
+
+    def _cached_building(self, building_key: str) -> dict[str, Any]:
+        cache = self._render_cache["buildings"]
+        if building_key not in cache:
+            cache[building_key] = self.engine.building(building_key)["payload"]
+        return cache[building_key]
+
+    def _cached_workstations(self, building_key: str) -> list[dict[str, Any]]:
+        cache = self._render_cache["workstations"]
+        if building_key not in cache:
+            cache[building_key] = self.engine.workstation_states(building_key)
+        return cache[building_key]
+
     def _visible_components(self) -> list[dict[str, Any]]:
         return [component for component in self.page.get("components", []) if self._is_visible(component)]
 
@@ -547,7 +584,7 @@ class InterfaceView(discord.ui.View):
         interaction = component.get("interaction", {})
         if self.owner_id is None:
             return True
-        player = self.engine.player(str(self.owner_id)) if hasattr(self.engine, "player") else {"professions": {}}
+        player = self._cached_player()
         professions = set(player.get("professions", {}))
         if condition.get("profession") and str(condition["profession"]) not in professions:
             return False
@@ -555,28 +592,28 @@ class InterfaceView(discord.ui.View):
             return False
         if condition:
             pending_building = str(condition.get("no_pending_building") or self._building_key())
-            pending = {item["action"] for item in self.engine.pending_actions(str(self.owner_id), pending_building)}
+            pending_jobs = self._cached_pending(pending_building)
+            pending = {item["action"] for item in pending_jobs}
             if condition.get("no_pending_building") and pending:
                 return False
             if condition.get("pending_action") and str(condition["pending_action"]) not in pending:
                 try:
-                    action = next(item for item in self.engine.building(str(interaction.get("building") or self._building_key()))["payload"].get("actions", []) if str(item.get("key")) == str(interaction.get("action")))
+                    action = next(item for item in self._cached_building(str(interaction.get("building") or self._building_key())).get("actions", []) if str(item.get("key")) == str(interaction.get("action")))
                     if not any(effect.get("type") == "claim_transformation" for effect in action.get("effects", [])):
                         return False
                 except (StopIteration, KeyError, AttributeError):
                     return False
             if condition.get("ready_action"):
                 ready_action = str(condition["ready_action"])
-                jobs = self.engine.pending_actions(str(self.owner_id), pending_building)
                 if not any(item["action"] == ready_action and float(item["ready_at"]) <= time.time()
-                           for item in jobs):
+                           for item in pending_jobs):
                     return False
         generic_condition = component.get("visibility_conditions")
         if interaction.get("type") == "action" and interaction.get("inherit_action_conditions", True):
             try:
                 building_key = str(interaction.get("building") or self._building_key())
                 action = next(
-                    item for item in self.engine.building(building_key)["payload"].get("actions", [])
+                    item for item in self._cached_building(building_key).get("actions", [])
                     if str(item.get("key")) == str(interaction.get("action"))
                 )
                 generic_condition = generic_condition or action.get("conditions")
@@ -606,7 +643,7 @@ class InterfaceView(discord.ui.View):
         """Évalue les conditions d'affichage interactif sans masquer l'aide visuelle."""
         if not condition or self.owner_id is None:
             return True
-        player = self.engine.player(str(self.owner_id))
+        player = self._cached_player()
         level_rule = condition.get("profession_level")
         if level_rule:
             profession = str(level_rule.get("profession", ""))
@@ -630,7 +667,7 @@ class InterfaceView(discord.ui.View):
         return str(selected.get("text", ""))
 
     def _add_inventory(self, embed: discord.Embed, title: str) -> None:
-        player = self.engine.player(str(self.owner_id))
+        player = self._cached_player()
         inventory = player.get("inventory", {})
         content = "\n".join(
             f"• **{self._item_name(key)}** × {quantity}"
@@ -654,6 +691,7 @@ class InterfaceView(discord.ui.View):
         embed.add_field(name=title[:256], value=content[:1024], inline=False)
 
     def _render_interactions(self) -> None:
+        self._reset_render_cache()
         self.clear_items()
         styles = {
             "primary": discord.ButtonStyle.primary, "secondary": discord.ButtonStyle.secondary,
@@ -702,14 +740,14 @@ class InterfaceView(discord.ui.View):
         action = None
         if interaction.get("type") == "action":
             try:
-                action = next(item for item in self.engine.building(str(interaction.get("building") or self._building_key()))["payload"].get("actions", []) if str(item.get("key")) == str(interaction.get("action")))
+                action = next(item for item in self._cached_building(str(interaction.get("building") or self._building_key())).get("actions", []) if str(item.get("key")) == str(interaction.get("action")))
             except (StopIteration, KeyError, AttributeError):
                 pass
         effects = action.get("effects", []) if action else []
         start_effect = next((effect for effect in effects if effect.get("type") == "start_transformation"), None)
         claim_effect = next((effect for effect in effects if effect.get("type") == "claim_transformation"), None)
         if claim_effect:
-            states = self.engine.workstation_states(str(interaction.get("building") or self._building_key()))
+            states = self._cached_workstations(str(interaction.get("building") or self._building_key()))
             matching = [item for item in states if item["recipe_key"] == str(claim_effect.get("recipe_key"))]
             if not any(item["status"] == "ready" for item in matching):
                 active = next((item for item in matching if item["status"] != "ready"), None)
@@ -717,16 +755,16 @@ class InterfaceView(discord.ui.View):
                 style, disabled = discord.ButtonStyle.secondary, True
         elif start_effect:
             building_key = str(interaction.get("building") or self._building_key())
-            building = self.engine.building(building_key)["payload"]
+            building = self._cached_building(building_key)
             workstation = next((item for item in building.get("modules", {}).get("workstations", []) if str(item.get("key")) == str(start_effect.get("workstation_key"))), None)
-            occupied = [item for item in self.engine.workstation_states(building_key) if item["workstation_key"] == str(start_effect.get("workstation_key"))]
+            occupied = [item for item in self._cached_workstations(building_key) if item["workstation_key"] == str(start_effect.get("workstation_key"))]
             if workstation and len(occupied) >= max(1, int(workstation.get("slots", 1))):
                 remaining = min((item["remaining_seconds"] for item in occupied if item["status"] != "ready"), default=0)
                 label = "Postes occupés" + (f" · {remaining} s" if remaining else "")
                 style, disabled = discord.ButtonStyle.secondary, True
         elif interaction.get("type") == "action" and str(interaction.get("action", "")).startswith("claim_") and self.owner_id is not None:
             activity_key = str(interaction["action"])[len("claim_"):]
-            pending = next((item for item in self.engine.pending_actions(str(self.owner_id), str(interaction.get("building", self._building_key()))) if item["action"] == activity_key), None)
+            pending = next((item for item in self._cached_pending(str(interaction.get("building", self._building_key()))) if item["action"] == activity_key), None)
             if pending:
                 remaining = max(0, int(float(pending["ready_at"]) - time.time()))
                 if remaining > 0:

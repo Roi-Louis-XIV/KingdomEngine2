@@ -770,12 +770,13 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
     for delivery in deliveries:
         item = delivery["item_key"]
         label = str(delivery.get("name") or item.replace("_", " ").capitalize())
+        quantity = max(1, int(delivery.get("minimum_quantity", 1)))
         actions.append({
             "key": f"deliver_{item}", "name": f"Livrer {label}", "emoji": delivery.get("emoji", "📦"), "enabled": True,
             "effects": [
-                {"type": "cost", "resource": item, "amount": 1},
-                {"type": "stock_reward", "item": item, "amount": 1, "building": delivery.get("target_building_key", building_key)},
-                {"type": "reward", "resource": "money", "amount": int(delivery.get("unit_price", 0))},
+                {"type": "cost", "resource": item, "amount": quantity},
+                {"type": "stock_reward", "item": item, "amount": quantity, "building": delivery.get("target_building_key", building_key)},
+                {"type": "reward", "resource": "money", "amount": int(delivery.get("unit_price", 0)) * quantity},
             ],
         })
     for purchase in modules.get("market_purchases", []):
