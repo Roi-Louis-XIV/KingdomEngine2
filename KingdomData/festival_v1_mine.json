@@ -1,0 +1,171 @@
+[
+  {
+    "key": "quarry",
+    "name": "Carrière extérieure",
+    "emoji": "🪨",
+    "description": "Un front de taille sûr, idéal pour apprendre le métier.",
+    "required_level": 1,
+    "duration_seconds": 30,
+    "energy_cost": 15,
+    "durability_cost": 1,
+    "risk": "Très faible",
+    "experience": 20,
+    "loot": [
+      {
+        "item_key": "stone_block",
+        "min": 3,
+        "max": 6,
+        "weight": 80
+      },
+      {
+        "item_key": "iron_ore",
+        "min": 1,
+        "max": 2,
+        "weight": 20
+      }
+    ],
+    "profession": "miner",
+    "tool": "iron_pickaxe",
+    "tool_max_durability": 20,
+    "outcomes": [
+      {
+        "key": "stone_block",
+        "weight": 80,
+        "rewards": {
+          "stone_block": [
+            3,
+            6
+          ]
+        }
+      },
+      {
+        "key": "iron_ore",
+        "weight": 20,
+        "rewards": {
+          "iron_ore": [
+            1,
+            2
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "key": "coal_gallery",
+    "name": "Galerie du charbon",
+    "emoji": "⚫",
+    "description": "Une galerie sombre où affleurent de riches veines noires.",
+    "required_level": 2,
+    "duration_seconds": 60,
+    "energy_cost": 25,
+    "durability_cost": 2,
+    "risk": "Faible",
+    "experience": 35,
+    "loot": [
+      {
+        "item_key": "festival_coal",
+        "min": 3,
+        "max": 6,
+        "weight": 80
+      },
+      {
+        "item_key": "stone_block",
+        "min": 1,
+        "max": 3,
+        "weight": 20
+      }
+    ],
+    "profession": "miner",
+    "tool": "iron_pickaxe",
+    "tool_max_durability": 20,
+    "outcomes": [
+      {
+        "key": "festival_coal",
+        "weight": 80,
+        "rewards": {
+          "festival_coal": [
+            3,
+            6
+          ]
+        }
+      },
+      {
+        "key": "stone_block",
+        "weight": 20,
+        "rewards": {
+          "stone_block": [
+            1,
+            3
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "key": "iron_vein",
+    "name": "Filon ferrugineux",
+    "emoji": "⛓️",
+    "description": "Les parois rougies annoncent le minerai destiné à la Forge.",
+    "required_level": 4,
+    "duration_seconds": 90,
+    "energy_cost": 35,
+    "durability_cost": 3,
+    "risk": "Modéré",
+    "experience": 55,
+    "loot": [
+      {
+        "item_key": "iron_ore",
+        "min": 2,
+        "max": 5,
+        "weight": 75
+      },
+      {
+        "item_key": "festival_coal",
+        "min": 1,
+        "max": 3,
+        "weight": 20
+      },
+      {
+        "item_key": "stone_block",
+        "min": 2,
+        "max": 4,
+        "weight": 5
+      }
+    ],
+    "profession": "miner",
+    "tool": "iron_pickaxe",
+    "tool_max_durability": 20,
+    "outcomes": [
+      {
+        "key": "iron_ore",
+        "weight": 75,
+        "rewards": {
+          "iron_ore": [
+            2,
+            5
+          ]
+        }
+      },
+      {
+        "key": "festival_coal",
+        "weight": 20,
+        "rewards": {
+          "festival_coal": [
+            1,
+            3
+          ]
+        }
+      },
+      {
+        "key": "stone_block",
+        "weight": 5,
+        "rewards": {
+          "stone_block": [
+            2,
+            4
+          ]
+        }
+      }
+    ]
+  }
+]

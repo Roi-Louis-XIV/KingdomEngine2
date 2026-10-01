@@ -1,0 +1,153 @@
+"""Lance un module de KingdomEngine 2 depuis la racine du projet."""
+
+import argparse
+import atexit
+import os
+import sys
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+class SingleInstance:
+    """Verrou système : le fichier peut rester présent, seul le verrou compte."""
+
+    def __init__(self, name: str):
+        lock_dir = Path(__file__).resolve().parent / "var"
+        lock_dir.mkdir(parents=True, exist_ok=True)
+        self.path = lock_dir / f"{name}.lock"
+        self.pid_path = lock_dir / f"{name}.pid"
+        self.acquired = False
+        # msvcrt ne peut verrouiller qu'un octet qui existe déjà. Sa création
+        # doit donc avoir lieu avant l'ouverture du handle partagé.
+        try:
+            with self.path.open("xb") as lock_file:
+                lock_file.write(b"0")
+        except FileExistsError:
+            if self.path.stat().st_size == 0:
+                try:
+                    with self.path.open("ab") as lock_file:
+                        lock_file.write(b"0")
+                except PermissionError:
+                    # Un autre processus a pu verrouiller le fichier entre le
+                    # stat et l'ouverture : acquire() le traitera comme occupé.
+                    pass
+        self.handle = self.path.open("r+b")
+
+    def acquire(self) -> bool:
+        self.handle.seek(0)
+        try:
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(self.handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (OSError, BlockingIOError):
+            self.handle.close()
+            return False
+        self.acquired = True
+        self.pid_path.write_text(str(os.getpid()), encoding="ascii")
+        atexit.register(self.release)
+        return True
+
+    def release(self) -> None:
+        """Libère le verrou et retire uniquement le PID de cette instance."""
+        if not self.acquired:
+            return
+        self.acquired = False
+        try:
+            if self.pid_path.exists() and self.pid_path.read_text(encoding="ascii").strip() == str(os.getpid()):
+                self.pid_path.unlink()
+        except OSError:
+            pass
+        try:
+            self.handle.seek(0)
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(self.handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN)
+        except OSError:
+            pass
+        finally:
+            self.handle.close()
+
+
+def require_single_instance(module: str) -> SingleInstance:
+    lock = SingleInstance(module)
+    if not lock.acquire():
+        raise SystemExit(f"[KingdomEngine] {module} est déjà lancé. Utilisez KingdomWeb pour le redémarrer.")
+    return lock
+
+parser = argparse.ArgumentParser()
+parser.add_argument("module", choices=["web", "core", "voice", "provision", "discord-sync", "invite-url"])
+args = parser.parse_args()
+
+if args.module == "web":
+    import uvicorn
+    uvicorn.run("KingdomWeb.app:app", host=os.getenv("KINGDOM_WEB_HOST", "127.0.0.1"), port=int(os.getenv("KINGDOM_WEB_PORT", "8000")), reload=False)
+elif args.module == "core":
+    instance_lock = require_single_instance("core")
+    from kingdomCore.discord_bot import create_bot
+    create_bot().run(os.environ["KINGDOM_CORE_TOKEN"])
+elif args.module == "voice":
+    instance_lock = require_single_instance("voice")
+    import asyncio
+    from KingdomData import ContentStore
+    from KingdomVoice import VoiceBotManager
+    from KingdomVoice.configuration import migrate_bot_catalog
+    from import_v1 import import_v1
+    from seed import DEFINITIONS
+    voice_store = ContentStore(); voice_store.initialize(); voice_store.seed(DEFINITIONS); import_v1(voice_store); migrate_bot_catalog(voice_store)
+    voice_worlds: list[tuple[ContentStore, str]] = []
+    voice_world_quotas: dict[str, int | None] = {}
+    with voice_store.connection() as database:
+        tables = {row[0] for row in database.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        managed = database.execute(
+            "SELECT guild_id,database_path FROM managed_servers WHERE active=1 AND guild_id<>''"
+        ).fetchall() if "managed_servers" in tables else []
+        if {"worlds", "world_discord_servers", "server_access", "web_accounts"} <= tables:
+            limits = {"basic": 2, "superior": 6, "pro": 10, "legend": None}
+            for row in database.execute(
+                "SELECT s.guild_id,COALESCE(a.voice_plan_key,'basic') plan_key "
+                "FROM managed_servers s LEFT JOIN server_access sa ON sa.server_id=s.id "
+                "AND sa.role='proprietaire' LEFT JOIN web_accounts a ON a.id=sa.account_id "
+                "WHERE s.active=1 AND s.guild_id<>'' ORDER BY sa.created_at LIMIT 1000"
+            ).fetchall():
+                voice_world_quotas[str(row["guild_id"])] = limits.get(str(row["plan_key"]), 2)
+    seen_paths: set[Path] = set()
+    for guild_id, configured_path in managed:
+        world_store = ContentStore(configured_path); world_store.initialize()
+        migrate_bot_catalog(world_store)
+        resolved = world_store.path.resolve()
+        if resolved in seen_paths:
+            continue
+        seen_paths.add(resolved)
+        voice_worlds.append((world_store, str(guild_id)))
+    if not voice_worlds:
+        voice_worlds.append((voice_store, os.getenv("KINGDOM_GUILD_ID", "")))
+    asyncio.run(VoiceBotManager(voice_store, worlds=voice_worlds, world_quotas=voice_world_quotas).run())
+elif args.module == "provision":
+    from KingdomData import ContentStore
+    from kingdomCore.provisioner import run_provisioning
+    from import_v1 import import_v1
+    from seed import DEFINITIONS
+    provision_store = ContentStore(); provision_store.initialize(); provision_store.seed(DEFINITIONS); import_v1(provision_store)
+    run_provisioning(provision_store)
+elif args.module == "discord-sync":
+    from KingdomData import ContentStore
+    sync_store = ContentStore(); sync_store.initialize()
+    request_id = sync_store.request_discord_provision("server", requested_by="run.py")
+    print(f"[Discord] Synchronisation complète demandée (requête #{request_id}).")
+    print("KingdomCore créera ou mettra à jour les rôles et salons sans supprimer les salons manuels.")
+else:
+    import discord
+    from kingdomCore.provisioner import required_bot_permissions
+    application_id = int(os.getenv("KINGDOM_APPLICATION_ID", "0") or 0)
+    if not application_id:
+        raise RuntimeError("Renseignez KINGDOM_APPLICATION_ID dans .env (identifiant de l’application Discord).")
+    print(discord.utils.oauth_url(application_id, permissions=required_bot_permissions(), scopes=("bot",)))

@@ -1,0 +1,62 @@
+{
+  "deep_mine": {
+    "key": "roland_dupoivron",
+    "name": "Roland DuPoivron",
+    "profession": "Contremaître",
+    "age": 37,
+    "personality": [
+      "Rustre",
+      "Peu bavard",
+      "Entièrement dévoué à son travail"
+    ],
+    "phrases": [
+      "Enfin là ! Le Royaume a besoin de nos ressources.",
+      "Prends ta pioche et au travail !",
+      "Les autres ont commencé sans toi, dépêche-toi !"
+    ]
+  },
+  "forester_lodge": {
+    "key": "sylvain_téhain",
+    "name": "Sylvain Téhain",
+    "profession": "Maître-Bûcheron",
+    "age": 43,
+    "personality": [
+      "Chaleureux",
+      "Jovial",
+      "Prudent"
+    ],
+    "phrases": [
+      "Bienvenue mon ami ! As-tu pris ta hache ?",
+      "Fais attention avec cette hache, elle coupe bien.",
+      "Ne t’enfonce pas dans la forêt, ça peut devenir dangereux…",
+      "Chaque poutre du futur Royaume commence ici, sous ces feuillages.",
+      "Prends le temps d’écouter les oiseaux : ils préviennent souvent du danger."
+    ]
+  },
+  "royal_forge": {
+    "key": "wagner_cerfaul",
+    "name": "Wagner Cerfaul",
+    "profession": "Maître Forgeron",
+    "age": 51,
+    "personality": [
+      "Heureux",
+      "Vendeur",
+      "Attaché à ses écus"
+    ],
+    "phrases": [
+      "Bienvenue ! Que puis-je pour toi ?",
+      "Qu'est-ce qui vous ferait plaisir ?",
+      "Les meilleures armes du Royaume sont là !",
+      "Regardez-moi cette épée, vous m'en direz des nouvelles !",
+      "On commence à manquer de fer, vous pourriez en toucher un mot à Roland ?"
+    ]
+  },
+  "edgar_tavern": {
+    "key": "edgar",
+    "name": "Edgar",
+    "profession": "",
+    "age": null,
+    "personality": [],
+    "phrases": []
+  }
+}

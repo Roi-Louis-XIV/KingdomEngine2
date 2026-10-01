@@ -1,0 +1,893 @@
+.explain-screen {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 30;
+  border: 1px solid color-mix(in srgb, var(--accent, #42dc52) 45%, transparent);
+  background: var(--panel, #101a16);
+  color: var(--text, #fff);
+  box-shadow: 0 12px 30px #0004;
+}
+
+.explain-screen:hover {
+  border-color: var(--accent, #42dc52);
+}
+
+.tutorial-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.tutorial-shade {
+  position: absolute;
+  inset: 0;
+  background: #020806a8;
+  backdrop-filter: blur(1px);
+  pointer-events: auto;
+}
+
+.tutorial-target {
+  position: relative !important;
+  z-index: 1002 !important;
+  outline: 3px solid #58e36a !important;
+  outline-offset: 5px;
+  box-shadow:
+    0 0 0 9px #45d85c33,
+    0 0 42px #45d85c55 !important;
+  pointer-events: auto !important;
+}
+
+.tutorial-popover {
+  position: fixed;
+  left: var(--tutorial-left, 50%);
+  top: var(--tutorial-top, 50%);
+  width: var(--tutorial-width, 390px);
+  z-index: 1003;
+  padding: 22px;
+  border: 1px solid #4ecb6055;
+  border-radius: 16px;
+  background: var(--panel, #101a16);
+  color: var(--text, #f4f7f5);
+  box-shadow: 0 24px 80px #000a;
+  pointer-events: auto;
+}
+
+.tutorial-popover.tutorial-centered {
+  transform: translate(-50%, -50%);
+}
+
+.tutorial-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tutorial-popover-head small,
+.tutorial-welcome > small,
+.academy-hero small {
+  color: #58e36a;
+  letter-spacing: 0.16em;
+}
+
+.tutorial-popover-head button {
+  border: 0;
+  background: transparent;
+  font-size: 22px;
+}
+
+.tutorial-popover h2 {
+  margin: 12px 0 8px;
+  font-size: 22px;
+}
+
+.tutorial-popover p {
+  color: var(--muted, #a4afa9);
+  line-height: 1.55;
+}
+
+.tutorial-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.tutorial-actions span {
+  flex: 1;
+}
+
+.tutorial-wait {
+  display: block;
+  color: #f0bb50;
+  margin-top: 12px;
+}
+
+.tutorial-welcome {
+  position: fixed;
+  z-index: 1003;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(520px, calc(100vw - 28px));
+  padding: 38px;
+  text-align: center;
+  border: 1px solid #4ecb6055;
+  border-radius: 20px;
+  background: var(--panel, #101a16);
+  box-shadow: 0 30px 100px #000c;
+  pointer-events: auto;
+}
+
+.tutorial-welcome h2 {
+  font-family: serif;
+  font-size: 36px;
+}
+
+.tutorial-welcome h2 span {
+  color: #57dc55;
+}
+
+.tutorial-welcome p {
+  line-height: 1.6;
+  color: var(--muted, #a4afa9);
+}
+
+.tutorial-welcome > div {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.tutorial-notice {
+  position: fixed;
+  right: 22px;
+  bottom: 78px;
+  z-index: 90;
+  width: min(360px, calc(100vw - 30px));
+  padding: 20px;
+  border: 1px solid #4ecb6055;
+  border-radius: 14px;
+  background: var(--panel, #101a16);
+  box-shadow: 0 20px 50px #0007;
+}
+
+.tutorial-notice > button {
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  border: 0;
+  background: none;
+}
+
+.tutorial-notice p {
+  color: var(--muted, #a4afa9);
+}
+
+.tutorial-notice div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.academy {
+  display: grid;
+  gap: 20px;
+}
+
+.academy-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 28px;
+  border: 1px solid var(--border, #26382f);
+  border-radius: 16px;
+  background: linear-gradient(100deg, #0b1b13, #10251a);
+}
+
+.academy-hero h2 {
+  font-size: 30px;
+  margin: 8px 0;
+}
+
+.academy-progress {
+  width: min(320px, 40%);
+  display: grid;
+  gap: 8px;
+}
+
+.academy-progress strong {
+  font-size: 28px;
+}
+
+.academy-progress > span {
+  height: 8px;
+  border-radius: 10px;
+  background: #ffffff14;
+  overflow: hidden;
+}
+
+.academy-progress i {
+  display: block;
+  height: 100%;
+  background: #48d55d;
+}
+
+.academy-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.7fr) minmax(480px, 1.5fr);
+  gap: 20px;
+}
+
+.academy-checklist,
+.academy-catalog {
+  padding: 22px;
+  border: 1px solid var(--border, #26382f);
+  border-radius: 15px;
+  background: var(--panel, #101a16);
+}
+
+.academy-checklist p {
+  display: flex;
+  gap: 10px;
+  color: var(--muted, #a4afa9);
+}
+
+.academy-checklist p.done {
+  color: var(--text, #fff);
+}
+
+.academy-checklist p.done span {
+  color: #58e36a;
+}
+
+.academy-catalog article {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border, #26382f);
+}
+
+.academy-catalog article > span {
+  font-size: 26px;
+}
+
+.academy-catalog p,
+.academy-catalog small {
+  margin: 4px 0;
+  color: var(--muted, #a4afa9);
+}
+
+@media (max-width: 768px) {
+  .explain-screen span {
+    display: none;
+  }
+
+  .academy-hero {
+    align-items: flex-start;
+    gap: 20px;
+  }
+
+  .academy-progress {
+    width: 45%;
+  }
+
+  .academy-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tutorial-popover {
+    position: fixed !important;
+    left: 10px !important;
+    right: 10px;
+    bottom: 10px;
+    top: auto !important;
+    width: auto !important;
+    max-height: 46vh;
+    overflow: auto;
+    border-radius: 18px;
+  }
+
+  .tutorial-popover.tutorial-centered {
+    transform: none;
+  }
+
+  .tutorial-shade {
+    background: #02080688;
+  }
+
+  .tutorial-welcome {
+    padding: 26px 20px;
+  }
+
+  .tutorial-welcome > div {
+    flex-direction: column-reverse;
+  }
+}
+
+@media (max-width: 420px) {
+  .academy-hero {
+    display: grid;
+  }
+
+  .academy-progress {
+    width: 100%;
+  }
+
+  .academy-catalog article {
+    grid-template-columns: 34px 1fr;
+  }
+
+  .academy-catalog article button {
+    grid-column: 2;
+  }
+
+  .tutorial-actions {
+    flex-wrap: wrap;
+  }
+
+  .tutorial-actions span {
+    display: none;
+  }
+
+  .tutorial-actions button {
+    flex: 1;
+  }
+
+  .explain-screen {
+    right: 12px;
+    bottom: 12px;
+  }
+}
+
+.academy-reference-building {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: center;
+  padding: 22px;
+  border: 1px solid #4acb6355;
+  border-radius: 16px;
+  background: linear-gradient(110deg, #10251a, #111b17);
+  box-shadow: inset 4px 0 #43d765;
+}
+
+.academy-reference-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: #46d35b18;
+  font-size: 34px;
+}
+
+.academy-reference-building small {
+  color: #58e36a;
+  letter-spacing: 0.14em;
+}
+
+.academy-reference-building h3 {
+  margin: 5px 0;
+  font-size: 22px;
+}
+
+.academy-reference-building p {
+  margin: 0;
+  color: var(--muted, #a4afa9);
+  line-height: 1.5;
+}
+
+.academy-reference-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.academy-reference-tags span {
+  padding: 5px 9px;
+  border: 1px solid #4acb6338;
+  border-radius: 99px;
+  color: #bcebc5;
+  font-size: 12px;
+}
+
+.reference-demo-banner {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 14px 18px;
+  border: 1px solid #d7aa4d66;
+  border-radius: 12px;
+  background: #d7aa4d14;
+}
+
+.reference-demo-banner b {
+  white-space: nowrap;
+  color: #efc86e;
+}
+
+.reference-demo-banner span {
+  color: var(--muted, #a4afa9);
+}
+
+@media (max-width: 768px) {
+  .academy-reference-building {
+    grid-template-columns: auto 1fr;
+  }
+
+  .academy-reference-building > button {
+    grid-column: 1/-1;
+  }
+
+  .reference-demo-banner {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-target,
+  .tutorial-popover {
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+}
+
+.tutorial-layer:not([hidden]) {
+  pointer-events: auto;
+}
+
+.tutorial-active .tutorial-target {
+  z-index: 999 !important;
+  pointer-events: none !important;
+}
+
+/* Les trois modes séparent l'assombrissement visuel du blocage fonctionnel. */
+.tutorial-mode-target .tutorial-layer,
+.tutorial-mode-free .tutorial-layer {
+  pointer-events: none;
+}
+
+.tutorial-mode-target .tutorial-shade,
+.tutorial-mode-free .tutorial-shade {
+  pointer-events: none;
+  background: #02080670;
+}
+
+.tutorial-mode-target .tutorial-popover,
+.tutorial-mode-free .tutorial-popover {
+  pointer-events: auto;
+}
+
+.tutorial-blocker {
+  position: fixed;
+  pointer-events: auto;
+  background: transparent;
+}
+
+.tutorial-mode-target .tutorial-target {
+  z-index: 1002 !important;
+  pointer-events: auto !important;
+}
+
+.tutorial-mode-free .tutorial-target {
+  z-index: auto !important;
+  pointer-events: auto !important;
+}
+
+.tutorial-compact {
+  padding: 17px 19px;
+  max-width: 360px;
+}
+
+.tutorial-compact h2 {
+  font-size: 18px;
+  margin-top: 8px;
+}
+
+.tutorial-compact p {
+  margin: 7px 0;
+}
+
+.tutorial-instruction {
+  display: block;
+  margin-top: 12px;
+  color: #62e873;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.tutorial-trail {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  margin-right: 8px;
+  color: #6d7b73;
+  font-size: 9px;
+}
+
+.tutorial-trail .done {
+  color: #62e873;
+}
+
+.tutorial-trail .current {
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .tutorial-mode-target .tutorial-popover {
+    left: 8px !important;
+    right: 8px;
+    bottom: 8px !important;
+    top: auto !important;
+    max-height: 34vh;
+  }
+
+  .tutorial-mode-target .tutorial-target {
+    scroll-margin-bottom: 38vh;
+  }
+}
+
+.tutorial-layer {
+  z-index: 2000;
+}
+
+@media (min-width: 769px) {
+  .tutorial-mode-target .tutorial-popover,
+  .tutorial-mode-free .tutorial-popover {
+    left: var(--tutorial-left, 24px) !important;
+    right: auto;
+    top: var(--tutorial-top, 24px) !important;
+  }
+}
+
+.tutorial-progress-line {
+  height: 4px;
+  margin: -17px -19px 13px;
+  overflow: hidden;
+  border-radius: 16px 16px 0 0;
+  background: #ffffff12;
+}
+
+.tutorial-progress-line i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #2dbd5a, #74ef86);
+  transition: width 0.25s ease;
+}
+
+.tutorial-popover.has-target::before {
+  content: "";
+  position: absolute;
+  left: -9px;
+  top: 28px;
+  width: 16px;
+  height: 16px;
+  transform: rotate(45deg);
+  border-left: 1px solid #4ecb6088;
+  border-bottom: 1px solid #4ecb6088;
+  background: var(--panel, #101a16);
+}
+
+.tutorial-stop {
+  border-color: transparent !important;
+  color: var(--muted, #a4afa9) !important;
+  background: transparent !important;
+}
+
+.tutorial-wait {
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: #f0bb5012;
+}
+
+.tutorial-target {
+  animation: tutorial-pulse 1.5s ease-in-out infinite;
+}
+
+.academy-tour-progress {
+  display: block;
+  width: min(260px, 100%);
+  height: 5px;
+  margin: 8px 0;
+  border-radius: 9px;
+  overflow: hidden;
+  background: #ffffff12;
+}
+
+.academy-tour-progress i {
+  display: block;
+  height: 100%;
+  background: #48d55d;
+}
+
+@keyframes tutorial-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 7px #45d85c28,
+      0 0 28px #45d85c44 !important;
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 13px #45d85c14,
+      0 0 52px #45d85c77 !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .tutorial-popover.has-target::before {
+    display: none;
+  }
+
+  .tutorial-progress-line {
+    margin: -15px -17px 12px;
+  }
+
+  .tutorial-actions .tutorial-stop {
+    flex: 0 0 auto;
+  }
+}
+
+/* La cible doit rester réellement au-dessus du voile. Aucun flou n'est
+   appliqué : le joueur continue à lire et manipuler l'écran qu'il apprend. */
+.tutorial-shade {
+  background: #02080652 !important;
+  backdrop-filter: none !important;
+}
+
+.tutorial-target,
+.tutorial-active .tutorial-target,
+.tutorial-mode-target .tutorial-target {
+  z-index: 2002 !important;
+  filter: none !important;
+  opacity: 1 !important;
+}
+
+.tutorial-active .modal:not([hidden]) {
+  z-index: 2001;
+}
+
+.tutorial-mode-target .tutorial-shade,
+.tutorial-mode-free .tutorial-shade {
+  background: #02080638 !important;
+}
+
+/* L'Atelier-école est un espace pédagogique autonome, pas une carte de contenu. */
+.academy-reference-building {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 85% 0, #43d76517, transparent 35%),
+    linear-gradient(110deg, #10251a, #111b17);
+}
+
+.academy-reference-heading {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+}
+
+.academy-reference-icon {
+  flex: 0 0 64px;
+}
+
+.academy-reference-building h3 {
+  font-size: 24px;
+}
+
+.academy-reference-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.academy-reference-feature-grid article {
+  display: grid;
+  gap: 5px;
+  padding: 13px;
+  border: 1px solid #4acb6329;
+  border-radius: 12px;
+  background: #07110d66;
+}
+
+.academy-reference-feature-grid span {
+  color: var(--muted, #a4afa9);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.academy-reference-journey {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  counter-reset: journey;
+  list-style: none;
+}
+
+.academy-reference-journey li {
+  position: relative;
+  padding: 30px 8px 0;
+  text-align: center;
+  color: #c7d5cc;
+  font-size: 12px;
+}
+
+.academy-reference-journey li:before {
+  counter-increment: journey;
+  content: counter(journey);
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: calc(50% - 12px);
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid #58e36a;
+  border-radius: 50%;
+  background: #10251a;
+  color: #58e36a;
+  font-weight: 800;
+}
+
+.academy-reference-journey li:not(:last-child):after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  width: 100%;
+  border-top: 1px dashed #58e36a66;
+}
+
+.academy-reference-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #ffffff12;
+}
+
+.academy-reference-actions > span {
+  color: #a9c5b2;
+  font-size: 12px;
+}
+
+.academy-reference-actions > div {
+  display: flex;
+  gap: 8px;
+}
+
+.reference-demo-banner {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.7fr) minmax(420px, 1.3fr);
+  align-items: start;
+  gap: 12px 20px;
+  padding: 16px 18px;
+}
+
+.reference-demo-banner > div {
+  display: grid;
+  gap: 4px;
+}
+
+.reference-demo-banner b {
+  white-space: normal;
+}
+
+.reference-demo-banner nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.reference-demo-banner nav button {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 7px 9px;
+  border: 1px solid #d7aa4d38;
+  border-radius: 8px;
+  background: #0d1511;
+  color: #d7ded9;
+  font-size: 11px;
+}
+
+.reference-demo-banner nav button.active {
+  border-color: #efc86e;
+  background: #d7aa4d22;
+  color: #f6d991;
+}
+
+.reference-demo-banner > p {
+  grid-column: 1/-1;
+  margin: 0;
+  padding-top: 9px;
+  border-top: 1px solid #d7aa4d25;
+  color: var(--muted, #a4afa9);
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .academy-reference-feature-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .academy-reference-journey {
+    grid-template-columns: 1fr;
+  }
+
+  .academy-reference-journey li {
+    padding: 5px 0 5px 38px;
+    text-align: left;
+  }
+
+  .academy-reference-journey li:before {
+    left: 0;
+  }
+
+  .academy-reference-journey li:not(:last-child):after {
+    top: 24px;
+    left: 12px;
+    width: 0;
+    height: 100%;
+    border-top: 0;
+    border-left: 1px dashed #58e36a66;
+  }
+
+  .reference-demo-banner {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .reference-demo-banner nav {
+    justify-content: flex-start;
+  }
+
+  .reference-demo-banner > p {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .academy-reference-heading {
+    align-items: flex-start;
+  }
+
+  .academy-reference-feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .academy-reference-actions,
+  .academy-reference-actions > div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .academy-reference-actions button {
+    width: 100%;
+  }
+
+  .reference-demo-banner nav {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .reference-demo-banner nav button {
+    justify-content: center;
+  }
+}

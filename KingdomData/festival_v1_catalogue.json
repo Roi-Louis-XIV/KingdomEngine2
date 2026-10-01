@@ -1,0 +1,3282 @@
+{
+  "items": [
+    {
+      "type": "item",
+      "key": "beer_86",
+      "payload": {
+        "name": "La 8.6 Original",
+        "emoji": "🍺",
+        "description": "La bière des guerriers (8,6 %).",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 5,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 2,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": 18,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "guinness",
+      "payload": {
+        "name": "Guinness Stout",
+        "emoji": "🍺",
+        "description": "L'Esprit des Ténèbres Irlandais.",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 6,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 2,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": 18,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "chouffe",
+      "payload": {
+        "name": "La Chouffe",
+        "emoji": "🍺",
+        "description": "La bière des Gnomes des Ardennes.",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 7,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 2,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": 18,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "pelican",
+      "payload": {
+        "name": "Pelican",
+        "emoji": "🍺",
+        "description": "L'Écume du Grand Oiseau des Mers.",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 6,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 2,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": 18,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "grimbergen",
+      "payload": {
+        "name": "Grimbergen Blonde ou Ambrée",
+        "emoji": "🍺",
+        "description": "La bière des Moines.",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 6,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 2,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": 18,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "mort_subite",
+      "payload": {
+        "name": "Mort Subite Kriek",
+        "emoji": "🍒",
+        "description": "La cerise du Bourreau.",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 6,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 2,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": 18,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "biere_royaume",
+      "payload": {
+        "name": "Bière du Royaume",
+        "emoji": "👑",
+        "description": "Le choix du tavernier, brassé selon l'arrivage.",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 6,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 2,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": 18,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "hydromel",
+      "payload": {
+        "name": "Hydromel traditionnel",
+        "emoji": "🍯",
+        "description": "Le nectar des dieux Vikings.",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 7,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 2,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": 34,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "hydromel_baies",
+      "payload": {
+        "name": "Hydromel aux baies sauvages",
+        "emoji": "🫐",
+        "description": "La version des Sorcières des Bois.",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 8,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 2,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": 34,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "whisky_highlands",
+      "payload": {
+        "name": "Whisky des Highlands",
+        "emoji": "🥃",
+        "description": "L'eau-de-vie des montagnes, single malt.",
+        "type": "consommable",
+        "rarity": "rare",
+        "price": 8,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 2,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": 34,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "cervoise",
+      "payload": {
+        "name": "Cervoise médiévale",
+        "emoji": "🍺",
+        "description": "La vraie bière d'antan.",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 4,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 2,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": 34,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "vin_epice",
+      "payload": {
+        "name": "Vin épicé chaud",
+        "emoji": "🔥",
+        "description": "Le Sang du Dragon.",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 6,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 2,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": 34,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "absinthe",
+      "payload": {
+        "name": "Absinthe de la Fée Verte",
+        "emoji": "🧚",
+        "description": "Pour voir les esprits.",
+        "type": "consommable",
+        "rarity": "rare",
+        "price": 9,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 2,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": 34,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "vin_bordeaux",
+      "payload": {
+        "name": "Vin rouge de Bordeaux",
+        "emoji": "🍷",
+        "description": "Le Sang du Lion.",
+        "type": "consommable",
+        "rarity": "rare",
+        "price": 10,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 2,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": 24,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "vin_loire",
+      "payload": {
+        "name": "Vin blanc de Loire",
+        "emoji": "🥂",
+        "description": "La Larme de la Princesse.",
+        "type": "consommable",
+        "rarity": "rare",
+        "price": 12,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 2,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": 24,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "porto",
+      "payload": {
+        "name": "Porto vieilli",
+        "emoji": "🍷",
+        "description": "Le doux poison des Seigneurs.",
+        "type": "consommable",
+        "rarity": "rare",
+        "price": 8,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 2,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": 24,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "pate_sanglier",
+      "payload": {
+        "name": "Pâté de sanglier",
+        "emoji": "🐗",
+        "description": "Aux herbes, avec cornichons du Donjon.",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 8,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 20,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": -12,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "saucisses_fumees",
+      "payload": {
+        "name": "Saucisses fumées",
+        "emoji": "🌭",
+        "description": "Du boucher du village, avec moutarde forte.",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 9,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 20,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": -12,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "fromage_moines",
+      "payload": {
+        "name": "Fromage des Moines",
+        "emoji": "🧀",
+        "description": "Comté et bleu servis avec du pain noir.",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 7,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 20,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": -12,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "soupe_oignon",
+      "payload": {
+        "name": "Soupe à l'oignon et à la bière",
+        "emoji": "🥣",
+        "description": "La recette secrète d'Edgar.",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 6,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 20,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": -12,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "poulet_miel",
+      "payload": {
+        "name": "Cuisses de poulet rôties",
+        "emoji": "🍗",
+        "description": "Au miel et aux épices.",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 10,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 20,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": -12,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "assiette_bourreau",
+      "payload": {
+        "name": "Assiette du Bourreau",
+        "emoji": "🍽️",
+        "description": "Charcuteries et fromages du Royaume.",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 12,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1",
+        "consumption": {
+          "effects": [
+            {
+              "type": "player_stat",
+              "stat": "energy",
+              "amount": 20,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": 10
+            },
+            {
+              "type": "player_stat",
+              "stat": "alcohol",
+              "amount": -12,
+              "minimum": 0,
+              "maximum": 100,
+              "change_per_hour": -4
+            },
+            {
+              "type": "message",
+              "text": "Tu consommes {item}."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "item",
+      "key": "caillou_magnifique",
+      "payload": {
+        "name": "Caillou magnifique",
+        "emoji": "🪨",
+        "description": "Un caillou ordinaire, sauf après trois bières.",
+        "type": "souvenir",
+        "rarity": "commun",
+        "price": 0,
+        "stackable": true,
+        "consumable": false,
+        "sellable": false,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "chope_vide",
+      "payload": {
+        "name": "Chope vide",
+        "emoji": "🍺",
+        "description": "La preuve irréfutable d'une grande soirée.",
+        "type": "souvenir",
+        "rarity": "commun",
+        "price": 0,
+        "stackable": true,
+        "consumable": false,
+        "sellable": false,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "botte_gauche",
+      "payload": {
+        "name": "Botte gauche inconnue",
+        "emoji": "🥾",
+        "description": "Personne ne réclame jamais la botte droite.",
+        "type": "souvenir",
+        "rarity": "commun",
+        "price": 0,
+        "stackable": true,
+        "consumable": false,
+        "sellable": false,
+        "category": "drinks",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "traveler_sword",
+      "payload": {
+        "name": "Épée du voyageur",
+        "emoji": "⚔️",
+        "description": "Une lame fiable pour prendre la route.",
+        "type": "arme",
+        "rarity": "commun",
+        "price": 45,
+        "stackable": false,
+        "consumable": false,
+        "sellable": true,
+        "category": "equipment",
+        "stack_limit": 1,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "luxuriant_shield",
+      "payload": {
+        "name": "Bouclier luxuriant",
+        "emoji": "🛡️",
+        "description": "Un bouclier ouvragé aux couleurs du Royaume.",
+        "type": "armure",
+        "rarity": "peu_commun",
+        "price": 65,
+        "stackable": false,
+        "consumable": false,
+        "sellable": true,
+        "category": "equipment",
+        "stack_limit": 1,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "halberd",
+      "payload": {
+        "name": "Hallebarde",
+        "emoji": "🔱",
+        "description": "Une arme d'hast destinée aux gardes.",
+        "type": "arme",
+        "rarity": "peu_commun",
+        "price": 80,
+        "stackable": false,
+        "consumable": false,
+        "sellable": true,
+        "category": "equipment",
+        "stack_limit": 1,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "curved_bow",
+      "payload": {
+        "name": "Arc courbé",
+        "emoji": "🏹",
+        "description": "Un arc souple et précis.",
+        "type": "arme",
+        "rarity": "commun",
+        "price": 55,
+        "stackable": false,
+        "consumable": false,
+        "sellable": true,
+        "category": "equipment",
+        "stack_limit": 1,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "white_iron_greatsword",
+      "payload": {
+        "name": "Grande épée en fer blanc",
+        "emoji": "🗡️",
+        "description": "Une lourde lame brillante forgée pour les vétérans.",
+        "type": "arme",
+        "rarity": "rare",
+        "price": 120,
+        "stackable": false,
+        "consumable": false,
+        "sellable": true,
+        "category": "equipment",
+        "stack_limit": 1,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "simple_pickaxe",
+      "payload": {
+        "name": "Pioche simple",
+        "emoji": "⛏️",
+        "description": "Une pioche robuste pour la Mine.",
+        "type": "outil",
+        "rarity": "commun",
+        "price": 35,
+        "stackable": false,
+        "consumable": false,
+        "sellable": true,
+        "category": "equipment",
+        "stack_limit": 1,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "simple_axe",
+      "payload": {
+        "name": "Hache simple",
+        "emoji": "🪓",
+        "description": "Un outil solide pour couper du bois.",
+        "type": "outil",
+        "rarity": "commun",
+        "price": 35,
+        "stackable": false,
+        "consumable": false,
+        "sellable": true,
+        "category": "equipment",
+        "stack_limit": 1,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "lantern",
+      "payload": {
+        "name": "Lanterne",
+        "emoji": "🏮",
+        "description": "Une lanterne de métal pour explorer les lieux sombres.",
+        "type": "outil",
+        "rarity": "commun",
+        "price": 25,
+        "stackable": false,
+        "consumable": false,
+        "sellable": true,
+        "category": "equipment",
+        "stack_limit": 1,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "onion",
+      "payload": {
+        "name": "Oignon",
+        "emoji": "🧅",
+        "description": "Oignon de la Ferme du Royaume.",
+        "type": "matiere_premiere",
+        "rarity": "commun",
+        "price": 1,
+        "stackable": true,
+        "consumable": false,
+        "sellable": true,
+        "category": "ingredients",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "dark_bread",
+      "payload": {
+        "name": "Pain noir",
+        "emoji": "🍞",
+        "description": "Pain rustique livré par la Boulangerie.",
+        "type": "matiere_premiere",
+        "rarity": "commun",
+        "price": 2,
+        "stackable": true,
+        "consumable": false,
+        "sellable": true,
+        "category": "ingredients",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "cheese",
+      "payload": {
+        "name": "Fromage",
+        "emoji": "🧀",
+        "description": "Meule affinée de la Fromagerie.",
+        "type": "matiere_premiere",
+        "rarity": "commun",
+        "price": 3,
+        "stackable": true,
+        "consumable": false,
+        "sellable": true,
+        "category": "ingredients",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "poultry",
+      "payload": {
+        "name": "Volaille",
+        "emoji": "🐔",
+        "description": "Volaille fraîche provenant de la Ferme.",
+        "type": "matiere_premiere",
+        "rarity": "commun",
+        "price": 4,
+        "stackable": true,
+        "consumable": false,
+        "sellable": true,
+        "category": "ingredients",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "honey",
+      "payload": {
+        "name": "Miel",
+        "emoji": "🍯",
+        "description": "Miel doré utilisé dans les recettes d'Edgar.",
+        "type": "matiere_premiere",
+        "rarity": "commun",
+        "price": 2,
+        "stackable": true,
+        "consumable": false,
+        "sellable": true,
+        "category": "ingredients",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "wild_boar_meat",
+      "payload": {
+        "name": "Viande de sanglier",
+        "emoji": "🐗",
+        "description": "Viande préparée par la Boucherie.",
+        "type": "matiere_premiere",
+        "rarity": "commun",
+        "price": 4,
+        "stackable": true,
+        "consumable": false,
+        "sellable": true,
+        "category": "ingredients",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "herbs",
+      "payload": {
+        "name": "Herbes du Royaume",
+        "emoji": "🌿",
+        "description": "Herbes aromatiques de la Ferme.",
+        "type": "matiere_premiere",
+        "rarity": "commun",
+        "price": 1,
+        "stackable": true,
+        "consumable": false,
+        "sellable": true,
+        "category": "ingredients",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "bread",
+      "payload": {
+        "name": "Pain",
+        "emoji": "🥖",
+        "description": "Un morceau de pain simple mais nourrissant.",
+        "type": "consommable",
+        "rarity": "commun",
+        "price": 5,
+        "stackable": true,
+        "consumable": true,
+        "sellable": true,
+        "category": "resources",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "wood",
+      "payload": {
+        "name": "Bois",
+        "emoji": "🪵",
+        "description": "Une ressource utile pour fabriquer des objets.",
+        "type": "ressource",
+        "rarity": "commun",
+        "price": 2,
+        "stackable": true,
+        "consumable": false,
+        "sellable": true,
+        "category": "resources",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "iron",
+      "payload": {
+        "name": "Fer",
+        "emoji": "⛓️",
+        "description": "Un minerai solide utilisé à la forge.",
+        "type": "ressource",
+        "rarity": "commun",
+        "price": 6,
+        "stackable": true,
+        "consumable": false,
+        "sellable": true,
+        "category": "resources",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "raw_stone",
+      "payload": {
+        "name": "Pierre brute",
+        "emoji": "🪨",
+        "description": "Pierre extraite pour les chantiers du Royaume.",
+        "type": "ressource",
+        "rarity": "commun",
+        "price": 2,
+        "stackable": true,
+        "consumable": false,
+        "sellable": true,
+        "category": "resources",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "coal",
+      "payload": {
+        "name": "Charbon",
+        "emoji": "⚫",
+        "description": "Combustible indispensable aux fourneaux de la Forge.",
+        "type": "ressource",
+        "rarity": "commun",
+        "price": 4,
+        "stackable": true,
+        "consumable": false,
+        "sellable": true,
+        "category": "resources",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "iron_ore",
+      "payload": {
+        "name": "Minerai de fer",
+        "emoji": "⛓️",
+        "description": "Minerai brut qui devra être transformé à la Forge.",
+        "type": "ressource",
+        "rarity": "peu_commun",
+        "price": 7,
+        "stackable": true,
+        "consumable": false,
+        "sellable": true,
+        "category": "resources",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "fine_wood",
+      "payload": {
+        "name": "Bois de qualité",
+        "emoji": "🪵",
+        "description": "Une essence dense recherchée par les meilleurs artisans.",
+        "type": "ressource",
+        "rarity": "peu_commun",
+        "price": 5,
+        "stackable": true,
+        "consumable": false,
+        "sellable": true,
+        "category": "resources",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    },
+    {
+      "type": "item",
+      "key": "game_meat",
+      "payload": {
+        "name": "Viande de gibier",
+        "emoji": "🥩",
+        "description": "Du gibier frais rapporté de la Forêt.",
+        "type": "ressource",
+        "rarity": "commun",
+        "price": 3,
+        "stackable": true,
+        "consumable": false,
+        "sellable": true,
+        "category": "resources",
+        "stack_limit": 999,
+        "source": "KingdomEngine V1"
+      }
+    }
+  ],
+  "buildings": {
+    "mine": {
+      "npc": {
+        "key": "roland_dupoivron",
+        "name": "Roland DuPoivron",
+        "profession": "Contremaître",
+        "age": 37,
+        "personality": [
+          "Rustre",
+          "Peu bavard",
+          "Entièrement dévoué à son travail"
+        ],
+        "phrases": [
+          "Enfin là ! Le Royaume a besoin de nos ressources.",
+          "Prends ta pioche et au travail !",
+          "Les autres ont commencé sans toi, dépêche-toi !"
+        ]
+      },
+      "rules": {
+        "energy_max": 100,
+        "energy_recovery_per_hour": 10,
+        "experience_per_level": 100
+      },
+      "professions": [
+        {
+          "key": "miner",
+          "name": "Contremaître",
+          "required_item": "simple_pickaxe",
+          "grant_required_item": true,
+          "starter_tool": {
+            "name": "Pioche de novice",
+            "durability": 20
+          },
+          "tool_tiers": {
+            "1": {
+              "name": "Pioche de novice",
+              "max_durability": 20,
+              "loot_bonus": 0
+            },
+            "2": {
+              "name": "Pioche renforcée",
+              "max_durability": 40,
+              "loot_bonus": 1
+            }
+          }
+        }
+      ],
+      "activities": [
+        {
+          "key": "quarry",
+          "name": "Carrière extérieure",
+          "emoji": "🪨",
+          "description": "Un front de taille sûr, idéal pour apprendre le métier.",
+          "required_level": 1,
+          "duration_seconds": 30,
+          "energy_cost": 15,
+          "durability_cost": 1,
+          "risk": "Très faible",
+          "experience": 20,
+          "loot": [
+            {
+              "item_key": "raw_stone",
+              "min": 3,
+              "max": 6,
+              "weight": 80
+            },
+            {
+              "item_key": "iron_ore",
+              "min": 1,
+              "max": 2,
+              "weight": 20
+            }
+          ],
+          "profession": "miner",
+          "tool": "simple_pickaxe",
+          "tool_max_durability": 20,
+          "outcomes": [
+            {
+              "key": "raw_stone",
+              "weight": 80,
+              "rewards": {
+                "raw_stone": [
+                  3,
+                  6
+                ]
+              }
+            },
+            {
+              "key": "iron_ore",
+              "weight": 20,
+              "rewards": {
+                "iron_ore": [
+                  1,
+                  2
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "key": "coal_gallery",
+          "name": "Galerie du charbon",
+          "emoji": "⚫",
+          "description": "Une galerie sombre où affleurent de riches veines noires.",
+          "required_level": 2,
+          "duration_seconds": 60,
+          "energy_cost": 25,
+          "durability_cost": 2,
+          "risk": "Faible",
+          "experience": 35,
+          "loot": [
+            {
+              "item_key": "coal",
+              "min": 3,
+              "max": 6,
+              "weight": 80
+            },
+            {
+              "item_key": "raw_stone",
+              "min": 1,
+              "max": 3,
+              "weight": 20
+            }
+          ],
+          "profession": "miner",
+          "tool": "simple_pickaxe",
+          "tool_max_durability": 20,
+          "outcomes": [
+            {
+              "key": "coal",
+              "weight": 80,
+              "rewards": {
+                "coal": [
+                  3,
+                  6
+                ]
+              }
+            },
+            {
+              "key": "raw_stone",
+              "weight": 20,
+              "rewards": {
+                "raw_stone": [
+                  1,
+                  3
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "key": "iron_vein",
+          "name": "Filon ferrugineux",
+          "emoji": "⛓️",
+          "description": "Les parois rougies annoncent le minerai destiné à la Forge.",
+          "required_level": 4,
+          "duration_seconds": 90,
+          "energy_cost": 35,
+          "durability_cost": 3,
+          "risk": "Modéré",
+          "experience": 55,
+          "loot": [
+            {
+              "item_key": "iron_ore",
+              "min": 2,
+              "max": 5,
+              "weight": 75
+            },
+            {
+              "item_key": "coal",
+              "min": 1,
+              "max": 3,
+              "weight": 20
+            },
+            {
+              "item_key": "raw_stone",
+              "min": 2,
+              "max": 4,
+              "weight": 5
+            }
+          ],
+          "profession": "miner",
+          "tool": "simple_pickaxe",
+          "tool_max_durability": 20,
+          "outcomes": [
+            {
+              "key": "iron_ore",
+              "weight": 75,
+              "rewards": {
+                "iron_ore": [
+                  2,
+                  5
+                ]
+              }
+            },
+            {
+              "key": "coal",
+              "weight": 20,
+              "rewards": {
+                "coal": [
+                  1,
+                  3
+                ]
+              }
+            },
+            {
+              "key": "raw_stone",
+              "weight": 5,
+              "rewards": {
+                "raw_stone": [
+                  2,
+                  4
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "products": [],
+      "recipes": [],
+      "deliveries": [],
+      "repairs": {},
+      "upgrades": [],
+      "market_purchases": [
+        {
+          "item_key": "wood",
+          "unit_price": 3,
+          "name": "Bois",
+          "emoji": "🪵"
+        },
+        {
+          "item_key": "fine_wood",
+          "unit_price": 4,
+          "name": "Bois de qualité",
+          "emoji": "🪵"
+        }
+      ]
+    },
+    "forest": {
+      "npc": {
+        "key": "sylvain_téhain",
+        "name": "Sylvain Téhain",
+        "profession": "Maître-Bûcheron",
+        "age": 43,
+        "personality": [
+          "Chaleureux",
+          "Jovial",
+          "Prudent"
+        ],
+        "phrases": [
+          "Bienvenue mon ami ! As-tu pris ta hache ?",
+          "Fais attention avec cette hache, elle coupe bien.",
+          "Ne t’enfonce pas dans la forêt, ça peut devenir dangereux…",
+          "Chaque poutre du futur Royaume commence ici, sous ces feuillages.",
+          "Prends le temps d’écouter les oiseaux : ils préviennent souvent du danger."
+        ]
+      },
+      "rules": {
+        "experience_per_level": 100,
+        "default_axe_durability": 20
+      },
+      "professions": [
+        {
+          "key": "woodcutter",
+          "name": "Bûcheron",
+          "emoji": "🪓",
+          "required_item": "simple_axe",
+          "tool_tiers": {
+            "level": 1,
+            "max_durability": 80,
+            "yield_multiplier": 1
+          }
+        },
+        {
+          "key": "hunter",
+          "name": "Chasseur",
+          "emoji": "🏹",
+          "required_item": "curved_bow",
+          "tool_tiers": {}
+        }
+      ],
+      "activities": [
+        {
+          "key": "royal_edge",
+          "name": "Lisière royale",
+          "emoji": "🌿",
+          "required_level": 1,
+          "duration_seconds": 30,
+          "energy_cost": 12,
+          "durability_cost": 2,
+          "experience": 20,
+          "description": "Une coupe sûre pour apprendre le métier.",
+          "outcomes": [
+            {
+              "key": "normal",
+              "weight": 85,
+              "effects": [
+                {
+                  "type": "reward",
+                  "resource": "wood",
+                  "amount": [
+                    2,
+                    4
+                  ]
+                },
+                {
+                  "type": "profession",
+                  "profession": "woodcutter",
+                  "experience": 20,
+                  "experience_per_level": 100
+                },
+                {
+                  "type": "emit",
+                  "event": "building.activity.completed",
+                  "payload": {
+                    "building": "forest",
+                    "activity": "royal_edge",
+                    "profession": "woodcutter",
+                    "outcome": "normal"
+                  }
+                }
+              ]
+            },
+            {
+              "key": "fine",
+              "weight": 15,
+              "effects": [
+                {
+                  "type": "reward",
+                  "resource": "wood",
+                  "amount": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "type": "reward",
+                  "resource": "fine_wood",
+                  "amount": [
+                    1,
+                    1
+                  ]
+                },
+                {
+                  "type": "profession",
+                  "profession": "woodcutter",
+                  "experience": 20,
+                  "experience_per_level": 100
+                },
+                {
+                  "type": "emit",
+                  "event": "building.activity.completed",
+                  "payload": {
+                    "building": "forest",
+                    "activity": "royal_edge",
+                    "profession": "woodcutter",
+                    "outcome": "fine"
+                  }
+                }
+              ]
+            }
+          ],
+          "profession": "woodcutter",
+          "tool": "simple_axe",
+          "tool_max_durability": 80
+        },
+        {
+          "key": "ancient_undergrowth",
+          "name": "Sous-bois ancien",
+          "emoji": "🌳",
+          "required_level": 2,
+          "duration_seconds": 60,
+          "energy_cost": 20,
+          "durability_cost": 3,
+          "experience": 35,
+          "description": "Des troncs plus denses et quelques essences recherchées.",
+          "outcomes": [
+            {
+              "key": "normal",
+              "weight": 70,
+              "effects": [
+                {
+                  "type": "reward",
+                  "resource": "wood",
+                  "amount": [
+                    4,
+                    7
+                  ]
+                },
+                {
+                  "type": "profession",
+                  "profession": "woodcutter",
+                  "experience": 35,
+                  "experience_per_level": 100
+                },
+                {
+                  "type": "emit",
+                  "event": "building.activity.completed",
+                  "payload": {
+                    "building": "forest",
+                    "activity": "ancient_undergrowth",
+                    "profession": "woodcutter",
+                    "outcome": "normal"
+                  }
+                }
+              ]
+            },
+            {
+              "key": "fine",
+              "weight": 30,
+              "effects": [
+                {
+                  "type": "reward",
+                  "resource": "wood",
+                  "amount": [
+                    3,
+                    5
+                  ]
+                },
+                {
+                  "type": "reward",
+                  "resource": "fine_wood",
+                  "amount": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "type": "profession",
+                  "profession": "woodcutter",
+                  "experience": 35,
+                  "experience_per_level": 100
+                },
+                {
+                  "type": "emit",
+                  "event": "building.activity.completed",
+                  "payload": {
+                    "building": "forest",
+                    "activity": "ancient_undergrowth",
+                    "profession": "woodcutter",
+                    "outcome": "fine"
+                  }
+                }
+              ]
+            }
+          ],
+          "profession": "woodcutter",
+          "tool": "simple_axe",
+          "tool_max_durability": 80
+        },
+        {
+          "key": "deep_oakwood",
+          "name": "Chênaie profonde",
+          "emoji": "🍂",
+          "required_level": 4,
+          "duration_seconds": 90,
+          "energy_cost": 30,
+          "durability_cost": 4,
+          "experience": 55,
+          "description": "Des chênes séculaires au bois rare, loin des chemins.",
+          "outcomes": [
+            {
+              "key": "normal",
+              "weight": 55,
+              "effects": [
+                {
+                  "type": "reward",
+                  "resource": "wood",
+                  "amount": [
+                    7,
+                    10
+                  ]
+                },
+                {
+                  "type": "profession",
+                  "profession": "woodcutter",
+                  "experience": 55,
+                  "experience_per_level": 100
+                },
+                {
+                  "type": "emit",
+                  "event": "building.activity.completed",
+                  "payload": {
+                    "building": "forest",
+                    "activity": "deep_oakwood",
+                    "profession": "woodcutter",
+                    "outcome": "normal"
+                  }
+                }
+              ]
+            },
+            {
+              "key": "fine",
+              "weight": 45,
+              "effects": [
+                {
+                  "type": "reward",
+                  "resource": "wood",
+                  "amount": [
+                    5,
+                    8
+                  ]
+                },
+                {
+                  "type": "reward",
+                  "resource": "fine_wood",
+                  "amount": [
+                    2,
+                    4
+                  ]
+                },
+                {
+                  "type": "profession",
+                  "profession": "woodcutter",
+                  "experience": 55,
+                  "experience_per_level": 100
+                },
+                {
+                  "type": "emit",
+                  "event": "building.activity.completed",
+                  "payload": {
+                    "building": "forest",
+                    "activity": "deep_oakwood",
+                    "profession": "woodcutter",
+                    "outcome": "fine"
+                  }
+                }
+              ]
+            }
+          ],
+          "profession": "woodcutter",
+          "tool": "simple_axe",
+          "tool_max_durability": 80
+        },
+        {
+          "key": "clearing",
+          "name": "Clairière",
+          "emoji": "🐇",
+          "required_level": 1,
+          "duration_seconds": 30,
+          "energy_cost": 12,
+          "experience": 20,
+          "description": "Petites traces et gibier commun à proximité du refuge.",
+          "outcomes": [
+            {
+              "key": "failure",
+              "weight": 20,
+              "effects": [
+                {
+                  "type": "profession",
+                  "profession": "hunter",
+                  "experience": 20,
+                  "experience_per_level": 100
+                },
+                {
+                  "type": "emit",
+                  "event": "building.activity.completed",
+                  "payload": {
+                    "building": "forest",
+                    "activity": "clearing",
+                    "profession": "hunter",
+                    "outcome": "failure"
+                  }
+                }
+              ]
+            },
+            {
+              "key": "rabbit",
+              "weight": 70,
+              "effects": [
+                {
+                  "type": "reward",
+                  "resource": "game_meat",
+                  "amount": [
+                    1,
+                    3
+                  ]
+                },
+                {
+                  "type": "profession",
+                  "profession": "hunter",
+                  "experience": 20,
+                  "experience_per_level": 100
+                },
+                {
+                  "type": "emit",
+                  "event": "building.activity.completed",
+                  "payload": {
+                    "building": "forest",
+                    "activity": "clearing",
+                    "profession": "hunter",
+                    "outcome": "rabbit"
+                  }
+                }
+              ]
+            },
+            {
+              "key": "herbs",
+              "weight": 10,
+              "effects": [
+                {
+                  "type": "reward",
+                  "resource": "game_meat",
+                  "amount": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "type": "reward",
+                  "resource": "herbs",
+                  "amount": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "type": "profession",
+                  "profession": "hunter",
+                  "experience": 20,
+                  "experience_per_level": 100
+                },
+                {
+                  "type": "emit",
+                  "event": "building.activity.completed",
+                  "payload": {
+                    "building": "forest",
+                    "activity": "clearing",
+                    "profession": "hunter",
+                    "outcome": "herbs"
+                  }
+                }
+              ]
+            }
+          ],
+          "profession": "hunter",
+          "tool": "curved_bow",
+          "durability_cost": 1,
+          "tool_max_durability": 90
+        },
+        {
+          "key": "thick_woods",
+          "name": "Bois touffu",
+          "emoji": "🦃",
+          "required_level": 2,
+          "duration_seconds": 60,
+          "energy_cost": 20,
+          "experience": 35,
+          "description": "Lièvres et faisans se cachent dans les fourrés.",
+          "outcomes": [
+            {
+              "key": "failure",
+              "weight": 15,
+              "effects": [
+                {
+                  "type": "profession",
+                  "profession": "hunter",
+                  "experience": 35,
+                  "experience_per_level": 100
+                },
+                {
+                  "type": "emit",
+                  "event": "building.activity.completed",
+                  "payload": {
+                    "building": "forest",
+                    "activity": "thick_woods",
+                    "profession": "hunter",
+                    "outcome": "failure"
+                  }
+                }
+              ]
+            },
+            {
+              "key": "game",
+              "weight": 70,
+              "effects": [
+                {
+                  "type": "reward",
+                  "resource": "game_meat",
+                  "amount": [
+                    3,
+                    5
+                  ]
+                },
+                {
+                  "type": "profession",
+                  "profession": "hunter",
+                  "experience": 35,
+                  "experience_per_level": 100
+                },
+                {
+                  "type": "emit",
+                  "event": "building.activity.completed",
+                  "payload": {
+                    "building": "forest",
+                    "activity": "thick_woods",
+                    "profession": "hunter",
+                    "outcome": "game"
+                  }
+                }
+              ]
+            },
+            {
+              "key": "exceptional",
+              "weight": 15,
+              "effects": [
+                {
+                  "type": "reward",
+                  "resource": "game_meat",
+                  "amount": [
+                    5,
+                    7
+                  ]
+                },
+                {
+                  "type": "reward",
+                  "resource": "herbs",
+                  "amount": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "type": "profession",
+                  "profession": "hunter",
+                  "experience": 35,
+                  "experience_per_level": 100
+                },
+                {
+                  "type": "emit",
+                  "event": "building.activity.completed",
+                  "payload": {
+                    "building": "forest",
+                    "activity": "thick_woods",
+                    "profession": "hunter",
+                    "outcome": "exceptional"
+                  }
+                }
+              ]
+            }
+          ],
+          "profession": "hunter",
+          "tool": "curved_bow",
+          "durability_cost": 1,
+          "tool_max_durability": 90
+        },
+        {
+          "key": "deep_forest",
+          "name": "Forêt profonde",
+          "emoji": "🐗",
+          "required_level": 4,
+          "duration_seconds": 90,
+          "energy_cost": 30,
+          "experience": 55,
+          "description": "Le territoire du sanglier et du grand cerf.",
+          "outcomes": [
+            {
+              "key": "failure",
+              "weight": 20,
+              "effects": [
+                {
+                  "type": "profession",
+                  "profession": "hunter",
+                  "experience": 55,
+                  "experience_per_level": 100
+                },
+                {
+                  "type": "emit",
+                  "event": "building.activity.completed",
+                  "payload": {
+                    "building": "forest",
+                    "activity": "deep_forest",
+                    "profession": "hunter",
+                    "outcome": "failure"
+                  }
+                }
+              ]
+            },
+            {
+              "key": "game",
+              "weight": 55,
+              "effects": [
+                {
+                  "type": "reward",
+                  "resource": "game_meat",
+                  "amount": [
+                    5,
+                    8
+                  ]
+                },
+                {
+                  "type": "profession",
+                  "profession": "hunter",
+                  "experience": 55,
+                  "experience_per_level": 100
+                },
+                {
+                  "type": "emit",
+                  "event": "building.activity.completed",
+                  "payload": {
+                    "building": "forest",
+                    "activity": "deep_forest",
+                    "profession": "hunter",
+                    "outcome": "game"
+                  }
+                }
+              ]
+            },
+            {
+              "key": "boar",
+              "weight": 25,
+              "effects": [
+                {
+                  "type": "reward",
+                  "resource": "wild_boar_meat",
+                  "amount": [
+                    2,
+                    4
+                  ]
+                },
+                {
+                  "type": "reward",
+                  "resource": "game_meat",
+                  "amount": [
+                    2,
+                    4
+                  ]
+                },
+                {
+                  "type": "profession",
+                  "profession": "hunter",
+                  "experience": 55,
+                  "experience_per_level": 100
+                },
+                {
+                  "type": "emit",
+                  "event": "building.activity.completed",
+                  "payload": {
+                    "building": "forest",
+                    "activity": "deep_forest",
+                    "profession": "hunter",
+                    "outcome": "boar"
+                  }
+                }
+              ]
+            }
+          ],
+          "profession": "hunter",
+          "tool": "curved_bow",
+          "durability_cost": 1,
+          "tool_max_durability": 90
+        }
+      ],
+      "deliveries": [
+        {
+          "item_key": "wood",
+          "target_building_key": "forge",
+          "unit_price": 2
+        },
+        {
+          "item_key": "fine_wood",
+          "target_building_key": "forge",
+          "unit_price": 5
+        },
+        {
+          "item_key": "wild_boar_meat",
+          "target_building_key": "tavern",
+          "unit_price": 5
+        },
+        {
+          "item_key": "game_meat",
+          "target_building_key": "tavern",
+          "unit_price": 3
+        },
+        {
+          "item_key": "herbs",
+          "target_building_key": "tavern",
+          "unit_price": 1
+        }
+      ],
+      "delivery_mode": "all_available",
+      "products": [],
+      "recipes": [],
+      "repairs": {},
+      "upgrades": [],
+      "market_purchases": [
+        {
+          "item_key": "raw_stone",
+          "unit_price": 3,
+          "name": "Pierre brute",
+          "emoji": "🪨"
+        },
+        {
+          "item_key": "coal",
+          "unit_price": 3,
+          "name": "Charbon",
+          "emoji": "⚫"
+        },
+        {
+          "item_key": "iron_ore",
+          "unit_price": 5,
+          "name": "Minerai de fer",
+          "emoji": "⛓️"
+        }
+      ]
+    },
+    "forge": {
+      "npc": {
+        "key": "wagner_cerfaul",
+        "name": "Wagner Cerfaul",
+        "profession": "Maître Forgeron",
+        "age": 51,
+        "personality": [
+          "Heureux",
+          "Vendeur",
+          "Attaché à ses écus"
+        ],
+        "phrases": [
+          "Bienvenue ! Que puis-je pour toi ?",
+          "Qu'est-ce qui vous ferait plaisir ?",
+          "Les meilleures armes du Royaume sont là !",
+          "Regardez-moi cette épée, vous m'en direz des nouvelles !",
+          "On commence à manquer de fer, vous pourriez en toucher un mot à Roland ?"
+        ]
+      },
+      "rules": {
+        "experience_per_level": 100
+      },
+      "professions": [
+        {
+          "key": "blacksmith",
+          "name": "Forgeron"
+        }
+      ],
+      "products": [
+        {
+          "item_key": "traveler_sword",
+          "price": 45,
+          "active": true,
+          "initial_stock": 4,
+          "name": "Épée du voyageur",
+          "emoji": "⚔️",
+          "description": "Une lame fiable pour prendre la route."
+        },
+        {
+          "item_key": "luxuriant_shield",
+          "price": 65,
+          "active": true,
+          "initial_stock": 4,
+          "name": "Bouclier luxuriant",
+          "emoji": "🛡️",
+          "description": "Un bouclier ouvragé aux couleurs du Royaume."
+        },
+        {
+          "item_key": "halberd",
+          "price": 80,
+          "active": true,
+          "initial_stock": 4,
+          "name": "Hallebarde",
+          "emoji": "🔱",
+          "description": "Une arme d'hast destinée aux gardes."
+        },
+        {
+          "item_key": "curved_bow",
+          "price": 55,
+          "active": true,
+          "initial_stock": 4,
+          "name": "Arc courbé",
+          "emoji": "🏹",
+          "description": "Un arc souple et précis."
+        },
+        {
+          "item_key": "white_iron_greatsword",
+          "price": 120,
+          "active": true,
+          "initial_stock": 4,
+          "name": "Grande épée en fer blanc",
+          "emoji": "🗡️",
+          "description": "Une lourde lame brillante forgée pour les vétérans."
+        },
+        {
+          "item_key": "simple_pickaxe",
+          "price": 35,
+          "active": true,
+          "initial_stock": 4,
+          "name": "Pioche simple",
+          "emoji": "⛏️",
+          "description": "Une pioche robuste pour la Mine."
+        },
+        {
+          "item_key": "simple_axe",
+          "price": 35,
+          "active": true,
+          "initial_stock": 4,
+          "name": "Hache simple",
+          "emoji": "🪓",
+          "description": "Un outil solide pour couper du bois."
+        },
+        {
+          "item_key": "lantern",
+          "price": 25,
+          "active": true,
+          "initial_stock": 4,
+          "name": "Lanterne",
+          "emoji": "🏮",
+          "description": "Une lanterne de métal pour explorer les lieux sombres."
+        }
+      ],
+      "recipes": [
+        {
+          "key": "simple_pickaxe",
+          "name": "Forger une pioche simple",
+          "category": "tool",
+          "required_level": 1,
+          "duration_seconds": 60,
+          "energy_cost": 15,
+          "ingredients": {
+            "iron_ore": 2,
+            "coal": 1,
+            "wood": 1
+          },
+          "output_item_key": "simple_pickaxe",
+          "output_quantity": 1,
+          "reward": 12,
+          "experience": 25,
+          "profession": "blacksmith",
+          "active": true,
+          "ingredient_source": "building_stock",
+          "output_destination": "building_stock"
+        },
+        {
+          "key": "traveler_sword",
+          "name": "Forger une épée du voyageur",
+          "category": "weapon",
+          "required_level": 1,
+          "duration_seconds": 75,
+          "energy_cost": 18,
+          "ingredients": {
+            "iron_ore": 3,
+            "coal": 2
+          },
+          "output_item_key": "traveler_sword",
+          "output_quantity": 1,
+          "reward": 18,
+          "experience": 35,
+          "profession": "blacksmith",
+          "active": true,
+          "ingredient_source": "building_stock",
+          "output_destination": "building_stock"
+        },
+        {
+          "key": "simple_axe",
+          "name": "Forger une hache simple",
+          "category": "tool",
+          "required_level": 2,
+          "duration_seconds": 70,
+          "energy_cost": 18,
+          "ingredients": {
+            "iron_ore": 2,
+            "coal": 1,
+            "wood": 1
+          },
+          "output_item_key": "simple_axe",
+          "output_quantity": 1,
+          "reward": 15,
+          "experience": 30,
+          "profession": "blacksmith",
+          "active": true,
+          "ingredient_source": "building_stock",
+          "output_destination": "building_stock"
+        },
+        {
+          "key": "halberd",
+          "name": "Forger une hallebarde",
+          "category": "weapon",
+          "required_level": 3,
+          "duration_seconds": 110,
+          "energy_cost": 25,
+          "ingredients": {
+            "iron_ore": 5,
+            "coal": 3,
+            "wood": 1
+          },
+          "output_item_key": "halberd",
+          "output_quantity": 1,
+          "reward": 28,
+          "experience": 55,
+          "profession": "blacksmith",
+          "active": true,
+          "ingredient_source": "building_stock",
+          "output_destination": "building_stock"
+        }
+      ],
+      "activities": [],
+      "deliveries": [
+        {
+          "item_key": "iron_ore",
+          "target_building_key": "forge",
+          "unit_price": 5
+        },
+        {
+          "item_key": "coal",
+          "target_building_key": "forge",
+          "unit_price": 3
+        },
+        {
+          "item_key": "wood",
+          "target_building_key": "forge",
+          "unit_price": 1
+        }
+      ],
+      "delivery_mode": "all_available",
+      "repairs": {
+        "pickaxe_price_per_point": 2,
+        "axe_price_per_point": 2,
+        "equipment_price_per_point": 1,
+        "durability": {
+          "traveler_sword": 100,
+          "halberd": 120,
+          "curved_bow": 90,
+          "white_iron_greatsword": 150,
+          "simple_pickaxe": 80,
+          "simple_axe": 80,
+          "lantern": 60
+        }
+      },
+      "upgrades": [
+        {
+          "path": "miner_pickaxe",
+          "tool_key": "simple_pickaxe",
+          "from_level": 1,
+          "to_level": 2,
+          "name": "Pioche renforcée",
+          "price": 30,
+          "max_durability": 40,
+          "loot_bonus": 1,
+          "ingredients": {
+            "iron_ore": 3,
+            "wood": 1
+          }
+        }
+      ],
+      "market_purchases": [
+        {
+          "item_key": "wood",
+          "unit_price": 4,
+          "name": "Bois",
+          "emoji": "🪵"
+        },
+        {
+          "item_key": "fine_wood",
+          "unit_price": 7,
+          "name": "Bois de qualité",
+          "emoji": "🪵"
+        },
+        {
+          "item_key": "raw_stone",
+          "unit_price": 2,
+          "name": "Pierre brute",
+          "emoji": "🪨"
+        },
+        {
+          "item_key": "coal",
+          "unit_price": 6,
+          "name": "Charbon",
+          "emoji": "⚫"
+        },
+        {
+          "item_key": "iron_ore",
+          "unit_price": 9,
+          "name": "Minerai de fer",
+          "emoji": "⛓️"
+        }
+      ]
+    },
+    "tavern": {
+      "npc": {
+        "key": "edgar",
+        "name": "Edgar",
+        "profession": "",
+        "age": null,
+        "personality": [],
+        "phrases": []
+      },
+      "rules": {
+        "experience_per_level": 100,
+        "max_active_missions": 1
+      },
+      "professions": [
+        {
+          "key": "cook",
+          "name": "Cuisinier"
+        }
+      ],
+      "products": [
+        {
+          "item_key": "beer_86",
+          "category": "bieres",
+          "price": 5,
+          "active": true,
+          "initial_stock": 25,
+          "alert_threshold": 5,
+          "maximum_per_purchase": 5
+        },
+        {
+          "item_key": "guinness",
+          "category": "bieres",
+          "price": 6,
+          "active": true,
+          "initial_stock": 20,
+          "alert_threshold": 4,
+          "maximum_per_purchase": 5
+        },
+        {
+          "item_key": "chouffe",
+          "category": "bieres",
+          "price": 7,
+          "active": true,
+          "initial_stock": 20,
+          "alert_threshold": 4,
+          "maximum_per_purchase": 5
+        },
+        {
+          "item_key": "pelican",
+          "category": "bieres",
+          "price": 6,
+          "active": true,
+          "initial_stock": 20,
+          "alert_threshold": 4,
+          "maximum_per_purchase": 5
+        },
+        {
+          "item_key": "grimbergen",
+          "category": "bieres",
+          "price": 6,
+          "active": true,
+          "initial_stock": 20,
+          "alert_threshold": 4,
+          "maximum_per_purchase": 5
+        },
+        {
+          "item_key": "mort_subite",
+          "category": "bieres",
+          "price": 6,
+          "active": true,
+          "initial_stock": 15,
+          "alert_threshold": 3,
+          "maximum_per_purchase": 5
+        },
+        {
+          "item_key": "biere_royaume",
+          "category": "bieres",
+          "price": 6,
+          "active": true,
+          "initial_stock": 15,
+          "alert_threshold": 3,
+          "maximum_per_purchase": 5
+        },
+        {
+          "item_key": "hydromel",
+          "category": "spiritueux",
+          "price": 7,
+          "active": true,
+          "initial_stock": 15,
+          "alert_threshold": 3,
+          "maximum_per_purchase": 3
+        },
+        {
+          "item_key": "hydromel_baies",
+          "category": "spiritueux",
+          "price": 8,
+          "active": true,
+          "initial_stock": 12,
+          "alert_threshold": 3,
+          "maximum_per_purchase": 3
+        },
+        {
+          "item_key": "whisky_highlands",
+          "category": "spiritueux",
+          "price": 8,
+          "active": true,
+          "initial_stock": 10,
+          "alert_threshold": 2,
+          "maximum_per_purchase": 3
+        },
+        {
+          "item_key": "cervoise",
+          "category": "spiritueux",
+          "price": 4,
+          "active": true,
+          "initial_stock": 20,
+          "alert_threshold": 4,
+          "maximum_per_purchase": 5
+        },
+        {
+          "item_key": "vin_epice",
+          "category": "spiritueux",
+          "price": 6,
+          "active": true,
+          "initial_stock": 15,
+          "alert_threshold": 3,
+          "maximum_per_purchase": 3
+        },
+        {
+          "item_key": "absinthe",
+          "category": "spiritueux",
+          "price": 9,
+          "active": true,
+          "initial_stock": 8,
+          "alert_threshold": 2,
+          "maximum_per_purchase": 2
+        },
+        {
+          "item_key": "vin_bordeaux",
+          "category": "vins",
+          "price": 10,
+          "active": true,
+          "initial_stock": 12,
+          "alert_threshold": 3,
+          "maximum_per_purchase": 3
+        },
+        {
+          "item_key": "vin_loire",
+          "category": "vins",
+          "price": 12,
+          "active": true,
+          "initial_stock": 10,
+          "alert_threshold": 2,
+          "maximum_per_purchase": 3
+        },
+        {
+          "item_key": "porto",
+          "category": "vins",
+          "price": 8,
+          "active": true,
+          "initial_stock": 10,
+          "alert_threshold": 2,
+          "maximum_per_purchase": 3
+        },
+        {
+          "item_key": "pate_sanglier",
+          "category": "nourriture",
+          "price": 8,
+          "active": true,
+          "initial_stock": 12,
+          "alert_threshold": 3,
+          "maximum_per_purchase": 3
+        },
+        {
+          "item_key": "saucisses_fumees",
+          "category": "nourriture",
+          "price": 9,
+          "active": true,
+          "initial_stock": 12,
+          "alert_threshold": 3,
+          "maximum_per_purchase": 3
+        },
+        {
+          "item_key": "fromage_moines",
+          "category": "nourriture",
+          "price": 7,
+          "active": true,
+          "initial_stock": 15,
+          "alert_threshold": 3,
+          "maximum_per_purchase": 3
+        },
+        {
+          "item_key": "soupe_oignon",
+          "category": "nourriture",
+          "price": 6,
+          "active": true,
+          "initial_stock": 15,
+          "alert_threshold": 3,
+          "maximum_per_purchase": 3
+        },
+        {
+          "item_key": "poulet_miel",
+          "category": "nourriture",
+          "price": 10,
+          "active": true,
+          "initial_stock": 12,
+          "alert_threshold": 3,
+          "maximum_per_purchase": 3
+        },
+        {
+          "item_key": "assiette_bourreau",
+          "category": "nourriture",
+          "price": 12,
+          "active": true,
+          "initial_stock": 10,
+          "alert_threshold": 2,
+          "maximum_per_purchase": 3
+        }
+      ],
+      "recipes": [
+        {
+          "key": "cook_onion_soup",
+          "title": "Préparer 5 soupes à l'oignon",
+          "output_item_key": "soupe_oignon",
+          "output_quantity": 5,
+          "ingredients": {
+            "onion": 5,
+            "dark_bread": 2
+          },
+          "reward": 12,
+          "experience": 25,
+          "duration_seconds": 60,
+          "active": true,
+          "name": "Préparer 5 soupes à l'oignon",
+          "profession": "cook",
+          "energy_cost": 15,
+          "ingredient_source": "building_stock",
+          "output_destination": "building_stock",
+          "initial_ingredient_stock": {
+            "onion": 30,
+            "dark_bread": 20,
+            "cheese": 20,
+            "poultry": 15,
+            "honey": 15,
+            "wild_boar_meat": 15,
+            "herbs": 25
+          }
+        },
+        {
+          "key": "cook_honey_chicken",
+          "title": "Rôtir 4 cuisses de poulet au miel",
+          "output_item_key": "poulet_miel",
+          "output_quantity": 4,
+          "ingredients": {
+            "poultry": 4,
+            "honey": 2,
+            "herbs": 1
+          },
+          "reward": 18,
+          "experience": 35,
+          "duration_seconds": 90,
+          "active": true,
+          "name": "Rôtir 4 cuisses de poulet au miel",
+          "profession": "cook",
+          "energy_cost": 15,
+          "ingredient_source": "building_stock",
+          "output_destination": "building_stock",
+          "initial_ingredient_stock": {
+            "onion": 30,
+            "dark_bread": 20,
+            "cheese": 20,
+            "poultry": 15,
+            "honey": 15,
+            "wild_boar_meat": 15,
+            "herbs": 25
+          }
+        },
+        {
+          "key": "cook_boar_pate",
+          "title": "Préparer 4 pâtés de sanglier",
+          "output_item_key": "pate_sanglier",
+          "output_quantity": 4,
+          "ingredients": {
+            "wild_boar_meat": 3,
+            "herbs": 2,
+            "dark_bread": 1
+          },
+          "reward": 16,
+          "experience": 30,
+          "duration_seconds": 75,
+          "active": true,
+          "name": "Préparer 4 pâtés de sanglier",
+          "profession": "cook",
+          "energy_cost": 15,
+          "ingredient_source": "building_stock",
+          "output_destination": "building_stock",
+          "initial_ingredient_stock": {
+            "onion": 30,
+            "dark_bread": 20,
+            "cheese": 20,
+            "poultry": 15,
+            "honey": 15,
+            "wild_boar_meat": 15,
+            "herbs": 25
+          }
+        },
+        {
+          "key": "cook_smoked_sausages",
+          "title": "Préparer 4 saucisses fumées",
+          "output_item_key": "saucisses_fumees",
+          "output_quantity": 4,
+          "ingredients": {
+            "game_meat": 4,
+            "herbs": 1
+          },
+          "reward": 14,
+          "experience": 28,
+          "duration_seconds": 70,
+          "active": true,
+          "name": "Préparer 4 saucisses fumées",
+          "profession": "cook",
+          "energy_cost": 15,
+          "ingredient_source": "building_stock",
+          "output_destination": "building_stock",
+          "initial_ingredient_stock": {
+            "onion": 30,
+            "dark_bread": 20,
+            "cheese": 20,
+            "poultry": 15,
+            "honey": 15,
+            "wild_boar_meat": 15,
+            "herbs": 25
+          }
+        }
+      ],
+      "activities": [],
+      "deliveries": [],
+      "repairs": {},
+      "upgrades": [],
+      "stock": {
+        "ingredients": {
+          "onion": 30,
+          "dark_bread": 20,
+          "cheese": 20,
+          "poultry": 15,
+          "honey": 15,
+          "wild_boar_meat": 15,
+          "herbs": 25
+        }
+      },
+      "categories": [
+        {
+          "key": "bieres",
+          "name": "Bières d'or et d'ambre",
+          "emoji": "🍺"
+        },
+        {
+          "key": "spiritueux",
+          "name": "Hydromels et spiritueux",
+          "emoji": "🍯"
+        },
+        {
+          "key": "vins",
+          "name": "Grands crus du Royaume",
+          "emoji": "🍷"
+        },
+        {
+          "key": "nourriture",
+          "name": "À grignoter",
+          "emoji": "🍖"
+        }
+      ],
+      "rumors": {
+        "player_cooldown_seconds": 120,
+        "global_cooldown_seconds": 10,
+        "catalogue": [
+          {
+            "key": "lumiere_vieux_moulin",
+            "text": "On raconte qu'une lumière étrange apparaît chaque nuit près du vieux moulin.",
+            "audio": null,
+            "enabled": true,
+            "weight": 10
+          },
+          {
+            "key": "chariot_sans_cocher",
+            "text": "Un chariot sans cocher aurait traversé la forêt avant de disparaître dans la brume.",
+            "audio": null,
+            "enabled": true,
+            "weight": 10
+          },
+          {
+            "key": "galerie_condamnee",
+            "text": "Les mineurs jurent entendre des coups de pioche derrière une galerie condamnée depuis des années.",
+            "audio": null,
+            "enabled": true,
+            "weight": 8
+          },
+          {
+            "key": "marchand_cape_rouge",
+            "text": "Un marchand à la cape rouge achèterait au prix fort les cartes menant aux anciennes ruines.",
+            "audio": null,
+            "enabled": true,
+            "weight": 7
+          },
+          {
+            "key": "banquet_royal",
+            "text": "Les cuisines du château se prépareraient déjà à un banquet royal dont personne ne connaît la date.",
+            "audio": null,
+            "enabled": true,
+            "weight": 6
+          },
+          {
+            "key": "cloche_sous_la_riviere",
+            "text": "Certains pêcheurs disent avoir entendu une cloche sonner sous la rivière au lever du jour.",
+            "audio": null,
+            "enabled": true,
+            "weight": 5
+          }
+        ]
+      },
+      "player_stats": {
+        "energy": {
+          "name": "Énergie",
+          "default": 100,
+          "minimum": 0,
+          "maximum": 100,
+          "change_per_hour": 10
+        },
+        "alcohol": {
+          "name": "Alcoolémie",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 100,
+          "change_per_hour": -4
+        }
+      },
+      "games": {
+        "dice": {
+          "stake": 5,
+          "multipliers": {
+            "crown": 6,
+            "judgement": 2,
+            "destiny": 2
+          },
+          "key": "dice",
+          "name": "Jugement des Six Faces",
+          "sides": 6,
+          "stake_resource": "money",
+          "bets": [
+            {
+              "key": "crown_1",
+              "name": "Couronne 1",
+              "winning_faces": [
+                1
+              ],
+              "multiplier": 6
+            },
+            {
+              "key": "crown_2",
+              "name": "Couronne 2",
+              "winning_faces": [
+                2
+              ],
+              "multiplier": 6
+            },
+            {
+              "key": "crown_3",
+              "name": "Couronne 3",
+              "winning_faces": [
+                3
+              ],
+              "multiplier": 6
+            },
+            {
+              "key": "crown_4",
+              "name": "Couronne 4",
+              "winning_faces": [
+                4
+              ],
+              "multiplier": 6
+            },
+            {
+              "key": "crown_5",
+              "name": "Couronne 5",
+              "winning_faces": [
+                5
+              ],
+              "multiplier": 6
+            },
+            {
+              "key": "crown_6",
+              "name": "Couronne 6",
+              "winning_faces": [
+                6
+              ],
+              "multiplier": 6
+            },
+            {
+              "key": "judgement_even",
+              "name": "Jugement pair",
+              "winning_faces": [
+                2,
+                4,
+                6
+              ],
+              "multiplier": 2
+            },
+            {
+              "key": "judgement_odd",
+              "name": "Jugement impair",
+              "winning_faces": [
+                1,
+                3,
+                5
+              ],
+              "multiplier": 2
+            },
+            {
+              "key": "destiny_low",
+              "name": "Destin 1 a 3",
+              "winning_faces": [
+                1,
+                2,
+                3
+              ],
+              "multiplier": 2
+            },
+            {
+              "key": "destiny_high",
+              "name": "Destin 4 a 6",
+              "winning_faces": [
+                4,
+                5,
+                6
+              ],
+              "multiplier": 2
+            }
+          ]
+        }
+      },
+      "market_purchases": [
+        {
+          "item_key": "wood",
+          "unit_price": 2,
+          "name": "Bois",
+          "emoji": "🪵"
+        },
+        {
+          "item_key": "fine_wood",
+          "unit_price": 3,
+          "name": "Bois de qualité",
+          "emoji": "🪵"
+        },
+        {
+          "item_key": "raw_stone",
+          "unit_price": 1,
+          "name": "Pierre brute",
+          "emoji": "🪨"
+        },
+        {
+          "item_key": "coal",
+          "unit_price": 2,
+          "name": "Charbon",
+          "emoji": "⚫"
+        },
+        {
+          "item_key": "game_meat",
+          "unit_price": 4,
+          "name": "Viande de gibier",
+          "emoji": "🥩"
+        },
+        {
+          "item_key": "wild_boar_meat",
+          "unit_price": 6,
+          "name": "Viande de sanglier",
+          "emoji": "🐗"
+        },
+        {
+          "item_key": "herbs",
+          "unit_price": 2,
+          "name": "Herbes du Royaume",
+          "emoji": "🌿"
+        }
+      ]
+    },
+    "royal_bridge": {
+      "npc": {},
+      "rules": {},
+      "professions": [],
+      "activities": [],
+      "products": [],
+      "recipes": [],
+      "deliveries": [],
+      "repairs": {},
+      "upgrades": [],
+      "market_purchases": [],
+      "construction": {
+        "key": "royal_bridge",
+        "name": "Reconstruction du Pont du Royaume",
+        "emoji": "🌉",
+        "location_name": "Chantier du Pont",
+        "description": "Le passage vers les terres du Royaume menace de s'effondrer. Les habitants doivent unir leurs efforts avant la fin du décret royal.",
+        "stages": [
+          {
+            "key": "foundations",
+            "name": "Fondations de pierre",
+            "description": "Renforcer les piles et les appuis du pont.",
+            "requirements": [
+              {
+                "key": "raw_stone",
+                "name": "Pierre brute",
+                "emoji": "🪨",
+                "quantity": 30,
+                "kind": "item",
+                "accepted_items": [
+                  "raw_stone"
+                ]
+              },
+              {
+                "key": "iron_ore",
+                "name": "Minerai de fer",
+                "emoji": "⛓️",
+                "quantity": 5,
+                "kind": "item",
+                "accepted_items": [
+                  "iron_ore"
+                ]
+              }
+            ]
+          },
+          {
+            "key": "framework",
+            "name": "Charpente du tablier",
+            "description": "Assembler la structure qui portera le passage.",
+            "requirements": [
+              {
+                "key": "wood",
+                "name": "Bois",
+                "emoji": "🪵",
+                "quantity": 40,
+                "kind": "item",
+                "accepted_items": [
+                  "wood"
+                ]
+              },
+              {
+                "key": "iron_ore",
+                "name": "Minerai de fer",
+                "emoji": "⛓️",
+                "quantity": 5,
+                "kind": "item",
+                "accepted_items": [
+                  "iron_ore"
+                ]
+              }
+            ]
+          },
+          {
+            "key": "completion",
+            "name": "Achèvement royal",
+            "description": "Fermer l'ouvrage, nourrir les ouvriers et payer les derniers travaux.",
+            "requirements": [
+              {
+                "key": "raw_stone",
+                "name": "Pierre brute",
+                "emoji": "🪨",
+                "quantity": 30,
+                "kind": "item",
+                "accepted_items": [
+                  "raw_stone"
+                ]
+              },
+              {
+                "key": "iron_ore",
+                "name": "Minerai de fer",
+                "emoji": "⛓️",
+                "quantity": 5,
+                "kind": "item",
+                "accepted_items": [
+                  "iron_ore"
+                ]
+              },
+              {
+                "key": "prepared_meal",
+                "name": "Plats préparés",
+                "emoji": "🍲",
+                "quantity": 10,
+                "kind": "item",
+                "accepted_items": [
+                  "soupe_oignon",
+                  "poulet_miel",
+                  "pate_sanglier",
+                  "saucisses_fumees",
+                  "fromage_moines",
+                  "assiette_bourreau"
+                ]
+              },
+              {
+                "key": "coins",
+                "name": "Écus",
+                "emoji": "🪙",
+                "quantity": 250,
+                "kind": "currency",
+                "accepted_items": []
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

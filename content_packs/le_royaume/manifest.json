@@ -1,0 +1,9 @@
+{
+  "key": "le_royaume",
+  "name": "Le Royaume",
+  "version": "1.0.0",
+  "description": "Contenu de démonstration historique de KingdomEngine.",
+  "source": "seed.py + import_v1.py",
+  "status": "compatibility_bridge",
+  "engine_required": ">=2.0.0"
+}

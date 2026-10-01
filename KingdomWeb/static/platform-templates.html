@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Gestion des templates · Payen Studio</title>
+    <link rel="stylesheet" href="/static/platform-admin.css" />
+    <link rel="stylesheet" href="/static/platform-admin-v2.css?v=20260928.1" />
+    <link rel="stylesheet" href="/static/platform-templates.css?v=20260928.1" />
+  </head>
+  <body>
+    <header class="templates-topbar">
+      <div>
+        <small>PAYEN STUDIO · INTERNE</small>
+        <h1>Gestion des templates</h1>
+        <p>Catalogue des modèles de monde proposés aux joueurs.</p>
+      </div>
+      <nav aria-label="Navigation Payen Studio">
+        <a href="/platform-admin">← Administration</a>
+        <a href="/">KingdomWeb</a>
+      </nav>
+    </header>
+    <main class="templates-page">
+      <section class="templates-hero">
+        <div>
+          <small>CATALOGUE DES MONDES</small>
+          <h2>Maîtrisez ce que les joueurs voient</h2>
+          <p>Chaque version publiée est disponible pour créer un nouveau monde. Les brouillons et archives restent masqués.</p>
+        </div>
+        <div class="templates-hero-actions">
+          <a href="/platform-admin?new_official=1" class="templates-primary">+ Nouveau template officiel</a>
+          <button type="button" id="templates-refresh">↻ Actualiser</button>
+        </div>
+      </section>
+      <p id="templates-feedback" class="templates-feedback" role="status" aria-live="polite">Chargement du catalogue…</p>
+      <section id="templates-summary" class="templates-summary" aria-label="Résumé des templates"></section>
+      <div class="templates-toolbar">
+        <label>Rechercher un template
+          <input id="templates-search" type="search" placeholder="Nom, clé, créateur, tag…" autocomplete="off" />
+        </label>
+        <label>Afficher les versions
+          <select id="templates-status">
+            <option value="">Toutes les versions</option>
+            <option value="published">Publiées</option>
+            <option value="draft">Brouillons</option>
+            <option value="archived">Archivées</option>
+          </select>
+        </label>
+      </div>
+      <section id="templates-official" class="templates-section" aria-labelledby="templates-official-title"></section>
+      <section id="templates-community" class="templates-section" aria-labelledby="templates-community-title"></section>
+    </main>
+    <script src="/static/platform-templates.js?v=20260928.1" defer></script>
+  </body>
+</html>
