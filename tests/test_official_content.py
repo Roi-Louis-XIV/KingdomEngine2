@@ -47,6 +47,95 @@ def test_existing_kingdom_pack_migrates_in_place_to_revision_four(official):
     assert len(official.list(content_type="world_template", published_only=True)) == 4
 
 
+def test_storm_revision_five_syncs_pack_and_existing_workspaces_without_overwrite(official, tmp_path):
+    with official.connection() as db:
+        pack_id = db.execute(
+            "SELECT id FROM official_content_packs WHERE pack_key='storm_sainte_pelle' "
+            "AND status='published'"
+        ).fetchone()[0]
+        settings_row = db.execute(
+            "SELECT payload_json FROM official_content_entities WHERE pack_id=? "
+            "AND entity_type='server_settings' AND entity_key='kingdom_server'", (pack_id,)
+        ).fetchone()
+        settings = json.loads(settings_row[0]); settings["template_revision"] = 4
+        db.execute(
+            "UPDATE official_content_entities SET payload_json=? WHERE pack_id=? "
+            "AND entity_type='server_settings' AND entity_key='kingdom_server'",
+            (json.dumps(settings), pack_id),
+        )
+        db.execute(
+            "DELETE FROM official_content_entities WHERE pack_id=? AND entity_type='audio' "
+            "AND entity_key LIKE 'storm_voice_%'", (pack_id,),
+        )
+        for profile_key in ("voice_edgar", "voice_roland", "voice_wagner"):
+            row = db.execute(
+                "SELECT payload_json FROM official_content_entities WHERE pack_id=? "
+                "AND entity_type='voice_profile' AND entity_key=?", (pack_id, profile_key),
+            ).fetchone()
+            payload = json.loads(row[0]); payload["clips"] = []
+            db.execute(
+                "UPDATE official_content_entities SET payload_json=? WHERE pack_id=? "
+                "AND entity_type='voice_profile' AND entity_key=?",
+                (json.dumps(payload), pack_id, profile_key),
+            )
+        db.commit()
+
+    workspace = official.create_workspace("storm_sainte_pelle", 1, tmp_path)
+    old_world = ContentStore(workspace["database_path"])
+    building = old_world.get("building", "edgar_tavern")
+    changed = {**building["payload"], "name": "Taverne personnalisée"}
+    saved = old_world.save("building", "edgar_tavern", changed, expected_version=building["version"])
+    old_world.publish("building", "edgar_tavern", saved["version"])
+    custom_audio = old_world.save("audio", "custom_admin_voice", {
+        "name": "Voix personnelle", "emoji": "🎙️", "description": "Import administrateur",
+        "audio_type": "voice", "storage_path": "custom/admin.mp3", "file_name": "admin.mp3",
+        "volume": 1, "loop": False, "tags": ["custom"],
+    })
+    old_world.publish("audio", "custom_admin_voice", custom_audio["version"])
+    profile = old_world.get("voice_profile", "voice_edgar")
+    profile_payload = dict(profile["payload"])
+    profile_payload["clips"] = [{"key": "custom", "name": "Personnalisée", "trigger": "manual",
+                                  "audio_key": "custom_admin_voice", "text": "Personnalisée"}]
+    saved_profile = old_world.save("voice_profile", "voice_edgar", profile_payload,
+                                   expected_version=profile["version"])
+    old_world.publish("voice_profile", "voice_edgar", saved_profile["version"])
+
+    official.migrate_legacy_presets()
+    official.migrate_legacy_presets()
+
+    pack = official.get("storm_sainte_pelle", published_only=True)
+    settings = next(entity["payload"] for entity in pack["entities"]
+                    if entity["type"] == "server_settings" and entity["key"] == "kingdom_server")
+    assert settings["template_revision"] == 5
+    assert len([entity for entity in pack["entities"] if entity["type"] == "audio"
+                and entity["key"].startswith("storm_voice_")]) == 80
+
+    migrated = ContentStore(workspace["database_path"])
+    voices = [row for row in migrated.list("audio") if row["entity_key"].startswith("storm_voice_")]
+    assert len(voices) == 80
+    assert {row["status"] for row in voices} == {"published"}
+    assert {row["payload"]["audio_type"] for row in voices} == {"voice"}
+    assert all(row["payload"].get(field) for row in voices for field in (
+        "storage_path", "description", "tags", "semantic_key", "speaker", "building_key", "variant_group",
+    ))
+    assert {speaker: sum(row["payload"]["speaker"] == speaker for row in voices)
+            for speaker in ("edgar", "roland", "wagner")} == {
+                "edgar": 28, "roland": 26, "wagner": 26,
+            }
+    assert migrated.get("building", "edgar_tavern")["payload"]["name"] == "Taverne personnalisée"
+    assert migrated.get("audio", "custom_admin_voice")["payload"]["name"] == "Voix personnelle"
+    expected = {"voice_edgar": 28, "voice_roland": 26, "voice_wagner": 26}
+    for key, count in expected.items():
+        clips = migrated.get("voice_profile", key)["payload"]["clips"]
+        assert len([clip for clip in clips if clip.get("audio_key", "").startswith("storm_voice_")]) == count
+    assert any(clip.get("audio_key") == "custom_admin_voice"
+               for clip in migrated.get("voice_profile", "voice_edgar")["payload"]["clips"])
+
+    fresh_workspace = official.create_workspace("storm_sainte_pelle", 1, tmp_path)
+    fresh = ContentStore(fresh_workspace["database_path"])
+    assert len([row for row in fresh.list("audio") if row["entity_key"].startswith("storm_voice_")]) == 80
+
+
 def test_archived_bundled_template_is_restored_without_duplication(official):
     official.migrate_legacy_presets()
     before = official.list(content_type="world_template")

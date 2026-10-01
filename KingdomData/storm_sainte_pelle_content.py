@@ -167,7 +167,7 @@ def build_storm_template(source: list[dict[str, Any]]) -> list[dict[str, Any]]:
     settings = _row(rows, "server_settings", "kingdom_server")
     settings.update(name="La Tempête de la Sainte Pelle",
                     description="Bêta coopérative de trois heures, depuis le vieux pont jusqu'à l'église.",
-                    template_revision=4, balance_status=BALANCE)
+                    template_revision=5, balance_status=BALANCE)
     settings["onboarding"].update(
         starting_money=100,
         currency_label="écus",

@@ -112,7 +112,7 @@ class OfficialContentStore:
                         "SELECT 1 FROM official_content_entities WHERE pack_id=? AND entity_type='audio' LIMIT 1",
                         (current["id"],),
                     ).fetchone()
-                    required_revisions = {"royal_festival": 4, "storm_sainte_pelle": 4}
+                    required_revisions = {"royal_festival": 4, "storm_sainte_pelle": 5}
                     required_revision = required_revisions.get(key, 0)
                     needs_bundled_update = current_revision < required_revision if required_revision else not has_audio
                     if key == "royal_festival" and settings_row:
@@ -121,11 +121,14 @@ class OfficialContentStore:
                     # Les copies et contenus créés par les administrateurs ne
                     # sont jamais réécrits par un démarrage de KingdomWeb.
                     if current and current["origin"] == "legacy_world_presets" and needs_bundled_update:
-                        self._replace_entities(db, int(current["id"]), world_preset(key))
+                        bundled_entities = world_preset(key)
+                        self._replace_entities(db, int(current["id"]), bundled_entities)
                         db.execute(
                             "UPDATE official_content_packs SET name=?,description=?,emoji=?,updated_at=? WHERE id=?",
                             (meta["name"], meta["description"], meta["emoji"], _now(), current["id"]),
                         )
+                        if key == "storm_sainte_pelle":
+                            self._sync_storm_voice_workspaces(db, int(current["id"]), bundled_entities)
                     continue
                 now = _now()
                 cursor = db.execute(
@@ -136,6 +139,49 @@ class OfficialContentStore:
                 )
                 self._replace_entities(db, int(cursor.lastrowid), world_preset(key))
             db.commit()
+
+    @staticmethod
+    def _sync_storm_voice_workspaces(
+        platform_db: sqlite3.Connection, pack_id: int, bundled_entities: list[dict[str, Any]],
+    ) -> None:
+        """Fusionne uniquement les voix bundlées dans les ateliers existants."""
+        from .store import ContentStore
+
+        bundled_audio = [entity for entity in bundled_entities
+                         if entity["type"] == "audio" and entity["key"].startswith("storm_voice_")]
+        bundled_profiles = {entity["key"]: entity["payload"] for entity in bundled_entities
+                            if entity["type"] == "voice_profile"
+                            and entity["key"] in {"voice_edgar", "voice_roland", "voice_wagner"}}
+        paths = [Path(row[0]) for row in platform_db.execute(
+            "SELECT database_path FROM official_edit_workspaces WHERE pack_id=?", (pack_id,)
+        )]
+        for path in paths:
+            if not path.is_file():
+                continue
+            world = ContentStore(path)
+            world.initialize()
+            # seed() ajoute et publie seulement les entités absentes.
+            world.seed(bundled_audio)
+            for profile_key, official_payload in bundled_profiles.items():
+                current = world.get("voice_profile", profile_key)
+                custom = [clip for clip in current["payload"].get("clips", [])
+                          if not str(clip.get("audio_key", "")).startswith("storm_voice_")]
+                merged = deepcopy(current["payload"])
+                merged["clips"] = [*custom, *deepcopy(official_payload.get("clips", []))]
+                merged["metadata"] = {
+                    **deepcopy(current["payload"].get("metadata", {})),
+                    **deepcopy(official_payload.get("metadata", {})),
+                }
+                official_tags = list(official_payload.get("tags", []))
+                merged["tags"] = list(dict.fromkeys([*merged.get("tags", []), *official_tags]))
+                if merged == current["payload"]:
+                    continue
+                updated = world.save(
+                    "voice_profile", profile_key, merged, "bundled-voice-sync",
+                    expected_version=current["version"],
+                )
+                if current["status"] == "published":
+                    world.publish("voice_profile", profile_key, updated["version"], "bundled-voice-sync")
 
     def catalog_state(self, key: str, *, content_type: str = "world_template") -> dict[str, Any]:
         """Diagnostic en lecture seule de la persistance d'un pack officiel."""
