@@ -399,7 +399,10 @@ class ContentStore:
             rows = db.execute("SELECT * FROM audio_queue WHERE status='pending' ORDER BY id LIMIT ?", (min(limit, 100),)).fetchall()
             if rows:
                 db.executemany("UPDATE audio_queue SET status='processing',attempts=attempts+1 WHERE id=? AND status='pending'", [(row["id"],) for row in rows])
-        return [{**dict(row), "context": json.loads(row["context_json"] or "{}")} for row in rows]
+        commands = [{**dict(row), "context": json.loads(row["context_json"] or "{}")} for row in rows]
+        priority = {"narrative_event": 0, "explicit_player_action": 1,
+                    "building_interaction": 2, "ambient": 3}
+        return sorted(commands, key=lambda row: (priority.get(row["context"].get("priority"), 9), row["id"]))
 
     def recover_audio(self) -> int:
         """Remet en attente les commandes laissées en cours par un arrêt de KingdomVoice."""

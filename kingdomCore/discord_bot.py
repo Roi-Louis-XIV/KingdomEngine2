@@ -1798,6 +1798,18 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
             world = WorldEngine(guild_store)
             before_building = building_for_voice(guild_store, before.channel) if isinstance(before.channel, discord.VoiceChannel) else None
             after_building = building_for_voice(guild_store, after.channel) if isinstance(after.channel, discord.VoiceChannel) else None
+            if before_building and (
+                not after_building or before_building["entity_key"] != after_building["entity_key"]
+            ):
+                guild_engine.queue_semantic_voice(
+                    before_building["entity_key"], "presence_leave", discord_id=str(member.id)
+                )
+            if after_building and (
+                not before_building or before_building["entity_key"] != after_building["entity_key"]
+            ):
+                guild_engine.queue_semantic_voice(
+                    after_building["entity_key"], "presence_join", discord_id=str(member.id)
+                )
             try:
                 if after_building and after_building["payload"].get("location_key"):
                     world.enter_building(str(member.id), after_building["entity_key"])

@@ -31,6 +31,70 @@ class GameEngine:
     def quest_board(self, discord_id: str) -> dict[str, Any]:
         return self.quests.board(discord_id)
 
+    def queue_semantic_voice(
+        self, building_key: str, intent: str, *, discord_id: str = "",
+        require_human: bool = True, priority: str = "building_interaction", db=None,
+    ) -> str:
+        """Choisit une seule variante vocale compatible et la met en file.
+
+        Le profil publié porte toute la sémantique : ce routeur est générique
+        et ne connaît ni scénario, ni PNJ, ni nom de bâtiment.
+        """
+        def route(connection) -> str:
+            if require_human:
+                human = connection.execute(
+                    "SELECT 1 FROM player_presence WHERE online=1 AND building_key=? LIMIT 1",
+                    (building_key,),
+                ).fetchone()
+                if not human:
+                    return ""
+            candidates: list[dict[str, Any]] = []
+            for entity in self.store.list("voice_profile", published=True):
+                profile = entity["payload"]
+                metadata = profile.get("metadata", {})
+                if metadata.get("building_key") != building_key or not metadata.get("semantic_routing"):
+                    continue
+                for clip in profile.get("clips", []):
+                    clip_meta = clip.get("metadata", {})
+                    policy = str(clip_meta.get("storm_beta_policy", "AUTO_CONTEXTUEL"))
+                    if clip_meta.get("semantic_intent") != intent or policy == "MANUEL_DESACTIVE_BETA":
+                        continue
+                    if policy == "CONDITIONNEL_FERMETURE" and intent != "building_closed":
+                        continue
+                    if clip.get("audio_key"):
+                        candidates.append(clip)
+            if not candidates:
+                return ""
+            # Un rafraîchissement/double-clic ne doit pas empiler une réplique.
+            now = datetime.now(timezone.utc)
+            for row in connection.execute(
+                "SELECT context_json,created_at FROM audio_queue WHERE building_key=? ORDER BY id DESC LIMIT 30",
+                (building_key,),
+            ):
+                context = json.loads(row["context_json"] or "{}")
+                if context.get("semantic_intent") != intent or context.get("discord_id", "") != discord_id:
+                    continue
+                try:
+                    created = datetime.fromisoformat(str(row["created_at"]).replace("Z", "+00:00"))
+                    if (now - created).total_seconds() < 12:
+                        return ""
+                except (TypeError, ValueError):
+                    pass
+            clip = self.rng.choice(candidates)
+            audio_key = str(clip["audio_key"])
+            self.store.queue_audio(
+                connection, "play", building_key, audio_key=audio_key,
+                context={"discord_id": discord_id, "semantic_intent": intent,
+                         "semantic_key": clip.get("metadata", {}).get("semantic_key", ""),
+                         "priority": priority, "source": "semantic_voice"},
+            )
+            return audio_key
+
+        if db is not None:
+            return route(db)
+        with self.store.connection() as connection:
+            return route(connection)
+
     def accept_quest(self, discord_id: str, quest_key: str, interaction_id: str) -> dict[str, Any]:
         return self.quests.accept(discord_id, quest_key, interaction_id)
 
@@ -657,6 +721,12 @@ class GameEngine:
                     audio_payload = audio_entity["payload"]
                     if event.type in audio_payload.get("triggers", []):
                         self.store.queue_audio(db, "play", building_key, audio_key=audio_entity["entity_key"], bot_key=str(audio_payload.get("speaker_bot_key", "")), context={"discord_id": discord_id, "action": action_key, "event": event.type})
+            if quest_started_timed:
+                self.queue_semantic_voice(building_key, "activity_start", discord_id=discord_id,
+                                          priority="explicit_player_action", db=db)
+            elif quest_claimed_action:
+                self.queue_semantic_voice(building_key, "activity_success", discord_id=discord_id,
+                                          priority="explicit_player_action", db=db)
             snapshot = self.player(discord_id, db)
             result = {
                 "ok": True, "messages": messages, "player": snapshot, "action": action_key,

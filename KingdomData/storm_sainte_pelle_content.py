@@ -7,6 +7,7 @@ pack jouable lors de la création de ce nouveau modèle officiel.
 from __future__ import annotations
 
 from copy import deepcopy
+from pathlib import Path
 from typing import Any
 
 from .interfaces import interface_from_building
@@ -166,7 +167,7 @@ def build_storm_template(source: list[dict[str, Any]]) -> list[dict[str, Any]]:
     settings = _row(rows, "server_settings", "kingdom_server")
     settings.update(name="La Tempête de la Sainte Pelle",
                     description="Bêta coopérative de trois heures, depuis le vieux pont jusqu'à l'église.",
-                    template_revision=3, balance_status=BALANCE)
+                    template_revision=4, balance_status=BALANCE)
     settings["onboarding"].update(
         starting_money=100,
         currency_label="écus",
@@ -175,35 +176,88 @@ def build_storm_template(source: list[dict[str, Any]]) -> list[dict[str, Any]]:
     )
     settings["roles"].update(game_master="Roi", player="Habitants du Royaume")
 
-    # Bibliothèque vocale réellement fournie avec la mission. Les numéros de
-    # scène sont conservés tels quels : ils restent filtrables et éditables
-    # dans KingdomWeb sans inventer une transcription absente des fichiers.
-    supplied_voices = {"edgar": (13, 4), "roland": (13, 2), "wagner": (13, 2)}
-    for npc_key, (scene_count, first_scene_variants) in supplied_voices.items():
+    # Banque vocale vérifiée : le sens vient du manifeste utilisateur, jamais
+    # du numéro de scène. Les politiques restent lisibles par le no-code.
+    voice_manifest = {
+        "edgar": ("edgar_tavern", [
+            ("00", (1, 2), "edgar_welcome_general", "Ah, te voilà, camarade ! Entre donc ! Ici, les soucis restent à la porte… enfin, sauf les dettes, évidemment. Allez, installe-toi. Qu'est-ce que je te sers ?", "AUTO_CONTEXTUEL", "presence_join"),
+            ("00", (3, 4), "edgar_rumor_roland_long", "Ah, camarade, approche donc, j'ai quelque chose à te raconter. Tu connais Roland, le mineur ? Eh bien, paraît qu'il aurait découvert quelque chose d'étrange dans les profondeurs de la mine. Quelque chose qui n'aurait jamais dû remonter à la surface. Enfin, c'est ce qu'il raconte. Avec tout ce qu'il boit ici, il a peut-être simplement déterré une vieille casserole. Sacré Roland.", "MANUEL_DESACTIVE_BETA", "manual"),
+            ("01", (1, 2), "edgar_first_visit", "Ah ! Bien le bonjour, camarade ! Entre donc, entre donc ! Ici, on sert de quoi se réchauffer le cœur… et parfois de quoi le faire tourner.", "AUTO_CONTEXTUEL", "first_visit"),
+            ("02", (1, 2), "edgar_returning_player", "Ah, toi revoilà ! Je commençais à croire que tu m'avais oublié. Allez, viens donc t'installer.", "AUTO_CONTEXTUEL", "returning_player"),
+            ("03", (1, 2), "edgar_self_intro", "Edgar Brassebarbe, pour te servir. Tant que tu as soif, faim, ou une bonne histoire à raconter, tu es chez toi ici.", "AUTO_CONTEXTUEL", "npc_self_intro"),
+            ("04", (1, 2), "edgar_tavern_intro", "Bienvenue dans ma taverne. On y mange, on y boit, on y travaille, et on y raconte quelques mensonges… mais des beaux, hein.", "AUTO_CONTEXTUEL", "building_intro"),
+            ("05", (1, 2), "edgar_work_offer", "Tu cherches à gagner quelques écus ? J'ai peut-être du travail pour toi. Et promis, je ne te demanderai pas de laver toute la taverne… enfin, pas aujourd'hui.", "AUTO_CONTEXTUEL", "work_offer"),
+            ("06", (1, 2), "edgar_activity_start", "Allez, camarade, retrousse tes manches. Une bonne journée de travail mérite toujours une bonne chope à la fin.", "AUTO_CONTEXTUEL", "activity_start"),
+            ("07", (1, 2), "edgar_activity_success", "Ah, voilà du beau travail ! Si tout le monde travaillait comme toi, je pourrais enfin prendre des vacances.", "AUTO_CONTEXTUEL", "activity_success"),
+            ("08", (1, 2), "edgar_low_stock", "Ah, ça, c'est embêtant. Les réserves sont presque vides. À ce rythme-là, je vais devoir servir des assiettes imaginaires.", "AUTO_CONTEXTUEL", "low_stock"),
+            ("09", (1, 2), "edgar_order_served", "Voilà pour toi, une belle commande servie avec le sourire. Le sourire est gratuit, lui.", "AUTO_CONTEXTUEL", "order_served"),
+            ("10", (1, 2), "edgar_rumor_mine_short", "Approche un peu. J'ai entendu des choses étranges au sujet de la mine. Mais garde ça pour toi, hein… enfin, au moins jusqu'à la prochaine tournée.", "MANUEL_DESACTIVE_BETA", "manual"),
+            ("11", (1, 2), "edgar_farewell", "Déjà sur le départ ? Prends soin de toi, camarade, et reviens vite. J'ai encore des histoires à te raconter.", "AUTO_CONTEXTUEL", "presence_leave"),
+            ("12", (1, 2), "edgar_closing", "Bon, mes amis, il est temps de fermer boutique. Les chopes sont vides, le feu s'éteint, et moi, j'ai grand besoin de dormir.", "CONDITIONNEL_FERMETURE", "building_closed"),
+        ]),
+        "roland": ("deep_mine", [
+            ("00", (1, 2), "roland_welcome_general", "Ah, encore un nouveau ! Bienvenue à la mine, camarade ! Ici, on travaille dur. La roche ne se casse pas toute seule, crois-moi. Et si tu trouves de l'or, n'oublie pas qui t'a prêté la pioche.", "AUTO_CONTEXTUEL", "presence_join"),
+            ("01", (1, 2), "roland_first_visit", "Ah, un nouveau visage ! Bienvenue à la mine, camarade. Fais attention où tu mets les pieds : ici, les cailloux ne pardonnent pas.", "AUTO_CONTEXTUEL", "first_visit"),
+            ("02", (1, 2), "roland_returning_player", "Tiens, te voilà ! Je me demandais si la montagne t'avait fait peur. Allez, approche donc.", "AUTO_CONTEXTUEL", "returning_player"),
+            ("03", (1, 2), "roland_self_intro", "Roland, mineur depuis assez longtemps pour savoir qu'une bonne pioche vaut mieux qu'un long discours.", "AUTO_CONTEXTUEL", "npc_self_intro"),
+            ("04", (1, 2), "roland_mine_intro", "Ici, c'est la mine : de la roche, de la poussière et du travail. Mais avec un peu de chance, tu repartiras les poches pleines.", "AUTO_CONTEXTUEL", "building_intro"),
+            ("05", (1, 2), "roland_work_offer", "Tu veux travailler ? Parfait. J'ai besoin de bras solides et de gens qui n'ont pas peur de se salir les mains.", "AUTO_CONTEXTUEL", "work_offer"),
+            ("06", (1, 2), "roland_activity_start", "Allez, prends ta pioche et souviens-toi : c'est la roche qu'il faut frapper, pas ton voisin.", "AUTO_CONTEXTUEL", "activity_start"),
+            ("07", (1, 2), "roland_activity_success", "Eh ben, pas mal du tout ! T'as peut-être finalement quelque chose dans les bras.", "AUTO_CONTEXTUEL", "activity_success"),
+            ("08", (1, 2), "roland_equipment_shortage", "Bon sang, on manque de matériel. Même le meilleur mineur du Royaume ne peut pas travailler avec une pioche imaginaire.", "AUTO_CONTEXTUEL", "equipment_shortage"),
+            ("09", (1, 2), "roland_rare_find", "Ah, voilà une belle trouvaille ! Garde les yeux ouverts. Il y en a peut-être encore dans cette veine.", "AUTO_CONTEXTUEL", "rare_result"),
+            ("10", (1, 2), "roland_rumor_deep_mine", "Il y a des bruits étranges dans les galeries profondes ces derniers temps. Bah, probablement encore Edgar qui raconte des histoires.", "MANUEL_DESACTIVE_BETA", "manual"),
+            ("11", (1, 2), "roland_farewell", "Bon, file donc et fais attention sur le chemin. J'ai pas envie de devoir venir te chercher sous un éboulement.", "AUTO_CONTEXTUEL", "presence_leave"),
+            ("12", (1, 2), "roland_closing", "C'est terminé pour aujourd'hui. Range les outils et va te reposer. La montagne sera encore là demain.", "CONDITIONNEL_FERMETURE", "building_closed"),
+        ]),
+        "wagner": ("royal_forge", [
+            ("00", (1, 2), "wagner_welcome_general", "Bienvenue à la Forge Dorée. Moi, c'est Wagner. Ici, chaque lame, chaque outil, chaque pièce de métal passe entre mes mains. Et si tu comptes me faire réparer une pioche avec du fromage, tu t'es trompé de boutique, camarade.", "AUTO_CONTEXTUEL", "presence_join"),
+            ("01", (1, 2), "wagner_first_visit", "Bienvenue à la Forge Dorée. Approche donc. Fais seulement attention aux braises : elles n'ont pas l'habitude de prévenir avant de brûler.", "AUTO_CONTEXTUEL", "first_visit"),
+            ("02", (1, 2), "wagner_returning_player", "Ah ! Te revoilà ! J'espère que tu as pris soin de ton équipement depuis notre dernière rencontre.", "AUTO_CONTEXTUEL", "returning_player"),
+            ("03", (1, 2), "wagner_self_intro", "Wagner, maître forgeron. Ici, le métal prend forme sous le marteau, et chaque pièce doit mériter sa place dans mon atelier.", "AUTO_CONTEXTUEL", "npc_self_intro"),
+            ("04", (1, 2), "wagner_forge_intro", "Regarde autour de toi. Le feu, l'enclume, les outils. C'est ici qu'on transforme la matière brute en quelque chose d'utile.", "AUTO_CONTEXTUEL", "building_intro"),
+            ("05", (1, 2), "wagner_work_offer", "Tu veux apprendre le métier ? Alors ouvre grand les yeux. À la forge, la précision compte autant que la force.", "AUTO_CONTEXTUEL", "work_offer"),
+            ("06", (1, 2), "wagner_activity_start", "Allez, au travail ! Le feu est prêt, le métal attend. Fais-moi voir ce que tu sais faire.", "AUTO_CONTEXTUEL", "activity_start"),
+            ("07", (1, 2), "wagner_activity_success", "Voilà, un travail propre et solide. Tu commences à comprendre ce que signifie être forgeron.", "AUTO_CONTEXTUEL", "activity_success"),
+            ("08", (1, 2), "wagner_low_materials", "Impossible de continuer sans matériaux. Le talent ne suffit pas quand les réserves sont vides.", "AUTO_CONTEXTUEL", "low_materials"),
+            ("09", (1, 2), "wagner_process_heat", "La température est bonne. Maintenant, il faut travailler le métal avec précision. Pas de gestes inutiles.", "AUTO_CONTEXTUEL", "process_step"),
+            ("10", (1, 2), "wagner_rumor_strange_ore", "Roland m'a parlé d'un minerai étrange trouvé dans les profondeurs. Si tu en découvres un morceau, apporte-le-moi. J'aimerais examiner ça.", "MANUEL_DESACTIVE_BETA", "manual"),
+            ("11", (1, 2), "wagner_farewell", "À la prochaine, camarade. Et souviens-toi : un bon outil, ça s'entretient. Ne viens pas pleurer quand le tien sera en morceaux.", "AUTO_CONTEXTUEL", "presence_leave"),
+            ("12", (1, 2), "wagner_closing", "Le feu baisse. Les outils sont rangés. Une bonne journée de travail. Demain, on remet ça.", "CONDITIONNEL_FERMETURE", "building_closed"),
+        ]),
+    }
+    for npc_key, (building_key, groups) in voice_manifest.items():
         profile = _row(rows, "voice_profile", f"voice_{npc_key}")
         clips = []
-        for scene in range(scene_count):
-            variants = first_scene_variants if npc_key == "edgar" and scene == 0 else 2
-            for variant in range(1, variants + 1):
-                stem = f"{npc_key}_{scene:02d}_{variant:02d}"
+        for scene, variants, semantic_key, text, policy, intent in groups:
+            for variant in variants:
+                stem = f"{npc_key}_{scene}_{variant:02d}"
                 audio_key = f"storm_voice_{stem}"
                 path = f"assets/storm_sainte_pelle/voices/{npc_key}/{stem}.mp3"
                 _add(rows, "audio", audio_key, {
-                    "name": f"{profile['name']} · scène {scene:02d} · variante {variant:02d}",
-                    "emoji": "🗣️", "description": "Enregistrement fourni avec la mission bêta.",
+                    "name": f"{profile['name']} · {semantic_key} · variante {variant}",
+                    "emoji": "🗣️", "description": text,
                     "storage_path": path, "file_name": f"{stem}.mp3", "audio_type": "voice",
                     "volume": 1, "loop": False,
-                    "tags": ["storm_sainte_pelle", npc_key, f"scene_{scene:02d}", "provided"],
+                    "tags": ["storm_sainte_pelle", npc_key, semantic_key, policy.lower(), "provided"],
+                    "semantic_key": semantic_key, "speaker": npc_key, "building_key": building_key,
+                    "variant_group": semantic_key, "variant_index": variant,
+                    "storm_beta_policy": policy, "semantic_intent": intent,
                 })
                 clips.append({
-                    "key": f"scene_{scene:02d}_{variant:02d}",
-                    "name": f"Scène {scene:02d} · variante {variant:02d}",
-                    "trigger": "manual", "audio_key": audio_key,
-                    "text": "Information importante également disponible dans les textes du scénario.",
-                    "metadata": {"provided_file": f"{stem}.mp3", "scene_index": scene},
+                    "key": f"{semantic_key}_{variant}", "name": f"{semantic_key} · variante {variant}",
+                    "trigger": intent if policy != "MANUEL_DESACTIVE_BETA" else "manual",
+                    "audio_key": audio_key, "text": text,
+                    "metadata": {"provided_file": f"{stem}.mp3", "scene_index": int(scene),
+                                 "semantic_key": semantic_key, "speaker": npc_key,
+                                 "building_key": building_key, "variant_group": semantic_key,
+                                 "variant_index": variant, "storm_beta_policy": policy,
+                                 "semantic_intent": intent, "priority": "building_interaction"},
                 })
         profile["clips"] = clips
         profile["tags"] = ["storm_sainte_pelle", "provided"]
+        profile["metadata"] = {"speaker": npc_key, "building_key": building_key,
+                               "semantic_routing": True, "scenario_key": "storm_sainte_pelle"}
         profile["missing_assets_status"] = "Voix fournie — scènes événementielles exactes listées dans le rapport audio"
     settings["live_ops"] = {
         "scenario_duration_minutes": 180, "status": "preparation",
@@ -803,3 +857,22 @@ def _finish_events_and_quests(rows: list[dict[str, Any]], settings: dict[str, An
             "audio": 0, "audio_group": 1, "voice_profile": 1, "voice_presence": 2,
             "building": 3, "npc": 4, "event": 4, "quest": 5}
     return sorted(rows, key=lambda row: rank.get(row["type"], 0))
+
+
+def audit_storm_voice_mapping(rows: list[dict[str, Any]]) -> dict[str, int]:
+    """Audit machine-readable du pack vocal officiel publié."""
+    audio = {row["key"]: row["payload"] for row in rows if row["type"] == "audio"}
+    clips = [clip for row in rows if row["type"] == "voice_profile"
+             and row["key"] in {"voice_edgar", "voice_roland", "voice_wagner"}
+             for clip in row["payload"].get("clips", [])]
+    mapped = [clip for clip in clips if clip.get("metadata", {}).get("semantic_key")]
+    root = Path(__file__).parent
+    found = sum((root / audio[clip["audio_key"]]["storage_path"]).is_file()
+                for clip in clips if clip.get("audio_key") in audio)
+    return {
+        "expected": 80, "found": found, "mapped": len(mapped),
+        "missing": 80 - found,
+        "auto_routable": sum(c["metadata"].get("storm_beta_policy") == "AUTO_CONTEXTUEL" for c in mapped),
+        "scenario_disabled_rumours": sum(c["metadata"].get("storm_beta_policy") == "MANUEL_DESACTIVE_BETA" for c in mapped),
+        "conditional_closing": sum(c["metadata"].get("storm_beta_policy") == "CONDITIONNEL_FERMETURE" for c in mapped),
+    }
