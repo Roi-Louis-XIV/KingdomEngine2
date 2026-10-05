@@ -19,6 +19,7 @@ from kingdomCore.engine import GameEngine
 from kingdomCore.discord_bot import InterfaceView, QuestBoardView, grant_oath_reward
 from KingdomVoice.bot_manager import ManagedVoiceBot
 from kingdomEvent.lifecycle import EventLifecycle
+from import_v1 import actions_from_modules
 
 
 def _world(tmp_path, name="world"):
@@ -95,6 +96,11 @@ def test_quest_board_and_mine_repair_survive_restart(tmp_path):
     with world.connection() as db:
         count = db.execute("SELECT COALESCE(SUM(amount),0) FROM collective_contributions WHERE objective_key='storm_mine_repaired'").fetchone()[0]
     assert count == 1
+    mine_interface = world.get("building", "deep_mine", published=True)["payload"]["interface"]
+    repaired_view = InterfaceView(restarted, mine_interface, page_key="home", owner_id=42)
+    repaired_labels = {str(getattr(item, "label", "")) for item in repaired_view.children}
+    assert "Sécuriser la galerie" not in repaired_labels
+    assert "Apporter des matériaux" not in repaired_labels
 
 
 def test_storm_player_ui_timeline_is_clean_and_lore_first(tmp_path):
@@ -106,37 +112,79 @@ def test_storm_player_ui_timeline_is_clean_and_lore_first(tmp_path):
     def home(key):
         return next(page for page in buildings[key]["interface"]["pages"] if page["key"] == "home")
 
-    church = home("saint_shovel_church")
-    labels = [item.get("props", {}).get("label") for item in church["components"] if item.get("type") == "button"]
-    assert "Prier" in labels
-    worksite = next(item for item in church["components"] if item.get("id") == "storm_nav_church_worksite")
-    assert not engine.condition_met("42", "saint_shovel_church", "worksite", worksite["visibility_conditions"])
-    collective = next(item for item in home("market_square")["components"] if item.get("id") == "storm_nav_storm_collective")
+    church_definition = buildings["saint_shovel_church"]["interface"]
+    church_view = InterfaceView(engine, church_definition, page_key="home", owner_id=42)
+    labels = [str(getattr(item, "label", "")) for item in church_view.children]
+    assert labels == ["Prier", "Parler au prêtre"]
+    collective = next(item for item in home("market_square")["components"] if item.get("id") == "ux_nav_place_collective")
     assert not engine.condition_met("42", "market_square", "collective", collective["visibility_conditions"])
-    assert any(item.get("id") == "storm_quest_nav" for item in home("market_square")["components"])
-    for payload in buildings.values():
-        buttons = [item for item in next(page for page in payload["interface"]["pages"] if page["key"] == "home")["components"]
-                   if item.get("type") in {"button", "select"}]
-        assert len(buttons) <= 5
+    assert any(item.get("id") == "ux_nav_place_quests" for item in home("market_square")["components"])
+    for key in ("market_square", "edgar_tavern", "deep_mine", "royal_forge", "forester_lodge", "old_bridge", "saint_shovel_church"):
+        view = InterfaceView(engine, buildings[key]["interface"], page_key="home", owner_id=42)
+        assert len(view.children) <= 5, (key, [getattr(item, "label", "") for item in view.children])
     visible = json.dumps(world_preset("storm_sainte_pelle"), ensure_ascii=False)
     assert all(marker not in visible for marker in ("Fête du Royaume", "Préparatifs", "BALANCE_DRAFT / À VALIDER"))
+
+    damaged_world = _world(tmp_path, "ui-damaged")
+    WorldCreatorService(damaged_world).start_live_operations(now=time.time() - 111 * 60)
+    damaged_interface = damaged_world.get("building", "saint_shovel_church", published=True)["payload"]["interface"]
+    damaged_view = InterfaceView(GameEngine(damaged_world), damaged_interface, page_key="home", owner_id=42)
+    assert [str(getattr(item, "label", "")) for item in damaged_view.children] == ["Examiner les dégâts", "Parler au prêtre"]
 
     later = _world(tmp_path, "ui-later")
     WorldCreatorService(later).start_live_operations(now=time.time() - 121 * 60)
     later_engine = GameEngine(later)
-    later_church = next(page for page in later.get("building", "saint_shovel_church", published=True)["payload"]["interface"]["pages"] if page["key"] == "home")
-    later_worksite = next(item for item in later_church["components"] if item.get("id") == "storm_nav_church_worksite")
-    assert later_engine.condition_met("42", "saint_shovel_church", "worksite", later_worksite["visibility_conditions"])
-    damaged = next(item for item in later_church["components"] if item.get("id") == "church_state_damaged")
-    assert later_engine.condition_met("42", "saint_shovel_church", "damaged", damaged["visibility_conditions"])
     church_definition = later.get("building", "saint_shovel_church", published=True)["payload"]["interface"]
-    waiting = InterfaceView(later_engine, church_definition, page_key="church_worksite", owner_id=42)
+    open_view = InterfaceView(later_engine, church_definition, page_key="home", owner_id=42)
+    assert {str(getattr(item, "label", "")) for item in open_view.children} == {
+        "Dégager l'arbre", "Apporter des matériaux", "Participer au chantier", "Voir l'effort collectif",
+    }
+    waiting = InterfaceView(later_engine, church_definition, page_key="ux_church_clear", owner_id=42)
     assert not any(str(getattr(item, "label", "")).startswith("Terminer") for item in waiting.children)
     asyncio.run(later_engine.execute("42", "saint_shovel_church", "start_church_tree_cleared", "tree-start"))
     with later.connection() as db:
         db.execute("UPDATE scheduled_actions SET ready_at=0 WHERE discord_id='42' AND action_key='church_tree_cleared'")
-    ready = InterfaceView(later_engine, church_definition, page_key="church_worksite", owner_id=42)
+    ready = InterfaceView(later_engine, church_definition, page_key="ux_church_clear", owner_id=42)
     assert any(str(getattr(item, "label", "")).startswith("Terminer") for item in ready.children)
+
+    mine_interface = later.get("building", "deep_mine", published=True)["payload"]["interface"]
+    mine_view = InterfaceView(later_engine, mine_interface, page_key="home", owner_id=42)
+    mine_labels = {str(getattr(item, "label", "")) for item in mine_view.children}
+    assert {"Sécuriser la galerie", "Apporter des matériaux", "Parler à Roland"} <= mine_labels
+
+    storm = _world(tmp_path, "ui-storm")
+    WorldCreatorService(storm).start_live_operations(now=time.time() - 91 * 60)
+    forest_interface = storm.get("building", "forester_lodge", published=True)["payload"]["interface"]
+    assert InterfaceView(GameEngine(storm), forest_interface, page_key="home", owner_id=42).embed().title.endswith("Tempête en forêt")
+
+
+def test_storm_discord_ux_routes_and_actions_are_real():
+    rows = world_preset("storm_sainte_pelle")
+    buildings = {row["key"]: row["payload"] for row in rows if row["type"] == "building"}
+    main = {"market_square", "edgar_tavern", "deep_mine", "royal_forge", "forester_lodge", "old_bridge", "saint_shovel_church"}
+    settings = next(row["payload"] for row in rows if row["type"] == "server_settings" and row["key"] == "kingdom_server")
+    assert settings["template_revision"] == 6
+    assert all(not any(page["key"] == "storm_services" for page in buildings[key]["interface"]["pages"]) for key in main)
+    for key in main:
+        interface = buildings[key]["interface"]
+        pages = {page["key"] for page in interface["pages"]}
+        assert "home" in pages
+        for page in interface["pages"]:
+            for component in page.get("components", []):
+                interaction = component.get("interaction", {})
+                if interaction.get("type") == "navigate":
+                    assert interaction["page"] in pages, (key, component["id"], interaction["page"])
+                elif interaction.get("type") == "action":
+                    target = interaction["building"]
+                    target_building = buildings[target]
+                    actions = (actions_from_modules(target, target_building.get("modules", {}))
+                               if target_building.get("action_mode") == "generated"
+                               else target_building.get("actions", []))
+                    action_keys = {item["key"] for item in actions}
+                    assert interaction["action"] in action_keys, (key, component["id"], interaction["action"])
+    bridge_home = next(page for page in buildings["old_bridge"]["interface"]["pages"] if page["key"] == "home")
+    fish = next(component for component in bridge_home["components"] if component.get("props", {}).get("label") == "Pêcher")
+    assert fish["interaction"] == {"type": "action", "building": "old_bridge", "action": "fish_old_bridge"}
 
 
 def test_fishing_completes_p14_and_delivers_two_real_fish(tmp_path):

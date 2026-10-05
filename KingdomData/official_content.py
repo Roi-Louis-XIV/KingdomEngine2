@@ -116,7 +116,7 @@ class OfficialContentStore:
                         "SELECT 1 FROM official_content_entities WHERE pack_id=? AND entity_type='audio' LIMIT 1",
                         (current["id"],),
                     ).fetchone()
-                    required_revisions = {"royal_festival": 4, "storm_sainte_pelle": 5}
+                    required_revisions = {"royal_festival": 4, "storm_sainte_pelle": 6}
                     required_revision = required_revisions.get(key, 0)
                     needs_bundled_update = current_revision < required_revision if required_revision else not has_audio
                     if key == "royal_festival" and settings_row:
@@ -136,6 +136,7 @@ class OfficialContentStore:
                         # révision sauvegardée (draft ou workspace:*), et non
                         # plus vers le pack legacy courant.
                         self._sync_storm_voice_workspaces(db, key, world_preset(key))
+                        self._sync_storm_interface_workspaces(db, key, world_preset(key))
                     continue
                 now = _now()
                 cursor = db.execute(
@@ -208,6 +209,51 @@ class OfficialContentStore:
             logger.info("storm voice workspace: token=%s pack_id=%s origin=%s path=%s before=%s after=%s",
                         f"{entry['workspace_token'][:8]}…", entry["pack_id"], entry["origin"],
                         entry["database_path"], before, after)
+        return report
+
+    @staticmethod
+    def _sync_storm_interface_workspaces(
+        platform_db: sqlite3.Connection, pack_key: str, bundled_entities: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Met à niveau uniquement les interfaces Discord officielles des ateliers existants."""
+        from .store import ContentStore
+
+        building_keys = {
+            "market_square", "edgar_tavern", "deep_mine", "royal_forge",
+            "forester_lodge", "old_bridge", "saint_shovel_church",
+        }
+        bundled = {entity["key"]: deepcopy(entity["payload"]["interface"])
+                   for entity in bundled_entities
+                   if entity["type"] == "building" and entity["key"] in building_keys}
+        workspaces = platform_db.execute(
+            "SELECT DISTINCT w.workspace_token,w.pack_id,w.database_path,p.origin "
+            "FROM official_edit_workspaces w JOIN official_content_packs p ON p.id=w.pack_id "
+            "WHERE p.pack_key=? AND p.content_type='world_template'", (pack_key,),
+        ).fetchall()
+        report: list[dict[str, Any]] = []
+        for row in workspaces:
+            path = Path(row["database_path"])
+            if not path.is_file():
+                continue
+            world = ContentStore(path); world.initialize()
+            changed: list[str] = []
+            for building_key, official_interface in bundled.items():
+                try:
+                    current = world.get("building", building_key)
+                except KeyError:
+                    continue
+                if current["payload"].get("interface") == official_interface:
+                    continue
+                payload = deepcopy(current["payload"])
+                payload["interface"] = deepcopy(official_interface)
+                updated = world.save("building", building_key, payload, "bundled-discord-ux-r6",
+                                     expected_version=current["version"])
+                if current["status"] == "published":
+                    world.publish("building", building_key, updated["version"], "bundled-discord-ux-r6")
+                changed.append(building_key)
+            report.append({"workspace_token": str(row["workspace_token"]), "changed": changed})
+            logger.info("storm discord UX workspace: token=%s changed=%s",
+                        f"{str(row['workspace_token'])[:8]}…", changed)
         return report
 
     def catalog_state(self, key: str, *, content_type: str = "world_template") -> dict[str, Any]:
@@ -425,6 +471,7 @@ class OfficialContentStore:
             )
             if key == "storm_sainte_pelle" and content_type == "world_template":
                 self._sync_storm_voice_workspaces(db, key, world_preset(key))
+                self._sync_storm_interface_workspaces(db, key, world_preset(key))
             db.commit()
         return {"workspace_token": token, "server_slug": f"official--{token}",
                 "database_path": str(path), "template": pack}

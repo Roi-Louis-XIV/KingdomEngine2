@@ -167,7 +167,7 @@ def build_storm_template(source: list[dict[str, Any]]) -> list[dict[str, Any]]:
     settings = _row(rows, "server_settings", "kingdom_server")
     settings.update(name="La Tempête de la Sainte Pelle",
                     description="Bêta coopérative de trois heures, depuis le vieux pont jusqu'à l'église.",
-                    template_revision=5, balance_status=BALANCE)
+                    template_revision=6, balance_status=BALANCE)
     settings["onboarding"].update(
         starting_money=100,
         currency_label="écus",
@@ -641,6 +641,194 @@ def _finish_template(rows: list[dict[str, Any]], buildings: dict[str, dict[str, 
     return _finish_events_and_quests(rows, settings)
 
 
+def _rebuild_discord_building_ux(rows: list[dict[str, Any]]) -> None:
+    """Compose les sept scènes Discord de la bêta sans modifier leur gameplay."""
+    buildings = {row["key"]: row["payload"] for row in rows if row["type"] == "building"}
+
+    def cond(component: dict[str, Any], value: dict[str, Any]) -> dict[str, Any]:
+        component["visibility_conditions"] = value
+        return component
+
+    def hero(key: str, title: str, text: str, emoji: str,
+             visible: dict[str, Any] | None = None) -> dict[str, Any]:
+        item = {"id": f"ux_hero_{key}", "type": "hero",
+                "props": {"title": title, "subtitle": text, "emoji": emoji}}
+        return cond(item, visible) if visible else item
+
+    def text(key: str, value: str, visible: dict[str, Any] | None = None) -> dict[str, Any]:
+        item = {"id": f"ux_text_{key}", "type": "text", "props": {"text": value}}
+        return cond(item, visible) if visible else item
+
+    def nav(key: str, label: str, page: str, slot: int, emoji: str = "🧭",
+            visible: dict[str, Any] | None = None, style: str = "secondary") -> dict[str, Any]:
+        item = {"id": f"ux_nav_{key}", "type": "button", "slot": slot,
+                "props": {"label": label, "emoji": emoji, "style": style},
+                "interaction": {"type": "navigate", "page": page}}
+        return cond(item, visible) if visible else item
+
+    def action(building: str, key: str, label: str, slot: int, emoji: str = "⚙️",
+               visible: dict[str, Any] | None = None) -> dict[str, Any]:
+        item = _button(building, key, label, slot, emoji=emoji, conditions=visible)
+        item["id"] = f"ux_{building}_{key}_{slot}"[:64]
+        return item
+
+    def back(key: str, slot: int = 24) -> dict[str, Any]:
+        return nav(f"back_{key}", "Retour", "home", slot, "↩️")
+
+    def page(key: str, name: str, components: list[dict[str, Any]]) -> dict[str, Any]:
+        return {"key": key, "name": name, "components": components}
+
+    def apply(building_key: str, home: list[dict[str, Any]], added: list[dict[str, Any]]) -> None:
+        interface = buildings[building_key]["interface"]
+        retained = [item for item in interface.get("pages", [])
+                    if item.get("key") not in {"home", "storm_services", *(item["key"] for item in added)}]
+        interface["pages"] = [page("home", "Accueil", home), *added, *retained]
+        interface["start_page"] = interface["entry_page"] = "home"
+
+    # Une vraie action conserve le même pipeline moteur que les autres boutons.
+    church = buildings["saint_shovel_church"]
+    if not any(item.get("key") == "talk_priest" for item in church["actions"]):
+        church["actions"].append({
+            "key": "talk_priest", "name": "Parler au prêtre", "emoji": "💬", "enabled": True,
+            "effects": [{"type": "random_message", "choices": [
+                {"key": "before", "weight": 1, "text": "Le prêtre vous accueille dans la vieille église et vous invite à garder courage."},
+                {"key": "work", "weight": 1, "text": "Le prêtre remercie les habitants : chaque geste compte pour relever la Sainte Pelle."},
+            ]}],
+        })
+
+    # Place du village : quatre destinations lisibles, le collectif n'apparaît qu'à T+120.
+    apply("market_square", [
+        hero("place", "Place du village", "Le cœur vivant du Royaume : annonces, météo et habitants s'y croisent.", "⛲"),
+        {"id": "ux_place_weather", "type": "world_weather", "props": {"title": "Météo actuelle"}},
+        {"id": "ux_place_calendar", "type": "world_calendar", "props": {"title": "Calendrier du Royaume"}},
+        nav("place_quests", "Panneau des quêtes", "ux_quests", 0, "📜", style="primary"),
+        nav("place_kingdom", "Informations du Royaume", "ux_kingdom", 1, "👑"),
+        nav("place_locations", "Lieux du Royaume", "ux_locations", 2, "🗺️"),
+        nav("place_collective", "Chantier de l'église", "storm_collective", 3, "⛪", _minute(120)),
+    ], [
+        page("ux_quests", "Quêtes", [hero("quests", "Panneau des quêtes", "Choisissez, suivez et réclamez votre quête personnelle.", "📜"),
+             {"id": "ux_open_quests", "type": "button", "slot": 0, "props": {"label": "Voir mes quêtes", "emoji": "📜", "style": "primary"}, "interaction": {"type": "quest_board"}}, back("quests", 1)]),
+        page("ux_kingdom", "Royaume", [hero("kingdom", "Le Royaume en direct", "Les informations utiles, sans quitter la place.", "👑"),
+             {"id": "ux_kingdom_weather", "type": "world_weather", "props": {"title": "Météo"}},
+             {"id": "ux_kingdom_calendar", "type": "world_calendar", "props": {"title": "Calendrier"}}, back("kingdom", 0)]),
+        page("ux_locations", "Lieux", [hero("locations", "Lieux du Royaume", "Taverne, mine, forge, forêt, vieux pont et église sont ouverts aux voyageurs.", "🗺️"),
+             text("locations_list", "🍺 À la Gueuse Cocu · ⛏️ Mine de Roland · 🔥 Forge du Dragon Noir\n🌲 Forêt de Sylvain · 🌉 Vieux pont · ⛪ Église de la Sainte Pelle"), back("locations", 0)]),
+    ])
+
+    # Taverne : Edgar, consommation, cuisine et comptoir.
+    apply("edgar_tavern", [
+        hero("tavern", "À la Gueuse Cocu", "Le feu crépite, les bancs sont serrés et Edgar veille derrière son comptoir.", "🍺"),
+        text("tavern_storm", "Dehors, les rafales secouent les volets. Ici, le feu tient bon.", {"all": [_minute(90), _minute(105, "<")]}),
+        nav("tavern_edgar", "Parler à Edgar", "ux_tavern_edgar", 0, "💬", style="primary"),
+        nav("tavern_food", "Manger et boire", "ux_tavern_food", 1, "🍲"),
+        nav("tavern_kitchen", "Cuisiner", "ux_tavern_kitchen", 2, "👨‍🍳"),
+        nav("tavern_counter", "Comptoir et livraisons", "ux_tavern_counter", 3, "📦"),
+    ], [
+        page("ux_tavern_edgar", "Edgar", [hero("edgar", "Edgar Brassebarbe", "L'aubergiste connaît les nouvelles, les besoins et les rumeurs du village.", "🧔"), action("edgar_tavern", "talk_npc", "Discuter avec Edgar", 0, "💬"), back("edgar", 1)]),
+        page("ux_tavern_food", "Manger et boire", [hero("food", "La carte d'Edgar", "Choisissez une boisson ou un plat réellement disponible.", "🍲"), nav("food_drink", "Boissons", "drink", 0, "🍺"), nav("food_eat", "Plats", "eat", 1, "🍖"), back("food", 2)]),
+        page("ux_tavern_kitchen", "Cuisine", [hero("kitchen", "Les marmites", "Préparez les provisions puis récupérez-les lorsqu'elles sont prêtes.", "🍲"), action("edgar_tavern", "cook_storm_ration", "Préparer deux provisions", 0, "🔥"), action("edgar_tavern", "claim_cook_storm_ration", "Récupérer les provisions", 1, "✅"), nav("kitchen_more", "Toutes les recettes", "kitchen", 2, "📖"), back("kitchen", 3)]),
+        page("ux_tavern_counter", "Comptoir", [hero("counter", "Comptoir et livraisons", "Consultez le stock et remettez à Edgar les ressources demandées.", "📦"), nav("counter_stock", "Stock", "stock", 0, "📊"), nav("counter_delivery", "Livrer", "storm_delivery", 1, "📦"), back("counter", 2)]),
+    ])
+
+    mine_normal = {"any": [_minute(96, "<"), _progress("storm_mine_repaired", "progress", 1)]}
+    mine_incident = {"all": [_minute(96), _progress("storm_mine_repaired", "progress", 1, "<")]}
+    mine_repair = {"all": [_minute(105), _progress("storm_mine_repaired", "progress", 1, "<")]}
+    apply("deep_mine", [
+        hero("mine_normal", "Mine de Roland", "Les galeries résonnent sous les coups de pioche. Roland surveille chaque étai.", "⛏️", mine_normal),
+        hero("mine_incident", "Galerie inondée", "La galerie basse est endommagée. Roland organise sa sécurisation.", "🚨", mine_incident),
+        text("mine_secured", "✅ Galerie basse sécurisée. La production a repris normalement.", _progress("storm_mine_repaired", "progress", 1)),
+        cond({"id": "ux_mine_wood", "type": "collective_objective", "props": {"objective_key": "mine_wood", "title": "Bois", "target": 8, "unit": "bois"}}, mine_repair),
+        cond({"id": "ux_mine_stone", "type": "collective_objective", "props": {"objective_key": "mine_stone", "title": "Pierre", "target": 8, "unit": "pierres"}}, mine_repair),
+        nav("mine_roland", "Parler à Roland", "ux_mine_roland", 0, "💬", style="primary"),
+        nav("mine_work", "Travailler à la mine", "ux_mine_work", 1, "⛏️", mine_normal),
+        nav("mine_stock", "Stock et livraisons", "ux_mine_stock", 2, "📦", mine_normal),
+        nav("mine_explore", "Explorer les galeries", "galleries", 3, "🕯️", mine_normal),
+        nav("mine_incident", "Constater les dégâts", "ux_mine_incident", 4, "🔎", mine_incident),
+        nav("mine_repair", "Sécuriser la galerie", "storm_incident", 5, "🛠️", mine_repair, "primary"),
+        nav("mine_supplies", "Apporter des matériaux", "storm_incident", 6, "📦", mine_repair),
+    ], [
+        page("ux_mine_roland", "Roland", [hero("roland", "Roland DuPoivron", "Le contremaître connaît l'état des galeries et les besoins des mineurs.", "⛏️"), action("deep_mine", "talk_npc", "Parler à Roland", 0, "💬"), back("roland", 1)]),
+        page("ux_mine_work", "Extraction", [hero("mine_work", "Travailler à la mine", "Choisissez une production ; sa récupération reste individuelle.", "⛏️"), nav("mine_storm_resources", "Pierre et minerai", "storm_resources", 0, "🪨"), nav("mine_galleries", "Galeries", "galleries", 1, "🕯️"), back("mine_work", 2)]),
+        page("ux_mine_stock", "Stock", [hero("mine_stock", "Stock et livraisons", "Consultez les réserves ou livrez vos ressources.", "📦"), nav("mine_stock_page", "Consulter le stock", "stock_delivery", 0, "📊"), nav("mine_delivery_page", "Livrer", "storm_delivery", 1, "📦"), back("mine_stock", 2)]),
+        page("ux_mine_incident", "Incident", [hero("mine_damage", "La galerie basse", "L'eau et les pierres ont endommagé les étais. Le chantier de sécurisation ouvre après la tempête.", "🚨"),
+             text("mine_wait", "Roland attend l'accalmie avant d'engager les habitants.", {"all": [_minute(96), _minute(105, "<")]}),
+             nav("mine_damage_repair", "Ouvrir le chantier", "storm_incident", 0, "🛠️", mine_repair, "primary"), back("mine_damage", 1)]),
+    ])
+
+    apply("royal_forge", [
+        hero("forge", "Forge Dorée", "Wagner travaille le métal au rythme du soufflet et des étincelles.", "⚒️"),
+        nav("forge_wagner", "Parler à Wagner", "ux_forge_wagner", 0, "💬", style="primary"),
+        nav("forge_work", "Forger", "ux_forge_work", 1, "🔨"),
+        nav("forge_repair_home", "Réparer un équipement", "repairs", 2, "🛠️"),
+        nav("forge_stock", "Matériaux et commandes", "ux_forge_stock", 3, "📦"),
+    ], [
+        page("ux_forge_wagner", "Wagner", [hero("wagner", "Wagner", "Le forgeron sait ce qui peut être fondu, forgé ou réparé.", "🔨"), action("royal_forge", "talk_npc", "Parler à Wagner", 0, "💬"), back("wagner", 1)]),
+        page("ux_forge_work", "Atelier", [hero("forge_work", "Fourneaux et enclumes", "Choisissez un atelier ; les productions prêtes restent récupérables une seule fois.", "🔥"), nav("forge_smelt", "Fondre", "smelt", 0, "🔥"), nav("forge_craft", "Fabriquer", "craft", 1, "🔨"), nav("forge_repair", "Réparer", "repairs", 2, "🧰"), nav("forge_church", "Ferrures de l'église", "storm_workshop", 3, "⛪"), back("forge_work", 4)]),
+        page("ux_forge_stock", "Matériaux", [hero("forge_stock", "Matériaux et commandes", "Suivez les réserves de l'atelier et les commandes en cours.", "📦"), nav("forge_stock_page", "Consulter le stock", "stock", 0, "📊"), nav("forge_delivery", "Livrer", "storm_delivery", 1, "📦"), nav("forge_shop", "Boutique", "shop", 2, "🛒"), back("forge_stock", 3)]),
+    ])
+
+    forest_storm = {"all": [_minute(90), _minute(105, "<")]}
+    forest_normal = {"any": [_minute(90, "<"), _minute(105)]}
+    apply("forester_lodge", [
+        hero("forest", "Forêt de Sylvain", "Sous les grands chênes, Sylvain lit les traces et écoute le vent.", "🌲", forest_normal),
+        hero("forest_storm", "Tempête en forêt", "Le vent rend la coupe dangereuse : le rendement est temporairement réduit à 75 %.", "⛈️", forest_storm),
+        nav("forest_sylvain", "Parler à Sylvain", "ux_forest_sylvain", 0, "💬", style="primary"),
+        nav("forest_work", "Travailler en forêt", "ux_forest_work", 1, "🪓"),
+        nav("forest_zones", "Explorer les zones", "zones_forester", 2, "🗺️"),
+        nav("forest_stock", "Stock et livraisons", "ux_forest_stock", 3, "📦"),
+    ], [
+        page("ux_forest_sylvain", "Sylvain", [hero("sylvain", "Sylvain", "Le garde forestier connaît les zones sûres et les besoins du village.", "🌲"), action("forester_lodge", "talk_npc", "Parler à Sylvain", 0, "💬"), back("sylvain", 1)]),
+        page("ux_forest_work", "Travail", [hero("forest_work", "Travail en forêt", "Coupez le bois utile ou partez chasser dans les zones autorisées.", "🪓"), nav("forest_resources", "Couper du bois", "storm_resources", 0, "🪵"), nav("forest_hunt", "Chasser", "zones_hunter", 1, "🏹"), back("forest_work", 2)]),
+        page("ux_forest_stock", "Stock", [hero("forest_stock", "Stock et livraisons", "Consultez les réserves ou livrez le bois demandé.", "📦"), nav("forest_inventory", "Stock", "inventories", 0, "📊"), nav("forest_delivery", "Livrer", "storm_delivery", 1, "📦"), back("forest_stock", 2)]),
+    ])
+
+    apply("old_bridge", [
+        hero("bridge", "Vieux pont", "Le vieux pont franchit la rivière sombre qui longe la vallée.", "🌉"),
+        text("bridge_storm", "⛈️ Le pont vibre sous les rafales mais reste praticable.", {"all": [_minute(90), _minute(105, "<")]}),
+        action("old_bridge", "fish_old_bridge", "Pêcher", 0, "🎣"),
+        action("old_bridge", "claim_fish_old_bridge", "Récupérer les poissons", 1, "✅"),
+        nav("bridge_cross", "Traverser", "bridge_route", 2, "🥾"),
+    ], [])
+
+    church_before = _minute(110, "<")
+    church_damage = {"all": [_minute(110), _minute(120, "<")]}
+    church_open = _minute(120)
+    counters = [
+        ("church_tree_cleared", "Arbre dégagé", 3, "actions"), ("church_wood", "Bois", 40, "bois"),
+        ("church_stone", "Pierre", 28, "pierres"), ("church_brackets", "Ferrures", 4, "ferrures"),
+        ("church_provisions", "Provisions", 8, "portions"), ("church_assembly", "Assemblages", 2, "actions"),
+    ]
+    counter_components = [{"id": f"ux_counter_{key}", "type": "collective_objective",
+                           "props": {"objective_key": key, "title": title, "target": target, "unit": unit}}
+                          for key, title, target, unit in counters]
+    apply("saint_shovel_church", [
+        hero("church_before", "Église de la Sainte Pelle", "Une petite église vétuste. Le prêtre entretient les lieux malgré les tuiles fatiguées.", "⛪", church_before),
+        hero("church_damage", "L'arbre est tombé", "La toiture est endommagée. Le parvis reste sûr, mais le chantier n'est pas encore ouvert.", "🌳", church_damage),
+        hero("church_open", "Chantier de la Sainte Pelle", "Les habitants peuvent désormais dégager, livrer et assembler ensemble.", "🛠️", church_open),
+        *[cond(deepcopy(item), church_open) for item in counter_components],
+        action("saint_shovel_church", "pray_saint_shovel", "Prier", 0, "🙏", church_before),
+        nav("church_priest_before", "Parler au prêtre", "ux_church_priest", 1, "💬", church_before),
+        nav("church_examine", "Examiner les dégâts", "ux_church_damage", 2, "🔎", church_damage, "primary"),
+        nav("church_priest_damage", "Parler au prêtre", "ux_church_priest", 3, "💬", church_damage),
+        nav("church_clear", "Dégager l'arbre", "ux_church_clear", 4, "🪓", church_open, "primary"),
+        nav("church_materials", "Apporter des matériaux", "ux_church_materials", 5, "📦", church_open),
+        nav("church_participate", "Participer au chantier", "ux_church_participate", 6, "🛠️", church_open),
+        nav("church_collective", "Voir l'effort collectif", "ux_church_collective", 7, "📜", church_open),
+    ], [
+        page("ux_church_priest", "Le prêtre", [hero("priest", "Le prêtre de la Sainte Pelle", "Il accueille les voyageurs et veille sur la communauté.", "🙏"), action("saint_shovel_church", "talk_priest", "Parler au prêtre", 0, "💬"), back("priest", 1)]),
+        page("ux_church_damage", "Dégâts", [hero("church_damage_page", "La toiture endommagée", "Un arbre a traversé une partie de la toiture. Le chantier ouvrira à T+120.", "🌳"), back("church_damage", 0)]),
+        page("ux_church_clear", "Dégager", [hero("church_clear", "Dégager l'arbre", "Lancez l'activité, puis revenez récupérer votre contribution lorsqu'elle est prête.", "🪓"), action("saint_shovel_church", "start_church_tree_cleared", "Dégager l'arbre", 0, "🪓"), action("saint_shovel_church", "claim_church_tree_cleared", "Terminer le dégagement", 1, "✅"), back("church_clear", 2)]),
+        page("ux_church_materials", "Matériaux", [hero("church_materials", "Matériaux du chantier", "Les dépôts sont effectués ici, à l'église.", "📦"),
+             action("saint_shovel_church", "deposit_church_wood_1", "Déposer 1 bois", 0, "🪵"), action("saint_shovel_church", "deposit_church_wood_8", "Déposer 8 bois", 1, "🪵"),
+             action("saint_shovel_church", "deposit_church_stone_1", "Déposer 1 pierre", 2, "🪨"), action("saint_shovel_church", "deposit_church_stone_8", "Déposer 8 pierres", 3, "🪨"),
+             action("saint_shovel_church", "deposit_church_brackets_1", "Déposer 1 ferrure", 4, "🔩"), action("saint_shovel_church", "deposit_church_provisions_2", "Déposer 2 provisions", 5, "🍲"), back("church_materials", 6)]),
+        page("ux_church_participate", "Participer", [hero("church_participate", "Assembler la charpente", "Lorsque les prérequis sont réunis, assemblez les premiers éléments.", "🛠️"), action("saint_shovel_church", "start_church_assembly", "Assembler la charpente", 0, "🛠️"), action("saint_shovel_church", "claim_church_assembly", "Terminer l'assemblage", 1, "✅"), back("church_participate", 2)]),
+        page("ux_church_collective", "Effort collectif", [hero("church_collective", "Effort collectif", "La progression réelle du chantier, partagée par tout le Royaume.", "📜"),
+             *[{**deepcopy(item), "id": item["id"].replace("ux_counter_", "ux_collective_")} for item in counter_components],
+             back("church_collective", 0)]),
+    ])
+
+
 def _finish_events_and_quests(rows: list[dict[str, Any]], settings: dict[str, Any]) -> list[dict[str, Any]]:
     forest_slow = [{"property": "production.quantity", "operator": "multiply", "value": 0.75,
                     "target": {"type": "building", "key": "forester_lodge"}}]
@@ -774,6 +962,8 @@ def _finish_events_and_quests(rows: list[dict[str, Any]], settings: dict[str, An
                 goal["description"] = f"{action_names.get((target, goal['action_key']), 'Terminer l’activité')} · {names.get(target, target)}"
         rows.append(item)
 
+    _rebuild_discord_building_ux(rows)
+
     obsolete_market_pages = {"preparations", "contribution", "announcements"}
     market = next(row["payload"] for row in rows if row["type"] == "building" and row["key"] == "market_square")
     market_interface = market.get("interface", {})
@@ -782,53 +972,6 @@ def _finish_events_and_quests(rows: list[dict[str, Any]], settings: dict[str, An
     for page in market_interface.get("pages", []):
         page["components"] = [component for component in page.get("components", [])
                               if component.get("interaction", {}).get("page") not in obsolete_market_pages]
-
-    # Les fonctions héritées restent disponibles, mais les HOME Discord sont
-    # volontairement sobres : lore, PNJ/état, puis un accès aux services.
-    for row in (row for row in rows if row["type"] == "building"):
-        building_key, building = row["key"], row["payload"]
-        if building_key in {"market_square", "old_bridge", "saint_shovel_church"}:
-            continue
-        interface = building.get("interface", {})
-        home = next((page for page in interface.get("pages", []) if page.get("key") == "home"), None)
-        if not home:
-            continue
-        interactive = [component for component in home.get("components", [])
-                       if component.get("type") in {"button", "select"}]
-        if len(interactive) <= 5:
-            continue
-        passive = [component for component in home.get("components", [])
-                   if component.get("type") not in {"button", "select"}]
-        for index, component in enumerate(interactive[:24]):
-            component["slot"] = index
-            label = str(component.get("props", {}).get("label", "")).lower()
-            page_key = str(component.get("interaction", {}).get("page", "")).lower()
-            if building_key == "deep_mine" and ("incident" in label or "incident" in page_key):
-                component["visibility_conditions"] = _minute(105)
-        services_key = "storm_services"
-        interface["pages"] = [page for page in interface.get("pages", []) if page.get("key") != services_key]
-        interface["pages"].append({"key": services_key, "name": "Activités et services", "components": [
-            {"id": f"storm_services_hero_{building_key}", "type": "hero",
-             "props": {"title": building.get("name", "Activités"),
-                       "subtitle": "Choisissez une activité, un service ou une production.",
-                       "emoji": building.get("emoji", "🏰")}},
-            *interactive[:24],
-            {"id": f"storm_services_back_{building_key}", "type": "button", "slot": 24,
-             "props": {"label": "Retour", "emoji": "↩️", "style": "secondary"},
-             "interaction": {"type": "navigate", "page": "home"}},
-        ]})
-        home["components"] = [*passive, {
-            "id": f"storm_services_nav_{building_key}", "type": "button", "slot": 0,
-            "props": {"label": "Activités et services", "emoji": "🧭", "style": "primary"},
-            "interaction": {"type": "navigate", "page": services_key},
-        }]
-
-    # L'église ne propose à T+0 que la prière ; son chantier possède son propre
-    # accès temporisé. Les anciennes actions restent dans les données moteur.
-    church = next(row["payload"] for row in rows if row["type"] == "building" and row["key"] == "saint_shovel_church")
-    church_home = next(page for page in church["interface"]["pages"] if page["key"] == "home")
-    church_home["components"] = [component for component in church_home["components"]
-                                 if component.get("interaction", {}).get("page") != "actions_1"]
 
     def clean_visible_content(value: Any) -> Any:
         if isinstance(value, dict):

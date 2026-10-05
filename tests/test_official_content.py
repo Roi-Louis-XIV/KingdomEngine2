@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from copy import deepcopy
 
 import pytest
 
@@ -47,7 +48,7 @@ def test_existing_kingdom_pack_migrates_in_place_to_revision_four(official):
     assert len(official.list(content_type="world_template", published_only=True)) == 4
 
 
-def test_storm_revision_five_syncs_pack_and_existing_workspaces_without_overwrite(official, tmp_path):
+def test_storm_revision_six_syncs_pack_and_existing_workspaces_without_overwrite(official, tmp_path):
     with official.connection() as db:
         pack_id = db.execute(
             "SELECT id FROM official_content_packs WHERE pack_key='storm_sainte_pelle' "
@@ -101,6 +102,8 @@ def test_storm_revision_five_syncs_pack_and_existing_workspaces_without_overwrit
                 )
     building = old_world.get("building", "edgar_tavern")
     changed = {**building["payload"], "name": "Taverne personnalisée"}
+    changed["interface"] = deepcopy(changed["interface"])
+    next(page for page in changed["interface"]["pages"] if page["key"] == "home")["components"][0]["props"]["title"] = "Ancienne UX"
     saved = old_world.save("building", "edgar_tavern", changed, expected_version=building["version"])
     old_world.publish("building", "edgar_tavern", saved["version"])
     custom_audio = old_world.save("audio", "custom_admin_voice", {
@@ -131,7 +134,7 @@ def test_storm_revision_five_syncs_pack_and_existing_workspaces_without_overwrit
     pack = official.get("storm_sainte_pelle", published_only=True)
     settings = next(entity["payload"] for entity in pack["entities"]
                     if entity["type"] == "server_settings" and entity["key"] == "kingdom_server")
-    assert settings["template_revision"] == 5
+    assert settings["template_revision"] == 6
     assert len([entity for entity in pack["entities"] if entity["type"] == "audio"
                 and entity["key"].startswith("storm_voice_")]) == 80
 
@@ -148,6 +151,9 @@ def test_storm_revision_five_syncs_pack_and_existing_workspaces_without_overwrit
                 "edgar": 28, "roland": 26, "wagner": 26,
             }
     assert migrated.get("building", "edgar_tavern")["payload"]["name"] == "Taverne personnalisée"
+    migrated_tavern = migrated.get("building", "edgar_tavern")["payload"]["interface"]
+    assert next(page for page in migrated_tavern["pages"] if page["key"] == "home")["components"][0]["props"]["title"] == "À la Gueuse Cocu"
+    assert not any(page["key"] == "storm_services" for page in migrated_tavern["pages"])
     assert migrated.get("audio", "custom_admin_voice")["payload"]["name"] == "Voix personnelle"
     expected = {"voice_edgar": 28, "voice_roland": 26, "voice_wagner": 26}
     for key, count in expected.items():
