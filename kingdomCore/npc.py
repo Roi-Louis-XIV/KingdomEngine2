@@ -100,5 +100,9 @@ class NpcEngine:
         for effect in choice.get("effects",[]):
             if effect.get("type")=="state": self.set_memory(npc_key,player_id,str(effect.get("key")),effect.get("value",True))
         result={"response_text":choice.get("response_text",""),"audio_key":choice.get("audio_key",""),"action_key":choice.get("action_key")}
+        audio_key=str(result.get("audio_key") or "")
+        voice=self.voice_agent(npc)
+        if audio_key and voice.get("building_key") and voice.get("configured"):
+            with self.store.connection() as db:self.store.queue_audio(db,"play",voice["building_key"],audio_key=audio_key,context={"source":"npc_dialogue","npc_key":npc_key,"presence_key":voice.get("presence_key"),"node_key":node_key,"choice_key":choice_key,"text":result.get("response_text","")})
         if choice.get("next_node"): result["next"]=self.dialogue(npc_key,player_id,str(choice["next_node"]))
         return result

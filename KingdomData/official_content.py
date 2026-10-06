@@ -116,7 +116,7 @@ class OfficialContentStore:
                         "SELECT 1 FROM official_content_entities WHERE pack_id=? AND entity_type='audio' LIMIT 1",
                         (current["id"],),
                     ).fetchone()
-                    required_revisions = {"royal_festival": 4, "storm_sainte_pelle": 6}
+                    required_revisions = {"royal_festival": 4, "storm_sainte_pelle": 7}
                     required_revision = required_revisions.get(key, 0)
                     needs_bundled_update = current_revision < required_revision if required_revision else not has_audio
                     if key == "royal_festival" and settings_row:
@@ -225,6 +225,10 @@ class OfficialContentStore:
         bundled = {entity["key"]: deepcopy(entity["payload"]["interface"])
                    for entity in bundled_entities
                    if entity["type"] == "building" and entity["key"] in building_keys}
+        bundled_tavern = next(entity["payload"] for entity in bundled_entities
+                              if entity["type"] == "building" and entity["key"] == "edgar_tavern")
+        bundled_edgar = next((entity["payload"] for entity in bundled_entities
+                              if entity["type"] == "npc" and entity["key"] == "edgar"), None)
         workspaces = platform_db.execute(
             "SELECT DISTINCT w.workspace_token,w.pack_id,w.database_path,p.origin "
             "FROM official_edit_workspaces w JOIN official_content_packs p ON p.id=w.pack_id "
@@ -242,15 +246,48 @@ class OfficialContentStore:
                     current = world.get("building", building_key)
                 except KeyError:
                     continue
-                if current["payload"].get("interface") == official_interface:
-                    continue
                 payload = deepcopy(current["payload"])
                 payload["interface"] = deepcopy(official_interface)
-                updated = world.save("building", building_key, payload, "bundled-discord-ux-r6",
+                if building_key == "edgar_tavern":
+                    modules = payload.setdefault("modules", {})
+                    official_modules = bundled_tavern.get("modules", {})
+                    official_station = next((item for item in official_modules.get("workstations", [])
+                                             if item.get("key") == "tavern_cauldrons"), None)
+                    if official_station:
+                        modules["workstations"] = [
+                            *[item for item in modules.get("workstations", [])
+                              if item.get("key") != "tavern_cauldrons"],
+                            deepcopy(official_station),
+                        ]
+                    official_recipes = {item["key"]: item for item in official_modules.get("recipes", [])}
+                    for recipe in modules.get("recipes", []):
+                        official_recipe = official_recipes.get(recipe.get("key"))
+                        if not official_recipe:
+                            continue
+                        for field in ("workstation_key", "preparation_seconds", "transformation_seconds",
+                                      "active_transformation", "preparer_xp_percent",
+                                      "ingredient_source", "output_destination"):
+                            recipe[field] = deepcopy(official_recipe[field])
+                        recipe.pop("shared_mission", None)
+                if payload == current["payload"]:
+                    continue
+                updated = world.save("building", building_key, payload, "bundled-discord-ux-r7",
                                      expected_version=current["version"])
                 if current["status"] == "published":
-                    world.publish("building", building_key, updated["version"], "bundled-discord-ux-r6")
+                    world.publish("building", building_key, updated["version"], "bundled-discord-ux-r7")
                 changed.append(building_key)
+            if bundled_edgar:
+                try:
+                    current_edgar = world.get("npc", "edgar")
+                    if not current_edgar["payload"].get("dialogues"):
+                        npc_payload = deepcopy(current_edgar["payload"])
+                        npc_payload["dialogues"] = deepcopy(bundled_edgar.get("dialogues", []))
+                        updated = world.save("npc", "edgar", npc_payload, "bundled-discord-ux-r7",
+                                             expected_version=current_edgar["version"])
+                        if current_edgar["status"] == "published":
+                            world.publish("npc", "edgar", updated["version"], "bundled-discord-ux-r7")
+                except KeyError:
+                    pass
             report.append({"workspace_token": str(row["workspace_token"]), "changed": changed})
             logger.info("storm discord UX workspace: token=%s changed=%s",
                         f"{str(row['workspace_token'])[:8]}…", changed)

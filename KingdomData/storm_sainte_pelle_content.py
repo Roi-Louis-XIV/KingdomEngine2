@@ -167,7 +167,7 @@ def build_storm_template(source: list[dict[str, Any]]) -> list[dict[str, Any]]:
     settings = _row(rows, "server_settings", "kingdom_server")
     settings.update(name="La Tempête de la Sainte Pelle",
                     description="Bêta coopérative de trois heures, depuis le vieux pont jusqu'à l'église.",
-                    template_revision=6, balance_status=BALANCE)
+                    template_revision=7, balance_status=BALANCE)
     settings["onboarding"].update(
         starting_money=100,
         currency_label="écus",
@@ -715,20 +715,139 @@ def _rebuild_discord_building_ux(rows: list[dict[str, Any]]) -> None:
              text("locations_list", "🍺 À la Gueuse Cocu · ⛏️ Mine de Roland · 🔥 Forge du Dragon Noir\n🌲 Forêt de Sylvain · 🌉 Vieux pont · ⛪ Église de la Sainte Pelle"), back("locations", 0)]),
     ])
 
-    # Taverne : Edgar, consommation, cuisine et comptoir.
+    # Taverne : parcours immersif, achats réels et cuisine sur postes partagés.
+    tavern = buildings["edgar_tavern"]
+    tavern_modules = tavern.setdefault("modules", {})
+    tavern_modules["workstations"] = [{
+        "key": "tavern_cauldrons", "name": "Marmite", "emoji": "🍲", "slots": 3,
+    }]
+    for recipe in tavern_modules.get("recipes", []):
+        total = max(0, int(recipe.get("duration_seconds", 0)))
+        preparation = max(1, total // 5) if total else 0
+        recipe.update(
+            workstation_key="tavern_cauldrons",
+            preparation_seconds=preparation,
+            transformation_seconds=max(0, total - preparation),
+            active_transformation=False,
+            preparer_xp_percent=int(recipe.get("preparer_xp_percent", 80)),
+            ingredient_source="building_stock",
+            output_destination="building_stock",
+        )
+        recipe.pop("shared_mission", None)
+
+    edgar = next((row["payload"] for row in rows if row["type"] == "npc" and row["key"] == "edgar"), None)
+    if edgar is not None:
+        edgar["dialogues"] = [
+            {"key": "accueil", "name": "Accueil", "text": "Edgar essuie une chope et vous observe par-dessus sa moustache. « Alors, voyageur ? Vous cherchez un repas, du travail ou les dernières nouvelles du Royaume ? »", "choices": [
+                {"key": "royaume", "label": "🏰 Nouvelles du Royaume", "next_node": "royaume", "response_text": "Edgar se penche au-dessus du comptoir."},
+                {"key": "rumeurs", "label": "🗣️ Rumeurs", "next_node": "rumeurs", "response_text": "Edgar baisse la voix."},
+                {"key": "travail", "label": "👨‍🍳 Travail et métier", "next_node": "travail", "response_text": "Edgar désigne les marmites derrière lui."},
+                {"key": "quetes", "label": "📜 Quêtes disponibles", "next_node": "quetes", "response_text": "Edgar sort quelques notes de sous le comptoir."},
+            ]},
+            {"key": "royaume", "name": "Nouvelles du Royaume", "text": "La tempête inquiète le village. La mine, le vieux pont et l'église auront besoin de toutes les bonnes volontés.", "choices": [{"key": "retour", "label": "↩ Parler d'autre chose", "next_node": "accueil"}]},
+            {"key": "rumeurs", "name": "Rumeurs", "text": "Edgar garde ses histoires les plus douteuses pour après la tempête. Pour l'instant, mieux vaut écouter les annonces officielles.", "choices": [{"key": "retour", "label": "↩ Parler d'autre chose", "next_node": "accueil"}]},
+            {"key": "travail", "name": "Travail", "text": "Une bonne cuisine nourrit tout le Royaume. Devenez cuisinier, utilisez une marmite libre et laissez les préparations rejoindre le stock commun.", "choices": [{"key": "retour", "label": "↩ Parler d'autre chose", "next_node": "accueil"}]},
+            {"key": "quetes", "name": "Quêtes", "text": "Les demandes personnelles sont regroupées au panneau des quêtes. Edgar peut aussi réceptionner les poissons et provisions qui lui sont destinés.", "choices": [{"key": "retour", "label": "↩ Parler d'autre chose", "next_node": "accueil"}]},
+        ]
+
+    item_names = {row["key"]: row["payload"].get("name", row["key"])
+                  for row in rows if row["type"] == "item"}
+    products = list(tavern_modules.get("products", []))
+    product_groups = {
+        "beer": ("🍻 Bières", {"beer", "bieres", "mead"}),
+        "wine": ("🍷 Vins", {"wine", "vins"}),
+        "spirits": ("🥃 Spiritueux", {"spiritueux"}),
+        "soft": ("🥤 Sans alcool", {"soft"}),
+        "hot_meals": ("🍲 Plats chauds", {"meals", "nourriture"}),
+        "pies": ("🥧 Tourtes et pâtés", {"pies"}),
+        "bread": ("🍞 Pains et accompagnements", {"bread"}),
+        "meat": ("🥩 Viandes et provisions", {"meats"}),
+    }
+
+    def product_page(group_key: str, return_page: str) -> dict[str, Any]:
+        label, categories = product_groups[group_key]
+        keys = [str(product["item_key"]) for product in products if product.get("category") in categories]
+        return page(f"ux_tavern_{group_key}", label, [
+            hero(f"tavern_{group_key}", label, "Prix et disponibilités proviennent du stock réel de la Taverne.", label.split()[0]),
+            {"id": f"ux_tavern_products_{group_key}", "type": "dynamic_product_selector", "slot": 0,
+             "props": {"placeholder": "Choisir un produit…", "item_keys": keys}},
+            nav(f"tavern_{group_key}_back", "Catégories", return_page, 5, "↩️"),
+            nav(f"tavern_{group_key}_home", "Accueil", "home", 6, "🏠"),
+        ])
+
+    recipe_pages: list[dict[str, Any]] = []
+    recipe_options: list[dict[str, Any]] = []
+    for index, recipe in enumerate(tavern_modules.get("recipes", [])):
+        recipe_key = str(recipe["key"])
+        page_key = f"ux_recipe_{recipe_key}"[:64]
+        recipe_options.append({
+            "key": recipe_key, "label": str(recipe.get("name") or recipe.get("title") or recipe_key)[:100],
+            "description": f"{int(recipe.get('preparation_seconds', 0)) + int(recipe.get('transformation_seconds', 0))} s · produit {int(recipe.get('output_quantity', 1))}"[:100],
+            "interaction": {"type": "navigate", "page": page_key},
+        })
+        ingredients = "\n".join(f"• {amount}× {item_names.get(item, item)}" for item, amount in recipe.get("ingredients", {}).items()) or "Aucun ingrédient"
+        output_name = item_names.get(str(recipe.get("output_item_key", "")), str(recipe.get("output_item_key", "")))
+        start = action("edgar_tavern", recipe_key, "Cuisiner", 0, "👨‍🍳")
+        claim = action("edgar_tavern", f"claim_{recipe_key}"[:64], "Récupérer", 1, "📦")
+        claim.pop("visible_when", None)
+        recipe_pages.append(page(page_key, str(recipe.get("name") or recipe_key), [
+            hero(f"recipe_{index}", str(recipe.get("name") or recipe.get("title") or recipe_key),
+                 f"Marmites partagées · durée totale {int(recipe.get('preparation_seconds', 0)) + int(recipe.get('transformation_seconds', 0))} secondes", "🍲"),
+            {"id": f"ux_recipe_card_{index}", "type": "card", "props": {
+                "title": "Ingrédients et production",
+                "text": f"{ingredients}\n\nProduction : {int(recipe.get('output_quantity', 1))}× {output_name}",
+            }},
+            {"id": f"ux_recipe_status_{index}", "type": "workstation_status",
+             "props": {"title": "État des marmites", "building": "edgar_tavern"}},
+            start, claim,
+            nav(f"recipe_{index}_back", "Voir les marmites", "ux_tavern_kitchen", 4, "↩️"),
+        ]))
+
+    drink_options = [{"key": key, "label": label, "interaction": {"type": "navigate", "page": f"ux_tavern_{key}"}}
+                     for key, (label, _) in product_groups.items() if key in {"beer", "wine", "spirits", "soft"}]
+    food_options = [{"key": key, "label": label, "interaction": {"type": "navigate", "page": f"ux_tavern_{key}"}}
+                    for key, (label, _) in product_groups.items() if key in {"hot_meals", "pies", "bread", "meat"}]
+
     apply("edgar_tavern", [
-        hero("tavern", "À la Gueuse Cocu", "Le feu crépite, les bancs sont serrés et Edgar veille derrière son comptoir.", "🍺"),
+        hero("tavern", "À la Gueuse Cocu", "La chaleur du foyer lutte contre la tempête. Derrière son comptoir, Edgar surveille les voyageurs et les marmites.", "🍺"),
+        text("tavern_status", "👤 **Tavernier :** Edgar Brassebarbe\n🟢 **Établissement ouvert**\n🍲 **Cuisine partagée :** consultez les marmites en temps réel."),
         text("tavern_storm", "Dehors, les rafales secouent les volets. Ici, le feu tient bon.", {"all": [_minute(90), _minute(105, "<")]}),
-        nav("tavern_edgar", "Parler à Edgar", "ux_tavern_edgar", 0, "💬", style="primary"),
-        nav("tavern_food", "Manger et boire", "ux_tavern_food", 1, "🍲"),
-        nav("tavern_kitchen", "Cuisiner", "ux_tavern_kitchen", 2, "👨‍🍳"),
-        nav("tavern_counter", "Comptoir et livraisons", "ux_tavern_counter", 3, "📦"),
+        nav("tavern_drinks", "Commander à boire", "ux_tavern_drinks", 0, "🍺", style="primary"),
+        nav("tavern_meals", "Commander à manger", "ux_tavern_meals", 1, "🍗"),
+        nav("tavern_edgar", "Parler à Edgar", "ux_tavern_edgar", 2, "💬"),
+        nav("tavern_kitchen", "Cuisiner", "ux_tavern_kitchen", 3, "👨‍🍳"),
+        nav("tavern_counter", "Stocks & livraisons", "ux_tavern_counter", 4, "🎒"),
     ], [
-        page("ux_tavern_edgar", "Edgar", [hero("edgar", "Edgar Brassebarbe", "L'aubergiste connaît les nouvelles, les besoins et les rumeurs du village.", "🧔"), action("edgar_tavern", "talk_npc", "Discuter avec Edgar", 0, "💬"), back("edgar", 1)]),
-        page("ux_tavern_food", "Manger et boire", [hero("food", "La carte d'Edgar", "Choisissez une boisson ou un plat réellement disponible.", "🍲"), nav("food_drink", "Boissons", "drink", 0, "🍺"), nav("food_eat", "Plats", "eat", 1, "🍖"), back("food", 2)]),
-        page("ux_tavern_kitchen", "Cuisine", [hero("kitchen", "Les marmites", "Préparez les provisions puis récupérez-les lorsqu'elles sont prêtes.", "🍲"), action("edgar_tavern", "cook_storm_ration", "Préparer deux provisions", 0, "🔥"), action("edgar_tavern", "claim_cook_storm_ration", "Récupérer les provisions", 1, "✅"), nav("kitchen_more", "Toutes les recettes", "kitchen", 2, "📖"), back("kitchen", 3)]),
-        page("ux_tavern_counter", "Comptoir", [hero("counter", "Comptoir et livraisons", "Consultez le stock et remettez à Edgar les ressources demandées.", "📦"), nav("counter_stock", "Stock", "stock", 0, "📊"), nav("counter_delivery", "Livrer", "storm_delivery", 1, "📦"), back("counter", 2)]),
+        page("ux_tavern_drinks", "Boissons", [hero("drinks", "Boissons de la Gueuse Cocu", "Choisissez une catégorie. Les prix et disponibilités proviennent du stock réel.", "🍺"),
+             {"id": "ux_tavern_drink_categories", "type": "select", "slot": 0, "props": {"placeholder": "Choisir une catégorie"}, "options": drink_options}, back("drinks", 5)]),
+        page("ux_tavern_meals", "Repas", [hero("meals", "Repas et provisions", "Les plats disponibles dépendent réellement des productions du stock commun.", "🍗"),
+             {"id": "ux_tavern_food_categories", "type": "select", "slot": 0, "props": {"placeholder": "Choisir une catégorie de repas"}, "options": food_options}, back("meals", 5)]),
+        *[product_page(key, "ux_tavern_drinks" if key in {"beer", "wine", "spirits", "soft"} else "ux_tavern_meals") for key in product_groups],
+        page("ux_tavern_edgar", "Edgar", [hero("edgar", "Edgar Brassebarbe", "L'aubergiste connaît les nouvelles, les besoins et les rumeurs du village.", "🧔"),
+             {"id": "ux_tavern_edgar_dialogue", "type": "npc_dialogue", "slot": 0,
+              "props": {"npc_key": "edgar", "placeholder": "Parler à Edgar…"}},
+             nav("edgar_work", "Travail et métier", "profession", 5, "👨‍🍳"),
+             {"id": "ux_edgar_quests", "type": "button", "slot": 6, "props": {"label": "Voir mes quêtes", "emoji": "📜", "style": "secondary"}, "interaction": {"type": "quest_board"}},
+             back("edgar", 9)]),
+        page("ux_tavern_kitchen", "Cuisine", [hero("kitchen", "Cuisine de la Gueuse Cocu", "Les marmites sont partagées. Choisissez une recette libre ou consultez une préparation en cours.", "🍲"),
+             {"id": "ux_tavern_workstations", "type": "workstation_status", "props": {"title": "État des marmites", "building": "edgar_tavern"}},
+             {"id": "ux_tavern_recipes", "type": "select", "slot": 0, "props": {"placeholder": "Choisir une recette ou voir sa préparation…"}, "options": recipe_options},
+             {"id": "ux_tavern_refresh", "type": "button", "slot": 5, "props": {"label": "Actualiser", "emoji": "🔄", "style": "secondary"}, "interaction": {"type": "refresh"}},
+             back("kitchen", 9)]),
+        *recipe_pages,
+        page("ux_tavern_counter", "Stocks & livraisons", [hero("counter", "Stocks et livraisons", "Consultez les réserves ou apportez les ressources demandées par Edgar.", "🎒"),
+             nav("counter_stock", "Voir les stocks", "ux_tavern_stock", 0, "📦"), nav("counter_delivery", "Effectuer une livraison", "ux_tavern_delivery", 1, "🚚"), back("counter", 4)]),
+        page("ux_tavern_stock", "Stocks", [hero("stock", "Stock de la Taverne", "Les quantités sont actualisées en temps réel.", "📦"),
+             {"id": "ux_tavern_stock_content", "type": "building_inventory", "props": {"title": "Réserves", "building": "edgar_tavern"}}, nav("stock_back", "Stocks & livraisons", "ux_tavern_counter", 0, "↩️"), nav("stock_home", "Accueil", "home", 1, "🏠")]),
+        page("ux_tavern_delivery", "Livrer à Edgar", [hero("delivery", "Livrer à Edgar", "Seuls les objets présents dans votre inventaire et acceptés par la Taverne sont proposés.", "🚚"),
+             {"id": "ux_tavern_delivery_selector", "type": "dynamic_inventory_selector", "slot": 0, "props": {"placeholder": "Choisir un objet à livrer…"}},
+             nav("delivery_back", "Stocks & livraisons", "ux_tavern_counter", 5, "↩️"), nav("delivery_home", "Accueil", "home", 6, "🏠")]),
     ])
+    tavern["interface"]["pages"] = [
+        item for item in tavern["interface"]["pages"]
+        if item["key"] in {"home", "profession"}
+        or item["key"].startswith(("ux_tavern_", "ux_recipe_"))
+    ]
 
     mine_normal = {"any": [_minute(96, "<"), _progress("storm_mine_repaired", "progress", 1)]}
     mine_incident = {"all": [_minute(96), _progress("storm_mine_repaired", "progress", 1, "<")]}

@@ -4561,6 +4561,40 @@ function readNpcReactions() {
       .filter((item) => item.text),
   }));
 }
+function addNpcDialogueChoice(root, choice = {}) {
+  const row = document.createElement("div");
+  row.className = "npc-dialogue-choice module-card";
+  row.innerHTML = `<button type="button" class="remove">×</button><div class="form-grid">${input("Libellé joueur", "npc_dialogue_choice_label", choice.label || "")}${input("Nœud suivant", "npc_dialogue_choice_next", choice.next_node || "")}${input("Réponse du personnage", "npc_dialogue_choice_response", choice.response_text || "")}${select("Voix associée", "npc_dialogue_choice_audio", choice.audio_key || "", audioOptions(choice.audio_key || "", "voice"))}</div>`;
+  root.append(row);
+  row.querySelector(".remove").onclick = () => row.remove();
+}
+function addNpcDialogueNode(root, node = {}) {
+  const row = document.createElement("details");
+  row.className = "module-card npc-dialogue-node";
+  row.open = !node.key;
+  row.innerHTML = `<summary><strong>🗨️ ${escapeHtml(node.name || node.key || "Nouveau dialogue")}</strong></summary><div class="module-content"><button type="button" class="remove">×</button><div class="form-grid">${input("Identifiant", "npc_dialogue_key", node.key || "")}${input("Nom", "npc_dialogue_name", node.name || "")}</div><label>Texte du personnage<textarea data-field="npc_dialogue_text" rows="4">${escapeHtml(node.text || "")}</textarea></label>${select("Voix du texte", "npc_dialogue_audio", node.audio_key || "", audioOptions(node.audio_key || "", "voice"))}<div class="section-head"><div><b>Choix proposés au joueur</b><p class="field-note">Le nœud suivant correspond à l’identifiant d’un autre dialogue.</p></div><button type="button" class="secondary add-dialogue-choice">＋ Ajouter un choix</button></div><div class="npc-dialogue-choices"></div></div>`;
+  root.append(row);
+  (node.choices || []).forEach((choice) => addNpcDialogueChoice(row.querySelector(".npc-dialogue-choices"), choice));
+  row.querySelector(".add-dialogue-choice").onclick = () => addNpcDialogueChoice(row.querySelector(".npc-dialogue-choices"), {});
+  row.querySelector(":scope > .module-content > .remove").onclick = () => row.remove();
+}
+function readNpcDialogues() {
+  return $$(".npc-dialogue-node").map((row, index) => ({
+    key: technicalKey(fieldValue("npc_dialogue_key", row) || fieldValue("npc_dialogue_name", row), `dialogue_${index + 1}`),
+    name: fieldValue("npc_dialogue_name", row),
+    text: fieldValue("npc_dialogue_text", row),
+    audio_key: fieldValue("npc_dialogue_audio", row) || "",
+    choices: [...row.querySelectorAll(".npc-dialogue-choice")].map((choice, choiceIndex) => ({
+      key: technicalKey(fieldValue("npc_dialogue_choice_label", choice), `choix_${choiceIndex + 1}`),
+      label: fieldValue("npc_dialogue_choice_label", choice),
+      next_node: fieldValue("npc_dialogue_choice_next", choice)
+        ? technicalKey(fieldValue("npc_dialogue_choice_next", choice), "dialogue")
+        : undefined,
+      response_text: fieldValue("npc_dialogue_choice_response", choice),
+      audio_key: fieldValue("npc_dialogue_choice_audio", choice) || "",
+    })).filter((choice) => choice.label),
+  })).filter((node) => node.text || node.choices.length);
+}
 function moveCalendarRow(row, direction) {
   const sibling =
     direction < 0 ? row.previousElementSibling : row.nextElementSibling;
@@ -4816,7 +4850,7 @@ function renderFields(payload) {
     root.innerHTML = `<section class="form-section npc-simple-section"><div class="wizard-section-copy"><span>1</span><div><h3>Identité et rôle</h3><p>Décrivez simplement la place du personnage dans votre monde.</p></div></div><div class="form-grid">${input("Rôle", "npc_role", payload.role || "")}${input("Tags", "npc_tags", (payload.tags || []).join(", "))}</div></section>
       <section class="form-section npc-simple-section"><div class="wizard-section-copy"><span>2</span><div><h3>Voix</h3><p>Choisissez une voix ; KingdomWeb crée et relie automatiquement la bibliothèque vocale nécessaire.</p></div></div><div class="form-grid">${select("Voix ou clip principal", "npc_voice_audio", defaultVoice, [["", "À fournir plus tard"], ...state.catalogs.audio.filter((item) => item.payload.audio_type === "voice" || item.payload.channel === "voice").map((item) => [item.entity_key, `${item.payload.emoji || "🗣️"} ${item.payload.name}`])])}${input("Volume de la voix", "npc_voice_volume", linkedProfile?.payload.volume ?? 1, "number", 'min="0" max="2" step="0.05"')}</div></section>
       <section class="form-section npc-simple-section"><div class="wizard-section-copy"><span>3</span><div><h3>Présence</h3><p>Choisissez où il vit. Sa présence Discord sera configurée automatiquement.</p></div></div><div class="form-grid">${select("Bâtiment principal", "npc_building", payload.building_key || "", catalogOptions("building", payload.building_key || ""))}${select("Lieu", "npc_location", payload.location_key || "", locationOptions(payload.location_key || ""))}</div></section>
-      <section class="form-section npc-simple-section"><div class="wizard-section-copy"><span>4</span><div><h3>Comportement</h3><p>Définissez son état et ses réponses aux actions des joueurs.</p></div></div><div class="form-grid">${input("État initial", "npc_state", payload.state || "disponible")}${input("Comportement", "npc_behavior", payload.behavior || "contextuel")}</div><div class="section-head"><div><h3>Réactions contextuelles</h3><p class="field-note">Le texte et le son choisis dans chaque variante restent associés.</p></div><button type="button" class="secondary" id="add-npc-reaction">＋ Ajouter une réaction</button></div><div id="npc-reactions"></div></section>
+      <section class="form-section npc-simple-section"><div class="wizard-section-copy"><span>4</span><div><h3>Comportement</h3><p>Définissez son état et ses réponses aux actions des joueurs.</p></div></div><div class="form-grid">${input("État initial", "npc_state", payload.state || "disponible")}${input("Comportement", "npc_behavior", payload.behavior || "contextuel")}</div><div class="section-head"><div><h3>Réactions contextuelles</h3><p class="field-note">Le texte et le son choisis dans chaque variante restent associés.</p></div><button type="button" class="secondary" id="add-npc-reaction">＋ Ajouter une réaction</button></div><div id="npc-reactions"></div><div class="section-head"><div><h3>Dialogues à choix</h3><p class="field-note">Créez des sujets et reliez-les avec leurs identifiants, sans exposer de clé technique aux joueurs.</p></div><button type="button" class="secondary" id="add-npc-dialogue">＋ Ajouter un dialogue</button></div><div id="npc-dialogues"></div></section>
       <details class="advanced npc-technical-details"><summary>⚙ Informations techniques générées automatiquement</summary><div class="advanced-content"><p class="field-note">Ces références sont conservées pour la supervision. Vous n’avez rien à créer ni à sélectionner manuellement.</p><dl><div><dt>Profil vocal</dt><dd>${escapeHtml(linkedProfile?.payload.name || "Sera créé à l’enregistrement")}</dd></div><div><dt>Présence Discord</dt><dd>${escapeHtml(state.catalogs.voice_presence.find((item) => item.entity_key === payload.voice_presence_key)?.payload.name || "Sera créée à l’enregistrement")}</dd></div><div><dt>Voice Worker</dt><dd>Attribué automatiquement quand un joueur entre</dd></div></dl></div></details>`;
     root.querySelector(".npc-simple-section .form-grid").insertAdjacentHTML(
       "beforeend",
@@ -4827,6 +4861,11 @@ function renderFields(payload) {
     );
     $("#add-npc-reaction").onclick = () =>
       addNpcReaction($("#npc-reactions"), {});
+    (payload.dialogues || []).forEach((dialogue) =>
+      addNpcDialogueNode($("#npc-dialogues"), dialogue),
+    );
+    $("#add-npc-dialogue").onclick = () =>
+      addNpcDialogueNode($("#npc-dialogues"), {});
     const npcLayout = $("#editor .editor-layout"),
       npcHelp = $("#context-help"),
       npcHead = $("#editor .dialog-head");
@@ -5040,6 +5079,11 @@ const COMPONENT_LIBRARY = {
     icon: "📦",
     props: { title: "Stock commun", building: "" },
   },
+  workstation_status: {
+    name: "État des postes",
+    icon: "🍲",
+    props: { title: "État des postes", building: "" },
+  },
   world_weather: {
     name: "Météo actuelle",
     icon: "🌦️",
@@ -5079,6 +5123,11 @@ const COMPONENT_LIBRARY = {
     name: "Utiliser un consommable",
     icon: "🍎",
     props: { placeholder: "Choisir un consommable…" },
+  },
+  npc_dialogue: {
+    name: "Dialogue de personnage",
+    icon: "💬",
+    props: { placeholder: "Que souhaitez-vous demander ?", npc_key: "", node_key: "" },
   },
   button: {
     name: "Bouton",
@@ -5167,6 +5216,7 @@ const PREDEFINED_COMPONENTS = {
   profession: { name: "Métier du joueur", icon: "🛠️", component: { type: "profession_status", props: { title: "Votre métier" } } },
   inventory: { name: "Sac du joueur", icon: "🎒", component: { type: "player_inventory", props: { title: "Votre inventaire" } } },
   stock: { name: "Stock du bâtiment", icon: "📦", component: { type: "building_inventory", props: { title: "Stock disponible", building: "" } } },
+  workstations: { name: "État des postes", icon: "🍲", component: { type: "workstation_status", props: { title: "État des postes", building: "" } } },
 };
 
 const INTERACTIVE_COMPONENT_TYPES = new Set([
@@ -5176,6 +5226,7 @@ const INTERACTIVE_COMPONENT_TYPES = new Set([
   "dynamic_inventory_selector",
   "dynamic_consumable_selector",
   "dynamic_game_selector",
+  "npc_dialogue",
 ]);
 const FULL_ROW_INTERACTION_TYPES = new Set(
   [...INTERACTIVE_COMPONENT_TYPES].filter((type) => type !== "button"),
@@ -5266,7 +5317,7 @@ function componentTiles(types) {
 function visualStudioMarkup() {
   return `<section class="visual-studio library-open inspector-open" data-studio-view="editor">
     <nav class="studio-layout-toolbar" aria-label="Disposition de l’éditeur"><button type="button" data-toggle-studio-library aria-expanded="true">☷ Bibliothèque</button><div><button type="button" class="active" data-studio-view-button="editor">Éditeur</button><button type="button" data-studio-view-button="graph">Graphe de navigation</button></div><button type="button" data-toggle-studio-inspector aria-expanded="true">Inspecteur ◫</button></nav>
-    <aside class="studio-panel component-palette"><div class="studio-panel-head"><h3>Composants</h3><small>Glisser</small></div><div class="component-group"><h4>📝 Contenu de l’embed</h4><p>Éléments affichés dans le message Discord.</p><div class="component-library">${componentTiles(["hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "building_inventory"])}</div><h5>Composants prêts à l’emploi</h5><div class="component-library preset-library">${Object.entries(PREDEFINED_COMPONENTS).map(([key, item]) => `<button type="button" class="component-tile preset-tile" draggable="true" data-content-preset="${key}"><span>${item.icon}</span><b>${item.name}</b></button>`).join("")}</div></div><div class="component-group interaction-components"><h4>🖱️ Boutons et menus</h4><p>Éléments interactifs placés dans la grille.</p><div class="component-library">${componentTiles(["button", "select"])}</div><h5>Boutons prêts à l’emploi</h5><div class="component-library preset-library">${Object.entries(
+    <aside class="studio-panel component-palette"><div class="studio-panel-head"><h3>Composants</h3><small>Glisser</small></div><div class="component-group"><h4>📝 Contenu de l’embed</h4><p>Éléments affichés dans le message Discord.</p><div class="component-library">${componentTiles(["hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "building_inventory", "workstation_status"])}</div><h5>Composants prêts à l’emploi</h5><div class="component-library preset-library">${Object.entries(PREDEFINED_COMPONENTS).map(([key, item]) => `<button type="button" class="component-tile preset-tile" draggable="true" data-content-preset="${key}"><span>${item.icon}</span><b>${item.name}</b></button>`).join("")}</div></div><div class="component-group interaction-components"><h4>🖱️ Boutons et menus</h4><p>Éléments interactifs placés dans la grille.</p><div class="component-library">${componentTiles(["button", "select", "npc_dialogue"])}</div><h5>Boutons prêts à l’emploi</h5><div class="component-library preset-library">${Object.entries(
       PREDEFINED_INTERACTIONS,
     )
       .map(
@@ -6027,6 +6078,15 @@ function renderPropertyPanel() {
           props.building || state.interfaceDraft.target_building_key,
         ),
       );
+  if (component.type === "workstation_status")
+    fields =
+      propertyInput("Titre", "title", props.title || "État des postes") +
+      propertySelect(
+        "Bâtiment affiché",
+        "building",
+        props.building || state.interfaceDraft.target_building_key,
+        buildingTargetOptions(props.building || state.interfaceDraft.target_building_key),
+      );
   if (component.type === "world_weather")
     fields = propertyInput("Titre", "title", props.title || "Météo actuelle");
   if (component.type === "world_calendar")
@@ -6048,6 +6108,11 @@ function renderPropertyPanel() {
     fields = propertyInput("Titre", "title", props.title || "Votre métier");
   if (component.type.startsWith("dynamic_"))
     fields = propertyInput("Texte d’invitation", "placeholder", props.placeholder || "Choisir…");
+  if (component.type === "npc_dialogue")
+    fields =
+      propertyInput("Texte d’invitation", "placeholder", props.placeholder || "Que souhaitez-vous demander ?") +
+      propertySelect("Personnage", "npc_key", props.npc_key || "", catalogOptions("npc", props.npc_key || "")) +
+      propertyInput("Nœud de départ (optionnel)", "node_key", props.node_key || "");
   if (["dynamic_product_selector", "dynamic_consumable_selector"].includes(component.type)) {
     fields += `<label>Objets de cette catégorie<select data-prop="item_keys" multiple size="6">${state.catalogs.item.map((item) => `<option value="${escapeHtml(item.entity_key)}" ${(props.item_keys || []).includes(item.entity_key) ? "selected" : ""}>${escapeHtml(item.payload.name)}</option>`).join("")}</select></label><small>Aucune sélection : tous les objets disponibles. Ctrl ou Cmd permet de sélectionner plusieurs objets.</small>`;
   }
@@ -10335,7 +10400,7 @@ function buildPayload() {
         .map((value) => value.trim())
         .filter(Boolean),
       reactions: readNpcReactions(),
-      dialogues: payload.dialogues || [],
+      dialogues: readNpcDialogues(),
     });
   if (state.type === "profession")
     Object.assign(payload, {

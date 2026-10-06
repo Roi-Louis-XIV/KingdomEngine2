@@ -385,6 +385,7 @@ class InterfaceView(discord.ui.View):
         self.page_started_at = time.time()
         self.owner_id = owner_id
         self.notice = ""
+        self._dialogue_states: dict[str, dict[str, Any]] = {}
         self._render_interactions()
 
     async def on_error(
@@ -462,6 +463,15 @@ class InterfaceView(discord.ui.View):
             elif component["type"] == "workstation_status" and field_count < 25:
                 self._add_workstation_status(embed, str(props.get("building") or self._building_key()), str(props.get("title") or "État des postes"))
                 field_count += 1
+            elif component["type"] == "npc_dialogue" and field_count < 25:
+                dialogue = self._dialogue_state(component)
+                if dialogue:
+                    embed.add_field(
+                        name=f"💬 {dialogue['npc']['name']}"[:256],
+                        value=str(dialogue.get("display_text") or dialogue.get("text") or "…")[:1024],
+                        inline=False,
+                    )
+                    field_count += 1
             elif component["type"] == "world_weather" and field_count < 25:
                 world = WorldClock(self.engine.store).state()
                 weather = world.get("weather", {})
@@ -522,21 +532,51 @@ class InterfaceView(discord.ui.View):
     def _add_workstation_status(self, embed: discord.Embed, building_key: str, title: str) -> None:
         states = self._cached_workstations(building_key)
         building = self._cached_building(building_key)
-        recipes = {str(item.get("key")): str(item.get("name") or item.get("key")) for item in building.get("modules", {}).get("recipes", [])}
+        recipes = {str(item.get("key")): item for item in building.get("modules", {}).get("recipes", [])}
         active = {(str(item["workstation_key"]), int(item["slot_index"])): item for item in states}
         lines = []
         for workstation in building.get("modules", {}).get("workstations", []):
             for slot in range(max(1, int(workstation.get("slots", 1)))):
                 state = active.get((str(workstation.get("key")), slot))
+                station_name = str(workstation.get("name") or workstation.get("key"))
+                if int(workstation.get("slots", 1)) > 1:
+                    station_name = f"{station_name} {slot + 1}"
                 if not state:
-                    detail = "🟢 libre"
+                    detail = "🟢 **Libre** · action disponible : Cuisiner"
                 elif state["status"] == "ready":
-                    detail = f"📦 **prêt à récupérer** · {recipes.get(state['recipe_key'], state['recipe_key'])}"
+                    recipe = recipes.get(state["recipe_key"], {})
+                    output = self._item_name(str(recipe.get("output_item_key", "")))
+                    quantity = int(recipe.get("output_quantity", 1))
+                    detail = f"✅ **Terminé** · {quantity}× {output} prêts\nAction disponible : 📦 Récupérer"
                 else:
-                    label = "préparation" if state["status"] == "preparation" else "transformation"
-                    detail = f"🟠 {label} · {recipes.get(state['recipe_key'], state['recipe_key'])} · {state['remaining_seconds']} s"
-                lines.append(f"**{workstation.get('name') or workstation.get('key')} {slot + 1}** — {detail}")
+                    recipe = recipes.get(state["recipe_key"], {})
+                    recipe_name = str(recipe.get("name") or recipe.get("title") or state["recipe_key"])
+                    output = self._item_name(str(recipe.get("output_item_key", "")))
+                    quantity = int(recipe.get("output_quantity", 1))
+                    remaining = max(0, int(state.get("remaining_seconds", 0)))
+                    with self.engine.store.connection() as db:
+                        player = db.execute("SELECT display_name FROM players WHERE discord_id=?", (str(state.get("preparer_id", "")),)).fetchone()
+                    preparer = str(player[0]) if player and player[0] else f"Joueur {state.get('preparer_id', '?')}"
+                    detail = (f"⏳ **{recipe_name}** — {remaining // 60:02d}:{remaining % 60:02d} restantes\n"
+                              f"Préparé par **{preparer}** · Production : {quantity}× {output}\n"
+                              "Action disponible : Voir la recette")
+                lines.append(f"**{workstation.get('emoji', '🍲')} {station_name}**\n{detail}")
         embed.add_field(name=title[:256], value=("\n".join(lines) or "Aucun poste configuré.")[:1024], inline=False)
+
+    def _dialogue_state(self, component: dict[str, Any]) -> dict[str, Any] | None:
+        if self.owner_id is None:
+            return None
+        component_id = str(component.get("id", "npc_dialogue"))
+        if component_id not in self._dialogue_states:
+            from kingdomCore.npc import NpcEngine, NpcError
+            try:
+                props = component.get("props", {})
+                self._dialogue_states[component_id] = NpcEngine(self.engine.store).dialogue(
+                    str(props.get("npc_key", "")), str(self.owner_id), str(props.get("node_key", "")),
+                )
+            except (NpcError, KeyError, ValueError):
+                return None
+        return self._dialogue_states.get(component_id)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if self.owner_id is None or interaction.user.id == self.owner_id:
@@ -697,7 +737,7 @@ class InterfaceView(discord.ui.View):
             "primary": discord.ButtonStyle.primary, "secondary": discord.ButtonStyle.secondary,
             "success": discord.ButtonStyle.success, "danger": discord.ButtonStyle.danger,
         }
-        dynamic_types = {"dynamic_inventory_selector", "dynamic_product_selector", "dynamic_consumable_selector", "dynamic_game_selector"}
+        dynamic_types = {"dynamic_inventory_selector", "dynamic_product_selector", "dynamic_consumable_selector", "dynamic_game_selector", "npc_dialogue"}
         interactive = [item for item in self._visible_components() if item.get("type") in {"button", "select", *dynamic_types}]
         next_slot = 0
         used_width = [0, 0, 0, 0, 0]
@@ -721,6 +761,8 @@ class InterfaceView(discord.ui.View):
                 self._add_dynamic_consumable(component, row)
             elif component.get("type") == "dynamic_game_selector":
                 self._add_dynamic_game(component, row)
+            elif component.get("type") == "npc_dialogue":
+                self._add_npc_dialogue(component, row)
             elif component.get("type") == "select":
                 self._add_select(component, row)
             else:
@@ -744,16 +786,24 @@ class InterfaceView(discord.ui.View):
             except (StopIteration, KeyError, AttributeError):
                 pass
         effects = action.get("effects", []) if action else []
+        requirements = action.get("requirements", {}) if action else {}
+        required_profession = str(requirements.get("profession", ""))
+        if required_profession and self.owner_id is not None:
+            profession = self._cached_player().get("professions", {}).get(required_profession)
+            required_level = int(requirements.get("min_level", 1))
+            if not profession or int(profession.get("level", 0)) < required_level:
+                label = f"Métier requis · niveau {required_level}"
+                style, disabled = discord.ButtonStyle.secondary, True
         start_effect = next((effect for effect in effects if effect.get("type") == "start_transformation"), None)
         claim_effect = next((effect for effect in effects if effect.get("type") == "claim_transformation"), None)
-        if claim_effect:
+        if claim_effect and not disabled:
             states = self._cached_workstations(str(interaction.get("building") or self._building_key()))
             matching = [item for item in states if item["recipe_key"] == str(claim_effect.get("recipe_key"))]
             if not any(item["status"] == "ready" for item in matching):
                 active = next((item for item in matching if item["status"] != "ready"), None)
                 label = f"En cours · {active['remaining_seconds']} s" if active else "Aucune préparation prête"
                 style, disabled = discord.ButtonStyle.secondary, True
-        elif start_effect:
+        elif start_effect and not disabled:
             building_key = str(interaction.get("building") or self._building_key())
             building = self._cached_building(building_key)
             workstation = next((item for item in building.get("modules", {}).get("workstations", []) if str(item.get("key")) == str(start_effect.get("workstation_key"))), None)
@@ -971,6 +1021,45 @@ class InterfaceView(discord.ui.View):
             await interaction.response.send_message(f"**{prepared['choice'].get('name', choice_key)}**\nMise : **{prepared['stake']} écus**\nLe tirage aura lieu après confirmation.", view=confirmation, ephemeral=True)
             remember_active_building_interface(interaction, self._building_key())
         select.callback = choose; self.add_item(select)
+
+    def _add_npc_dialogue(self, component: dict[str, Any], row: int) -> None:
+        dialogue = self._dialogue_state(component)
+        if not dialogue or not dialogue.get("choices"):
+            unavailable = discord.ui.Button(label="Aucun sujet disponible", emoji="💬", style=discord.ButtonStyle.secondary, disabled=True, row=row)
+            self.add_item(unavailable)
+            return
+        choices = list(dialogue["choices"])[:25]
+        select = discord.ui.Select(
+            placeholder=str(component.get("props", {}).get("placeholder") or "Que souhaitez-vous demander ?")[:150],
+            options=[discord.SelectOption(label=str(choice.get("label") or choice["key"])[:100], value=str(choice["key"])[:100]) for choice in choices],
+            custom_id=f"ked:{component['id']}"[:100], row=row,
+        )
+        async def choose(interaction: discord.Interaction):
+            from kingdomCore.npc import NpcEngine, NpcError
+            try:
+                result = NpcEngine(self.engine.store).choose_dialogue(
+                    str(component.get("props", {}).get("npc_key", "")), str(interaction.user.id),
+                    str(dialogue["node_key"]), select.values[0],
+                )
+                if result.get("action_key"):
+                    npc = NpcEngine(self.engine.store).get(str(component.get("props", {}).get("npc_key", "")))
+                    await self.engine.execute(
+                        str(interaction.user.id), str(npc.get("building_key") or self._building_key()),
+                        str(result["action_key"]), f"{interaction.id}:dialogue",
+                    )
+                next_dialogue = result.get("next")
+                if next_dialogue:
+                    next_dialogue["display_text"] = result.get("response_text") or next_dialogue.get("text", "")
+                    self._dialogue_states[str(component["id"])] = next_dialogue
+                else:
+                    dialogue["display_text"] = result.get("response_text") or dialogue.get("text", "")
+                self.notice = ""
+            except (NpcError, KeyError, ValueError) as exc:
+                self.notice = str(exc)
+            self._render_interactions()
+            await interaction.response.edit_message(embed=self.embed(), view=self)
+        select.callback = choose
+        self.add_item(select)
 
     def _add_select(self, component: dict[str, Any], row: int) -> None:
         props = component.get("props", {})

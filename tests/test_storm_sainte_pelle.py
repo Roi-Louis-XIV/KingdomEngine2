@@ -163,7 +163,7 @@ def test_storm_discord_ux_routes_and_actions_are_real():
     buildings = {row["key"]: row["payload"] for row in rows if row["type"] == "building"}
     main = {"market_square", "edgar_tavern", "deep_mine", "royal_forge", "forester_lodge", "old_bridge", "saint_shovel_church"}
     settings = next(row["payload"] for row in rows if row["type"] == "server_settings" and row["key"] == "kingdom_server")
-    assert settings["template_revision"] == 6
+    assert settings["template_revision"] == 7
     assert all(not any(page["key"] == "storm_services" for page in buildings[key]["interface"]["pages"]) for key in main)
     for key in main:
         interface = buildings[key]["interface"]
@@ -185,6 +185,43 @@ def test_storm_discord_ux_routes_and_actions_are_real():
     bridge_home = next(page for page in buildings["old_bridge"]["interface"]["pages"] if page["key"] == "home")
     fish = next(component for component in bridge_home["components"] if component.get("props", {}).get("label") == "Pêcher")
     assert fish["interaction"] == {"type": "action", "building": "old_bridge", "action": "fish_old_bridge"}
+
+
+def test_tavern_uses_shared_cauldrons_and_six_validated_player_routes(tmp_path):
+    world = _world(tmp_path, "tavern-shared-kitchen")
+    building = world.get("building", "edgar_tavern", published=True)["payload"]
+    workstations = building["modules"]["workstations"]
+    assert workstations == [{"key": "tavern_cauldrons", "name": "Marmite", "emoji": "🍲", "slots": 3}]
+    assert building["modules"]["recipes"]
+    assert all(recipe["workstation_key"] == "tavern_cauldrons" for recipe in building["modules"]["recipes"])
+    pages = {page["key"]: page for page in building["interface"]["pages"]}
+    assert {"home", "ux_tavern_drinks", "ux_tavern_meals", "ux_tavern_edgar", "ux_tavern_kitchen", "ux_tavern_counter"} <= set(pages)
+    home = InterfaceView(GameEngine(world), building["interface"], page_key="home", owner_id=42)
+    assert [str(getattr(item, "label", "")) for item in home.children] == [
+        "Commander à boire", "Commander à manger", "Parler à Edgar", "Cuisiner", "Stocks & livraisons",
+    ]
+    kitchen = InterfaceView(GameEngine(world), building["interface"], page_key="ux_tavern_kitchen", owner_id=42)
+    assert "Libre" in kitchen.embed().to_dict()["fields"][0]["value"]
+    assert any(getattr(item, "placeholder", "") == "Choisir une recette ou voir sa préparation…" for item in kitchen.children)
+
+
+def test_tavern_shared_recipe_start_status_claim_and_restart(tmp_path):
+    world = _world(tmp_path, "tavern-shared-cycle")
+    engine = GameEngine(world)
+    asyncio.run(engine.execute("42", "edgar_tavern", "join_innkeeper", "join-cook"))
+    result = asyncio.run(engine.execute("42", "edgar_tavern", "cook_onion_soup", "start-soup", {"display_name": "Attila"}))
+    assert result["workstations"][0]["status"] in {"preparation", "transformation"}
+    active = InterfaceView(engine, world.get("building", "edgar_tavern", published=True)["payload"]["interface"], page_key="ux_tavern_kitchen", owner_id=42)
+    rendered = active.embed().to_dict()["fields"][0]["value"]
+    assert "Attila" in rendered and "soupes à l'oignon" in rendered and "Production" in rendered
+    with world.connection() as db:
+        db.execute("UPDATE transformation_jobs SET preparation_ends_at=0,transformation_ends_at=0")
+    restarted = GameEngine(ContentStore(world.path))
+    assert restarted.workstation_states("edgar_tavern")[0]["status"] == "ready"
+    asyncio.run(restarted.execute("42", "edgar_tavern", "claim_cook_onion_soup", "claim-soup"))
+    assert restarted.workstation_states("edgar_tavern") == []
+    with world.connection() as db:
+        assert db.execute("SELECT quantity FROM building_stock WHERE building_key='edgar_tavern' AND item_key='soupe_oignon'").fetchone()[0] >= 5
 
 
 def test_fishing_completes_p14_and_delivers_two_real_fish(tmp_path):

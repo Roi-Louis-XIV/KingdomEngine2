@@ -468,7 +468,7 @@ def _validate_interface(payload: dict[str, Any]) -> None:
     interactive_types = {
         "button", "select", "dynamic_inventory_selector",
         "dynamic_product_selector", "dynamic_consumable_selector",
-        "dynamic_game_selector",
+        "dynamic_game_selector", "npc_dialogue",
     }
     full_row_types = interactive_types - {"button"}
     pages = payload.get("pages", [])
@@ -523,8 +523,12 @@ def _validate_interface(payload: dict[str, Any]) -> None:
             if component_id in component_ids:
                 raise ValidationError(f"Composant duplique : {component_id}")
             component_ids.add(component_id)
-            if component.get("type") not in {"hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "building_inventory", "world_weather", "world_calendar", "event_countdown", "collective_objective", "profession_status", *interactive_types}:
+            if component.get("type") not in {"hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "building_inventory", "workstation_status", "world_weather", "world_calendar", "event_countdown", "collective_objective", "profession_status", *interactive_types}:
                 raise ValidationError(f"Composant inconnu : {component.get('type')}")
+            if component.get("type") == "workstation_status" and not str(component.get("props", {}).get("building", payload.get("target_building_key", ""))).strip():
+                raise ValidationError("L’état des postes doit cibler un bâtiment.")
+            if component.get("type") == "npc_dialogue" and not str(component.get("props", {}).get("npc_key", "")).strip():
+                raise ValidationError("Un dialogue doit cibler un personnage.")
             if component.get("type") in interactive_types:
                 slot = int(component.get("slot", -1))
                 if not 0 <= slot <= 24:
