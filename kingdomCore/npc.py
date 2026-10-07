@@ -20,7 +20,7 @@ class NpcEngine:
         draft=self.store.save("npc",key,payload,"npc-move",current["version"]); return self.store.publish("npc",key,draft["version"],"npc-move")
     def context(self,npc_key,player_id,extra=None):
         npc=self.get(npc_key); world=WorldClock(self.store).state(); player=WorldEngine(self.store).player_state(player_id); memory=self.memory(npc_key,player_id)
-        return {"period":world["time_of_day"],"hour":world["hour"],"weather":world["weather"].get("key"),"season":(world.get("season") or {}).get("key"),"events":[e["key"] for e in world["active_events"]],"location_key":npc.get("location_key") or player.get("location_key"),"building_key":npc.get("building_key") or player.get("active_building_key"),"npc_met":bool(memory.get("npc_met")),"memory":memory,"player":player,**(extra or {})}
+        return {"period":world["time_of_day"],"hour":world["hour"],"weather":world["weather"].get("key"),"season":(world.get("season") or {}).get("key"),"events":[e["key"] for e in world["active_events"]],"location_key":npc.get("location_key") or player.get("location_key"),"building_key":npc.get("building_key") or player.get("active_building_key"),"npc_met":bool(memory.get("npc_met")),"memory":memory,"player":player,"quest_board":None,**(extra or {})}
     def react(self,npc_key,player_id,trigger="talk",extra=None):
         npc=self.get(npc_key); context=self.context(npc_key,player_id,extra); candidates=[]
         for index,reaction in enumerate(npc.get("reactions",[])):
@@ -46,7 +46,7 @@ class NpcEngine:
         for c in conditions or []:
             kind,value=c.get("type"),c.get("value",c.get("key")); invert=bool(c.get("not")); actual=False
             if kind in {"period","weather","season","location","building","action"}:actual=context.get({"location":"location_key","building":"building_key","action":"action_key"}.get(kind,kind))==value
-            elif kind=="event_active":actual=value in context["events"]
+            elif kind=="event_active":actual=str(c.get("event") or c.get("key") or c.get("value")) in context["events"]
             elif kind in {"first_meeting","npc_met"}:actual=bool(context["npc_met"])==(kind=="npc_met")
             elif kind=="memory":actual=context["memory"].get(str(c.get("key")))==c.get("value")
             elif kind=="tag":actual=value in context.get("tags",[])
@@ -56,6 +56,36 @@ class NpcEngine:
                 with self.store.connection() as db:actual=bool(db.execute("SELECT 1 FROM player_professions WHERE discord_id=? AND profession_key=? AND active=1",(str(player_id),str(value))).fetchone())
             elif kind=="location_discovered":actual=value in context["player"].get("discovered_locations",[])
             elif kind=="route_discovered":actual=value in context["player"].get("discovered_routes",[])
+            elif kind=="scenario_elapsed_minutes":
+                from kingdomCore.quests import QuestRuntime
+                with self.store.connection() as db: actual=QuestRuntime._scenario_minute(db,time.time())
+                if actual is None: actual=-1
+                operator=str(c.get("operator",">=")); expected=float(c.get("value",0))
+                actual={"=":actual==expected,"!=":actual!=expected,">":actual>expected,">=":actual>=expected,"<":actual<expected,"<=":actual<=expected}.get(operator,False)
+            elif kind=="quest_status":
+                if context.get("quest_board") is None:
+                    from kingdomCore.engine import GameEngine
+                    context["quest_board"]=GameEngine(self.store).quest_board(str(player_id))
+                board=context["quest_board"]; quest_key=str(c.get("quest") or c.get("key") or "")
+                expected=str(c.get("value") or "available")
+                active=board.get("active")
+                if active and active.get("key")==quest_key: status=str(active.get("status"))
+                else:
+                    from kingdomCore.engine import GameEngine
+                    engine=GameEngine(self.store)
+                    with self.store.connection() as db:
+                        claimed=bool(db.execute("SELECT 1 FROM player_quests WHERE discord_id=? AND quest_key=? AND status='claimed'",(str(player_id),quest_key)).fetchone())
+                        try:
+                            payload=self.store.get("quest",quest_key,published=True)["payload"]
+                            minute=engine.quests._scenario_minute(db,time.time())
+                            available=engine.quests._available_for_player(db,str(player_id),payload,minute) and (payload.get("repeatable",False) or not claimed) and not active
+                        except KeyError: available=False
+                    status="completed" if claimed else "available" if available else "unavailable"
+                if expected=="active": actual=status in {"accepted","ready"}
+                else: actual=status==expected
+            elif kind in {"state","building_stock"}:
+                from kingdomCore.engine import GameEngine
+                actual=GameEngine(self.store).condition_met(str(player_id),str(context.get("building_key") or ""),"npc_dialogue",c)
             if actual==invert:return False
         return True
     def memory(self,npc_key,player_id):
@@ -89,17 +119,25 @@ class NpcEngine:
         node=next((item for item in dialogues if item.get("key")==node_key),None) if node_key else dialogues[0]
         if not node: raise NpcError("Branche de dialogue introuvable.")
         context=self.context(npc_key,player_id); choices=[]
+        variants=sorted(node.get("variants",[]),key=lambda item:int(item.get("priority",0)),reverse=True)
+        variant=next((item for item in variants if self._conditions(item.get("conditions",[]),context,player_id)),None)
         for choice in node.get("choices",[]):
-            if self._conditions(choice.get("conditions",[]),context,player_id): choices.append({key:choice.get(key) for key in ("key","label","next_node","action_key") if choice.get(key) is not None})
-        return {"npc":{"key":npc_key,"name":npc.get("name")},"node_key":node.get("key"),"text":node.get("text",""),"audio_key":node.get("audio_key",""),"choices":choices}
+            if self._conditions(choice.get("conditions",[]),context,player_id):
+                entry={key:choice.get(key) for key in ("key","label","next_node","action_key","back","quest_key","quest_operation") if choice.get(key) is not None}
+                entry["available"]=self._conditions(choice.get("access_conditions",[]),context,player_id)
+                entry["locked_reason"]=choice.get("locked_reason","Ce choix n’est pas encore disponible.")
+                choices.append(entry)
+        return {"npc":{"key":npc_key,"name":npc.get("name")},"node_key":node.get("key"),"parent_node":node.get("parent_node"),"text":(variant or {}).get("text",node.get("text","")),"audio_key":(variant or {}).get("audio_key",node.get("audio_key","")),"choices":choices}
 
     def choose_dialogue(self,npc_key,player_id,node_key,choice_key):
         npc=self.get(npc_key); node=next((item for item in npc.get("dialogues",[]) if item.get("key")==node_key),None)
         choice=next((item for item in (node or {}).get("choices",[]) if item.get("key")==choice_key),None)
-        if not choice or not self._conditions(choice.get("conditions",[]),self.context(npc_key,player_id),player_id): raise NpcError("Cette réponse n’est pas disponible.")
+        context=self.context(npc_key,player_id)
+        if not choice or not self._conditions(choice.get("conditions",[]),context,player_id): raise NpcError("Cette réponse n’est pas disponible.")
+        if not self._conditions(choice.get("access_conditions",[]),context,player_id): raise NpcError(str(choice.get("locked_reason") or "Ce choix n’est pas encore disponible."))
         for effect in choice.get("effects",[]):
             if effect.get("type")=="state": self.set_memory(npc_key,player_id,str(effect.get("key")),effect.get("value",True))
-        result={"response_text":choice.get("response_text",""),"audio_key":choice.get("audio_key",""),"action_key":choice.get("action_key")}
+        result={"response_text":choice.get("response_text",""),"audio_key":choice.get("audio_key",""),"action_key":choice.get("action_key"),"back":bool(choice.get("back")),"quest_key":choice.get("quest_key"),"quest_operation":choice.get("quest_operation")}
         audio_key=str(result.get("audio_key") or "")
         voice=self.voice_agent(npc)
         if audio_key and voice.get("building_key") and voice.get("configured"):

@@ -4564,26 +4564,56 @@ function readNpcReactions() {
 function addNpcDialogueChoice(root, choice = {}) {
   const row = document.createElement("div");
   row.className = "npc-dialogue-choice module-card";
-  row.innerHTML = `<button type="button" class="remove">×</button><div class="form-grid">${input("Libellé joueur", "npc_dialogue_choice_label", choice.label || "")}${input("Nœud suivant", "npc_dialogue_choice_next", choice.next_node || "")}${input("Réponse du personnage", "npc_dialogue_choice_response", choice.response_text || "")}${select("Voix associée", "npc_dialogue_choice_audio", choice.audio_key || "", audioOptions(choice.audio_key || "", "voice"))}</div>`;
+  const visible = choice.conditions?.[0] || {}, access = choice.access_conditions?.[0] || {};
+  const conditionTypes = [["", "Aucune"], ["quest_status", "État d’une quête"], ["scenario_elapsed_minutes", "Minute du scénario"], ["event_active", "Événement actif"], ["state", "Variable joueur"]];
+  const operators = [["=", "="], ["!=", "≠"], [">", ">"], [">=", "≥"], ["<", "<"], ["<=", "≤"]];
+  row.innerHTML = `<button type="button" class="remove">×</button><div class="form-grid">${input("Libellé joueur", "npc_dialogue_choice_label", choice.label || "")}${input("Nœud suivant", "npc_dialogue_choice_next", choice.next_node || "")}${select("Navigation", "npc_dialogue_choice_navigation", choice.back ? "back" : "next", [["next", "Aller au nœud suivant"], ["back", "Retour au dialogue parent"]])}${input("Réponse du personnage", "npc_dialogue_choice_response", choice.response_text || "")}${select("Voix associée", "npc_dialogue_choice_audio", choice.audio_key || "", audioOptions(choice.audio_key || "", "voice"))}${select("Action du bâtiment", "npc_dialogue_choice_action", choice.action_key || "", [["", "Aucune"], ...availableActions($("#key")?.value || "").map((action) => [action.key, action.name])])}${select("Action de quête", "npc_dialogue_choice_quest_operation", choice.quest_operation || "", [["", "Aucune"], ["accept", "Accepter"], ["claim", "Réclamer"]])}${select("Quête", "npc_dialogue_choice_quest", choice.quest_key || "", [["", "Aucune"], ...catalogOptions("quest", choice.quest_key || "")])}</div><details><summary>Conditions du choix</summary><div class="form-grid">${select("Visible si", "npc_dialogue_choice_condition_type", visible.type || "", conditionTypes)}${input("Référence", "npc_dialogue_choice_condition_reference", visible.quest || visible.event || visible.key || "")}${select("Opérateur", "npc_dialogue_choice_condition_operator", visible.operator || "=", operators)}${input("Valeur", "npc_dialogue_choice_condition_value", visible.value ?? "")}${select("Accessible si", "npc_dialogue_choice_access_type", access.type || "", conditionTypes)}${input("Référence d’accès", "npc_dialogue_choice_access_reference", access.quest || access.event || access.key || "")}${select("Opérateur d’accès", "npc_dialogue_choice_access_operator", access.operator || "=", operators)}${input("Valeur d’accès", "npc_dialogue_choice_access_value", access.value ?? "")}${input("Raison si verrouillé", "npc_dialogue_choice_locked_reason", choice.locked_reason || "Ce choix n’est pas encore disponible.")}</div></details>`;
   root.append(row);
   row.querySelector(".remove").onclick = () => row.remove();
+}
+function addNpcDialogueVariant(root, variant = {}) {
+  const row = document.createElement("div"); row.className = "npc-dialogue-variant module-card";
+  const condition = variant.conditions?.[0] || {};
+  row.innerHTML = `<button type="button" class="remove">×</button><div class="form-grid">${input("Priorité", "npc_dialogue_variant_priority", variant.priority || 0, "number")}${select("Condition", "npc_dialogue_variant_type", condition.type || "scenario_elapsed_minutes", [["scenario_elapsed_minutes", "Minute du scénario"], ["event_active", "Événement actif"], ["state", "Variable joueur"], ["quest_status", "État d’une quête"]])}${input("Référence", "npc_dialogue_variant_reference", condition.event || condition.key || condition.quest || "")}${select("Opérateur", "npc_dialogue_variant_operator", condition.operator || ">=", [["=", "="], ["!=", "≠"], [">", ">"], [">=", "≥"], ["<", "<"], ["<=", "≤"]])}${input("Valeur", "npc_dialogue_variant_value", condition.value ?? 0)}${select("Voix associée", "npc_dialogue_variant_audio", variant.audio_key || "", audioOptions(variant.audio_key || "", "voice"))}</div><label>Texte de cette variante<textarea data-field="npc_dialogue_variant_text" rows="3">${escapeHtml(variant.text || "")}</textarea></label>`;
+  root.append(row); row.querySelector(".remove").onclick = () => row.remove();
 }
 function addNpcDialogueNode(root, node = {}) {
   const row = document.createElement("details");
   row.className = "module-card npc-dialogue-node";
   row.open = !node.key;
-  row.innerHTML = `<summary><strong>🗨️ ${escapeHtml(node.name || node.key || "Nouveau dialogue")}</strong></summary><div class="module-content"><button type="button" class="remove">×</button><div class="form-grid">${input("Identifiant", "npc_dialogue_key", node.key || "")}${input("Nom", "npc_dialogue_name", node.name || "")}</div><label>Texte du personnage<textarea data-field="npc_dialogue_text" rows="4">${escapeHtml(node.text || "")}</textarea></label>${select("Voix du texte", "npc_dialogue_audio", node.audio_key || "", audioOptions(node.audio_key || "", "voice"))}<div class="section-head"><div><b>Choix proposés au joueur</b><p class="field-note">Le nœud suivant correspond à l’identifiant d’un autre dialogue.</p></div><button type="button" class="secondary add-dialogue-choice">＋ Ajouter un choix</button></div><div class="npc-dialogue-choices"></div></div>`;
+  row.innerHTML = `<summary><strong>🗨️ ${escapeHtml(node.name || node.key || "Nouveau dialogue")}</strong></summary><div class="module-content"><button type="button" class="remove">×</button><div class="form-grid">${input("Identifiant", "npc_dialogue_key", node.key || "")}${input("Nom", "npc_dialogue_name", node.name || "")}${input("Dialogue parent", "npc_dialogue_parent", node.parent_node || "")}</div><label>Texte du personnage<textarea data-field="npc_dialogue_text" rows="4">${escapeHtml(node.text || "")}</textarea></label>${select("Voix du texte", "npc_dialogue_audio", node.audio_key || "", audioOptions(node.audio_key || "", "voice"))}<div class="section-head"><div><b>Variantes selon le scénario</b><p class="field-note">La priorité la plus haute dont la condition est vraie remplace le texte fallback.</p></div><button type="button" class="secondary add-dialogue-variant">＋ Ajouter une variante</button></div><div class="npc-dialogue-variants"></div><div class="section-head"><div><b>Choix proposés au joueur</b><p class="field-note">Chaque choix peut naviguer, agir, accepter une quête ou revenir au parent.</p></div><button type="button" class="secondary add-dialogue-choice">＋ Ajouter un choix</button></div><div class="npc-dialogue-choices"></div></div>`;
   root.append(row);
+  (node.variants || []).forEach((variant) => addNpcDialogueVariant(row.querySelector(".npc-dialogue-variants"), variant));
   (node.choices || []).forEach((choice) => addNpcDialogueChoice(row.querySelector(".npc-dialogue-choices"), choice));
+  row.querySelector(".add-dialogue-variant").onclick = () => addNpcDialogueVariant(row.querySelector(".npc-dialogue-variants"), {});
   row.querySelector(".add-dialogue-choice").onclick = () => addNpcDialogueChoice(row.querySelector(".npc-dialogue-choices"), {});
   row.querySelector(":scope > .module-content > .remove").onclick = () => row.remove();
 }
 function readNpcDialogues() {
+  const parseValue = (value) => ["true", "false"].includes(String(value).toLowerCase()) ? String(value).toLowerCase() === "true" : (value !== "" && !Number.isNaN(Number(value)) ? Number(value) : value);
+  const readCondition = (choice, prefix) => {
+    const type = fieldValue(`${prefix}_type`, choice); if (!type) return [];
+    const condition = { type, operator: fieldValue(`${prefix}_operator`, choice) || "=", value: parseValue(fieldValue(`${prefix}_value`, choice)) };
+    const reference = fieldValue(`${prefix}_reference`, choice);
+    if (type === "quest_status") condition.quest = reference;
+    else if (type === "event_active") condition.event = reference;
+    else if (type === "state") condition.key = reference;
+    return [condition];
+  };
   return $$(".npc-dialogue-node").map((row, index) => ({
     key: technicalKey(fieldValue("npc_dialogue_key", row) || fieldValue("npc_dialogue_name", row), `dialogue_${index + 1}`),
     name: fieldValue("npc_dialogue_name", row),
     text: fieldValue("npc_dialogue_text", row),
     audio_key: fieldValue("npc_dialogue_audio", row) || "",
+    parent_node: fieldValue("npc_dialogue_parent", row) || undefined,
+    variants: [...row.querySelectorAll(".npc-dialogue-variant")].map((variant, variantIndex) => {
+      const type = fieldValue("npc_dialogue_variant_type", variant), reference = fieldValue("npc_dialogue_variant_reference", variant);
+      const condition = { type, operator: fieldValue("npc_dialogue_variant_operator", variant) || ">=", value: parseValue(fieldValue("npc_dialogue_variant_value", variant)) };
+      if (type === "event_active") condition.event = reference;
+      else if (type === "quest_status") condition.quest = reference;
+      else if (type === "state") condition.key = reference;
+      return { key: `variant_${variantIndex + 1}`, priority: fieldValue("npc_dialogue_variant_priority", variant) || 0, text: fieldValue("npc_dialogue_variant_text", variant), audio_key: fieldValue("npc_dialogue_variant_audio", variant) || "", conditions: [condition] };
+    }).filter((variant) => variant.text),
     choices: [...row.querySelectorAll(".npc-dialogue-choice")].map((choice, choiceIndex) => ({
       key: technicalKey(fieldValue("npc_dialogue_choice_label", choice), `choix_${choiceIndex + 1}`),
       label: fieldValue("npc_dialogue_choice_label", choice),
@@ -4592,6 +4622,13 @@ function readNpcDialogues() {
         : undefined,
       response_text: fieldValue("npc_dialogue_choice_response", choice),
       audio_key: fieldValue("npc_dialogue_choice_audio", choice) || "",
+      action_key: fieldValue("npc_dialogue_choice_action", choice) || undefined,
+      quest_operation: fieldValue("npc_dialogue_choice_quest_operation", choice) || undefined,
+      quest_key: fieldValue("npc_dialogue_choice_quest", choice) || undefined,
+      back: fieldValue("npc_dialogue_choice_navigation", choice) === "back" || undefined,
+      conditions: readCondition(choice, "npc_dialogue_choice_condition"),
+      access_conditions: readCondition(choice, "npc_dialogue_choice_access"),
+      locked_reason: fieldValue("npc_dialogue_choice_locked_reason", choice) || undefined,
     })).filter((choice) => choice.label),
   })).filter((node) => node.text || node.choices.length);
 }
@@ -5079,10 +5116,20 @@ const COMPONENT_LIBRARY = {
     icon: "📦",
     props: { title: "Stock commun", building: "" },
   },
+  stock_status: {
+    name: "Résumé qualitatif des stocks",
+    icon: "📊",
+    props: { title: "État des réserves", building: "", groups: [] },
+  },
   workstation_status: {
     name: "État des postes",
     icon: "🍲",
     props: { title: "État des postes", building: "" },
+  },
+  contextual_content: {
+    name: "Contenu conditionnel",
+    icon: "🔀",
+    props: { fallback: { title: "Ambiance", text: "Texte par défaut", emoji: "🏰" }, variants: [] },
   },
   world_weather: {
     name: "Météo actuelle",
@@ -5317,7 +5364,7 @@ function componentTiles(types) {
 function visualStudioMarkup() {
   return `<section class="visual-studio library-open inspector-open" data-studio-view="editor">
     <nav class="studio-layout-toolbar" aria-label="Disposition de l’éditeur"><button type="button" data-toggle-studio-library aria-expanded="true">☷ Bibliothèque</button><div><button type="button" class="active" data-studio-view-button="editor">Éditeur</button><button type="button" data-studio-view-button="graph">Graphe de navigation</button></div><button type="button" data-toggle-studio-inspector aria-expanded="true">Inspecteur ◫</button></nav>
-    <aside class="studio-panel component-palette"><div class="studio-panel-head"><h3>Composants</h3><small>Glisser</small></div><div class="component-group"><h4>📝 Contenu de l’embed</h4><p>Éléments affichés dans le message Discord.</p><div class="component-library">${componentTiles(["hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "building_inventory", "workstation_status"])}</div><h5>Composants prêts à l’emploi</h5><div class="component-library preset-library">${Object.entries(PREDEFINED_COMPONENTS).map(([key, item]) => `<button type="button" class="component-tile preset-tile" draggable="true" data-content-preset="${key}"><span>${item.icon}</span><b>${item.name}</b></button>`).join("")}</div></div><div class="component-group interaction-components"><h4>🖱️ Boutons et menus</h4><p>Éléments interactifs placés dans la grille.</p><div class="component-library">${componentTiles(["button", "select", "npc_dialogue"])}</div><h5>Boutons prêts à l’emploi</h5><div class="component-library preset-library">${Object.entries(
+    <aside class="studio-panel component-palette"><div class="studio-panel-head"><h3>Composants</h3><small>Glisser</small></div><div class="component-group"><h4>📝 Contenu de l'embed</h4><p>Éléments affichés dans le message Discord.</p><div class="component-library">${componentTiles(["hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "building_inventory", "stock_status", "workstation_status", "contextual_content"])}</div><h5>Composants prêts à l'emploi</h5><div class="component-library preset-library">${Object.entries(PREDEFINED_COMPONENTS).map(([key, item]) => `<button type="button" class="component-tile preset-tile" draggable="true" data-content-preset="${key}"><span>${item.icon}</span><b>${item.name}</b></button>`).join("")}</div></div><div class="component-group interaction-components"><h4>🖱️ Boutons et menus</h4><p>Éléments interactifs placés dans la grille.</p><div class="component-library">${componentTiles(["button", "select", "npc_dialogue"])}</div><h5>Boutons prêts à l'emploi</h5><div class="component-library preset-library">${Object.entries(
       PREDEFINED_INTERACTIONS,
     )
       .map(
@@ -5956,6 +6003,10 @@ function renderCanvasComponent(component) {
     content = `<div class="preview-card"><b>🎒 ${escapeHtml(props.title || "Inventaire du joueur")}</b><p>Le contenu, la monnaie, l’énergie et les métiers du joueur seront affichés ici.</p></div>`;
   if (component.type === "building_inventory")
     content = `<div class="preview-card"><b>📦 ${escapeHtml(props.title || "Stock commun")}</b><p>Les ressources stockées dans ce bâtiment seront affichées ici.</p></div>`;
+  if (component.type === "stock_status")
+    content = `<div class="preview-card"><b>📊 ${escapeHtml(props.title || "État des réserves")}</b><p>${(props.groups || []).map((group) => `${escapeHtml(group.label || group.key || "Réserve")} · seuils ${group.critical_min || 1}/${group.low_min || 4}/${group.comfortable_min || 10}`).join("<br>") || "Ajoutez des catégories de stock."}</p></div>`;
+  if (component.type === "contextual_content")
+    content = `<div class="preview-card"><b>🔀 Contenu conditionnel</b><p>${(props.variants || []).length} variante(s) · un fallback</p></div>`;
   if (component.type === "world_weather")
     content = `<div class="preview-card"><b>🌦️ ${escapeHtml(props.title || "Météo actuelle")}</b><p>Condition, température et saison du monde en direct.</p></div>`;
   if (component.type === "world_calendar")
@@ -6078,6 +6129,8 @@ function renderPropertyPanel() {
           props.building || state.interfaceDraft.target_building_key,
         ),
       );
+  if (component.type === "stock_status")
+    fields = stockStatusPropertyFields(component, buildingOptions);
   if (component.type === "workstation_status")
     fields =
       propertyInput("Titre", "title", props.title || "État des postes") +
@@ -6087,6 +6140,8 @@ function renderPropertyPanel() {
         props.building || state.interfaceDraft.target_building_key,
         buildingTargetOptions(props.building || state.interfaceDraft.target_building_key),
       );
+  if (component.type === "contextual_content")
+    fields = contextualContentPropertyFields(component);
   if (component.type === "world_weather")
     fields = propertyInput("Titre", "title", props.title || "Météo actuelle");
   if (component.type === "world_calendar")
@@ -6130,6 +6185,23 @@ function renderPropertyPanel() {
     };
   });
   bindPropertyPanel();
+}
+
+function stockStatusPropertyFields(component, buildingOptions) {
+  const props = component.props || {};
+  const groups = props.groups || [];
+  return propertyInput("Titre", "title", props.title || "État des réserves") +
+    propertySelect("Bâtiment affiché", "building", props.building || state.interfaceDraft.target_building_key, buildingOptions) +
+    `<p class="field-note">Le résumé masque les quantités exactes. Le détail reste disponible avec le composant Inventaire du bâtiment.</p><div class="stock-status-groups">${groups.map((group, index) => `<article class="module-card"><button type="button" class="remove-option" data-remove-stock-group="${index}">×</button>${propertyInput("Catégorie", `stock_group_${index}_label`, group.label || "")}${propertyInput("Icône", `stock_group_${index}_emoji`, group.emoji || "📦")}<label>Objets suivis<select data-prop="stock_group_${index}_items" multiple size="5">${state.catalogs.item.map((item) => `<option value="${escapeHtml(item.entity_key)}" ${(group.item_keys || []).includes(item.entity_key) ? "selected" : ""}>${escapeHtml(item.payload.name)}</option>`).join("")}</select></label><div class="form-grid">${propertyInput("Critique à partir de", `stock_group_${index}_critical`, group.critical_min ?? 1, "number")}${propertyInput("Faible à partir de", `stock_group_${index}_low`, group.low_min ?? 4, "number")}${propertyInput("Confortable à partir de", `stock_group_${index}_comfortable`, group.comfortable_min ?? 10, "number")}</div></article>`).join("")}</div><button type="button" class="secondary add-stock-group">＋ Ajouter une catégorie</button>`;
+}
+
+function contextualContentPropertyFields(component) {
+  const props = component.props || {};
+  const fallback = props.fallback || {};
+  const variants = props.variants || [];
+  const conditionTypes = [["scenario_elapsed_minutes", "Minute du scénario"], ["event_active", "Événement actif"], ["state", "Variable joueur"], ["building_stock", "Stock du bâtiment"]];
+  const operators = [["=", "="], ["!=", "≠"], [">", ">"], [">=", "≥"], ["<", "<"], ["<=", "≤"]];
+  return propertySelect("Présentation", "replace_page_title", String(!!props.replace_page_title), [["false", "Bloc dans la description"], ["true", "Remplacer le titre de la page"]]) + `<h5>Fallback</h5>${propertyInput("Titre par défaut", "context_fallback_title", fallback.title || "")}${propertyInput("Icône par défaut", "context_fallback_emoji", fallback.emoji || "")}<label>Texte par défaut<textarea data-prop="context_fallback_text" rows="3">${escapeHtml(fallback.text || "")}</textarea></label><h5>Variantes prioritaires</h5><div class="context-variants">${variants.map((variant, index) => `<article class="module-card"><button type="button" class="remove-option" data-remove-context-variant="${index}">×</button>${propertyInput("Titre", `context_variant_${index}_title`, variant.title || "")}${propertyInput("Icône", `context_variant_${index}_emoji`, variant.emoji || "")}${propertyInput("Priorité", `context_variant_${index}_priority`, variant.priority || 0, "number")}<label>Texte<textarea data-prop="context_variant_${index}_text" rows="3">${escapeHtml(variant.text || "")}</textarea></label>${propertySelect("Condition", `context_variant_${index}_type`, variant.condition?.type || "scenario_elapsed_minutes", conditionTypes)}${propertyInput("Référence (événement, variable ou objet)", `context_variant_${index}_reference`, variant.condition?.event || variant.condition?.key || variant.condition?.item || "")}${propertySelect("Opérateur", `context_variant_${index}_operator`, variant.condition?.operator || ">=", operators)}${propertyInput("Valeur", `context_variant_${index}_value`, variant.condition?.value ?? 0)}</article>`).join("")}</div><button type="button" class="secondary add-context-variant">＋ Ajouter une variante</button>`;
 }
 
 function buttonPropertyFields(component) {
@@ -8006,6 +8078,36 @@ function bindPropertyPanel() {
           renderVisualStudio();
           return;
         }
+        const stockMatch = key.match(/^stock_group_(\d+)_(.+)$/);
+        if (component && stockMatch) {
+          const group = component.props.groups[Number(stockMatch[1])], property = stockMatch[2];
+          if (property === "items") group.item_keys = Array.from(field.selectedOptions, (option) => option.value);
+          else if (["critical", "low", "comfortable"].includes(property)) group[`${property}_min`] = Math.max(0, Number(value) || 0);
+          else group[property] = value;
+          renderVisualStudio(); return;
+        }
+        if (component && key.startsWith("context_fallback_")) {
+          component.props.fallback ||= {};
+          component.props.fallback[key.replace("context_fallback_", "")] = value;
+          renderVisualStudio(); return;
+        }
+        const contextMatch = key.match(/^context_variant_(\d+)_(.+)$/);
+        if (component && contextMatch) {
+          const variant = component.props.variants[Number(contextMatch[1])], property = contextMatch[2];
+          variant.condition ||= { type: "scenario_elapsed_minutes", operator: ">=", value: 0 };
+          if (["title", "text", "emoji"].includes(property)) variant[property] = value;
+          else if (property === "priority") variant.priority = Number(value) || 0;
+          else if (property === "type") variant.condition = { type: value, operator: ">=", value: value === "event_active" ? true : 0 };
+          else if (property === "operator") variant.condition.operator = value;
+          else if (property === "value") variant.condition.value = ["true", "false"].includes(String(value).toLowerCase()) ? String(value).toLowerCase() === "true" : (Number.isNaN(Number(value)) || value === "" ? value : Number(value));
+          else if (property === "reference") {
+            delete variant.condition.event; delete variant.condition.key; delete variant.condition.item;
+            if (variant.condition.type === "event_active") variant.condition.event = value;
+            else if (variant.condition.type === "building_stock") variant.condition.item = value;
+            else variant.condition.key = value;
+          }
+          renderVisualStudio(); return;
+        }
         const optionMatch = key.match(/^option_(\d+)_(.+)$/);
         if (component && optionMatch) {
           const option = component.options[Number(optionMatch[1])],
@@ -8155,6 +8257,8 @@ function bindPropertyPanel() {
           component.interaction[key] = Math.max(0, Number(value) || 0);
         else if (component && key === "inline")
           component.props.inline = value === "true";
+        else if (component && key === "replace_page_title")
+          component.props.replace_page_title = value === "true";
         else if (component && key === "access_type") {
           if (value === "none") delete component.access_when;
           else
@@ -8188,6 +8292,22 @@ function bindPropertyPanel() {
     );
     state.selectedComponent = null;
     renderVisualStudio();
+  });
+  panel.querySelector(".add-stock-group")?.addEventListener("click", () => {
+    component.props.groups ||= [];
+    component.props.groups.push({ key: `reserve_${component.props.groups.length + 1}`, label: "Nouvelle réserve", emoji: "📦", item_keys: [], critical_min: 1, low_min: 4, comfortable_min: 10 });
+    renderVisualStudio();
+  });
+  panel.querySelectorAll("[data-remove-stock-group]").forEach((button) => button.onclick = () => {
+    component.props.groups.splice(Number(button.dataset.removeStockGroup), 1); renderVisualStudio();
+  });
+  panel.querySelector(".add-context-variant")?.addEventListener("click", () => {
+    component.props.variants ||= [];
+    component.props.variants.push({ key: `variante_${component.props.variants.length + 1}`, title: "Nouvelle ambiance", text: "", emoji: "🏰", priority: 0, condition: { type: "scenario_elapsed_minutes", operator: ">=", value: 0 } });
+    renderVisualStudio();
+  });
+  panel.querySelectorAll("[data-remove-context-variant]").forEach((button) => button.onclick = () => {
+    component.props.variants.splice(Number(button.dataset.removeContextVariant), 1); renderVisualStudio();
   });
   panel.querySelector(".add-select-option")?.addEventListener("click", () => {
     if (component.options.length >= 25) return;
@@ -9827,7 +9947,7 @@ function refreshWorkstationSelectors() {
 function addWorkstationModule(workstation = {}) {
   const element = document.createElement("article");
   element.className = "module-card workstation-module";
-  element.innerHTML = `<button type="button" class="remove">×</button><div class="workstation-heading"><span>${escapeHtml(workstation.emoji || "⚙️")}</span><div><b>${escapeHtml(workstation.name || "Nouveau poste")}</b><small>Poste partagé configurable</small></div></div><div class="form-grid">${input("Identifiant", "workstation_key", workstation.key || "")}${input("Nom", "workstation_name", workstation.name || "")}${input("Icône", "workstation_emoji", workstation.emoji || "⚙️")}${input("Nombre de postes", "workstation_slots", workstation.slots || 1, "number", "min=1 max=50")}</div>`;
+  element.innerHTML = `<button type="button" class="remove">×</button><div class="workstation-heading"><span>${escapeHtml(workstation.emoji || "⚙️")}</span><div><b>${escapeHtml(workstation.name || "Nouveau poste")}</b><small>Poste partagé configurable</small></div></div><div class="form-grid">${input("Identifiant", "workstation_key", workstation.key || "")}${input("Nom", "workstation_name", workstation.name || "")}${input("Icône", "workstation_emoji", workstation.emoji || "⚙️")}${input("Nombre de postes", "workstation_slots", workstation.slots || 1, "number", "min=1 max=50")}</div><div class="form-grid">${input("Texte lorsque le poste est libre", "workstation_idle_text", workstation.idle_text || "")}${input("Commentaire pendant la préparation", "workstation_busy_text", workstation.busy_text || "")}${input("Texte quand la production est prête", "workstation_ready_text", workstation.ready_text || "")}</div><p class="field-note">Ces textes personnalisent la voix du lieu sans modifier la mécanique du poste.</p>`;
   $("#workstation-modules").append(element);
   element.querySelector(".remove").onclick = () => { element.remove(); refreshWorkstationSelectors(); };
   const keyField = element.querySelector('[data-field="workstation_key"]');
@@ -9847,6 +9967,9 @@ function readWorkstationModules() {
     name: fieldValue("workstation_name", element) || `Poste ${index + 1}`,
     emoji: fieldValue("workstation_emoji", element) || "⚙️",
     slots: fieldValue("workstation_slots", element) || 1,
+    idle_text: fieldValue("workstation_idle_text", element) || undefined,
+    busy_text: fieldValue("workstation_busy_text", element) || undefined,
+    ready_text: fieldValue("workstation_ready_text", element) || undefined,
   }));
 }
 async function loadWorkstationStates(buildingKey, workstations) {

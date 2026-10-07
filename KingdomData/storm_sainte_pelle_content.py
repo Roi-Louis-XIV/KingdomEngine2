@@ -167,7 +167,7 @@ def build_storm_template(source: list[dict[str, Any]]) -> list[dict[str, Any]]:
     settings = _row(rows, "server_settings", "kingdom_server")
     settings.update(name="La Tempête de la Sainte Pelle",
                     description="Bêta coopérative de trois heures, depuis le vieux pont jusqu'à l'église.",
-                    template_revision=7, balance_status=BALANCE)
+                    template_revision=8, balance_status=BALANCE)
     settings["onboarding"].update(
         starting_money=100,
         currency_label="écus",
@@ -720,6 +720,9 @@ def _rebuild_discord_building_ux(rows: list[dict[str, Any]]) -> None:
     tavern_modules = tavern.setdefault("modules", {})
     tavern_modules["workstations"] = [{
         "key": "tavern_cauldrons", "name": "Marmite", "emoji": "🍲", "slots": 3,
+        "idle_text": "🟢 **Libre** · Edgar a laissé le feu prêt : cette marmite peut accueillir une nouvelle recette.",
+        "busy_text": "« Laisse mijoter, voyageur. Une bonne cuisine ne se brusque pas. »",
+        "ready_text": "✅ **Terminé** · {quantity}× {output} prêts\n« C’est prêt ! Qui vient chercher la marmite ? »",
     }]
     for recipe in tavern_modules.get("recipes", []):
         total = max(0, int(recipe.get("duration_seconds", 0)))
@@ -745,9 +748,32 @@ def _rebuild_discord_building_ux(rows: list[dict[str, Any]]) -> None:
                 {"key": "quetes", "label": "📜 Quêtes disponibles", "next_node": "quetes", "response_text": "Edgar sort quelques notes de sous le comptoir."},
             ]},
             {"key": "royaume", "name": "Nouvelles du Royaume", "text": "La tempête inquiète le village. La mine, le vieux pont et l'église auront besoin de toutes les bonnes volontés.", "choices": [{"key": "retour", "label": "↩ Parler d'autre chose", "next_node": "accueil"}]},
-            {"key": "rumeurs", "name": "Rumeurs", "text": "Edgar garde ses histoires les plus douteuses pour après la tempête. Pour l'instant, mieux vaut écouter les annonces officielles.", "choices": [{"key": "retour", "label": "↩ Parler d'autre chose", "next_node": "accueil"}]},
+            {"key": "rumeurs", "name": "Rumeurs", "parent_node": "accueil", "text": "Edgar se penche légèrement au-dessus du comptoir.", "variants": [
+                {"priority": 30, "text": "« On vient de m’apprendre pour l’église… Un arbre lui est tombé dessus. Le père Alain doit être dans un état… »", "conditions": [{"type": "scenario_elapsed_minutes", "operator": ">=", "value": 105}]},
+                {"priority": 20, "text": "« Tu entends ça ? Même les murs commencent à trembler. J’espère que les gars de la mine sont déjà remontés. »", "conditions": [{"type": "scenario_elapsed_minutes", "operator": ">=", "value": 90}]},
+                {"priority": 10, "text": "« Roland raconte encore que sa mine fait des bruits étranges. Il devrait peut-être simplement dormir un peu plus. »", "conditions": [{"type": "scenario_elapsed_minutes", "operator": "<", "value": 90}]},
+            ], "choices": [
+                {"key": "mine", "label": "⛏️ La mine ?", "next_node": "rumeur_mine"},
+                {"key": "foret", "label": "🌲 Et du côté de la forêt ?", "next_node": "rumeur_foret"},
+                {"key": "autre", "label": "👀 Une autre rumeur", "next_node": "rumeur_autre"},
+                {"key": "retour", "label": "↩ Changer de sujet", "back": True},
+            ]},
+            {"key": "rumeur_mine", "name": "La mine", "parent_node": "rumeurs", "text": "« Roland a entendu des grondements sous la galerie basse. Il n’est pas du genre à avoir peur d’un courant d’air. »", "choices": [{"key": "retour", "label": "↩ Revenir aux rumeurs", "back": True}]},
+            {"key": "rumeur_foret", "name": "La forêt", "parent_node": "rumeurs", "text": "« Sylvain connaît chaque arbre par son nom. S’il tarde à rentrer, c’est que le vent prépare quelque chose de mauvais. »", "choices": [{"key": "retour", "label": "↩ Revenir aux rumeurs", "back": True}]},
+            {"key": "rumeur_autre", "name": "Une autre rumeur", "parent_node": "rumeurs", "text": "Edgar sourit. « Certaines histoires gagnent à attendre la prochaine tournée. »", "choices": [{"key": "retour", "label": "↩ Revenir aux rumeurs", "back": True}]},
             {"key": "travail", "name": "Travail", "text": "Une bonne cuisine nourrit tout le Royaume. Devenez cuisinier, utilisez une marmite libre et laissez les préparations rejoindre le stock commun.", "choices": [{"key": "retour", "label": "↩ Parler d'autre chose", "next_node": "accueil"}]},
-            {"key": "quetes", "name": "Quêtes", "text": "Les demandes personnelles sont regroupées au panneau des quêtes. Edgar peut aussi réceptionner les poissons et provisions qui lui sont destinés.", "choices": [{"key": "retour", "label": "↩ Parler d'autre chose", "next_node": "accueil"}]},
+            {"key": "quetes", "name": "Quêtes", "parent_node": "accueil", "text": "Edgar consulte son carnet de commandes.", "variants": [
+                {"priority": 40, "text": "« Parfait, les œufs sont là. Ta fournée est terminée ; tu peux réclamer ton expérience. »", "conditions": [{"type": "quest_status", "quest": "p07_edgar_batch", "value": "ready"}]},
+                {"priority": 30, "text": "« La commande est en cours. Rapporte-moi quatre œufs quand tu les auras. »", "conditions": [{"type": "quest_status", "quest": "p07_edgar_batch", "value": "accepted"}]},
+                {"priority": 20, "text": "« J’ai besoin de quatre œufs frais pour la prochaine fournée. Ça t’intéresse ? »\n\n**Objectif :** 4× Œuf\n**Récompense :** 40 XP", "conditions": [{"type": "quest_status", "quest": "p07_edgar_batch", "value": "available"}]},
+                {"priority": 10, "text": "« Beau travail pour la fournée. Je n’ai rien de plus urgent pour l’instant. »", "conditions": [{"type": "quest_status", "quest": "p07_edgar_batch", "value": "completed"}]},
+            ], "choices": [
+                {"key": "accepter_fournee", "label": "📜 Accepter la fournée d’Edgar", "quest_key": "p07_edgar_batch", "quest_operation": "accept", "conditions": [{"type": "quest_status", "quest": "p07_edgar_batch", "value": "available"}]},
+                {"key": "suivre_fournee", "label": "🥚 Rappeler l’objectif", "next_node": "quetes_active", "conditions": [{"type": "quest_status", "quest": "p07_edgar_batch", "value": "accepted"}]},
+                {"key": "reclamer_fournee", "label": "✨ Terminer la quête", "quest_key": "p07_edgar_batch", "quest_operation": "claim", "conditions": [{"type": "quest_status", "quest": "p07_edgar_batch", "value": "ready"}]},
+                {"key": "retour", "label": "↩ Parler d'autre chose", "back": True},
+            ]},
+            {"key": "quetes_active", "name": "La fournée d’Edgar", "parent_node": "quetes", "text": "Objectif : apporter 4 œufs à Edgar. La livraison et la progression restent gérées par le système de quêtes existant. Récompense : 40 XP.", "choices": [{"key": "retour", "label": "↩ Retour aux quêtes", "back": True}]},
         ]
 
     item_names = {row["key"]: row["payload"].get("name", row["key"])
@@ -769,6 +795,10 @@ def _rebuild_discord_building_ux(rows: list[dict[str, Any]]) -> None:
         keys = [str(product["item_key"]) for product in products if product.get("category") in categories]
         return page(f"ux_tavern_{group_key}", label, [
             hero(f"tavern_{group_key}", label, "Prix et disponibilités proviennent du stock réel de la Taverne.", label.split()[0]),
+            {"id": f"ux_tavern_shop_voice_{group_key}", "type": "contextual_content", "props": {
+                "fallback": {"title": "Edgar", "emoji": "🧔", "text": "« Choisis tranquillement, les prix et les réserves sont à jour. »"},
+                "variants": ([{"key": "low_stock", "priority": 10, "title": "Edgar", "emoji": "🧔", "text": "« Les réserves baissent. Il faudra bientôt ravitailler la Taverne. »", "condition": {"type": "building_stock", "building": "edgar_tavern", "item": keys[0], "operator": "<", "value": 4}}] if keys else []),
+            }},
             {"id": f"ux_tavern_products_{group_key}", "type": "dynamic_product_selector", "slot": 0,
              "props": {"placeholder": "Choisir un produit…", "item_keys": keys}},
             nav(f"tavern_{group_key}_back", "Catégories", return_page, 5, "↩️"),
@@ -809,9 +839,15 @@ def _rebuild_discord_building_ux(rows: list[dict[str, Any]]) -> None:
                     for key, (label, _) in product_groups.items() if key in {"hot_meals", "pies", "bread", "meat"}]
 
     apply("edgar_tavern", [
-        hero("tavern", "À la Gueuse Cocu", "La chaleur du foyer lutte contre la tempête. Derrière son comptoir, Edgar surveille les voyageurs et les marmites.", "🍺"),
+        hero("tavern", "À la Gueuse Cocu", "Edgar accueille les voyageurs derrière son comptoir.", "🍺"),
         text("tavern_status", "👤 **Tavernier :** Edgar Brassebarbe\n🟢 **Établissement ouvert**\n🍲 **Cuisine partagée :** consultez les marmites en temps réel."),
-        text("tavern_storm", "Dehors, les rafales secouent les volets. Ici, le feu tient bon.", {"all": [_minute(90), _minute(105, "<")]}),
+        {"id": "tavern_ambiance", "type": "contextual_content", "props": {"replace_page_title": True,
+            "fallback": {"title": "À la Gueuse Cocu", "emoji": "🍺", "text": "Une soirée presque ordinaire s’installe dans la Taverne. Le feu crépite dans l’âtre tandis qu’Edgar sert les habitués. Les conversations couvrent le bruit des chopes reposées sur les tables."},
+            "variants": [
+                {"key": "after_storm", "priority": 30, "title": "À la Gueuse Cocu", "emoji": "🌧️", "text": "Le vent s’est enfin calmé. Les conversations ont changé de ton. Des habitants entrent régulièrement pour annoncer de nouveaux dégâts dans le Royaume. Edgar écoute chaque témoignage avec inquiétude.", "condition": _minute(105)},
+                {"key": "during_storm", "priority": 20, "title": "À la Gueuse Cocu", "emoji": "🌩️", "text": "Les volets tremblent sous les rafales. Le vent hurle dehors et plusieurs habitants se sont réfugiés près du foyer. Edgar continue de servir, mais jette régulièrement un regard inquiet vers les fenêtres.", "condition": _minute(90)},
+            ],
+        }},
         nav("tavern_drinks", "Commander à boire", "ux_tavern_drinks", 0, "🍺", style="primary"),
         nav("tavern_meals", "Commander à manger", "ux_tavern_meals", 1, "🍗"),
         nav("tavern_edgar", "Parler à Edgar", "ux_tavern_edgar", 2, "💬"),
@@ -836,6 +872,10 @@ def _rebuild_discord_building_ux(rows: list[dict[str, Any]]) -> None:
              back("kitchen", 9)]),
         *recipe_pages,
         page("ux_tavern_counter", "Stocks & livraisons", [hero("counter", "Stocks et livraisons", "Consultez les réserves ou apportez les ressources demandées par Edgar.", "🎒"),
+             {"id": "ux_tavern_stock_status", "type": "stock_status", "props": {"title": "État des réserves", "building": "edgar_tavern", "groups": [
+                 {"key": key, "label": label, "emoji": label.split()[0], "item_keys": [str(product["item_key"]) for product in products if product.get("category") in categories], "critical_min": 1, "low_min": 4, "comfortable_min": 10}
+                 for key, (label, categories) in product_groups.items()
+             ]}},
              nav("counter_stock", "Voir les stocks", "ux_tavern_stock", 0, "📦"), nav("counter_delivery", "Effectuer une livraison", "ux_tavern_delivery", 1, "🚚"), back("counter", 4)]),
         page("ux_tavern_stock", "Stocks", [hero("stock", "Stock de la Taverne", "Les quantités sont actualisées en temps réel.", "📦"),
              {"id": "ux_tavern_stock_content", "type": "building_inventory", "props": {"title": "Réserves", "building": "edgar_tavern"}}, nav("stock_back", "Stocks & livraisons", "ux_tavern_counter", 0, "↩️"), nav("stock_home", "Accueil", "home", 1, "🏠")]),

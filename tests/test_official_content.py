@@ -48,7 +48,7 @@ def test_existing_kingdom_pack_migrates_in_place_to_revision_four(official):
     assert len(official.list(content_type="world_template", published_only=True)) == 4
 
 
-def test_storm_revision_seven_syncs_pack_and_existing_workspaces_without_overwrite(official, tmp_path):
+def test_storm_revision_eight_syncs_pack_and_existing_workspaces_without_overwrite(official, tmp_path):
     with official.connection() as db:
         pack_id = db.execute(
             "SELECT id FROM official_content_packs WHERE pack_key='storm_sainte_pelle' "
@@ -134,7 +134,7 @@ def test_storm_revision_seven_syncs_pack_and_existing_workspaces_without_overwri
     pack = official.get("storm_sainte_pelle", published_only=True)
     settings = next(entity["payload"] for entity in pack["entities"]
                     if entity["type"] == "server_settings" and entity["key"] == "kingdom_server")
-    assert settings["template_revision"] == 7
+    assert settings["template_revision"] == 8
     assert len([entity for entity in pack["entities"] if entity["type"] == "audio"
                 and entity["key"].startswith("storm_voice_")]) == 80
 

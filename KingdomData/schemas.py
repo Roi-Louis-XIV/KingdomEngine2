@@ -21,6 +21,7 @@ CONDITION_TYPES = {
     "profession_level", "tool_present", "tool_level", "tool_durability", "voice_presence",
     "discord_role", "no_pending_activity", "activity_limit_available", "cooldown_available",
     "building_stock", "state", "player_stat", "collective_progress", "scenario_elapsed_minutes",
+    "event_active",
 }
 CONDITION_OPERATORS = {"=", "!=", ">", ">=", "<", "<="}
 ACTIVITY_SCOPES = {"player", "player_building", "player_action", "category", "building", "action", "shared_action"}
@@ -347,6 +348,7 @@ def _validate_condition(condition: Any) -> None:
         "profession_active": "profession", "profession_level": "profession",
         "tool_present": "tool", "tool_level": "tool", "tool_durability": "tool",
         "discord_role": "role", "building_stock": "item", "state": "key", "collective_progress": "objective",
+        "event_active": "event",
     }.get(kind)
     if required and not str(condition.get(required, "")).strip():
         raise ValidationError(f"La condition {kind} exige le champ {required}.")
@@ -523,8 +525,14 @@ def _validate_interface(payload: dict[str, Any]) -> None:
             if component_id in component_ids:
                 raise ValidationError(f"Composant duplique : {component_id}")
             component_ids.add(component_id)
-            if component.get("type") not in {"hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "building_inventory", "workstation_status", "world_weather", "world_calendar", "event_countdown", "collective_objective", "profession_status", *interactive_types}:
+            if component.get("type") not in {"hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "building_inventory", "stock_status", "workstation_status", "contextual_content", "world_weather", "world_calendar", "event_countdown", "collective_objective", "profession_status", *interactive_types}:
                 raise ValidationError(f"Composant inconnu : {component.get('type')}")
+            if component.get("type") == "stock_status" and not str(component.get("props", {}).get("building", payload.get("target_building_key", ""))).strip():
+                raise ValidationError("Le résumé de stock doit cibler un bâtiment.")
+            if component.get("type") == "contextual_content":
+                for variant in component.get("props", {}).get("variants", []):
+                    if variant.get("condition"):
+                        _validate_condition(variant["condition"])
             if component.get("type") == "workstation_status" and not str(component.get("props", {}).get("building", payload.get("target_building_key", ""))).strip():
                 raise ValidationError("L’état des postes doit cibler un bâtiment.")
             if component.get("type") == "npc_dialogue" and not str(component.get("props", {}).get("npc_key", "")).strip():

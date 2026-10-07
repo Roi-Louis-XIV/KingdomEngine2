@@ -116,7 +116,7 @@ class OfficialContentStore:
                         "SELECT 1 FROM official_content_entities WHERE pack_id=? AND entity_type='audio' LIMIT 1",
                         (current["id"],),
                     ).fetchone()
-                    required_revisions = {"royal_festival": 4, "storm_sainte_pelle": 7}
+                    required_revisions = {"royal_festival": 4, "storm_sainte_pelle": 8}
                     required_revision = required_revisions.get(key, 0)
                     needs_bundled_update = current_revision < required_revision if required_revision else not has_audio
                     if key == "royal_festival" and settings_row:
@@ -271,21 +271,25 @@ class OfficialContentStore:
                         recipe.pop("shared_mission", None)
                 if payload == current["payload"]:
                     continue
-                updated = world.save("building", building_key, payload, "bundled-discord-ux-r7",
+                updated = world.save("building", building_key, payload, "bundled-discord-ux-r8",
                                      expected_version=current["version"])
                 if current["status"] == "published":
-                    world.publish("building", building_key, updated["version"], "bundled-discord-ux-r7")
+                    world.publish("building", building_key, updated["version"], "bundled-discord-ux-r8")
                 changed.append(building_key)
             if bundled_edgar:
                 try:
                     current_edgar = world.get("npc", "edgar")
-                    if not current_edgar["payload"].get("dialogues"):
-                        npc_payload = deepcopy(current_edgar["payload"])
-                        npc_payload["dialogues"] = deepcopy(bundled_edgar.get("dialogues", []))
-                        updated = world.save("npc", "edgar", npc_payload, "bundled-discord-ux-r7",
+                    official_dialogues = {item["key"]: item for item in bundled_edgar.get("dialogues", [])}
+                    npc_payload = deepcopy(current_edgar["payload"])
+                    existing_dialogues = list(npc_payload.get("dialogues", []))
+                    merged_dialogues = [deepcopy(official_dialogues.pop(item.get("key"), item)) for item in existing_dialogues]
+                    merged_dialogues.extend(deepcopy(item) for item in official_dialogues.values())
+                    if merged_dialogues != existing_dialogues:
+                        npc_payload["dialogues"] = merged_dialogues
+                        updated = world.save("npc", "edgar", npc_payload, "bundled-discord-ux-r8",
                                              expected_version=current_edgar["version"])
                         if current_edgar["status"] == "published":
-                            world.publish("npc", "edgar", updated["version"], "bundled-discord-ux-r7")
+                            world.publish("npc", "edgar", updated["version"], "bundled-discord-ux-r8")
                 except KeyError:
                     pass
             report.append({"workspace_token": str(row["workspace_token"]), "changed": changed})

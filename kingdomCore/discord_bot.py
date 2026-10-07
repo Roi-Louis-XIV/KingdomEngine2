@@ -386,6 +386,7 @@ class InterfaceView(discord.ui.View):
         self.owner_id = owner_id
         self.notice = ""
         self._dialogue_states: dict[str, dict[str, Any]] = {}
+        self._dialogue_history: dict[str, list[str]] = {}
         self._render_interactions()
 
     async def on_error(
@@ -436,6 +437,20 @@ class InterfaceView(discord.ui.View):
                     descriptions.append(str(props["subtitle"]))
             elif component["type"] == "text" and props.get("text"):
                 descriptions.append(str(props["text"]))
+            elif component["type"] == "contextual_content":
+                variants = sorted(props.get("variants", []), key=lambda item: int(item.get("priority", 0)), reverse=True)
+                selected = next((item for item in variants if self.owner_id is None or self.engine.condition_met(
+                    str(self.owner_id), self._building_key(), str(component.get("id", "contextual_content")), item.get("condition")
+                )), props.get("fallback", {}))
+                if selected:
+                    title = str(selected.get("title") or "").strip()
+                    body = str(selected.get("text") or "").strip()
+                    emoji = str(selected.get("emoji") or "").strip()
+                    if props.get("replace_page_title") and title:
+                        embed.title = f"{emoji} {title}".strip()
+                        descriptions.append(body)
+                    else:
+                        descriptions.append((f"{emoji} **{title}**\n" if title else emoji + " ") + body)
             elif component["type"] == "sequence":
                 text = self._sequence_text(component)
                 if text:
@@ -460,6 +475,9 @@ class InterfaceView(discord.ui.View):
                 self._add_inventory(embed, str(props.get("title") or "Inventaire"))
             elif component["type"] == "building_inventory":
                 self._add_building_inventory(embed, str(props.get("building") or self._building_key()), str(props.get("title") or "Stock commun"))
+            elif component["type"] == "stock_status" and field_count < 25:
+                self._add_stock_status(embed, component)
+                field_count += 1
             elif component["type"] == "workstation_status" and field_count < 25:
                 self._add_workstation_status(embed, str(props.get("building") or self._building_key()), str(props.get("title") or "État des postes"))
                 field_count += 1
@@ -542,12 +560,12 @@ class InterfaceView(discord.ui.View):
                 if int(workstation.get("slots", 1)) > 1:
                     station_name = f"{station_name} {slot + 1}"
                 if not state:
-                    detail = "🟢 **Libre** · action disponible : Cuisiner"
+                    detail = str(workstation.get("idle_text") or "🟢 **Libre** · action disponible : Cuisiner")
                 elif state["status"] == "ready":
                     recipe = recipes.get(state["recipe_key"], {})
                     output = self._item_name(str(recipe.get("output_item_key", "")))
                     quantity = int(recipe.get("output_quantity", 1))
-                    detail = f"✅ **Terminé** · {quantity}× {output} prêts\nAction disponible : 📦 Récupérer"
+                    detail = str(workstation.get("ready_text") or f"✅ **Terminé** · {quantity}× {output} prêts\nAction disponible : 📦 Récupérer").format(quantity=quantity, output=output)
                 else:
                     recipe = recipes.get(state["recipe_key"], {})
                     recipe_name = str(recipe.get("name") or recipe.get("title") or state["recipe_key"])
@@ -560,6 +578,8 @@ class InterfaceView(discord.ui.View):
                     detail = (f"⏳ **{recipe_name}** — {remaining // 60:02d}:{remaining % 60:02d} restantes\n"
                               f"Préparé par **{preparer}** · Production : {quantity}× {output}\n"
                               "Action disponible : Voir la recette")
+                    if workstation.get("busy_text"):
+                        detail += "\n" + str(workstation["busy_text"])
                 lines.append(f"**{workstation.get('emoji', '🍲')} {station_name}**\n{detail}")
         embed.add_field(name=title[:256], value=("\n".join(lines) or "Aucun poste configuré.")[:1024], inline=False)
 
@@ -714,7 +734,8 @@ class InterfaceView(discord.ui.View):
             for key, quantity in sorted(inventory.items(), key=lambda item: self._item_name(item[0]))
         ) or "Le sac est vide."
         embed.add_field(name=title[:256], value=content[:1024], inline=False)
-        embed.add_field(name="💰 Monnaie", value=str(player.get("money", 0)), inline=True)
+        money = int(player.get("money", 0))
+        embed.add_field(name="💰 Monnaie", value=f"{money} {self._currency_label('money', money)}", inline=True)
         embed.add_field(name="⚡ Énergie", value=str(player.get("energy", 100)), inline=True)
         labels = self.definition.get("profession_labels", {})
         professions = player.get("professions", {})
@@ -729,6 +750,29 @@ class InterfaceView(discord.ui.View):
             rows = db.execute("SELECT item_key,quantity FROM building_stock WHERE building_key=? ORDER BY item_key", (building_key,)).fetchall()
         content = "\n".join(f"• **{self._item_name(str(row[0]))}** : **{int(row[1])}**" for row in rows) or "Aucune matière enregistrée."
         embed.add_field(name=title[:256], value=content[:1024], inline=False)
+
+    def _add_stock_status(self, embed: discord.Embed, component: dict[str, Any]) -> None:
+        props = component.get("props", {})
+        building_key = str(props.get("building") or self._building_key())
+        with self.engine.store.connection() as db:
+            stock = {str(row[0]): int(row[1]) for row in db.execute(
+                "SELECT item_key,quantity FROM building_stock WHERE building_key=?", (building_key,)
+            ).fetchall()}
+        lines = []
+        icons = {"comfortable": "🟢", "low": "🟡", "critical": "🟠", "out": "🔴"}
+        default_labels = {"comfortable": "Stock confortable", "low": "Stock faible", "critical": "Stock critique", "out": "Rupture"}
+        for group in props.get("groups", []):
+            quantity = sum(stock.get(str(key), 0) for key in group.get("item_keys", []))
+            comfortable = max(0, int(group.get("comfortable_min", 10)))
+            low = max(0, int(group.get("low_min", 4)))
+            critical = max(0, int(group.get("critical_min", 1)))
+            status = "comfortable" if quantity >= comfortable else "low" if quantity >= low else "critical" if quantity >= critical else "out"
+            labels = {**default_labels, **group.get("labels", {})}
+            lines.append(f"{icons[status]} **{group.get('label') or group.get('key') or 'Réserve'}** — {labels[status]}")
+        deliveries = len(self._cached_building(building_key).get("modules", {}).get("deliveries", []))
+        if deliveries:
+            lines.append(f"🚚 **Livraisons demandées** — {deliveries} ressource(s) recherchée(s)")
+        embed.add_field(name=str(props.get("title") or "État des réserves")[:256], value=("\n".join(lines) or "Aucune catégorie configurée.")[:1024], inline=False)
 
     def _render_interactions(self) -> None:
         self._reset_render_cache()
@@ -812,6 +856,21 @@ class InterfaceView(discord.ui.View):
                 remaining = min((item["remaining_seconds"] for item in occupied if item["status"] != "ready"), default=0)
                 label = "Postes occupés" + (f" · {remaining} s" if remaining else "")
                 style, disabled = discord.ButtonStyle.secondary, True
+            if not disabled and self.owner_id is not None:
+                missing = []
+                with self.engine.store.connection() as db:
+                    for effect in effects:
+                        if effect.get("type") != "stock_cost":
+                            continue
+                        item = str(effect.get("resource") or effect.get("item") or "")
+                        required = int(effect.get("amount", 0))
+                        stock_row = db.execute("SELECT quantity FROM building_stock WHERE building_key=? AND item_key=?", (building_key, item)).fetchone()
+                        available = int(stock_row[0]) if stock_row else 0
+                        if available < required:
+                            missing.append(f"{self._item_name(item)} ×{required - available}")
+                if missing:
+                    label = ("Manque : " + ", ".join(missing))[:80]
+                    style, disabled = discord.ButtonStyle.secondary, True
         elif interaction.get("type") == "action" and str(interaction.get("action", "")).startswith("claim_") and self.owner_id is not None:
             activity_key = str(interaction["action"])[len("claim_"):]
             pending = next((item for item in self._cached_pending(str(interaction.get("building", self._building_key()))) if item["action"] == activity_key), None)
@@ -915,6 +974,7 @@ class InterfaceView(discord.ui.View):
                 async def on_submit(modal_self, modal_interaction: discord.Interaction):
                     try:
                         amount = int(str(modal_self.quantity)); price = amount * int(selected.get("unit_price", 0)); destination = selected.get("destination_name", "destination")
+                        payment_resource = str(selected.get("payment_resource", "money"))
                         confirmation = discord.ui.View(timeout=300); confirm = discord.ui.Button(label="Confirmer la livraison", emoji="✅", style=discord.ButtonStyle.success); cancel = discord.ui.Button(label="Annuler", emoji="✖️", style=discord.ButtonStyle.secondary)
                         async def confirm_delivery(confirm_interaction: discord.Interaction):
                             try: result = await parent.engine.execute_delivery(str(confirm_interaction.user.id), parent._building_key(), str(confirm_interaction.id), {resource: amount}); parent.notice = parent._delivery_notice(result)
@@ -922,7 +982,7 @@ class InterfaceView(discord.ui.View):
                             parent._render_interactions(); await confirm_interaction.response.edit_message(content=None, embed=parent.embed(), view=parent)
                         async def cancel_delivery(cancel_interaction: discord.Interaction): await cancel_interaction.response.edit_message(content="Livraison annulée.", view=None)
                         confirm.callback = confirm_delivery; cancel.callback = cancel_delivery; confirmation.add_item(confirm); confirmation.add_item(cancel)
-                        await modal_interaction.response.send_message(f"**Récapitulatif**\n{amount} × {selected['name']}\n→ {destination}\n→ **{price} {selected.get('payment_resource', 'money')}**", view=confirmation, ephemeral=True)
+                        await modal_interaction.response.send_message(f"**Récapitulatif**\n{amount} × {selected['name']}\n→ {destination}\n→ **{price} {parent._currency_label(payment_resource, price)}**", view=confirmation, ephemeral=True)
                         remember_active_building_interface(modal_interaction, parent._building_key())
                     except Exception as exc:
                         await modal_interaction.response.send_message(str(exc), ephemeral=True)
@@ -935,11 +995,18 @@ class InterfaceView(discord.ui.View):
             return self.engine._item_name(currency)
         try:
             onboarding = self.engine.store.get("server_settings", "kingdom_server", published=True)["payload"].get("onboarding", {})
+            legacy_label = str(onboarding.get("currency_label") or "").strip()
+            singular = str(onboarding.get("currency_label_singular") or "").strip()
+            plural = str(onboarding.get("currency_label_plural") or "").strip()
+            # Les anciens mondes ne possédaient qu'un libellé unique. Ne laisse
+            # pas les valeurs génériques ajoutées par migration masquer ce nom.
+            if legacy_label and legacy_label not in {"unité", "unités"} and singular in {"", "unité"} and plural in {"", "unités"}:
+                return legacy_label
             if amount == 1:
-                return str(onboarding.get("currency_label_singular", onboarding.get("currency_label", "écu")))
-            return str(onboarding.get("currency_label_plural", onboarding.get("currency_label", "écus")))
+                return singular or legacy_label or "unité"
+            return plural or legacy_label or "unités"
         except (KeyError, LookupError, TypeError):
-            return "écus"
+            return "unité" if amount == 1 else "unités"
 
     def _product_cost_label(self, product: dict[str, Any]) -> str:
         costs = product.get("costs")
@@ -1013,12 +1080,12 @@ class InterfaceView(discord.ui.View):
             confirmation = discord.ui.View(timeout=300); confirm = discord.ui.Button(label="Lancer", emoji="🎲", style=discord.ButtonStyle.success); cancel = discord.ui.Button(label="Annuler", style=discord.ButtonStyle.secondary)
             async def confirm_game(confirm_interaction: discord.Interaction):
                 try:
-                    result = await self.engine.confirm_game(str(confirm_interaction.user.id), prepared["session_key"], str(confirm_interaction.id)); self.notice = f"Le résultat est **{result['outcome']}**. " + (f"Victoire : **{result['payout']} écus** !" if result["won"] else f"Mise perdue : **{result['stake']} écus**.")
+                    result = await self.engine.confirm_game(str(confirm_interaction.user.id), prepared["session_key"], str(confirm_interaction.id)); self.notice = f"Le résultat est **{result['outcome']}**. " + (f"Victoire : **{result['payout']} {self._currency_label('money', result['payout'])}** !" if result["won"] else f"Mise perdue : **{result['stake']} {self._currency_label('money', result['stake'])}**.")
                 except Exception as exc: self.notice = str(exc)
                 self._render_interactions(); await confirm_interaction.response.edit_message(content=None, embed=self.embed(), view=self)
             async def cancel_game(cancel_interaction: discord.Interaction): self.engine.cancel_game(str(cancel_interaction.user.id), prepared["session_key"]); await cancel_interaction.response.edit_message(content="Partie annulée.", view=None)
             confirm.callback = confirm_game; cancel.callback = cancel_game; confirmation.add_item(confirm); confirmation.add_item(cancel)
-            await interaction.response.send_message(f"**{prepared['choice'].get('name', choice_key)}**\nMise : **{prepared['stake']} écus**\nLe tirage aura lieu après confirmation.", view=confirmation, ephemeral=True)
+            await interaction.response.send_message(f"**{prepared['choice'].get('name', choice_key)}**\nMise : **{prepared['stake']} {self._currency_label('money', prepared['stake'])}**\nLe tirage aura lieu après confirmation.", view=confirmation, ephemeral=True)
             remember_active_building_interface(interaction, self._building_key())
         select.callback = choose; self.add_item(select)
 
@@ -1031,7 +1098,7 @@ class InterfaceView(discord.ui.View):
         choices = list(dialogue["choices"])[:25]
         select = discord.ui.Select(
             placeholder=str(component.get("props", {}).get("placeholder") or "Que souhaitez-vous demander ?")[:150],
-            options=[discord.SelectOption(label=str(choice.get("label") or choice["key"])[:100], value=str(choice["key"])[:100]) for choice in choices],
+            options=[discord.SelectOption(label=(("" if choice.get("available", True) else "🔒 ") + str(choice.get("label") or choice["key"]))[:100], value=str(choice["key"])[:100], description=(str(choice.get("locked_reason"))[:100] if not choice.get("available", True) else None)) for choice in choices],
             custom_id=f"ked:{component['id']}"[:100], row=row,
         )
         async def choose(interaction: discord.Interaction):
@@ -1047,13 +1114,31 @@ class InterfaceView(discord.ui.View):
                         str(interaction.user.id), str(npc.get("building_key") or self._building_key()),
                         str(result["action_key"]), f"{interaction.id}:dialogue",
                     )
+                if result.get("quest_key") and result.get("quest_operation"):
+                    operation = str(result["quest_operation"])
+                    if operation == "accept":
+                        quest = self.engine.accept_quest(str(interaction.user.id), str(result["quest_key"]), f"{interaction.id}:quest")
+                        self.notice = f"Quête acceptée : **{quest['quest']['name']}**."
+                    elif operation == "claim":
+                        quest = self.engine.claim_quest(str(interaction.user.id), str(result["quest_key"]), f"{interaction.id}:quest")
+                        self.notice = f"Quête terminée : **+{quest['reward_xp']} XP**."
                 next_dialogue = result.get("next")
+                component_id = str(component["id"])
                 if next_dialogue:
+                    self._dialogue_history.setdefault(component_id, []).append(str(dialogue["node_key"]))
                     next_dialogue["display_text"] = result.get("response_text") or next_dialogue.get("text", "")
-                    self._dialogue_states[str(component["id"])] = next_dialogue
+                    self._dialogue_states[component_id] = next_dialogue
+                elif result.get("back"):
+                    target = self._dialogue_history.setdefault(component_id, []).pop() if self._dialogue_history.get(component_id) else str(dialogue.get("parent_node") or component.get("props", {}).get("node_key") or "")
+                    self._dialogue_states[component_id] = NpcEngine(self.engine.store).dialogue(
+                        str(component.get("props", {}).get("npc_key", "")), str(interaction.user.id), target,
+                    )
                 else:
-                    dialogue["display_text"] = result.get("response_text") or dialogue.get("text", "")
-                self.notice = ""
+                    refreshed = NpcEngine(self.engine.store).dialogue(
+                        str(component.get("props", {}).get("npc_key", "")), str(interaction.user.id), str(dialogue["node_key"]),
+                    )
+                    refreshed["display_text"] = result.get("response_text") or refreshed.get("text", "")
+                    self._dialogue_states[component_id] = refreshed
             except (NpcError, KeyError, ValueError) as exc:
                 self.notice = str(exc)
             self._render_interactions()

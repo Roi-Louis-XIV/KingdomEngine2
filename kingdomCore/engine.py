@@ -1038,6 +1038,13 @@ class GameEngine:
             if minute is None:
                 return False
             actual = minute
+        elif kind == "event_active":
+            event_key = str(condition.get("event") or condition.get("key") or expected)
+            row = db.execute(
+                "SELECT 1 FROM event_occurrences WHERE event_key=? AND status IN ('active','paused') LIMIT 1",
+                (event_key,),
+            ).fetchone()
+            actual, expected = bool(row), bool(condition.get("value", True))
         else:
             raise ValidationError(f"Condition inconnue : {kind}.")
         return self._compare(actual, expected, operator)

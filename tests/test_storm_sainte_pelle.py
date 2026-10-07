@@ -16,6 +16,7 @@ from KingdomData.world_presets import world_preset
 from KingdomWeb.accounts import SCHEMA_COMPTES
 from KingdomWeb.world_creator import WorldCreatorService
 from kingdomCore.engine import GameEngine
+from kingdomCore.npc import NpcEngine
 from kingdomCore.discord_bot import InterfaceView, QuestBoardView, grant_oath_reward
 from KingdomVoice.bot_manager import ManagedVoiceBot
 from kingdomEvent.lifecycle import EventLifecycle
@@ -163,7 +164,7 @@ def test_storm_discord_ux_routes_and_actions_are_real():
     buildings = {row["key"]: row["payload"] for row in rows if row["type"] == "building"}
     main = {"market_square", "edgar_tavern", "deep_mine", "royal_forge", "forester_lodge", "old_bridge", "saint_shovel_church"}
     settings = next(row["payload"] for row in rows if row["type"] == "server_settings" and row["key"] == "kingdom_server")
-    assert settings["template_revision"] == 7
+    assert settings["template_revision"] == 8
     assert all(not any(page["key"] == "storm_services" for page in buildings[key]["interface"]["pages"]) for key in main)
     for key in main:
         interface = buildings[key]["interface"]
@@ -191,7 +192,11 @@ def test_tavern_uses_shared_cauldrons_and_six_validated_player_routes(tmp_path):
     world = _world(tmp_path, "tavern-shared-kitchen")
     building = world.get("building", "edgar_tavern", published=True)["payload"]
     workstations = building["modules"]["workstations"]
-    assert workstations == [{"key": "tavern_cauldrons", "name": "Marmite", "emoji": "🍲", "slots": 3}]
+    assert len(workstations) == 1
+    assert {key: workstations[0][key] for key in ("key", "name", "emoji", "slots")} == {
+        "key": "tavern_cauldrons", "name": "Marmite", "emoji": "🍲", "slots": 3,
+    }
+    assert workstations[0]["idle_text"] and workstations[0]["busy_text"] and workstations[0]["ready_text"]
     assert building["modules"]["recipes"]
     assert all(recipe["workstation_key"] == "tavern_cauldrons" for recipe in building["modules"]["recipes"])
     pages = {page["key"]: page for page in building["interface"]["pages"]}
@@ -222,6 +227,82 @@ def test_tavern_shared_recipe_start_status_claim_and_restart(tmp_path):
     assert restarted.workstation_states("edgar_tavern") == []
     with world.connection() as db:
         assert db.execute("SELECT quantity FROM building_stock WHERE building_key='edgar_tavern' AND item_key='soupe_oignon'").fetchone()[0] >= 5
+
+
+def test_edgar_dialogue_uses_real_quest_state_and_contextual_stock(tmp_path):
+    world = _world(tmp_path, "edgar-dialogue")
+    WorldCreatorService(world).start_live_operations(now=time.time())
+    npc = NpcEngine(world)
+    offered = npc.dialogue("edgar", "42", "quetes")
+    assert "quatre œufs" in offered["text"]
+    assert any(choice.get("quest_operation") == "accept" for choice in offered["choices"])
+    accepted = npc.choose_dialogue("edgar", "42", "quetes", "accepter_fournee")
+    quest = GameEngine(world).accept_quest("42", accepted["quest_key"], "dialogue-accept")
+    assert quest["quest"]["key"] == "p07_edgar_batch"
+    active = npc.dialogue("edgar", "42", "quetes")
+    assert "commande est en cours" in active["text"]
+    assert any(choice.get("next_node") == "quetes_active" for choice in active["choices"])
+
+    building = world.get("building", "edgar_tavern", published=True)["payload"]
+    counter = InterfaceView(GameEngine(world), building["interface"], page_key="ux_tavern_counter", owner_id=42)
+    rendered = json.dumps(counter.embed().to_dict(), ensure_ascii=False)
+    assert "État des réserves" in rendered and "Stock" in rendered and "Livraisons demandées" in rendered
+
+    beer_page = next(page for page in building["interface"]["pages"] if page["key"] == "ux_tavern_beer")
+    contextual = next(component for component in beer_page["components"] if component["type"] == "contextual_content")
+    followed_item = contextual["props"]["variants"][0]["condition"]["item"]
+    with world.connection() as db:
+        db.execute("INSERT INTO building_stock(building_key,item_key,quantity) VALUES('edgar_tavern',?,0) ON CONFLICT(building_key,item_key) DO UPDATE SET quantity=0", (followed_item,))
+    shop = InterfaceView(GameEngine(world), building["interface"], page_key="ux_tavern_beer", owner_id=42)
+    assert "réserves baissent" in shop.embed().description
+
+    interface = building["interface"]
+    assert InterfaceView(GameEngine(world), interface, owner_id=42)._currency_label("money", 2) == "écus"
+
+
+def test_edgar_rumours_are_multilevel_returnable_and_follow_scenario(tmp_path):
+    texts = []
+    for name, elapsed in (("before", 0), ("during", 91), ("after", 106)):
+        world = _world(tmp_path, f"rumour-{name}")
+        WorldCreatorService(world).start_live_operations(now=time.time() - elapsed * 60)
+        npc = NpcEngine(world)
+        root = npc.dialogue("edgar", "42", "rumeurs")
+        texts.append(root["text"])
+        assert {choice["next_node"] for choice in root["choices"] if choice.get("next_node")} >= {"rumeur_mine", "rumeur_foret", "rumeur_autre"}
+        branch = npc.choose_dialogue("edgar", "42", "rumeurs", "mine")["next"]
+        assert branch["parent_node"] == "rumeurs"
+        assert npc.choose_dialogue("edgar", "42", "rumeur_mine", "retour")["back"] is True
+    assert "Roland raconte" in texts[0]
+    assert "murs commencent à trembler" in texts[1]
+    assert "l’église" in texts[2]
+
+
+def test_recipe_lock_explains_missing_profession_then_ingredients(tmp_path):
+    world = _world(tmp_path, "recipe-locks")
+    building = world.get("building", "edgar_tavern", published=True)["payload"]
+    recipe = building["modules"]["recipes"][0]
+    page_key = f"ux_recipe_{recipe['key']}"[:64]
+    locked = InterfaceView(GameEngine(world), building["interface"], page_key=page_key, owner_id=42)
+    assert any(str(getattr(item, "label", "")).startswith("Métier requis") for item in locked.children)
+    engine = GameEngine(world)
+    asyncio.run(engine.execute("42", "edgar_tavern", "join_innkeeper", "join-for-lock"))
+    with world.connection() as db:
+        for item in recipe["ingredients"]:
+            db.execute("INSERT INTO building_stock(building_key,item_key,quantity) VALUES(?,?,0) ON CONFLICT(building_key,item_key) DO UPDATE SET quantity=0", ("edgar_tavern", item))
+    missing = InterfaceView(engine, building["interface"], page_key=page_key, owner_id=42)
+    assert any(str(getattr(item, "label", "")).startswith("Manque :") for item in missing.children)
+
+
+def test_tavern_ambiance_changes_before_during_and_after_storm(tmp_path):
+    snapshots = []
+    for name, elapsed in (("before", 0), ("during", 91), ("after", 106)):
+        world = _world(tmp_path, f"tavern-{name}")
+        WorldCreatorService(world).start_live_operations(now=time.time() - elapsed * 60)
+        interface = world.get("building", "edgar_tavern", published=True)["payload"]["interface"]
+        snapshots.append(InterfaceView(GameEngine(world), interface, page_key="home", owner_id=42).embed().description)
+    assert "soirée presque ordinaire" in snapshots[0]
+    assert "volets tremblent" in snapshots[1]
+    assert "vent s’est enfin calmé" in snapshots[2]
 
 
 def test_fishing_completes_p14_and_delivers_two_real_fish(tmp_path):
