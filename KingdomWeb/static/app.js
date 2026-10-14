@@ -2117,7 +2117,8 @@ async function inviteBotForServer(botKey, serverSlug) {
   } else window.location.href = data.url;
 }
 async function installKingdomEngine(slug) {
-  const popup = window.open("about:blank", "kingdomengine-install"), status = $(`[data-server-operation="${slug}"]`);
+  let popup = window.open("about:blank", "kingdomengine-install");
+  const status = $(`[data-server-operation="${slug}"]`);
   status.textContent = "Préparation du parcours Core + Voice Workers…";
   const response = await fetch(
       `/api/servers/${encodeURIComponent(slug)}/install`,
@@ -2136,36 +2137,73 @@ async function installKingdomEngine(slug) {
   const dialog = document.createElement("dialog");
   dialog.className = "worker-credentials-dialog installation-flow-dialog";
   document.body.append(dialog);
-  const render = (flow, message = "") => {
-    dialog.innerHTML = `<div><header><div><small>INSTALLATION DISCORD GUIDÉE</small><h2>KingdomEngine · offre ${escapeHtml(flow.voice_plan?.name || "")}</h2><p>${flow.installed}/${flow.total} applications autorisées sur ce serveur.</p></div></header><div class="installation-flow-steps">${flow.steps.map((step) => `<article class="${step.installed ? "done" : step.key === flow.next?.key ? "current" : ""}"><span>${step.installed ? "✓" : "○"}</span><div><b>${escapeHtml(step.name)}</b><small>${step.installed ? "Installé" : step.configured ? "À autoriser" : `${escapeHtml(step.application_id_env)} manquant`}</small></div></article>`).join("")}</div><p data-install-message>${escapeHtml(message || (flow.complete ? "Autorisations terminées. Provisionnement en cours…" : `Autorisez ${flow.next?.name || "l’étape suivante"} dans la fenêtre Discord.`))}</p></div>`;
+  let cancelled = false;
+  let launchedKey = "";
+  const closeGuide = () => {
+    cancelled = true;
+    if (dialog.open) dialog.close();
+    dialog.remove();
+    status.textContent = "Installation interrompue. Relancez-la pour reprendre à la prochaine étape.";
   };
-  dialog.addEventListener("cancel", (event) => event.preventDefault());
-  dialog.showModal();
+  const launchCurrentStep = (flow, userInitiated = false) => {
+    if (!flow.next?.url) return false;
+    try {
+      if (!popup || popup.closed) {
+        popup = window.open(flow.next.url, "kingdomengine-install");
+        if (!popup) return false;
+      } else {
+        popup.location.href = flow.next.url;
+        if (userInitiated) popup.focus();
+      }
+      launchedKey = flow.next.key;
+      return true;
+    } catch (_error) {
+      popup = null;
+      return false;
+    }
+  };
+  const render = (flow, message = "") => {
+    if (cancelled) return;
+    dialog.innerHTML = `<div><header><div><small>INSTALLATION DISCORD GUIDÉE</small><h2>KingdomEngine · offre ${escapeHtml(flow.voice_plan?.name || "")}</h2><p>${flow.installed}/${flow.total} applications autorisées sur ce serveur.</p></div><button type="button" class="dialog-close" data-install-close aria-label="Fermer">×</button></header><div class="installation-flow-steps">${flow.steps.map((step) => `<article class="${step.installed ? "done" : step.key === flow.next?.key ? "current" : ""}"><span>${step.installed ? "✓" : "○"}</span><div><b>${escapeHtml(step.name)}</b><small>${step.installed ? "Installé" : step.configured ? "À autoriser" : `${escapeHtml(step.application_id_env)} manquant`}</small></div></article>`).join("")}</div><p data-install-message>${escapeHtml(message || (flow.complete ? "Autorisations terminées. Provisionnement en cours…" : `Autorisez ${flow.next?.name || "l’étape suivante"} dans la fenêtre Discord.`))}</p><footer>${!flow.complete && flow.next?.configured ? `<button type="button" class="primary" data-install-next>Installer ${escapeHtml(flow.next.name)}</button>` : ""}<button type="button" class="secondary" data-install-close>Fermer et reprendre plus tard</button></footer></div>`;
+    $$('[data-install-close]', dialog).forEach((button) => (button.onclick = closeGuide));
+    const nextButton = $('[data-install-next]', dialog);
+    if (nextButton) nextButton.onclick = () => {
+      if (!launchCurrentStep(flow, true)) {
+        render(flow, "La fenêtre Discord a été bloquée. Autorisez les fenêtres contextuelles puis réessayez.");
+      }
+    };
+  };
+  dialog.addEventListener("cancel", closeGuide);
+  dialog.show();
   let flow = result;
   render(flow);
   const deadline = Date.now() + 5 * 60 * 1000;
-  while (!flow.complete && Date.now() < deadline) {
+  while (!cancelled && !flow.complete && Date.now() < deadline) {
     if (!flow.next?.configured || !flow.next?.url) {
       render(flow, `${flow.next?.application_id_env || "Application ID"} doit être configuré côté serveur.`);
       break;
     }
-    popup.location.href = flow.next.url;
     const currentKey = flow.next.key;
+    if (launchedKey !== currentKey && !launchCurrentStep(flow)) {
+      render(flow, `Cliquez sur « Installer ${flow.next.name} » pour poursuivre dans Discord.`);
+    }
     do {
       await new Promise((resolve) => setTimeout(resolve, 1800));
+      if (cancelled) break;
       const progressResponse = await fetch(`/api/servers/${encodeURIComponent(slug)}/install-flow`, { headers, cache: "no-store" });
       if (!progressResponse.ok) { render(flow, (await progressResponse.json()).detail); break; }
       flow = await progressResponse.json();
       render(flow);
-    } while (!flow.complete && flow.next?.key === currentKey && Date.now() < deadline);
+    } while (!cancelled && !flow.complete && flow.next?.key === currentKey && Date.now() < deadline);
   }
+  if (cancelled) return;
   if (flow.complete) {
-    popup.close();
+    popup?.close();
     const completeResponse = await fetch(`/api/servers/${encodeURIComponent(slug)}/install-flow/complete`, { method: "POST", headers, body: "{}" });
     const completed = await completeResponse.json();
     status.textContent = completeResponse.ok ? "Tous les bots sont installés. Provisionnement Discord lancé." : completed.detail;
     render(flow, status.textContent);
-    setTimeout(() => { dialog.close(); dialog.remove(); }, 1800);
+    setTimeout(() => { if (dialog.open) dialog.close(); dialog.remove(); }, 1800);
   } else if (Date.now() >= deadline) {
     render(flow, "Délai dépassé. Relancez l’installation : les étapes déjà validées seront conservées.");
   }

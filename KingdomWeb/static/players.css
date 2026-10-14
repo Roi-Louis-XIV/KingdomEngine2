@@ -674,6 +674,10 @@ progress {
 .live-ops-controls button:disabled { opacity: .45; cursor: not-allowed; }
 
 .installation-flow-dialog { width: min(560px, calc(100vw - 32px)); }
+.installation-flow-dialog[open] { position: fixed; inset: 50% auto auto 50%; transform: translate(-50%, -50%); z-index: 1000; box-shadow: 0 24px 80px #000a; }
+.installation-flow-dialog header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.installation-flow-dialog .dialog-close { min-width: 38px; padding: 6px 10px; font-size: 24px; line-height: 1; }
+.installation-flow-dialog footer { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
 .installation-flow-steps { display: grid; gap: 8px; margin: 20px 0; }
 .installation-flow-steps article { display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
 .installation-flow-steps article > span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--panel); }

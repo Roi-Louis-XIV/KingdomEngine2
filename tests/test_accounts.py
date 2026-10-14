@@ -434,20 +434,39 @@ def test_guided_install_uses_voice_plan_and_provisions_only_when_complete(tmp_pa
         assert install.status_code == 200
         install_payload = install.json()
         assert [step["name"] for step in install_payload["steps"]] == ["KingdomCore", "Voice Worker 1", "Voice Worker 2"]
+        voice_keys = [step["key"] for step in install_payload["steps"] if step["kind"] == "voice"]
         target = ContentStore(created["database_path"])
         assert target.discord_provision_status()["status"] == "never"
 
         with primary.connection() as database:
             database.execute("UPDATE managed_servers SET bot_installed=1 WHERE slug=?", (created["slug"],))
-        runtime["workers"] = [
-            {"key": step["key"], "guild_ids": [created["guild_id"]]}
-            for step in install_payload["steps"] if step["kind"] == "voice"
-        ]
+        progress = client.get(f'/api/servers/{created["slug"]}/install-flow').json()
+        assert progress["next"]["key"] == voice_keys[0]
+        assert progress["next"]["url"].startswith("https://discord.com/")
+
+        runtime["workers"] = [{"key": voice_keys[0], "guild_ids": [created["guild_id"]]}]
+        progress = client.get(f'/api/servers/{created["slug"]}/install-flow').json()
+        assert progress["next"]["key"] == voice_keys[1]
+        assert progress["complete"] is False
+
+        runtime["workers"].append({"key": voice_keys[1], "guild_ids": [created["guild_id"]]})
         progress = client.get(f'/api/servers/{created["slug"]}/install-flow').json()
         assert progress["complete"] is True
         completed = client.post(f'/api/servers/{created["slug"]}/install-flow/complete', json={})
         assert completed.status_code == 200
         assert target.discord_provision_status()["scope"] == "server"
+
+
+def test_guided_install_ui_can_resume_each_worker_and_be_closed():
+    with TestClient(web.app) as client:
+        script = client.get("/static/app.js").text
+    install_source = script.split("async function installKingdomEngine", 1)[1].split("async function removeManagedServer", 1)[0]
+
+    assert 'data-install-next' in install_source
+    assert 'data-install-close' in install_source
+    assert 'launchCurrentStep(flow)' in install_source
+    assert 'dialog.show();' in install_source
+    assert 'dialog.showModal();' not in install_source
 
 
 def test_login_interface_exposes_registration_and_account_statistics():
