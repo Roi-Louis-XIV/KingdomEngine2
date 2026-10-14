@@ -360,6 +360,43 @@ def test_automatic_presences_are_loaded_from_every_managed_world(tmp_path):
     assert manager._presence_stores["222:forge_ambience"].path == second.path
 
 
+def test_managed_worlds_are_reloaded_without_restarting_voice(tmp_path):
+    registry = ContentStore(tmp_path / "registry.db")
+    world = ContentStore(tmp_path / "new-world.db")
+    registry.initialize()
+    world.initialize()
+    presence = world.save(
+        "voice_presence", "new_world_ambience",
+        {
+            "name": "Nouveau monde",
+            "assignment_mode": "automatic",
+            "metadata": {"building_key": "village"},
+        },
+    )
+    world.publish("voice_presence", "new_world_ambience", presence["version"])
+    with registry.connection() as database:
+        database.execute(
+            "CREATE TABLE managed_servers(id INTEGER PRIMARY KEY, guild_id TEXT, database_path TEXT, active INTEGER)"
+        )
+        database.execute(
+            "INSERT INTO managed_servers(guild_id,database_path,active) VALUES(?,?,1)",
+            ("987654321", str(world.path)),
+        )
+
+    manager = VoiceBotManager(registry, worlds=[(registry, "old")])
+
+    assert manager._refresh_managed_worlds(force=True) is True
+    assert [(store.path, guild) for store, guild in manager.worlds] == [(world.path, "987654321")]
+    loaded = manager._published_presences()
+    assert loaded["new_world_ambience"].metadata["guild_id"] == "987654321"
+
+    with registry.connection() as database:
+        database.execute("UPDATE managed_servers SET active=0")
+    assert manager._refresh_managed_worlds(force=True) is True
+    assert manager.worlds == []
+    assert manager._published_presences() == {}
+
+
 def test_legacy_presence_source_metadata_is_exposed_to_worker(tmp_path):
     store = ContentStore(tmp_path / "world.db")
     store.initialize()

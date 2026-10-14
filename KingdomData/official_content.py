@@ -560,6 +560,14 @@ class OfficialContentStore:
             db.commit()
         return result
 
+    def publish_workspace(self, token: str, account_id: int) -> dict[str, Any]:
+        """Capture puis publie atomiquement la nouvelle révision officielle."""
+        result = self.save_workspace(token, account_id)
+        return self.set_status(
+            result["key"], "published", version=result["version"],
+            content_type=result["content_type"],
+        )
+
     @staticmethod
     def _replace_entities(db: sqlite3.Connection, pack_id: int, entities: list[dict[str, Any]]) -> None:
         db.execute("DELETE FROM official_content_entities WHERE pack_id=?", (pack_id,))

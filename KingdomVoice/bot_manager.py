@@ -6,6 +6,8 @@ import asyncio
 import os
 import random
 import re
+import sqlite3
+import time
 import unicodedata
 from pathlib import Path
 from typing import Any
@@ -387,7 +389,69 @@ class VoiceBotManager:
         self.assets_root = Path(assets_root) if assets_root else persistent_data_root()
         self.clients: dict[str, ManagedVoiceBot] = {}
         self._last_scene_check = 0.0
+        self._last_world_refresh = 0.0
         self.pool = VoiceWorkerPool([], max_concurrent_voice_presences=0)
+
+    def _refresh_managed_worlds(self, *, force: bool = False) -> bool:
+        """Recharge à chaud les mondes ajoutés par KingdomWeb.
+
+        Les clients Discord restent connectés : seule la liste des bases que
+        l'orchestrateur observe est remplacée. Une nouvelle installation est
+        ainsi utilisable sans redémarrer KingdomVoice.
+        """
+        now = time.monotonic()
+        try:
+            refresh_seconds = max(1.0, float(os.getenv("KINGDOM_VOICE_WORLD_REFRESH_SECONDS", "2") or 2))
+        except ValueError:
+            refresh_seconds = 2.0
+        if not force and now - self._last_world_refresh < refresh_seconds:
+            return False
+        self._last_world_refresh = now
+        try:
+            with self.store.connection() as database:
+                tables = {
+                    str(row[0])
+                    for row in database.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    )
+                }
+                if "managed_servers" not in tables:
+                    return False
+                rows = database.execute(
+                    "SELECT guild_id,database_path FROM managed_servers "
+                    "WHERE active=1 AND guild_id<>'' ORDER BY id"
+                ).fetchall()
+                quotas: dict[str, int | None] = {}
+                if {"worlds", "world_discord_servers", "server_access", "web_accounts"} <= tables:
+                    limits = {"basic": 2, "superior": 6, "pro": 10, "legend": None}
+                    for row in database.execute(
+                        "SELECT s.guild_id,COALESCE(a.voice_plan_key,'basic') plan_key "
+                        "FROM managed_servers s LEFT JOIN server_access sa ON sa.server_id=s.id "
+                        "AND sa.role='proprietaire' LEFT JOIN web_accounts a ON a.id=sa.account_id "
+                        "WHERE s.active=1 AND s.guild_id<>'' ORDER BY sa.created_at LIMIT 1000"
+                    ).fetchall():
+                        quotas[str(row["guild_id"])] = limits.get(str(row["plan_key"]), 2)
+        except (OSError, ValueError, sqlite3.DatabaseError):
+            return False
+
+        worlds: list[tuple[ContentStore, str]] = []
+        seen_paths: set[Path] = set()
+        for guild_id, configured_path in rows:
+            world_store = ContentStore(str(configured_path))
+            world_store.initialize()
+            resolved = world_store.path.resolve()
+            if resolved in seen_paths:
+                continue
+            seen_paths.add(resolved)
+            worlds.append((world_store, str(guild_id)))
+        previous = [(str(store.path.resolve()), str(guild)) for store, guild in self.worlds]
+        current = [(str(store.path.resolve()), str(guild)) for store, guild in worlds]
+        self.world_quotas = quotas
+        if previous == current:
+            return False
+        self.worlds = worlds
+        print(f"[KingdomVoice] mondes rechargés à chaud : {len(worlds)} serveur(s) actif(s).")
+        return True
 
     def configured(self) -> list[dict[str, Any]]:
         entities = {
@@ -871,6 +935,7 @@ class VoiceBotManager:
     async def _dispatch_audio(self) -> None:
         await asyncio.sleep(2)
         while not self.is_closed():
+            self._refresh_managed_worlds()
             now=asyncio.get_running_loop().time()
             if now-self._last_scene_check>=5:
                 self._last_scene_check=now

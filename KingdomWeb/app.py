@@ -10,6 +10,7 @@ import secrets
 import shutil
 import subprocess
 import time
+from copy import deepcopy
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from pathlib import Path
@@ -522,6 +523,27 @@ def _bots_disponibles() -> list[dict[str, Any]]:
     return resultats
 
 
+def _modele_du_serveur(serveur: dict[str, Any]) -> dict[str, Any] | None:
+    """Expose la source sans copier le catalogue complet dans le profil."""
+    source = comptes.source_modele(str(serveur["slug"]))
+    template_key = str(source.get("template_key", "blank"))
+    if template_key in {"", "blank"}:
+        return None
+    try:
+        published = contenus_officiels.get(template_key, published_only=True)
+    except LookupError:
+        return {
+            "key": template_key, "name": template_key,
+            "installed_version": int(source.get("template_version", 1)),
+            "published_version": None, "available": False,
+        }
+    return {
+        "key": template_key, "name": published["name"],
+        "installed_version": int(source.get("template_version", 1)),
+        "published_version": int(published["version"]), "available": True,
+    }
+
+
 @app.get("/api/profile", dependencies=[Depends(authenticate_account)])
 def profil(request: Request, x_kingdom_server: str | None = Header(None)):
     compte = request.state.compte
@@ -545,7 +567,11 @@ def profil(request: Request, x_kingdom_server: str | None = Header(None)):
         "account": compte,
         "current_server": (next((serveur["slug"] for serveur in serveurs if serveur["slug"] == x_kingdom_server), None)
                            or (serveurs[0]["slug"] if serveurs else "")),
-        "servers": [{**serveur, "bots": [{**bot, "installed": bool(serveur["bot_installed"])} for bot in bots]} for serveur in serveurs],
+        "servers": [{
+            **serveur,
+            "bots": [{**bot, "installed": bool(serveur["bot_installed"])} for bot in bots],
+            "template": None if serveur.get("official_workspace") else _modele_du_serveur(serveur),
+        } for serveur in serveurs],
     }
 
 
@@ -953,7 +979,7 @@ def platform_official_workspace(key: str, request: Request, body: dict[str, Any]
 @app.post("/api/platform/official-workspaces/{token}/save", dependencies=[Depends(_administrateur_plateforme)])
 def platform_save_official_workspace(token: str, request: Request):
     try:
-        return contenus_officiels.save_workspace(token, int(request.state.compte["id"]))
+        return contenus_officiels.publish_workspace(token, int(request.state.compte["id"]))
     except (LookupError, ValueError, ValidationError) as exc:
         raise HTTPException(422, str(exc)) from exc
 
@@ -1414,7 +1440,28 @@ def _serveur_administrable(compte: dict[str, Any], slug: str) -> dict[str, Any]:
 def _magasin_serveur(serveur: dict[str, Any]) -> ContentStore:
     magasin = ContentStore(serveur["database_path"])
     magasin.initialize()
-    magasin.seed(DEFINITIONS)
+    # Les mondes créés par KingdomWeb contiennent déjà leur modèle. L'ancien
+    # seed de démonstration ajoutait ici Place du village et Forêt royale à
+    # tous les templates lors du provisionnement Discord.
+    if not magasin.list():
+        magasin.seed(DEFINITIONS)
+    source = comptes.source_modele(str(serveur["slug"]))
+    if source.get("template_key") not in {"", "blank"}:
+        deletable_types = {
+            "building", "item", "event", "audio", "audio_group", "audio_story",
+            "voice_presence", "voice_profile", "profession", "environment",
+            "location", "npc", "bot", "quest",
+        }
+        for legacy in DEFINITIONS:
+            if legacy["type"] not in deletable_types:
+                continue
+            try:
+                current = magasin.get(legacy["type"], legacy["key"])
+            except NotFoundError:
+                continue
+            payload_source = current["payload"].get("official_source", {})
+            if current["version"] == 1 and current.get("author") == "seed" and not payload_source:
+                magasin.delete(legacy["type"], legacy["key"], "legacy-demo-seed-cleanup")
     if isinstance(store, MagasinsServeurs):
         store._synchroniser_modeles_bots(magasin)
     migrate_bot_catalog(magasin)
@@ -1477,6 +1524,81 @@ def installer_kingdomengine(slug: str, request: Request):
     if flow["next"] and not flow["next"]["configured"]:
         raise HTTPException(422, f"Renseignez {flow['next']['application_id_env']} dans le fichier .env.")
     return flow
+
+
+@app.post("/api/servers/{slug}/sync-template", dependencies=[Depends(authenticate_account)])
+def synchroniser_modele_serveur(slug: str, request: Request):
+    """Réapplique le modèle publié sans toucher aux données de jeu persistantes."""
+    serveur = _serveur_administrable(request.state.compte, slug)
+    source = comptes.source_modele(slug)
+    template_key = str(source.get("template_key", "blank"))
+    if template_key in {"", "blank"}:
+        raise HTTPException(422, "Ce monde vierge n'est lié à aucun template.")
+    try:
+        template = contenus_officiels.get(template_key, published_only=True)
+    except LookupError as exc:
+        raise HTTPException(404, "Le template source publié n'existe plus.") from exc
+
+    definitions = deepcopy(template["entities"])
+    expected: set[tuple[str, str]] = set()
+    for definition in definitions:
+        expected.add((str(definition["type"]), str(definition["key"])))
+        definition["payload"]["official_source"] = {
+            "template_key": template_key,
+            "template_version": int(template["version"]),
+            "entity_key": str(definition["key"]),
+        }
+
+    magasin = _magasin_serveur(serveur)
+    # Crée d'abord les nouvelles dépendances dans l'ordre générique du store.
+    magasin.seed(definitions)
+    updated = 0
+    unchanged = 0
+    for definition in definitions:
+        current = magasin.get(definition["type"], definition["key"])
+        if current["payload"] == definition["payload"]:
+            unchanged += 1
+            continue
+        draft = magasin.save(
+            definition["type"], definition["key"], definition["payload"],
+            author=f"template-sync:{template_key}", expected_version=int(current["version"]),
+        )
+        magasin.publish(
+            definition["type"], definition["key"], int(draft["version"]),
+            author=f"template-sync:{template_key}",
+        )
+        updated += 1
+
+    deletable_types = {
+        "building", "item", "event", "audio", "audio_group", "audio_story",
+        "voice_presence", "voice_profile", "profession", "environment",
+        "location", "npc", "bot", "quest",
+    }
+    removed = 0
+    for current in magasin.list():
+        identity = (str(current["entity_type"]), str(current["entity_key"]))
+        official_source = current["payload"].get("official_source", {})
+        if (
+            identity not in expected
+            and identity[0] in deletable_types
+            and official_source.get("template_key") == template_key
+        ):
+            magasin.delete(identity[0], identity[1], author=f"template-sync:{template_key}")
+            removed += 1
+
+    comptes.definir_source_modele(slug, template_key, int(template["version"]))
+    request_id = None
+    if serveur.get("bot_installed"):
+        request_id = magasin.request_discord_provision(
+            "server", requested_by=f"KingdomWeb:{request.state.compte['username']}:template-sync",
+        )
+    return {
+        "ok": True, "template_key": template_key, "template_name": template["name"],
+        "template_version": int(template["version"]), "updated": updated,
+        "unchanged": unchanged, "removed": removed,
+        "discord_provision": {"requested": request_id is not None, "request_id": request_id},
+        "preserved": ["players", "inventories", "progress", "runtime", "local_content"],
+    }
 
 
 @app.get("/api/servers/{slug}/install-flow", dependencies=[Depends(authenticate_account)])

@@ -147,6 +147,15 @@ class RegistreComptes:
                 (template_key, int(template_version), _maintenant(), world_slug),
             )
 
+    def source_modele(self, world_slug: str) -> dict[str, Any]:
+        """Retourne la révision réellement instanciée pour un monde."""
+        with self.connexion() as base:
+            row = base.execute(
+                "SELECT template_key,template_version FROM worlds WHERE slug=?",
+                (world_slug,),
+            ).fetchone()
+        return dict(row) if row else {"template_key": "blank", "template_version": 1}
+
     def definir_role_plateforme(self, compte_id: int, role: str) -> None:
         if role not in {"", "support", "platform_admin"}: raise ValueError("Rôle plateforme invalide.")
         with self.connexion() as base:

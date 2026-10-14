@@ -1701,7 +1701,10 @@ function serverProfileCard(server) {
   const canManage =
     state.profile.account.is_admin ||
     ["gestionnaire", "proprietaire", "administrateur"].includes(server.role);
-  return `<article class="server-profile-card ${current ? "current" : ""}"><div class="server-profile-head"><div><h3>${escapeHtml(server.name)}</h3><p>${server.guild_id ? `Discord · ${escapeHtml(server.guild_id)}` : "Identifiant Discord à renseigner"}</p></div><span class="server-role">${escapeHtml(server.role)}</span></div><div class="server-meta"><span>Base indépendante · ${escapeHtml(server.slug)}</span><span>${server.bot_installed ? "KingdomCore présent sur Discord" : "KingdomEngine n’est pas encore installé"}</span></div><div class="bot-list">${server.bots.map((bot) => `<div class="bot-row"><span><b>${escapeHtml(bot.name)}</b><small>${escapeHtml(bot.type)}</small></span><i class="bot-state ${bot.installed && bot.available ? "" : "offline"}">${bot.installed && bot.available ? "Disponible" : bot.available ? "À installer" : "Application non configurée"}</i></div>`).join("") || "<p>Aucun bot publié.</p>"}</div><div class="profile-actions">${current ? "<button disabled>Serveur sélectionné</button>" : `<button class="secondary" data-select-server="${escapeHtml(server.slug)}">Gérer ce serveur</button>`}${canManage ? `<button class="primary" data-install-server="${escapeHtml(server.slug)}">${server.bot_installed ? "Mettre à jour l’installation" : "Installer KingdomEngine sur ce serveur"}</button>` : ""}${
+  const templateSummary = server.template
+    ? `<span>Template · ${escapeHtml(server.template.name)} · installé v${escapeHtml(server.template.installed_version)}${server.template.published_version ? ` · publié v${escapeHtml(server.template.published_version)}` : " · indisponible"}</span>`
+    : "";
+  return `<article class="server-profile-card ${current ? "current" : ""}"><div class="server-profile-head"><div><h3>${escapeHtml(server.name)}</h3><p>${server.guild_id ? `Discord · ${escapeHtml(server.guild_id)}` : "Identifiant Discord à renseigner"}</p></div><span class="server-role">${escapeHtml(server.role)}</span></div><div class="server-meta"><span>Base indépendante · ${escapeHtml(server.slug)}</span><span>${server.bot_installed ? "KingdomCore présent sur Discord" : "KingdomEngine n’est pas encore installé"}</span>${templateSummary}</div><div class="bot-list">${server.bots.map((bot) => `<div class="bot-row"><span><b>${escapeHtml(bot.name)}</b><small>${escapeHtml(bot.type)}</small></span><i class="bot-state ${bot.installed && bot.available ? "" : "offline"}">${bot.installed && bot.available ? "Disponible" : bot.available ? "À installer" : "Application non configurée"}</i></div>`).join("") || "<p>Aucun bot publié.</p>"}</div><div class="profile-actions">${current ? "<button disabled>Serveur sélectionné</button>" : `<button class="secondary" data-select-server="${escapeHtml(server.slug)}">Gérer ce serveur</button>`}${canManage ? `<button class="primary" data-install-server="${escapeHtml(server.slug)}">${server.bot_installed ? "Mettre à jour l’installation" : "Installer KingdomEngine sur ce serveur"}</button>` : ""}${canManage && server.template?.available ? `<button class="secondary" data-sync-template="${escapeHtml(server.slug)}" data-server-name="${escapeHtml(server.name)}">↻ Mettre à jour depuis le template</button>` : ""}${
     server.bot_installed
       ? server.bots
           .filter((bot) => bot.available && bot.type === "voice")
@@ -1862,6 +1865,15 @@ async function loadProfile() {
     (button) =>
       (button.onclick = () =>
         installKingdomEngine(button.dataset.installServer)),
+  );
+  $$("[data-sync-template]").forEach(
+    (button) =>
+      (button.onclick = () =>
+        syncServerTemplate(
+          button.dataset.syncTemplate,
+          button.dataset.serverName,
+          button,
+        )),
   );
   $$("[data-remove-server]").forEach(
     (button) =>
@@ -2208,6 +2220,29 @@ async function installKingdomEngine(slug) {
     render(flow, "Délai dépassé. Relancez l’installation : les étapes déjà validées seront conservées.");
   }
 }
+async function syncServerTemplate(slug, name, button) {
+  const confirmed = confirm(
+    `Mettre « ${name} » à jour depuis la dernière version publiée du template ?\n\nLes joueurs, inventaires, progressions et créations locales sont conservés. Les définitions provenant du template sont actualisées, puis Discord est resynchronisé.`,
+  );
+  if (!confirmed) return;
+  const status = $(`[data-server-operation="${slug}"]`);
+  button.disabled = true;
+  status.textContent = "Mise à jour du template en cours…";
+  const response = await fetch(
+    `/api/servers/${encodeURIComponent(slug)}/sync-template`,
+    { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: "{}" },
+  );
+  const result = await response.json();
+  if (!response.ok) {
+    status.textContent = result.detail || "La mise à jour du template a échoué.";
+    button.disabled = false;
+    return;
+  }
+  status.textContent = `${result.updated} contenu(s) mis à jour, ${result.removed} retiré(s). ${result.discord_provision?.requested ? "Synchronisation Discord lancée." : "Discord sera synchronisé à la prochaine installation."}`;
+  button.disabled = false;
+  setTimeout(() => loadProfile(), 2500);
+}
+
 async function removeManagedServer(slug, name) {
   if (
     prompt(
@@ -2217,7 +2252,7 @@ async function removeManagedServer(slug, name) {
     return;
   const status = $(`[data-server-operation="${slug}"]`),
     buttons = $$(
-      `[data-remove-server="${slug}"],[data-install-server="${slug}"]`,
+      `[data-remove-server="${slug}"],[data-install-server="${slug}"],[data-sync-template="${slug}"]`,
     );
   buttons.forEach((button) => (button.disabled = true));
   status.textContent = "Désinstallation Discord demandée à KingdomCore…";
@@ -4122,7 +4157,7 @@ async function saveOfficialWorkspace() {
   const button = $("#official-workspace-save"),
     status = $("#official-workspace-status");
   button.disabled = true;
-  status.textContent = "Création de la nouvelle révision…";
+  status.textContent = "Création et publication de la nouvelle révision…";
   try {
     const response = await fetch(
       `/api/platform/official-workspaces/${encodeURIComponent(officialWorkspaceToken)}/save`,
@@ -4130,7 +4165,7 @@ async function saveOfficialWorkspace() {
     );
     const result = await response.json();
     if (!response.ok) throw new Error(result.detail || "Enregistrement impossible.");
-    status.textContent = `Brouillon v${result.version} enregistré. Vous pouvez continuer à travailler.`;
+    status.textContent = `Révision v${result.version} publiée. Les prochains mondes utiliseront cette version.`;
   } catch (error) {
     status.textContent = error.message;
   } finally {

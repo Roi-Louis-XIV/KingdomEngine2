@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from KingdomData import ContentStore, NotFoundError
+from KingdomData.world_presets import world_preset
 from KingdomWeb import app as web
 from KingdomWeb.accounts import RegistreComptes
 
@@ -361,6 +362,49 @@ def test_world_preset_api_and_picker_expose_and_instantiate_royal_festival(tmp_p
         assert world.get("server_settings", "kingdom_server")["payload"]["template_revision"] == 4
 
 
+def test_existing_world_can_sync_published_template_without_losing_local_content(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "template-sync.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "sync-admin")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "sync-password")
+    monkeypatch.setattr(web, "magasin_principal", primary)
+    monkeypatch.setattr(web, "store", web.MagasinsServeurs(primary))
+    monkeypatch.setattr(web, "comptes", registry)
+    monkeypatch.setattr(web, "DEFINITIONS", [])
+    monkeypatch.setattr(web, "import_v1", lambda _store: 0)
+
+    with TestClient(web.app) as client:
+        assert client.post("/api/auth/login", json={
+            "username": "sync-admin", "password": "sync-password",
+        }).status_code == 200
+        created = client.post("/api/servers", json={
+            "name": "Prototype vivant", "guild_id": "123456789012345681",
+            "preset": "medieval_kingdom",
+        }).json()
+        world = ContentStore(created["database_path"])
+        local = world.save("item", "prototype_local", {"name": "Création locale"})
+        world.publish("item", "prototype_local", local["version"])
+
+        pack = web.contenus_officiels.get("medieval_kingdom", published_only=True)
+        building = next(entity for entity in pack["entities"] if entity["type"] == "building")
+        building["payload"]["description"] = "Description publiée pour le prototype."
+        revision = web.contenus_officiels.save(pack, key="medieval_kingdom")
+        web.contenus_officiels.set_status(
+            "medieval_kingdom", "published", version=revision["version"],
+        )
+
+        synced = client.post(f'/api/servers/{created["slug"]}/sync-template', json={})
+        assert synced.status_code == 200
+        result = synced.json()
+        assert result["updated"] >= 1
+        assert result["discord_provision"]["requested"] is False
+        assert world.get("building", building["key"], published=True)["payload"]["description"] == "Description publiée pour le prototype."
+        assert world.get("item", "prototype_local", published=True)["payload"]["name"] == "Création locale"
+        profile_server = client.get("/api/profile").json()["servers"][0]
+        assert profile_server["template"]["installed_version"] == revision["version"]
+        assert profile_server["template"]["published_version"] == revision["version"]
+
+
 def test_managed_server_install_and_safe_removal_lifecycle(tmp_path, monkeypatch):
     primary = ContentStore(tmp_path / "server-lifecycle.db")
     registry = RegistreComptes(primary.path)
@@ -467,6 +511,42 @@ def test_guided_install_ui_can_resume_each_worker_and_be_closed():
     assert 'launchCurrentStep(flow)' in install_source
     assert 'dialog.show();' in install_source
     assert 'dialog.showModal();' not in install_source
+
+
+def test_discord_provision_keeps_template_world_free_of_legacy_demo_buildings(tmp_path, monkeypatch):
+    primary = ContentStore(tmp_path / "platform.db")
+    registry = RegistreComptes(primary.path)
+    monkeypatch.setenv("KINGDOM_ADMIN_USERNAME", "template-admin")
+    monkeypatch.setenv("KINGDOM_ADMIN_PASSWORD", "template-password")
+    registry.initialiser()
+    primary.initialize()
+    account = registry.authentifier("template-admin", "template-password")
+    server = registry.creer_serveur("Tempête propre", "987654321012345680", account["id"])
+    target = ContentStore(server["database_path"])
+    target.initialize()
+    storm = world_preset("storm_sainte_pelle")
+    for definition in storm:
+        definition["payload"]["official_source"] = {
+            "template_key": "storm_sainte_pelle", "template_version": 1,
+            "entity_key": definition["key"],
+        }
+    target.seed(storm)
+    target.seed(web.DEFINITIONS)
+    assert {"village_square", "royal_forest"} <= {
+        row["entity_key"] for row in target.list("building", published=True)
+    }
+    registry.definir_source_modele(server["slug"], "storm_sainte_pelle", 1)
+    monkeypatch.setattr(web, "store", web.MagasinsServeurs(primary))
+    monkeypatch.setattr(web, "comptes", registry)
+
+    cleaned = web._magasin_serveur(server)
+    buildings = {row["entity_key"] for row in cleaned.list("building", published=True)}
+
+    assert "village_square" not in buildings
+    assert "royal_forest" not in buildings
+    assert buildings == {
+        row["key"] for row in world_preset("storm_sainte_pelle") if row["type"] == "building"
+    }
 
 
 def test_login_interface_exposes_registration_and_account_statistics():

@@ -28,6 +28,17 @@ def test_legacy_presets_are_migrated_idempotently(official):
     assert {item["key"] for item in items} == {"medieval_kingdom", "royal_festival", "storm_sainte_pelle", "space_station"}
 
 
+def test_publishing_workspace_makes_new_revision_the_instantiation_source(official, tmp_path):
+    workspace = official.create_workspace("storm_sainte_pelle", 1, tmp_path)
+
+    published = official.publish_workspace(workspace["workspace_token"], 1)
+
+    assert published["version"] == 2
+    assert published["status"] == "published"
+    assert official.get("storm_sainte_pelle", published_only=True)["version"] == 2
+    assert official.get("storm_sainte_pelle", version=1)["status"] == "archived"
+
+
 def test_existing_kingdom_pack_migrates_in_place_to_revision_four(official):
     with official.connection() as db:
         pack_id = db.execute("SELECT id FROM official_content_packs WHERE pack_key='royal_festival'").fetchone()[0]
