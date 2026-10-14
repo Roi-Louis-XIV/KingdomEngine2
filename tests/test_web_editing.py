@@ -163,6 +163,7 @@ def test_full_template_sync_refreshes_every_panel_and_removes_stale_channels():
     assert 'SELECT building_key FROM building_discord_channels' in source
     assert "await provisioner.remove_mapped_building_channels(stale_key)" in source
     assert "refreshed_panels" in source
+    assert "await refresh_active_building_interfaces(" in source
 
 
 def test_discord_connections_show_every_audio_bot_and_future_access_marker():

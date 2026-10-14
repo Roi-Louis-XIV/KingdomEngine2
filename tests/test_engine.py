@@ -8,6 +8,7 @@ from kingdomCore.discord_bot import (
     PrivateInterfaceLauncher,
     building_entry_menu,
     delete_building_entry,
+    refresh_active_building_interfaces,
     remember_active_building_interface,
     send_building_entry,
     sync_building_panel,
@@ -181,6 +182,34 @@ def test_voice_exit_removes_every_ephemeral_interface_for_player(tmp_path):
     assert asyncio.run(delete_building_entry(store, member, "forge")) is True
     assert deleted == [first, second]
     assert (123, 42, "forge") not in ACTIVE_BUILDING_INTERFACES
+
+
+def test_template_sync_refreshes_an_already_open_building_interface(tmp_path):
+    store = ContentStore(tmp_path / "ephemeral-refresh.db")
+    store.initialize()
+    draft = store.save("building", "forge", {"name": "Ancienne Forge", "actions": []})
+    store.publish("building", "forge", draft["version"])
+    edits = []
+
+    class Interaction:
+        guild_id = 456
+        user = type("User", (), {"id": 99})()
+
+        async def edit_original_response(self, **kwargs):
+            edits.append(kwargs)
+
+    interaction = Interaction()
+    remember_active_building_interface(interaction, "forge")
+    current = store.get("building", "forge")
+    update = store.save(
+        "building", "forge", {"name": "Forge actualisée", "actions": []},
+        expected_version=current["version"],
+    )
+    store.publish("building", "forge", update["version"])
+
+    assert asyncio.run(refresh_active_building_interfaces(store, 456)) == 1
+    assert edits[0]["embed"].title.endswith("Forge actualisée")
+    assert edits[0]["view"].definition["target_building_key"] == "forge"
 
 
 def test_building_launcher_opens_a_truly_ephemeral_menu_from_the_right_voice(tmp_path, monkeypatch):

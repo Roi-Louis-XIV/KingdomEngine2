@@ -14,7 +14,7 @@ from typing import Any
 import discord
 from discord.ext import commands
 
-from KingdomData import ContentStore, get_server_settings, interface_from_building
+from KingdomData import ContentStore, NotFoundError, get_server_settings, interface_from_building
 from kingdomEvent import EventBus
 from kingdomEvent.lifecycle import EventLifecycle
 from kingdomEvent.runtime import WorldClock
@@ -63,6 +63,42 @@ async def close_active_building_interfaces(
             # Le message peut déjà avoir expiré ou avoir été fermé manuellement.
             pass
     return removed
+
+
+async def refresh_active_building_interfaces(
+    store: ContentStore, guild_id: int | None,
+) -> int:
+    """Remplace les menus éphémères ouverts par leur définition publiée."""
+    refreshed = 0
+    engine = GameEngine(store, EventBus())
+    for (active_guild, member_id, building_key), interactions in list(ACTIVE_BUILDING_INTERFACES.items()):
+        if active_guild != int(guild_id or 0):
+            continue
+        try:
+            building = store.get("building", building_key, published=True)
+            payload = building["payload"]
+            definition = interface_for_building(store, payload) or interface_from_building(
+                building_key, payload, payload.get("actions", []),
+            )
+            entry_page = str(definition.get("entry_page") or definition.get("start_page", "home"))
+        except (NotFoundError, KeyError, ValueError):
+            await close_active_building_interfaces(active_guild, member_id, building_key)
+            continue
+        still_active: list[Any] = []
+        for interaction in interactions:
+            view = InterfaceView(engine, definition, page_key=entry_page, owner_id=member_id)
+            try:
+                await interaction.edit_original_response(embed=view.embed(), view=view)
+                still_active.append(interaction)
+                refreshed += 1
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                pass
+        key = _active_interface_key(active_guild, member_id, building_key)
+        if still_active:
+            ACTIVE_BUILDING_INTERFACES[key] = still_active
+        else:
+            ACTIVE_BUILDING_INTERFACES.pop(key, None)
+    return refreshed
 
 
 class BuildingView(discord.ui.View):
@@ -1941,8 +1977,12 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
                                             getattr(voice_channel, "category", None),
                                         )
                                         refreshed_panels += int(panel is not None)
+                                    refreshed_interfaces = await refresh_active_building_interfaces(
+                                        target_store, guild.id,
+                                    )
                                     summary += (
                                         f", {refreshed_panels} panneau(x) actualisé(s), "
+                                        f"{refreshed_interfaces} interface(s) joueur actualisée(s), "
                                         f"{removed_channels} ancien(s) salon(s) retiré(s)"
                                     )
                                 elif request["scope"] == "building" and request["building_key"]:
