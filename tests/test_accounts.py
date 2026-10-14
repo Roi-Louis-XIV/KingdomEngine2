@@ -397,7 +397,8 @@ def test_existing_world_can_sync_published_template_without_losing_local_content
         assert synced.status_code == 200
         result = synced.json()
         assert result["updated"] >= 1
-        assert result["discord_provision"]["requested"] is False
+        assert result["discord_provision"]["requested"] is True
+        assert world.discord_provision_status()["scope"] == "server"
         assert world.get("building", building["key"], published=True)["payload"]["description"] == "Description publiée pour le prototype."
         assert world.get("item", "prototype_local", published=True)["payload"]["name"] == "Création locale"
         profile_server = client.get("/api/profile").json()["servers"][0]

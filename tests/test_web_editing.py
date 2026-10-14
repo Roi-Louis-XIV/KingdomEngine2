@@ -155,6 +155,16 @@ def test_building_publication_refreshes_the_active_discord_panel():
     assert "view = InterfaceView(self.engine, definition" in source
 
 
+def test_full_template_sync_refreshes_every_panel_and_removes_stale_channels():
+    source = (
+        Path(web.__file__).parents[1] / "kingdomCore" / "discord_bot.py"
+    ).read_text(encoding="utf-8")
+    assert 'request["scope"] == "server"' in source
+    assert 'SELECT building_key FROM building_discord_channels' in source
+    assert "await provisioner.remove_mapped_building_channels(stale_key)" in source
+    assert "refreshed_panels" in source
+
+
 def test_discord_connections_show_every_audio_bot_and_future_access_marker():
     static_root = Path(web.__file__).parent / "static"
     javascript = (static_root / "app.js").read_text(encoding="utf-8")

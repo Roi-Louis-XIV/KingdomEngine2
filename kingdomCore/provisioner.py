@@ -354,6 +354,19 @@ class DiscordProvisioner:
 
     async def _provision_building(self, entity: dict[str, Any], master: discord.Role, player: discord.Role, bot_role: discord.Role, me: discord.Member, report: ProvisionReport) -> None:
         payload = entity["payload"]
+        mapping = self.store.building_channels(entity["entity_key"])
+        get_channel = getattr(self.guild, "get_channel", None)
+        def mapped_channel(value):
+            try:
+                return get_channel(int(value)) if get_channel and value else None
+            except (TypeError, ValueError):
+                return None
+        mapped_category = mapped_channel(mapping.get("category_id"))
+        mapped_text = mapped_channel(mapping.get("text_channel_id"))
+        mapped_voice = mapped_channel(mapping.get("voice_channel_id"))
+        mapped_category = mapped_category if isinstance(mapped_category, discord.CategoryChannel) else None
+        mapped_text = mapped_text if isinstance(mapped_text, discord.TextChannel) else None
+        mapped_voice = mapped_voice if isinstance(mapped_voice, discord.VoiceChannel) else None
         access = payload.get("access", {})
         if access.get("visible", True) is False:
             return
@@ -381,7 +394,9 @@ class DiscordProvisioner:
         category_name = template.format(
             name=payload["name"], key=entity["entity_key"], emoji=payload.get("emoji", "🏰")
         ).strip()[:100]
-        category = await self._ensure_category(category_name, category_overwrites, report)
+        category = await self._ensure_category(
+            category_name, category_overwrites, report, existing=mapped_category,
+        )
 
         text_overwrites = dict(category_overwrites)
         temporary_text = access.get("temporary_text", self.settings["discord"].get("temporary_text_access", True))
@@ -401,11 +416,16 @@ class DiscordProvisioner:
                 read_message_history=not temporary_text,
             )
         text_name = self.settings["discord"]["building_text_channel"].format(name=payload["name"], key=entity["entity_key"])
-        text_channel = await self._ensure_text(text_name, category, text_overwrites, report, payload.get("description"))
+        text_channel = await self._ensure_text(
+            text_name, category, text_overwrites, report, payload.get("description"),
+            existing=mapped_text,
+        )
         voice_name = self.settings["discord"]["building_voice_channel_template"].format(
             name=payload["name"], key=entity["entity_key"]
         ).strip()
-        voice_channel = await self._ensure_voice(voice_name[:100], category, category_overwrites, report)
+        voice_channel = await self._ensure_voice(
+            voice_name[:100], category, category_overwrites, report, existing=mapped_voice,
+        )
         with self.store.connection() as db:
             db.execute(
                 "INSERT INTO building_discord_channels(building_key,category_id,text_channel_id,voice_channel_id,updated_at) VALUES(?,?,?,?,datetime('now')) "
@@ -449,32 +469,32 @@ class DiscordProvisioner:
             name, discord.Colour.dark_red(), player_permissions(), report
         )
 
-    async def _ensure_category(self, name: str, overwrites: dict[Any, discord.PermissionOverwrite], report: ProvisionReport) -> discord.CategoryChannel:
-        category = discord.utils.get(self.guild.categories, name=name)
+    async def _ensure_category(self, name: str, overwrites: dict[Any, discord.PermissionOverwrite], report: ProvisionReport, *, existing=None) -> discord.CategoryChannel:
+        category = existing or discord.utils.get(self.guild.categories, name=name)
         if category is None:
             category = await self.guild.create_category(name, overwrites=overwrites, reason=AUDIT_REASON)
             report.created_channels.append(name)
         else:
-            await category.edit(overwrites=overwrites, reason=AUDIT_REASON)
+            await category.edit(name=name, overwrites=overwrites, reason=AUDIT_REASON)
         return category
 
-    async def _ensure_text(self, name: str, category: discord.CategoryChannel, overwrites: dict[Any, discord.PermissionOverwrite], report: ProvisionReport, topic: str | None = None) -> discord.TextChannel:
+    async def _ensure_text(self, name: str, category: discord.CategoryChannel, overwrites: dict[Any, discord.PermissionOverwrite], report: ProvisionReport, topic: str | None = None, *, existing=None) -> discord.TextChannel:
         slug = channel_slug(name)
-        channel = discord.utils.get(category.text_channels, name=slug)
+        channel = existing or discord.utils.get(category.text_channels, name=slug)
         if channel is None:
             channel = await self.guild.create_text_channel(slug, category=category, overwrites=overwrites, topic=topic, reason=AUDIT_REASON)
             report.created_channels.append(f"#{slug}")
         else:
-            await channel.edit(overwrites=overwrites, topic=topic, sync_permissions=False, reason=AUDIT_REASON)
+            await channel.edit(name=slug, category=category, overwrites=overwrites, topic=topic, sync_permissions=False, reason=AUDIT_REASON)
         return channel
 
-    async def _ensure_voice(self, name: str, category: discord.CategoryChannel, overwrites: dict[Any, discord.PermissionOverwrite], report: ProvisionReport) -> discord.VoiceChannel:
-        channel = discord.utils.get(category.voice_channels, name=name)
+    async def _ensure_voice(self, name: str, category: discord.CategoryChannel, overwrites: dict[Any, discord.PermissionOverwrite], report: ProvisionReport, *, existing=None) -> discord.VoiceChannel:
+        channel = existing or discord.utils.get(category.voice_channels, name=name)
         if channel is None:
             channel = await self.guild.create_voice_channel(name, category=category, overwrites=overwrites, reason=AUDIT_REASON)
             report.created_channels.append(name)
         else:
-            await channel.edit(overwrites=overwrites, sync_permissions=False, reason=AUDIT_REASON)
+            await channel.edit(name=name, category=category, overwrites=overwrites, sync_permissions=False, reason=AUDIT_REASON)
         return channel
 
     async def _assign_privileged_roles(self, master: discord.Role, bot_role: discord.Role) -> tuple[int, int]:

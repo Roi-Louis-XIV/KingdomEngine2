@@ -1587,16 +1587,16 @@ def synchroniser_modele_serveur(slug: str, request: Request):
             removed += 1
 
     comptes.definir_source_modele(slug, template_key, int(template["version"]))
-    request_id = None
-    if serveur.get("bot_installed"):
-        request_id = magasin.request_discord_provision(
-            "server", requested_by=f"KingdomWeb:{request.state.compte['username']}:template-sync",
-        )
+    # La demande reste durable même si KingdomCore n'a pas encore confirmé sa
+    # présence. Il la traitera dès qu'il sera connecté au serveur Discord.
+    request_id = magasin.request_discord_provision(
+        "server", requested_by=f"KingdomWeb:{request.state.compte['username']}:template-sync",
+    )
     return {
         "ok": True, "template_key": template_key, "template_name": template["name"],
         "template_version": int(template["version"]), "updated": updated,
         "unchanged": unchanged, "removed": removed,
-        "discord_provision": {"requested": request_id is not None, "request_id": request_id},
+        "discord_provision": {"requested": True, "request_id": request_id},
         "preserved": ["players", "inventories", "progress", "runtime", "local_content"],
     }
 

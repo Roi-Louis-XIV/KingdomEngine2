@@ -1908,7 +1908,44 @@ def create_bot(store: ContentStore | None = None) -> commands.Bot:
                                     f"{len(report.created_roles)} rôle(s), {len(report.created_channels)} salon(s) créés, "
                                     f"{report.assigned_roles} attribution(s) de rôle"
                                 )
-                                if request["scope"] == "building" and request["building_key"]:
+                                if request["scope"] == "server":
+                                    buildings = target_store.list("building", published=True)
+                                    published_keys = {
+                                        str(item["entity_key"])
+                                        for item in buildings
+                                        if not item["payload"].get("is_reference")
+                                    }
+                                    with target_store.connection() as database:
+                                        mapped_keys = {
+                                            str(row[0])
+                                            for row in database.execute(
+                                                "SELECT building_key FROM building_discord_channels"
+                                            )
+                                        }
+                                    removed_channels = 0
+                                    for stale_key in sorted(mapped_keys - published_keys):
+                                        removed_channels += len(
+                                            await provisioner.remove_mapped_building_channels(stale_key)
+                                        )
+                                    refreshed_panels = 0
+                                    guild_engine = GameEngine(target_store, EventBus())
+                                    settings = get_server_settings(target_store)
+                                    for entity in buildings:
+                                        if entity["payload"].get("is_reference"):
+                                            continue
+                                        channels = target_store.building_channels(entity["entity_key"])
+                                        voice_id = str(channels.get("voice_channel_id") or "")
+                                        voice_channel = guild.get_channel(int(voice_id)) if voice_id.isdigit() else None
+                                        panel = await sync_building_panel(
+                                            target_store, guild_engine, guild, entity, settings,
+                                            getattr(voice_channel, "category", None),
+                                        )
+                                        refreshed_panels += int(panel is not None)
+                                    summary += (
+                                        f", {refreshed_panels} panneau(x) actualisé(s), "
+                                        f"{removed_channels} ancien(s) salon(s) retiré(s)"
+                                    )
+                                elif request["scope"] == "building" and request["building_key"]:
                                     building_key = str(request["building_key"])
                                     entity = target_store.get("building", building_key, published=True)
                                     channels = target_store.building_channels(building_key)
