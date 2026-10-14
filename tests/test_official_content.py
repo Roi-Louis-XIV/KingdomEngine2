@@ -28,6 +28,41 @@ def test_legacy_presets_are_migrated_idempotently(official):
     assert {item["key"] for item in items} == {"medieval_kingdom", "royal_festival", "storm_sainte_pelle", "space_station"}
 
 
+def test_bundled_interface_change_syncs_even_when_revision_number_is_unchanged(official):
+    bundled = official.get("storm_sainte_pelle", published_only=True)
+    expected_tavern = next(
+        entity["payload"]["interface"] for entity in bundled["entities"]
+        if entity["type"] == "building" and entity["key"] == "edgar_tavern"
+    )
+    with official.connection() as database:
+        pack_id = database.execute(
+            "SELECT id FROM official_content_packs WHERE pack_key='storm_sainte_pelle' "
+            "AND status='published'"
+        ).fetchone()[0]
+        row = database.execute(
+            "SELECT payload_json FROM official_content_entities WHERE pack_id=? "
+            "AND entity_type='building' AND entity_key='edgar_tavern'", (pack_id,),
+        ).fetchone()
+        payload = json.loads(row[0])
+        payload["interface"] = deepcopy(payload["interface"])
+        payload["interface"]["pages"][0]["name"] = "Interface périmée"
+        database.execute(
+            "UPDATE official_content_entities SET payload_json=? WHERE pack_id=? "
+            "AND entity_type='building' AND entity_key='edgar_tavern'",
+            (json.dumps(payload), pack_id),
+        )
+
+    official.migrate_legacy_presets()
+
+    refreshed = official.get("storm_sainte_pelle", published_only=True)
+    refreshed_tavern = next(
+        entity["payload"]["interface"] for entity in refreshed["entities"]
+        if entity["type"] == "building" and entity["key"] == "edgar_tavern"
+    )
+    assert refreshed["version"] == bundled["version"]
+    assert refreshed_tavern == expected_tavern
+
+
 def test_publishing_workspace_makes_new_revision_the_instantiation_source(official, tmp_path):
     workspace = official.create_workspace("storm_sainte_pelle", 1, tmp_path)
 

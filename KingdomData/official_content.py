@@ -121,11 +121,32 @@ class OfficialContentStore:
                     needs_bundled_update = current_revision < required_revision if required_revision else not has_audio
                     if key == "royal_festival" and settings_row:
                         needs_bundled_update |= int(json.loads(settings_row[0]).get("workshop_content_revision", 0)) < 4
+                    bundled_entities = None
+                    if current and current["origin"] == "legacy_world_presets":
+                        bundled_entities = world_preset(key)
+                        persisted_entities = [
+                            {
+                                "type": str(row["entity_type"]),
+                                "key": str(row["entity_key"]),
+                                "payload": json.loads(row["payload_json"]),
+                            }
+                            for row in db.execute(
+                                "SELECT entity_type,entity_key,payload_json FROM official_content_entities "
+                                "WHERE pack_id=? ORDER BY entity_type,entity_key",
+                                (current["id"],),
+                            )
+                        ]
+                        bundled_snapshot = sorted(
+                            ({"type": item["type"], "key": item["key"], "payload": item["payload"]}
+                             for item in bundled_entities),
+                            key=lambda item: (item["type"], item["key"]),
+                        )
+                        needs_bundled_update |= persisted_entities != bundled_snapshot
                     # Migration ciblée des seuls presets livrés avec le code.
                     # Les copies et contenus créés par les administrateurs ne
                     # sont jamais réécrits par un démarrage de KingdomWeb.
                     if current and current["origin"] == "legacy_world_presets" and needs_bundled_update:
-                        bundled_entities = world_preset(key)
+                        bundled_entities = bundled_entities or world_preset(key)
                         self._replace_entities(db, int(current["id"]), bundled_entities)
                         db.execute(
                             "UPDATE official_content_packs SET name=?,description=?,emoji=?,updated_at=? WHERE id=?",
