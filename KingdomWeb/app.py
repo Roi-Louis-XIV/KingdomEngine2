@@ -1509,6 +1509,8 @@ def _installation_flow(serveur: dict[str, Any], compte_id: int) -> dict[str, Any
         "ok": True, "server_slug": serveur["slug"], "guild_id": guild_id,
         "voice_plan": plan, "steps": steps, "next": next_step,
         "url": next_step.get("url", "") if next_step else "",
+        "core_installed": bool(steps[0]["installed"]),
+        "voice_complete": all(step["installed"] for step in steps if step["kind"] == "voice"),
         "complete": all(step["installed"] for step in steps),
         "installed": sum(bool(step["installed"]) for step in steps), "total": len(steps),
     }
@@ -1613,11 +1615,17 @@ def installation_kingdomengine_progress(slug: str, request: Request):
 def terminer_installation_kingdomengine(slug: str, request: Request):
     serveur = _serveur_administrable(request.state.compte, slug)
     flow = _installation_flow(comptes.serveur(slug), int(request.state.compte["id"]))
-    if not flow["complete"]:
-        raise HTTPException(409, "Tous les bots autorisés doivent être installés avant le provisionnement.")
+    # KingdomCore suffit pour créer les rôles, salons et interfaces. Un Worker
+    # vocal momentanément lent ou une autorisation interrompue ne doit jamais
+    # rendre le nouveau monde inutilisable : le parcours vocal reste reprenable.
+    if not flow["core_installed"]:
+        raise HTTPException(409, "KingdomCore doit être installé avant le provisionnement.")
     magasin = _magasin_serveur(serveur)
     request_id = magasin.request_discord_provision("server", requested_by=f"KingdomWeb:{request.state.compte['username']}")
-    return {**flow, "request_id": request_id, "status": "pending"}
+    return {
+        **flow, "request_id": request_id, "status": "pending",
+        "voice_pending": not flow["voice_complete"],
+    }
 
 
 @app.post("/api/servers/{slug}/uninstall", dependencies=[Depends(authenticate_account)])

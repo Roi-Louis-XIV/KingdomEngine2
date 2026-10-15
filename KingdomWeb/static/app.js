@@ -2151,6 +2151,7 @@ async function installKingdomEngine(slug) {
   document.body.append(dialog);
   let cancelled = false;
   let launchedKey = "";
+  let provisionStarted = false;
   const closeGuide = () => {
     cancelled = true;
     if (dialog.open) dialog.close();
@@ -2176,13 +2177,24 @@ async function installKingdomEngine(slug) {
   };
   const render = (flow, message = "") => {
     if (cancelled) return;
-    dialog.innerHTML = `<div><header><div><small>INSTALLATION DISCORD GUIDÉE</small><h2>KingdomEngine · offre ${escapeHtml(flow.voice_plan?.name || "")}</h2><p>${flow.installed}/${flow.total} applications autorisées sur ce serveur.</p></div><button type="button" class="dialog-close" data-install-close aria-label="Fermer">×</button></header><div class="installation-flow-steps">${flow.steps.map((step) => `<article class="${step.installed ? "done" : step.key === flow.next?.key ? "current" : ""}"><span>${step.installed ? "✓" : "○"}</span><div><b>${escapeHtml(step.name)}</b><small>${step.installed ? "Installé" : step.configured ? "À autoriser" : `${escapeHtml(step.application_id_env)} manquant`}</small></div></article>`).join("")}</div><p data-install-message>${escapeHtml(message || (flow.complete ? "Autorisations terminées. Provisionnement en cours…" : `Autorisez ${flow.next?.name || "l’étape suivante"} dans la fenêtre Discord.`))}</p><footer>${!flow.complete && flow.next?.configured ? `<button type="button" class="primary" data-install-next>Installer ${escapeHtml(flow.next.name)}</button>` : ""}<button type="button" class="secondary" data-install-close>Fermer et reprendre plus tard</button></footer></div>`;
+    dialog.innerHTML = `<div><header><div><small>INSTALLATION DISCORD GUIDÉE</small><h2>KingdomEngine · offre ${escapeHtml(flow.voice_plan?.name || "")}</h2><p>${flow.installed}/${flow.total} applications autorisées sur ce serveur.</p></div><button type="button" class="dialog-close" data-install-close aria-label="Fermer">×</button></header><div class="installation-flow-steps">${flow.steps.map((step) => `<article class="${step.installed ? "done" : step.key === flow.next?.key ? "current" : ""}"><span>${step.installed ? "✓" : "○"}</span><div><b>${escapeHtml(step.name)}</b><small>${step.installed ? "Installé" : step.configured ? "À autoriser" : `${escapeHtml(step.application_id_env)} manquant`}</small></div></article>`).join("")}</div><p data-install-message>${escapeHtml(message || (flow.complete ? "Autorisations terminées. Provisionnement en cours…" : `Autorisez ${flow.next?.name || "l’étape suivante"} dans la fenêtre Discord.`))}</p><footer>${!flow.complete && flow.next?.configured ? `<button type="button" class="primary" data-install-next>Installer ${escapeHtml(flow.next.name)}</button>` : ""}${flow.core_installed && !flow.complete && !provisionStarted ? `<button type="button" class="secondary" data-install-provision>Activer le serveur maintenant</button>` : ""}<button type="button" class="secondary" data-install-close>Fermer et reprendre plus tard</button></footer></div>`;
     $$('[data-install-close]', dialog).forEach((button) => (button.onclick = closeGuide));
     const nextButton = $('[data-install-next]', dialog);
     if (nextButton) nextButton.onclick = () => {
       if (!launchCurrentStep(flow, true)) {
         render(flow, "La fenêtre Discord a été bloquée. Autorisez les fenêtres contextuelles puis réessayez.");
       }
+    };
+    const provisionButton = $('[data-install-provision]', dialog);
+    if (provisionButton) provisionButton.onclick = async () => {
+      provisionButton.disabled = true;
+      const provisionResponse = await fetch(`/api/servers/${encodeURIComponent(slug)}/install-flow/complete`, { method: "POST", headers, body: "{}" });
+      const provisioned = await provisionResponse.json();
+      provisionStarted = provisionResponse.ok;
+      status.textContent = provisionResponse.ok
+        ? "Serveur activé. L’installation des Voice Workers peut être reprise ici à tout moment."
+        : provisioned.detail;
+      render(flow, status.textContent);
     };
   };
   dialog.addEventListener("cancel", closeGuide);
@@ -2211,9 +2223,14 @@ async function installKingdomEngine(slug) {
   if (cancelled) return;
   if (flow.complete) {
     popup?.close();
-    const completeResponse = await fetch(`/api/servers/${encodeURIComponent(slug)}/install-flow/complete`, { method: "POST", headers, body: "{}" });
-    const completed = await completeResponse.json();
-    status.textContent = completeResponse.ok ? "Tous les bots sont installés. Provisionnement Discord lancé." : completed.detail;
+    if (!provisionStarted) {
+      const completeResponse = await fetch(`/api/servers/${encodeURIComponent(slug)}/install-flow/complete`, { method: "POST", headers, body: "{}" });
+      const completed = await completeResponse.json();
+      provisionStarted = completeResponse.ok;
+      status.textContent = completeResponse.ok ? "Tous les bots sont installés. Provisionnement Discord lancé." : completed.detail;
+    } else {
+      status.textContent = "Tous les bots sont installés. Le serveur est actif.";
+    }
     render(flow, status.textContent);
     setTimeout(() => { if (dialog.open) dialog.close(); dialog.remove(); }, 1800);
   } else if (Date.now() >= deadline) {

@@ -10,7 +10,7 @@ import sqlite3
 import time
 import unicodedata
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import discord
 
@@ -27,7 +27,14 @@ from kingdomEvent.runtime import WorldClock
 class ManagedVoiceBot(discord.Client):
     """Une identité Discord autonome, attachée à un salon et à une ambiance."""
 
-    def __init__(self, key: str, config: dict[str, Any], assets_root: Path, store: ContentStore) -> None:
+    def __init__(
+        self,
+        key: str,
+        config: dict[str, Any],
+        assets_root: Path,
+        store: ContentStore,
+        status_callback: Callable[[], None] | None = None,
+    ) -> None:
         intents = discord.Intents.default()
         intents.voice_states = True
         super().__init__(intents=intents)
@@ -37,6 +44,12 @@ class ManagedVoiceBot(discord.Client):
         self.current_group_key = str(config.get("default_group_key", ""))
         self._last_scene_check = 0.0
         self._applied_identity = ""
+        self._status_callback = status_callback
+
+    def _publish_membership_change(self) -> None:
+        """Signale immédiatement une autorisation/revocation Discord au Studio."""
+        if self._status_callback:
+            self._status_callback()
 
     @property
     def channel_id(self) -> int:
@@ -74,8 +87,15 @@ class ManagedVoiceBot(discord.Client):
         if not self.config.get("presence_key"):
             await self.apply_configured_identity()
         print(f"[KingdomVoice] {self.key} connecté : {self.user}")
+        self._publish_membership_change()
         if self.config.get("auto_join", True):
             await self.ensure_connected()
+
+    async def on_guild_join(self, _guild: discord.Guild) -> None:
+        self._publish_membership_change()
+
+    async def on_guild_remove(self, _guild: discord.Guild) -> None:
+        self._publish_membership_change()
 
     async def apply_configured_identity(self) -> None:
         """Applique l'identité personnalisée propre à ce monde Discord."""
@@ -547,7 +567,10 @@ class VoiceBotManager:
             if not token:
                 print(f"[KingdomVoice] {key} ignoré : variable {config.get('token_env')} absente.")
                 continue
-            client = ManagedVoiceBot(key, config, self.assets_root, self.store)
+            client = ManagedVoiceBot(
+                key, config, self.assets_root, self.store,
+                status_callback=self._publish_runtime_status,
+            )
             self.clients[key] = client
             tasks.append(asyncio.create_task(self._run_client(key, client, token), name=key))
             print(f"[KingdomVoice] {key} découvert ({config.get('worker_kind', 'custom')}, secret={config.get('token_env')}).")

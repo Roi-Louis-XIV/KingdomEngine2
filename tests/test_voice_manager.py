@@ -31,6 +31,19 @@ def test_failed_worker_is_retried_without_crashing_voice_manager(monkeypatch, ca
     assert "secret-token" not in output
 
 
+def test_voice_worker_publishes_guild_membership_changes_immediately():
+    events = []
+    fake = SimpleNamespace(
+        _status_callback=lambda: events.append("published"),
+    )
+    fake._publish_membership_change = lambda: ManagedVoiceBot._publish_membership_change(fake)
+
+    asyncio.run(ManagedVoiceBot.on_guild_join(fake, SimpleNamespace(id=123)))
+    asyncio.run(ManagedVoiceBot.on_guild_remove(fake, SimpleNamespace(id=123)))
+
+    assert events == ["published", "published"]
+
+
 def test_voice_service_stays_alive_when_no_worker_token_is_configured(tmp_path, monkeypatch):
     store = ContentStore(tmp_path / "voice-idle.db")
     store.initialize()

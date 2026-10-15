@@ -488,6 +488,11 @@ def test_guided_install_uses_voice_plan_and_provisions_only_when_complete(tmp_pa
         progress = client.get(f'/api/servers/{created["slug"]}/install-flow').json()
         assert progress["next"]["key"] == voice_keys[0]
         assert progress["next"]["url"].startswith("https://discord.com/")
+        assert progress["core_installed"] is True
+        assert progress["voice_complete"] is False
+        partial = client.post(f'/api/servers/{created["slug"]}/install-flow/complete', json={})
+        assert partial.status_code == 200
+        assert partial.json()["voice_pending"] is True
 
         runtime["workers"] = [{"key": voice_keys[0], "guild_ids": [created["guild_id"]]}]
         progress = client.get(f'/api/servers/{created["slug"]}/install-flow').json()
@@ -509,6 +514,7 @@ def test_guided_install_ui_can_resume_each_worker_and_be_closed():
 
     assert 'data-install-next' in install_source
     assert 'data-install-close' in install_source
+    assert 'data-install-provision' in install_source
     assert 'launchCurrentStep(flow)' in install_source
     assert 'dialog.show();' in install_source
     assert 'dialog.showModal();' not in install_source
