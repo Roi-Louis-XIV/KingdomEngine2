@@ -525,7 +525,7 @@ def _validate_interface(payload: dict[str, Any]) -> None:
             if component_id in component_ids:
                 raise ValidationError(f"Composant duplique : {component_id}")
             component_ids.add(component_id)
-            if component.get("type") not in {"hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "building_inventory", "stock_status", "workstation_status", "contextual_content", "world_weather", "world_calendar", "event_countdown", "collective_objective", "profession_status", *interactive_types}:
+            if component.get("type") not in {"hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "player_status", "building_inventory", "stock_status", "workstation_status", "contextual_content", "world_weather", "world_calendar", "event_countdown", "collective_objective", "profession_status", *interactive_types}:
                 raise ValidationError(f"Composant inconnu : {component.get('type')}")
             if component.get("type") == "stock_status" and not str(component.get("props", {}).get("building", payload.get("target_building_key", ""))).strip():
                 raise ValidationError("Le résumé de stock doit cibler un bâtiment.")

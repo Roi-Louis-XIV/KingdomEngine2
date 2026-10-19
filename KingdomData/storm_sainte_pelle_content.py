@@ -855,8 +855,10 @@ def _rebuild_discord_building_ux(rows: list[dict[str, Any]]) -> None:
         nav("tavern_counter", "Stocks & livraisons", "ux_tavern_counter", 4, "🎒"),
     ], [
         page("ux_tavern_drinks", "Boissons", [hero("drinks", "Boissons de la Gueuse Cocu", "Choisissez une catégorie. Les prix et disponibilités proviennent du stock réel.", "🍺"),
+             {"id": "ux_tavern_drink_player_status", "type": "player_status", "props": {"title": "Votre état", "show_money": True, "show_energy": True, "stats": [{"key": "alcohol", "label": "Alcoolémie", "emoji": "🍷", "maximum": 100}]}},
              {"id": "ux_tavern_drink_categories", "type": "select", "slot": 0, "props": {"placeholder": "Choisir une catégorie"}, "options": drink_options}, back("drinks", 5)]),
         page("ux_tavern_meals", "Repas", [hero("meals", "Repas et provisions", "Les plats disponibles dépendent réellement des productions du stock commun.", "🍗"),
+             {"id": "ux_tavern_meal_player_status", "type": "player_status", "props": {"title": "Votre état", "show_money": True, "show_energy": True, "stats": [{"key": "alcohol", "label": "Alcoolémie", "emoji": "🍷", "maximum": 100}]}},
              {"id": "ux_tavern_food_categories", "type": "select", "slot": 0, "props": {"placeholder": "Choisir une catégorie de repas"}, "options": food_options}, back("meals", 5)]),
         *[product_page(key, "ux_tavern_drinks" if key in {"beer", "wine", "spirits", "soft"} else "ux_tavern_meals") for key in product_groups],
         page("ux_tavern_edgar", "Edgar", [hero("edgar", "Edgar Brassebarbe", "L'aubergiste connaît les nouvelles, les besoins et les rumeurs du village.", "🧔"),

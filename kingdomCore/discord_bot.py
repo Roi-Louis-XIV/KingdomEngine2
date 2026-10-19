@@ -509,6 +509,9 @@ class InterfaceView(discord.ui.View):
                 embed.set_image(url=str(props["url"]))
             elif component["type"] == "player_inventory" and self.owner_id is not None:
                 self._add_inventory(embed, str(props.get("title") or "Inventaire"))
+            elif component["type"] == "player_status" and self.owner_id is not None and field_count < 25:
+                self._add_player_status(embed, props)
+                field_count += 1
             elif component["type"] == "building_inventory":
                 self._add_building_inventory(embed, str(props.get("building") or self._building_key()), str(props.get("title") or "Stock commun"))
             elif component["type"] == "stock_status" and field_count < 25:
@@ -618,6 +621,35 @@ class InterfaceView(discord.ui.View):
                         detail += "\n" + str(workstation["busy_text"])
                 lines.append(f"**{workstation.get('emoji', '🍲')} {station_name}**\n{detail}")
         embed.add_field(name=title[:256], value=("\n".join(lines) or "Aucun poste configuré.")[:1024], inline=False)
+
+    def _add_player_status(self, embed: discord.Embed, props: dict[str, Any]) -> None:
+        """Affiche des données personnelles configurables sans contenu de scénario en dur."""
+        player = self._cached_player()
+        stats = self.engine.player_stats(str(self.owner_id)) if hasattr(self.engine, "player_stats") else {}
+        lines: list[str] = []
+        if props.get("show_money", True) not in {False, "false"}:
+            lines.append(f"💰 **{props.get('money_label', 'Bourse')} :** {int(player.get('money', 0))} écus")
+        if props.get("show_energy", True) not in {False, "false"}:
+            lines.append(f"⚡ **{props.get('energy_label', 'Énergie')} :** {int(player.get('energy', 0))} / {int(props.get('energy_maximum', 100))}")
+        configured = props.get("stats", [])
+        if not configured and props.get("stat_keys"):
+            keys = props["stat_keys"] if isinstance(props["stat_keys"], list) else str(props["stat_keys"]).split(",")
+            configured = [{"key": key.strip()} for key in keys if key.strip()]
+        for definition in configured:
+            key = str(definition.get("key", "")).strip()
+            if not key:
+                continue
+            label = str(definition.get("label") or key.replace("_", " ").capitalize())
+            emoji = str(definition.get("emoji") or "📊")
+            value = stats.get(key, float(definition.get("default", 0)))
+            maximum = definition.get("maximum")
+            suffix = f" / {maximum}" if maximum is not None else ""
+            lines.append(f"{emoji} **{label} :** {value:g}{suffix}")
+        embed.add_field(
+            name=str(props.get("title") or "Votre état")[:256],
+            value=("\n".join(lines) or "Aucune donnée sélectionnée.")[:1024],
+            inline=False,
+        )
 
     def _dialogue_state(self, component: dict[str, Any]) -> dict[str, Any] | None:
         if self.owner_id is None:

@@ -5201,6 +5201,11 @@ const COMPONENT_LIBRARY = {
     icon: "🎒",
     props: { title: "Contenu du sac" },
   },
+  player_status: {
+    name: "État du joueur",
+    icon: "👤",
+    props: { title: "Votre état", show_money: true, show_energy: true, stat_keys: "alcohol" },
+  },
   building_inventory: {
     name: "Inventaire du bâtiment",
     icon: "📦",
@@ -5454,7 +5459,7 @@ function componentTiles(types) {
 function visualStudioMarkup() {
   return `<section class="visual-studio library-open inspector-open" data-studio-view="editor">
     <nav class="studio-layout-toolbar" aria-label="Disposition de l’éditeur"><button type="button" data-toggle-studio-library aria-expanded="true">☷ Bibliothèque</button><div><button type="button" class="active" data-studio-view-button="editor">Éditeur</button><button type="button" data-studio-view-button="graph">Graphe de navigation</button></div><button type="button" data-toggle-studio-inspector aria-expanded="true">Inspecteur ◫</button></nav>
-    <aside class="studio-panel component-palette"><div class="studio-panel-head"><h3>Composants</h3><small>Glisser</small></div><div class="component-group"><h4>📝 Contenu de l'embed</h4><p>Éléments affichés dans le message Discord.</p><div class="component-library">${componentTiles(["hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "building_inventory", "stock_status", "workstation_status", "contextual_content"])}</div><h5>Composants prêts à l'emploi</h5><div class="component-library preset-library">${Object.entries(PREDEFINED_COMPONENTS).map(([key, item]) => `<button type="button" class="component-tile preset-tile" draggable="true" data-content-preset="${key}"><span>${item.icon}</span><b>${item.name}</b></button>`).join("")}</div></div><div class="component-group interaction-components"><h4>🖱️ Boutons et menus</h4><p>Éléments interactifs placés dans la grille.</p><div class="component-library">${componentTiles(["button", "select", "npc_dialogue"])}</div><h5>Boutons prêts à l'emploi</h5><div class="component-library preset-library">${Object.entries(
+    <aside class="studio-panel component-palette"><div class="studio-panel-head"><h3>Composants</h3><small>Glisser</small></div><div class="component-group"><h4>📝 Contenu de l'embed</h4><p>Éléments affichés dans le message Discord.</p><div class="component-library">${componentTiles(["hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "player_status", "building_inventory", "stock_status", "workstation_status", "contextual_content"])}</div><h5>Composants prêts à l'emploi</h5><div class="component-library preset-library">${Object.entries(PREDEFINED_COMPONENTS).map(([key, item]) => `<button type="button" class="component-tile preset-tile" draggable="true" data-content-preset="${key}"><span>${item.icon}</span><b>${item.name}</b></button>`).join("")}</div></div><div class="component-group interaction-components"><h4>🖱️ Boutons et menus</h4><p>Éléments interactifs placés dans la grille.</p><div class="component-library">${componentTiles(["button", "select", "npc_dialogue"])}</div><h5>Boutons prêts à l'emploi</h5><div class="component-library preset-library">${Object.entries(
       PREDEFINED_INTERACTIONS,
     )
       .map(
@@ -6091,6 +6096,8 @@ function renderCanvasComponent(component) {
     content = `<div class="preview-image">${props.url ? `<img src="${escapeHtml(props.url)}" alt="${escapeHtml(props.alt || "")}">` : "Ajoutez une URL d’image"}</div>`;
   if (component.type === "player_inventory")
     content = `<div class="preview-card"><b>🎒 ${escapeHtml(props.title || "Inventaire du joueur")}</b><p>Le contenu, la monnaie, l’énergie et les métiers du joueur seront affichés ici.</p></div>`;
+  if (component.type === "player_status")
+    content = `<div class="preview-card"><b>👤 ${escapeHtml(props.title || "Votre état")}</b><p>${props.show_money !== false ? "Bourse · " : ""}${props.show_energy !== false ? "Énergie · " : ""}${escapeHtml(props.stat_keys || "Statistiques configurées")}</p></div>`;
   if (component.type === "building_inventory")
     content = `<div class="preview-card"><b>📦 ${escapeHtml(props.title || "Stock commun")}</b><p>Les ressources stockées dans ce bâtiment seront affichées ici.</p></div>`;
   if (component.type === "stock_status")
@@ -6208,6 +6215,11 @@ function renderPropertyPanel() {
       propertyInput("Texte alternatif", "alt", props.alt);
   if (component.type === "player_inventory")
     fields = propertyInput("Titre", "title", props.title || "Contenu du sac");
+  if (component.type === "player_status")
+    fields = propertyInput("Titre", "title", props.title || "Votre état") +
+      propertySelect("Afficher la bourse", "show_money", String(props.show_money !== false), [["true", "Oui"], ["false", "Non"]]) +
+      propertySelect("Afficher l’énergie", "show_energy", String(props.show_energy !== false), [["true", "Oui"], ["false", "Non"]]) +
+      propertyInput("Statistiques supplémentaires", "stat_keys", Array.isArray(props.stat_keys) ? props.stat_keys.join(", ") : (props.stat_keys || "alcohol"));
   if (component.type === "building_inventory")
     fields =
       propertyInput("Titre", "title", props.title || "Stock commun") +
@@ -8349,6 +8361,8 @@ function bindPropertyPanel() {
           component.props.inline = value === "true";
         else if (component && key === "replace_page_title")
           component.props.replace_page_title = value === "true";
+        else if (component && ["show_money", "show_energy"].includes(key))
+          component.props[key] = value === "true";
         else if (component && key === "access_type") {
           if (value === "none") delete component.access_when;
           else
