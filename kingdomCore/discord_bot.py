@@ -32,6 +32,8 @@ logger = logging.getLogger(__name__)
 # salon. On conserve donc leur interaction tant que le joueur reste dans le
 # bâtiment afin de pouvoir les supprimer immédiatement à sa sortie.
 ACTIVE_BUILDING_INTERFACES: dict[tuple[int, int, str], list[Any]] = {}
+AUTO_REFRESH_INTERFACES: dict[tuple[int, int, str], tuple[Any, Any, float]] = {}
+AUTO_REFRESH_TASK: asyncio.Task | None = None
 
 
 def _active_interface_key(guild_id: int | None, member_id: int, building_key: str) -> tuple[int, int, str]:
@@ -47,6 +49,32 @@ def remember_active_building_interface(interaction: Any, building_key: str) -> N
         active.append(interaction)
 
 
+def register_auto_refresh(interaction: Any, building_key: str, view: Any) -> None:
+    """Un seul ordonnanceur mutualisé rafraîchit les vues de postes actives."""
+    global AUTO_REFRESH_TASK
+    key = _active_interface_key(getattr(interaction, "guild_id", None), interaction.user.id, building_key)
+    AUTO_REFRESH_INTERFACES[key] = (interaction, view, time.time() + 900)
+    if AUTO_REFRESH_TASK is None or AUTO_REFRESH_TASK.done():
+        AUTO_REFRESH_TASK = asyncio.create_task(_auto_refresh_loop())
+
+
+async def _auto_refresh_loop() -> None:
+    while AUTO_REFRESH_INTERFACES:
+        await asyncio.sleep(5)
+        now = time.time()
+        for key, (interaction, view, expires_at) in list(AUTO_REFRESH_INTERFACES.items()):
+            if expires_at <= now:
+                AUTO_REFRESH_INTERFACES.pop(key, None); continue
+            try:
+                live = view._visible_components()
+                if not any(item.get("type") in {"workstation_status", "production_priorities"} for item in live):
+                    continue
+                view._render_interactions()
+                await interaction.edit_original_response(embed=view.embed(), view=view)
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                AUTO_REFRESH_INTERFACES.pop(key, None)
+
+
 async def close_active_building_interfaces(
     guild_id: int | None, member_id: int, building_key: str,
 ) -> int:
@@ -54,6 +82,7 @@ async def close_active_building_interfaces(
     interactions = ACTIVE_BUILDING_INTERFACES.pop(
         _active_interface_key(guild_id, member_id, building_key), []
     )
+    AUTO_REFRESH_INTERFACES.pop(_active_interface_key(guild_id, member_id, building_key), None)
     removed = 0
     for interaction in interactions:
         try:
@@ -520,6 +549,12 @@ class InterfaceView(discord.ui.View):
             elif component["type"] == "workstation_status" and field_count < 25:
                 self._add_workstation_status(embed, str(props.get("building") or self._building_key()), str(props.get("title") or "État des postes"))
                 field_count += 1
+            elif component["type"] == "production_priorities" and field_count < 25:
+                self._add_production_priorities(embed, str(props.get("building") or self._building_key()), str(props.get("title") or "Productions prioritaires"))
+                field_count += 1
+            elif component["type"] == "recipe_catalog" and self.owner_id is not None and field_count < 25:
+                self._add_recipe_catalog(embed, str(props.get("building") or self._building_key()), str(props.get("title") or "Recettes débloquées"))
+                field_count += 1
             elif component["type"] == "npc_dialogue" and field_count < 25:
                 dialogue = self._dialogue_state(component)
                 if dialogue:
@@ -622,6 +657,40 @@ class InterfaceView(discord.ui.View):
                 lines.append(f"**{workstation.get('emoji', '🍲')} {station_name}**\n{detail}")
         embed.add_field(name=title[:256], value=("\n".join(lines) or "Aucun poste configuré.")[:1024], inline=False)
 
+    def _add_production_priorities(self, embed: discord.Embed, building_key: str, title: str) -> None:
+        building = self._cached_building(building_key); states = self._cached_workstations(building_key)
+        with self.engine.store.connection() as db:
+            stock = {str(row[0]): int(row[1]) for row in db.execute("SELECT item_key,quantity FROM building_stock WHERE building_key=?", (building_key,))}
+        pending: dict[str, int] = {}
+        for state in states:
+            if state.get("status") not in {"preparation", "transformation"}: continue
+            recipe = next((item for item in building.get("modules", {}).get("recipes", []) if str(item.get("key")) == str(state.get("recipe_key"))), {})
+            output = str(recipe.get("output_item_key", "")); pending[output] = pending.get(output, 0) + int(recipe.get("output_quantity", 1))
+        lines = []
+        for recipe in building.get("modules", {}).get("recipes", []):
+            target = int(recipe.get("reserve_target", 0)); output = str(recipe.get("output_item_key", ""))
+            if not target or not output: continue
+            current, underway = stock.get(output, 0), pending.get(output, 0)
+            missing = [self.engine._item_name(str(key)) for key, amount in recipe.get("ingredients", {}).items() if stock.get(str(key), 0) < int(amount)]
+            urgency = "🔴 Rupture" if current == 0 else ("🟠 Stock faible" if current < target else "🟢 Réserve atteinte")
+            feasible = "possible" if not missing else "manque " + ", ".join(missing[:2])
+            lines.append(f"{urgency} · **{self.engine._item_name(output)}** · {current}/{target} · +{underway} en cours · {feasible}")
+        lines.sort(key=lambda line: ("🔴" not in line, "🟠" not in line))
+        embed.add_field(name=title[:256], value=("\n".join(lines) or "Aucun objectif de réserve configuré.")[:1024], inline=False)
+
+    def _add_recipe_catalog(self, embed: discord.Embed, building_key: str, title: str) -> None:
+        building = self._cached_building(building_key); professions = self._cached_player().get("professions", {})
+        with self.engine.store.connection() as db:
+            stock = {str(row[0]): int(row[1]) for row in db.execute("SELECT item_key,quantity FROM building_stock WHERE building_key=?", (building_key,))}
+        lines = []
+        for recipe in building.get("modules", {}).get("recipes", []):
+            profession = str(recipe.get("profession", ""))
+            if profession and int(professions.get(profession, {}).get("level", 0)) < int(recipe.get("required_level", 1)): continue
+            missing = [f"{self.engine._item_name(str(key))} {stock.get(str(key), 0)}/{int(amount)}" for key, amount in recipe.get("ingredients", {}).items() if stock.get(str(key), 0) < int(amount)]
+            state = "✅ réalisable" if not missing else "❌ " + " · ".join(missing[:2])
+            lines.append(f"**{recipe.get('name') or recipe.get('title') or recipe.get('key')}** — {state}")
+        embed.add_field(name=title[:256], value=("\n".join(lines) or "Aucune recette débloquée pour votre métier.")[:1024], inline=False)
+
     def _add_player_status(self, embed: discord.Embed, props: dict[str, Any]) -> None:
         """Affiche des données personnelles configurables sans contenu de scénario en dur."""
         player = self._cached_player()
@@ -645,6 +714,14 @@ class InterfaceView(discord.ui.View):
             maximum = definition.get("maximum")
             suffix = f" / {maximum}" if maximum is not None else ""
             lines.append(f"{emoji} **{label} :** {value:g}{suffix}")
+        if props.get("show_bonuses", True) not in {False, "false"} and hasattr(self.engine, "active_bonuses"):
+            bonuses = self.engine.active_bonuses(str(self.owner_id))
+            if bonuses:
+                for bonus in bonuses:
+                    remaining = int(bonus.get("remaining_seconds", 0))
+                    lines.append(f"{bonus.get('emoji', '✨')} **{bonus.get('label', bonus.get('key'))} :** {remaining // 60:02d}:{remaining % 60:02d}")
+            elif props.get("show_empty_bonus", True) not in {False, "false"}:
+                lines.append("✨ **Bonus actif :** aucun")
         embed.add_field(
             name=str(props.get("title") or "Votre état")[:256],
             value=("\n".join(lines) or "Aucune donnée sélectionnée.")[:1024],
@@ -849,7 +926,7 @@ class InterfaceView(discord.ui.View):
             "primary": discord.ButtonStyle.primary, "secondary": discord.ButtonStyle.secondary,
             "success": discord.ButtonStyle.success, "danger": discord.ButtonStyle.danger,
         }
-        dynamic_types = {"dynamic_inventory_selector", "dynamic_product_selector", "dynamic_consumable_selector", "dynamic_game_selector", "npc_dialogue"}
+        dynamic_types = {"dynamic_inventory_selector", "dynamic_product_selector", "dynamic_consumable_selector", "dynamic_recipe_selector", "dynamic_game_selector", "npc_dialogue"}
         interactive = [item for item in self._visible_components() if item.get("type") in {"button", "select", *dynamic_types}]
         next_slot = 0
         used_width = [0, 0, 0, 0, 0]
@@ -871,6 +948,8 @@ class InterfaceView(discord.ui.View):
                 self._add_dynamic_product(component, row)
             elif component.get("type") == "dynamic_consumable_selector":
                 self._add_dynamic_consumable(component, row)
+            elif component.get("type") == "dynamic_recipe_selector":
+                self._add_dynamic_recipe(component, row)
             elif component.get("type") == "dynamic_game_selector":
                 self._add_dynamic_game(component, row)
             elif component.get("type") == "npc_dialogue":
@@ -1041,7 +1120,7 @@ class InterfaceView(discord.ui.View):
                 quantity = discord.ui.TextInput(label="Quantité", placeholder=f"1 à {selected['quantity']}", required=True, max_length=10)
                 async def on_submit(modal_self, modal_interaction: discord.Interaction):
                     try:
-                        amount = int(str(modal_self.quantity)); price = amount * int(selected.get("unit_price", 0)); destination = selected.get("destination_name", "destination")
+                        amount = int(str(modal_self.quantity)); prices = parent.engine._delivery_prices(selected, int(selected.get("current_stock", 0)), amount); price = sum(prices); destination = selected.get("destination_name", "destination")
                         payment_resource = str(selected.get("payment_resource", "money"))
                         confirmation = discord.ui.View(timeout=300); confirm = discord.ui.Button(label="Confirmer la livraison", emoji="✅", style=discord.ButtonStyle.success); cancel = discord.ui.Button(label="Annuler", emoji="✖️", style=discord.ButtonStyle.secondary)
                         async def confirm_delivery(confirm_interaction: discord.Interaction):
@@ -1050,7 +1129,9 @@ class InterfaceView(discord.ui.View):
                             parent._render_interactions(); await confirm_interaction.response.edit_message(content=None, embed=parent.embed(), view=parent)
                         async def cancel_delivery(cancel_interaction: discord.Interaction): await cancel_interaction.response.edit_message(content="Livraison annulée.", view=None)
                         confirm.callback = confirm_delivery; cancel.callback = cancel_delivery; confirmation.add_item(confirm); confirmation.add_item(cancel)
-                        await modal_interaction.response.send_message(f"**Récapitulatif**\n{amount} × {selected['name']}\n→ {destination}\n→ **{price} {parent._currency_label(payment_resource, price)}**", view=confirmation, ephemeral=True)
+                        target = int(selected.get("target_stock", 0)); stock = int(selected.get("current_stock", 0))
+                        evolution = f"\nStock : **{stock} → {stock + amount}**" + (f" / objectif {target}" if target else "")
+                        await modal_interaction.response.send_message(f"**Récapitulatif**\n{amount} × {selected['name']}\n→ {destination}{evolution}\n→ **{price} {parent._currency_label(payment_resource, price)}**", view=confirmation, ephemeral=True)
                         remember_active_building_interface(modal_interaction, parent._building_key())
                     except Exception as exc:
                         await modal_interaction.response.send_message(str(exc), ephemeral=True)
@@ -1088,8 +1169,11 @@ class InterfaceView(discord.ui.View):
         allowed = component.get("props", {}).get("item_keys")
         if allowed is not None:
             products = [item for item in products if item["item_key"] in allowed]
+        bonus_types = {str(value) for value in component.get("props", {}).get("bonus_types", []) if str(value)}
+        if bonus_types:
+            products = [item for item in products if str(item.get("bonus_type", "")) in bonus_types]
         if not products: return
-        select = discord.ui.Select(placeholder=str(component.get("props", {}).get("placeholder", "Choisir un produit…"))[:150], options=[discord.SelectOption(label=str(item["name"])[:100], value=item["item_key"][:100], description=f"{self._product_cost_label(item)} · stock {item.get('quantity', 0)}"[:100], emoji=item.get("emoji") or None) for item in products[:25]], row=row)
+        select = discord.ui.Select(placeholder=str(component.get("props", {}).get("placeholder", "Choisir un produit…"))[:150], options=[discord.SelectOption(label=str(item["name"])[:100], value=item["item_key"][:100], description=(f"{self._product_cost_label(item)} · stock {item.get('quantity', 0)}" + (f" · {item['bonus_type']}" if item.get("bonus_type") else ""))[:100], emoji=item.get("emoji") or None) for item in products[:25]], row=row)
         async def choose(interaction: discord.Interaction):
             await self._show_purchase_modal(interaction, select.values[0])
         select.callback = choose; self.add_item(select)
@@ -1105,12 +1189,29 @@ class InterfaceView(discord.ui.View):
         class PurchaseModal(discord.ui.Modal, title="Commander"):
             quantity = discord.ui.TextInput(label="Quantité", default="1", required=True, max_length=3)
             async def on_submit(modal_self, modal_interaction: discord.Interaction):
-                try:
-                    amount = int(str(modal_self.quantity)); result = await parent.engine.execute_purchase(str(modal_interaction.user.id), parent._building_key(), str(modal_interaction.id), item_key, amount)
-                    payment = " + ".join(f"{value} {parent._currency_label(key, value)}" for key, value in result["purchase"].get("payments", {}).items())
-                    parent.notice = f"Commande servie : {amount} × {product['name']}" + (f" · **{payment}**." if payment else ".")
-                except Exception as exc: parent.notice = str(exc)
-                parent._render_interactions(); await modal_interaction.response.edit_message(embed=parent.embed(), view=parent)
+                amount = int(str(modal_self.quantity)); modes = list(product.get("service_modes", ["takeaway"]))
+                async def execute_order(order_interaction: discord.Interaction, mode: str):
+                    try:
+                        result = await parent.engine.execute_purchase(str(order_interaction.user.id), parent._building_key(), str(order_interaction.id), item_key, amount, mode)
+                        payment = " + ".join(f"{value} {parent._currency_label(key, value)}" for key, value in result["purchase"].get("payments", {}).items())
+                        mode_label = "consommé sur place" if mode == "on_site" else "ajouté à votre sac"
+                        parent.notice = f"Commande servie : {amount} × {product['name']} · {mode_label}" + (f" · **{payment}**." if payment else ".")
+                    except Exception as exc: parent.notice = str(exc)
+                    parent._render_interactions(); await order_interaction.response.edit_message(content=None, embed=parent.embed(), view=parent)
+                if len(modes) == 1:
+                    await execute_order(modal_interaction, modes[0]); return
+                choice = discord.ui.View(timeout=300)
+                for mode, label, emoji in (("on_site", "Sur place", "🍽️"), ("takeaway", "À emporter", "🎒")):
+                    if mode not in modes: continue
+                    surcharge = int(product.get("takeaway_surcharge", 0)) if mode == "takeaway" else 0
+                    button = discord.ui.Button(label=label + (f" (+{surcharge})" if surcharge else ""), emoji=emoji, style=discord.ButtonStyle.success if mode == "on_site" else discord.ButtonStyle.primary)
+                    async def choose_mode(chosen: discord.Interaction, selected_mode=mode): await execute_order(chosen, selected_mode)
+                    button.callback = choose_mode; choice.add_item(button)
+                cancel = discord.ui.Button(label="Retour", emoji="↩️", style=discord.ButtonStyle.secondary)
+                async def cancel_order(chosen: discord.Interaction): parent._render_interactions(); await chosen.response.edit_message(content=None, embed=parent.embed(), view=parent)
+                cancel.callback = cancel_order; choice.add_item(cancel)
+                base = int(product.get("price", 0)) * amount
+                await modal_interaction.response.edit_message(content=f"**{amount} × {product['name']}** · prix de base {base} {parent._currency_label(str(product.get('currency', 'money')), base)}\nComment souhaitez-vous être servi ?", embed=None, view=choice)
         await interaction.response.send_modal(PurchaseModal())
 
     def _add_dynamic_consumable(self, component: dict[str, Any], row: int) -> None:
@@ -1135,6 +1236,31 @@ class InterfaceView(discord.ui.View):
                 self.notice = "\n".join(result.get("messages", [])) or f"{result['consumption']['name']} consommé."
             except Exception as exc: self.notice = str(exc)
             self._render_interactions(); await interaction.response.edit_message(embed=self.embed(), view=self)
+        select.callback = choose; self.add_item(select)
+
+    def _add_dynamic_recipe(self, component: dict[str, Any], row: int) -> None:
+        if self.owner_id is None: return
+        building = self._cached_building(self._building_key()); modules = building.get("modules", {})
+        professions = self._cached_player().get("professions", {})
+        with self.engine.store.connection() as db:
+            stock = {str(item[0]): int(item[1]) for item in db.execute("SELECT item_key,quantity FROM building_stock WHERE building_key=?", (self._building_key(),))}
+        states = self._cached_workstations(self._building_key())
+        stations = {str(item.get("key")): max(1, int(item.get("slots", 1))) for item in modules.get("workstations", [])}
+        occupied = {key: sum(1 for state in states if str(state.get("workstation_key")) == key) for key in stations}
+        recipes = []
+        for recipe in modules.get("recipes", []):
+            profession = str(recipe.get("profession", "")); level = int(professions.get(profession, {}).get("level", 0))
+            workstation = str(recipe.get("workstation_key", ""))
+            if recipe.get("active", True) and (not profession or level >= int(recipe.get("required_level", 1))) and not any(stock.get(str(key), 0) < int(amount) for key, amount in recipe.get("ingredients", {}).items()) and (not workstation or occupied.get(workstation, 0) < stations.get(workstation, 0)):
+                recipes.append(recipe)
+        if not recipes: return
+        select = discord.ui.Select(placeholder=str(component.get("props", {}).get("placeholder", "Choisir une recette réalisable…"))[:150], options=[discord.SelectOption(label=str(item.get("name") or item.get("title") or item.get("key"))[:100], value=str(item["key"])[:100], description=f"{int(item.get('output_quantity', 1))} portion(s)"[:100]) for item in recipes[:25]], row=row)
+        async def choose(interaction: discord.Interaction):
+            target = f"{str(component.get('props', {}).get('page_prefix', 'ux_recipe_'))}{select.values[0]}"[:64]
+            if not any(str(page.get("key")) == target for page in self.definition.get("pages", [])):
+                await interaction.response.send_message("La page de cette recette n'est pas configurée.", ephemeral=True); return
+            self.page_key = target; self.notice = ""; self._dialogue_states.clear(); self._render_interactions()
+            await interaction.response.edit_message(embed=self.embed(), view=self)
         select.callback = choose; self.add_item(select)
 
     def _add_dynamic_game(self, component: dict[str, Any], row: int) -> None:
@@ -1190,6 +1316,10 @@ class InterfaceView(discord.ui.View):
                     elif operation == "claim":
                         quest = self.engine.claim_quest(str(interaction.user.id), str(result["quest_key"]), f"{interaction.id}:quest")
                         self.notice = f"Quête terminée : **+{quest['reward_xp']} XP**."
+                if result.get("navigate_page"):
+                    target_page = str(result["navigate_page"])
+                    if any(str(page.get("key")) == target_page for page in self.definition.get("pages", [])):
+                        self.page_key = target_page
                 next_dialogue = result.get("next")
                 component_id = str(component["id"])
                 if next_dialogue:
@@ -1379,6 +1509,7 @@ class PrivateInterfaceLauncher(discord.ui.View):
         )
         await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
         remember_active_building_interface(interaction, building_key)
+        register_auto_refresh(interaction, building_key, view)
 
 
 class OathView(discord.ui.View):

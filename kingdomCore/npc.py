@@ -123,7 +123,7 @@ class NpcEngine:
         variant=next((item for item in variants if self._conditions(item.get("conditions",[]),context,player_id)),None)
         for choice in node.get("choices",[]):
             if self._conditions(choice.get("conditions",[]),context,player_id):
-                entry={key:choice.get(key) for key in ("key","label","next_node","action_key","back","quest_key","quest_operation") if choice.get(key) is not None}
+                entry={key:choice.get(key) for key in ("key","label","next_node","navigate_page","action_key","back","quest_key","quest_operation") if choice.get(key) is not None}
                 entry["available"]=self._conditions(choice.get("access_conditions",[]),context,player_id)
                 entry["locked_reason"]=choice.get("locked_reason","Ce choix n’est pas encore disponible.")
                 choices.append(entry)
@@ -137,7 +137,7 @@ class NpcEngine:
         if not self._conditions(choice.get("access_conditions",[]),context,player_id): raise NpcError(str(choice.get("locked_reason") or "Ce choix n’est pas encore disponible."))
         for effect in choice.get("effects",[]):
             if effect.get("type")=="state": self.set_memory(npc_key,player_id,str(effect.get("key")),effect.get("value",True))
-        result={"response_text":choice.get("response_text",""),"audio_key":choice.get("audio_key",""),"action_key":choice.get("action_key"),"back":bool(choice.get("back")),"quest_key":choice.get("quest_key"),"quest_operation":choice.get("quest_operation")}
+        result={"response_text":choice.get("response_text",""),"audio_key":choice.get("audio_key",""),"action_key":choice.get("action_key"),"navigate_page":choice.get("navigate_page"),"back":bool(choice.get("back")),"quest_key":choice.get("quest_key"),"quest_operation":choice.get("quest_operation")}
         audio_key=str(result.get("audio_key") or "")
         voice=self.voice_agent(npc)
         if audio_key and voice.get("building_key") and voice.get("configured"):

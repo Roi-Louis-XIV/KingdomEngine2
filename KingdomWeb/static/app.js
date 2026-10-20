@@ -4658,6 +4658,7 @@ function addNpcDialogueChoice(root, choice = {}) {
   const conditionTypes = [["", "Aucune"], ["quest_status", "État d’une quête"], ["scenario_elapsed_minutes", "Minute du scénario"], ["event_active", "Événement actif"], ["state", "Variable joueur"]];
   const operators = [["=", "="], ["!=", "≠"], [">", ">"], [">=", "≥"], ["<", "<"], ["<=", "≤"]];
   row.innerHTML = `<button type="button" class="remove">×</button><div class="form-grid">${input("Libellé joueur", "npc_dialogue_choice_label", choice.label || "")}${input("Nœud suivant", "npc_dialogue_choice_next", choice.next_node || "")}${select("Navigation", "npc_dialogue_choice_navigation", choice.back ? "back" : "next", [["next", "Aller au nœud suivant"], ["back", "Retour au dialogue parent"]])}${input("Réponse du personnage", "npc_dialogue_choice_response", choice.response_text || "")}${select("Voix associée", "npc_dialogue_choice_audio", choice.audio_key || "", audioOptions(choice.audio_key || "", "voice"))}${select("Action du bâtiment", "npc_dialogue_choice_action", choice.action_key || "", [["", "Aucune"], ...availableActions($("#key")?.value || "").map((action) => [action.key, action.name])])}${select("Action de quête", "npc_dialogue_choice_quest_operation", choice.quest_operation || "", [["", "Aucune"], ["accept", "Accepter"], ["claim", "Réclamer"]])}${select("Quête", "npc_dialogue_choice_quest", choice.quest_key || "", [["", "Aucune"], ...catalogOptions("quest", choice.quest_key || "")])}</div><details><summary>Conditions du choix</summary><div class="form-grid">${select("Visible si", "npc_dialogue_choice_condition_type", visible.type || "", conditionTypes)}${input("Référence", "npc_dialogue_choice_condition_reference", visible.quest || visible.event || visible.key || "")}${select("Opérateur", "npc_dialogue_choice_condition_operator", visible.operator || "=", operators)}${input("Valeur", "npc_dialogue_choice_condition_value", visible.value ?? "")}${select("Accessible si", "npc_dialogue_choice_access_type", access.type || "", conditionTypes)}${input("Référence d’accès", "npc_dialogue_choice_access_reference", access.quest || access.event || access.key || "")}${select("Opérateur d’accès", "npc_dialogue_choice_access_operator", access.operator || "=", operators)}${input("Valeur d’accès", "npc_dialogue_choice_access_value", access.value ?? "")}${input("Raison si verrouillé", "npc_dialogue_choice_locked_reason", choice.locked_reason || "Ce choix n’est pas encore disponible.")}</div></details>`;
+  row.querySelector(":scope > .form-grid").insertAdjacentHTML("beforeend", input("Page du bâtiment à ouvrir", "npc_dialogue_choice_page", choice.navigate_page || ""));
   root.append(row);
   row.querySelector(".remove").onclick = () => row.remove();
 }
@@ -4713,6 +4714,7 @@ function readNpcDialogues() {
       response_text: fieldValue("npc_dialogue_choice_response", choice),
       audio_key: fieldValue("npc_dialogue_choice_audio", choice) || "",
       action_key: fieldValue("npc_dialogue_choice_action", choice) || undefined,
+      navigate_page: fieldValue("npc_dialogue_choice_page", choice) || undefined,
       quest_operation: fieldValue("npc_dialogue_choice_quest_operation", choice) || undefined,
       quest_key: fieldValue("npc_dialogue_choice_quest", choice) || undefined,
       back: fieldValue("npc_dialogue_choice_navigation", choice) === "back" || undefined,
@@ -4898,13 +4900,18 @@ function renderFields(payload) {
         );
         return `<div class="item-relation"><label class="check"><input type="checkbox" data-item-building="${escapeHtml(building.entity_key)}" ${existing ? "checked" : ""}><span>${escapeHtml(`${building.payload.emoji || "🏰"} ${building.payload.name}`)}</span></label><select data-item-relation="${escapeHtml(building.entity_key)}"><option value="related">Associé à</option><option value="produced_by">Produit par</option><option value="used_by">Utilisé par</option><option value="sold_by">Vendu par</option><option value="accepted_by">Accepté par</option></select></div>`;
       })
-      .join("")}</div></details></section>`;
+      .join("")}</div></details><section class="form-section"><div class="section-head"><div><h3>Effets de consommation</h3><p class="field-note">Appliqués sur place ou lorsque l'objet est consommé depuis le sac.</p></div><button type="button" class="secondary" id="add-consumption-effect">＋ Ajouter</button></div><div id="item-consumption-effects"></div></section></section>`;
     relations.forEach((x) => {
       const field = root.querySelector(
         `[data-item-relation="${CSS.escape(x.building_key)}"]`,
       );
       if (field) field.value = x.relation || "related";
     });
+    (payload.consumption?.effects || []).forEach((effect) =>
+      addConsumptionEffect($("#item-consumption-effects"), effect),
+    );
+    $("#add-consumption-effect").onclick = () =>
+      addConsumptionEffect($("#item-consumption-effects"), {});
   }
   if (state.type === "event") {
     $(".wizard-panel").classList.add("event-mode");
@@ -5221,6 +5228,16 @@ const COMPONENT_LIBRARY = {
     icon: "🍲",
     props: { title: "État des postes", building: "" },
   },
+  production_priorities: {
+    name: "Priorités de production",
+    icon: "📌",
+    props: { title: "Productions prioritaires", building: "" },
+  },
+  recipe_catalog: {
+    name: "Catalogue de recettes",
+    icon: "📖",
+    props: { title: "Recettes débloquées", building: "" },
+  },
   contextual_content: {
     name: "Contenu conditionnel",
     icon: "🔀",
@@ -5266,6 +5283,11 @@ const COMPONENT_LIBRARY = {
     icon: "🍎",
     props: { placeholder: "Choisir un consommable…" },
   },
+  dynamic_recipe_selector: {
+    name: "Recettes réalisables",
+    icon: "🍲",
+    props: { placeholder: "Choisir une recette réalisable…", page_prefix: "ux_recipe_" },
+  },
   npc_dialogue: {
     name: "Dialogue de personnage",
     icon: "💬",
@@ -5302,6 +5324,11 @@ const PREDEFINED_INTERACTIONS = {
     name: "Vendre / livrer",
     icon: "💰",
     component: { type: "dynamic_inventory_selector", props: { placeholder: "Vendre ou livrer un objet…" } },
+  },
+  recipe_selector: {
+    name: "Recettes réalisables",
+    icon: "🍲",
+    component: { type: "dynamic_recipe_selector", props: { placeholder: "Choisir une recette réalisable…", page_prefix: "ux_recipe_" } },
   },
   join_profession: {
     name: "Prendre un métier",
@@ -5359,6 +5386,8 @@ const PREDEFINED_COMPONENTS = {
   inventory: { name: "Sac du joueur", icon: "🎒", component: { type: "player_inventory", props: { title: "Votre inventaire" } } },
   stock: { name: "Stock du bâtiment", icon: "📦", component: { type: "building_inventory", props: { title: "Stock disponible", building: "" } } },
   workstations: { name: "État des postes", icon: "🍲", component: { type: "workstation_status", props: { title: "État des postes", building: "" } } },
+  priorities: { name: "Priorités de production", icon: "📌", component: { type: "production_priorities", props: { title: "Productions prioritaires", building: "" } } },
+  recipes: { name: "Catalogue de recettes", icon: "📖", component: { type: "recipe_catalog", props: { title: "Recettes débloquées", building: "" } } },
 };
 
 const INTERACTIVE_COMPONENT_TYPES = new Set([
@@ -5367,6 +5396,7 @@ const INTERACTIVE_COMPONENT_TYPES = new Set([
   "dynamic_product_selector",
   "dynamic_inventory_selector",
   "dynamic_consumable_selector",
+  "dynamic_recipe_selector",
   "dynamic_game_selector",
   "npc_dialogue",
 ]);
@@ -6242,6 +6272,19 @@ function renderPropertyPanel() {
         props.building || state.interfaceDraft.target_building_key,
         buildingTargetOptions(props.building || state.interfaceDraft.target_building_key),
       );
+  if (component.type === "production_priorities")
+    fields =
+      propertyInput("Titre", "title", props.title || "Productions prioritaires") +
+      propertySelect(
+        "Bâtiment affiché",
+        "building",
+        props.building || state.interfaceDraft.target_building_key,
+        buildingTargetOptions(props.building || state.interfaceDraft.target_building_key),
+      );
+  if (component.type === "recipe_catalog")
+    fields = propertyInput("Titre", "title", props.title || "Recettes débloquées") +
+      propertySelect("Bâtiment affiché", "building", props.building || state.interfaceDraft.target_building_key,
+        buildingTargetOptions(props.building || state.interfaceDraft.target_building_key));
   if (component.type === "contextual_content")
     fields = contextualContentPropertyFields(component);
   if (component.type === "world_weather")
@@ -6265,6 +6308,8 @@ function renderPropertyPanel() {
     fields = propertyInput("Titre", "title", props.title || "Votre métier");
   if (component.type.startsWith("dynamic_"))
     fields = propertyInput("Texte d’invitation", "placeholder", props.placeholder || "Choisir…");
+  if (component.type === "dynamic_recipe_selector")
+    fields += propertyInput("Préfixe des pages recette", "page_prefix", props.page_prefix || "ux_recipe_");
   if (component.type === "npc_dialogue")
     fields =
       propertyInput("Texte d’invitation", "placeholder", props.placeholder || "Que souhaitez-vous demander ?") +
@@ -9311,6 +9356,44 @@ async function loadItemCatalog() {
   );
 }
 
+function addConsumptionEffect(container, source = {}) {
+  let effect = clone(source);
+  const element = document.createElement("article");
+  element.className = "builder consumption-effect";
+  container.append(element);
+  const render = () => {
+    const type = effect.type || "reward";
+    const types = [["reward", "Restaurer une ressource"], ["cost", "Retirer une ressource"], ["player_stat", "Modifier une statistique"], ["timed_bonus", "Bonus temporaire"], ["message", "Afficher un message"], ["state", "Modifier un état"], ["emit", "Déclencher un événement"]];
+    let fields = "";
+    if (["reward", "cost"].includes(type)) fields = `${itemSelector("Ressource", "consumption_resource", effect.resource || "energy", "any")}${input("Quantité", "consumption_amount", effect.amount ?? 1, "number")}`;
+    else if (type === "player_stat") fields = `${input("Statistique", "consumption_stat", effect.stat || "")}${input("Variation", "consumption_amount", effect.amount ?? 1, "number")}${input("Minimum", "consumption_min", effect.minimum ?? 0, "number")}${input("Maximum", "consumption_max", effect.maximum ?? 100, "number")}${input("Évolution par heure", "consumption_decay", effect.change_per_hour ?? 0, "number")}`;
+    else if (type === "timed_bonus") fields = `${input("Identifiant", "consumption_bonus_key", effect.key || "")}${input("Nom visible", "consumption_bonus_label", effect.label || "")}${input("Emoji", "consumption_bonus_emoji", effect.emoji || "✨")}${input("Durée (secondes)", "consumption_duration", effect.duration_seconds || 600, "number", "min=1")}${input("Emplacement exclusif", "consumption_slot", effect.slot || "special")}${select("Si un bonus est déjà actif", "consumption_replacement", effect.replacement || "replace", [["replace", "Remplacer"], ["reject", "Refuser"]])}${input("Propriété modifiée", "consumption_modifier_property", effect.modifiers?.[0]?.property || "")}${select("Opération", "consumption_modifier_operation", effect.modifiers?.[0]?.operation || "multiply", [["multiply", "Multiplier"], ["add", "Ajouter"], ["set", "Définir"]])}${input("Valeur", "consumption_modifier_value", effect.modifiers?.[0]?.value ?? 1, "number", "step=0.01")}`;
+    else if (type === "message") fields = input("Message", "consumption_text", effect.text || "");
+    else if (type === "state") fields = `${input("État", "consumption_state", effect.key || "")}${select("Opération", "consumption_operation", effect.operation || "set", [["set", "Définir"], ["increment", "Ajouter"]])}${input("Valeur", "consumption_value", effect.value ?? 1)}`;
+    else fields = select("Événement", "consumption_event", effect.event || "", catalogOptions("event", effect.event || ""));
+    element.innerHTML = `<button type="button" class="remove">×</button><div class="form-grid">${select("Effet", "consumption_type", type, types)}${fields}</div>`;
+    element.querySelector('[data-field="consumption_type"]').onchange = (event) => { effect = { type: event.target.value }; render(); };
+    element.querySelector(".remove").onclick = () => element.remove();
+    bindItemSelectors(element);
+  };
+  render();
+}
+
+function readConsumptionEffects() {
+  return $$("#item-consumption-effects > .consumption-effect").map((element) => {
+    const type = fieldValue("consumption_type", element);
+    if (["reward", "cost"].includes(type)) return { type, resource: fieldValue("consumption_resource", element), amount: fieldValue("consumption_amount", element) };
+    if (type === "player_stat") return { type, stat: fieldValue("consumption_stat", element), amount: fieldValue("consumption_amount", element), minimum: fieldValue("consumption_min", element), maximum: fieldValue("consumption_max", element), change_per_hour: fieldValue("consumption_decay", element) };
+    if (type === "timed_bonus") {
+      const property = fieldValue("consumption_modifier_property", element);
+      return { type, key: fieldValue("consumption_bonus_key", element), label: fieldValue("consumption_bonus_label", element), emoji: fieldValue("consumption_bonus_emoji", element), duration_seconds: fieldValue("consumption_duration", element), slot: fieldValue("consumption_slot", element) || "special", replacement: fieldValue("consumption_replacement", element), modifiers: property ? [{ property, operation: fieldValue("consumption_modifier_operation", element), value: fieldValue("consumption_modifier_value", element) }] : [] };
+    }
+    if (type === "message") return { type, text: fieldValue("consumption_text", element) };
+    if (type === "state") return { type, key: fieldValue("consumption_state", element), operation: fieldValue("consumption_operation", element), value: fieldValue("consumption_value", element) };
+    return { type, event: fieldValue("consumption_event", element), payload: {} };
+  });
+}
+
 function professionOptions(current = "") {
   const options = $$("#profession-modules > .profession-module")
     .map((element) => {
@@ -9940,6 +10023,8 @@ function addDeliveryModule(rule = {}) {
   element.className = "builder delivery-module";
   element.dataset.original = JSON.stringify(rule);
   const events = rule.events || {};
+  const dynamic = rule.dynamic_pricing || {};
+  const shortage = dynamic.tiers?.[0] || {}, low = dynamic.tiers?.[1] || {};
   element.innerHTML = `<button type="button" class="remove">×</button><div class="form-grid">${select("Ressource", "delivery_resource", rule.item_key || rule.resource || "", catalogOptions("item", rule.item_key || rule.resource || ""))}${select("Source", "delivery_source", rule.source || "player_inventory", [["player_inventory", "Inventaire du joueur"]])}${select(
     "Destination",
     "delivery_destination",
@@ -9948,7 +10033,7 @@ function addDeliveryModule(rule = {}) {
       ["building_stock", "Stock d’un bâtiment"],
       ["player_inventory", "Inventaire joueur"],
     ],
-  )}${select("Bâtiment destinataire", "delivery_building", rule.target_building_key || rule.building || "", catalogOptions("building", rule.target_building_key || rule.building || ""))}${input("Quantité minimale", "delivery_min", rule.minimum_quantity ?? 1, "number", "min=1")}${input("Quantité maximale (0 = aucune)", "delivery_max", rule.maximum_quantity ?? 0, "number", "min=0")}${input("Prix par unité", "delivery_price", rule.unit_price ?? 0, "number", "min=0")}${select("Monnaie de paiement", "delivery_currency", rule.payment_resource || rule.currency || "money", catalogOptions("item", rule.payment_resource || rule.currency || "money"))}${select("Événement au début", "delivery_event_start", events.on_start?.event || "", catalogOptions("event", events.on_start?.event || ""))}${select("Événement après livraison", "delivery_event_success", events.on_success?.event || "", catalogOptions("event", events.on_success?.event || ""))}${select("Événement en cas d’échec", "delivery_event_failure", events.on_failure?.event || "", catalogOptions("event", events.on_failure?.event || ""))}</div>`;
+  )}${select("Bâtiment destinataire", "delivery_building", rule.target_building_key || rule.building || "", catalogOptions("building", rule.target_building_key || rule.building || ""))}${input("Quantité minimale", "delivery_min", rule.minimum_quantity ?? 1, "number", "min=1")}${input("Quantité maximale (0 = aucune)", "delivery_max", rule.maximum_quantity ?? 0, "number", "min=0")}${input("Prix de base par unité", "delivery_price", rule.unit_price ?? 0, "number", "min=0")}${select("Monnaie de paiement", "delivery_currency", rule.payment_resource || rule.currency || "money", catalogOptions("item", rule.payment_resource || rule.currency || "money"))}${input("Objectif de réserve (0 = prix fixe)", "delivery_target_stock", dynamic.target_stock || 0, "number", "min=0")}${input("Seuil rupture (% objectif)", "delivery_shortage_ratio", Math.round(Number(shortage.below_ratio ?? 0.25) * 100), "number", "min=0 max=100")}${input("Coefficient rupture", "delivery_shortage_multiplier", shortage.multiplier ?? 2, "number", "min=0 step=0.1")}${input("Seuil stock faible (% objectif)", "delivery_low_ratio", Math.round(Number(low.below_ratio ?? 0.75) * 100), "number", "min=0 max=200")}${input("Coefficient stock faible", "delivery_low_multiplier", low.multiplier ?? 1.5, "number", "min=0 step=0.1")}${input("Coefficient stock suffisant", "delivery_min_multiplier", dynamic.minimum_multiplier ?? 1, "number", "min=0 step=0.1")}${select("Événement au début", "delivery_event_start", events.on_start?.event || "", catalogOptions("event", events.on_start?.event || ""))}${select("Événement après livraison", "delivery_event_success", events.on_success?.event || "", catalogOptions("event", events.on_success?.event || ""))}${select("Événement en cas d’échec", "delivery_event_failure", events.on_failure?.event || "", catalogOptions("event", events.on_failure?.event || ""))}</div>`;
   element.insertAdjacentHTML(
     "beforeend",
     `<div class="section-head"><b>Conditions</b><button type="button" class="secondary add-delivery-condition">＋ Ajouter</button></div>${select(
@@ -9988,6 +10073,7 @@ function readDeliveryModules() {
       if (fieldValue(field, element))
         events[key] = { event: fieldValue(field, element), payload: {} };
     });
+    const targetStock = fieldValue("delivery_target_stock", element);
     return {
       ...JSON.parse(element.dataset.original || "{}"),
       item_key: fieldValue("delivery_resource", element),
@@ -9998,6 +10084,10 @@ function readDeliveryModules() {
       maximum_quantity: maximum > 0 ? maximum : null,
       unit_price: fieldValue("delivery_price", element),
       payment_resource: fieldValue("delivery_currency", element) || "money",
+      dynamic_pricing: targetStock > 0 ? { target_stock: targetStock, tiers: [
+        { below_ratio: Number(fieldValue("delivery_shortage_ratio", element) || 0) / 100, multiplier: fieldValue("delivery_shortage_multiplier", element) },
+        { below_ratio: Number(fieldValue("delivery_low_ratio", element) || 0) / 100, multiplier: fieldValue("delivery_low_multiplier", element) },
+      ], minimum_multiplier: fieldValue("delivery_min_multiplier", element) } : undefined,
       events,
       conditions,
     };
@@ -10008,7 +10098,8 @@ function addProductModule(product = {}) {
   const element = document.createElement("details");
   element.className = "module-card product-module";
   element.open = !product.item_key;
-  element.innerHTML = `<summary><strong>${escapeHtml(product.emoji || "🛒")} ${escapeHtml(product.name || itemDisplay(product.item_key).name || "Nouveau produit")}</strong><small>${Number(product.price || 0)} écus</small></summary><div class="module-content"><button type="button" class="remove">×</button><div class="form-grid">${itemSelector("Objet vendu", "product_item", product.item_key || "", "consumable")}${input("Nom affiché", "product_name", product.name || "")}${input("Emoji", "product_emoji", product.emoji || "🛒")}${input("Prix", "product_price", product.price || 0, "number", "min=0")}${input("Stock initial", "product_stock", product.initial_stock || 0, "number", "min=0")}${input("Maximum par commande", "product_max", product.maximum_per_purchase || 1, "number", "min=1")}</div><div class="checks">${check("Disponible au comptoir", "product_active", product.active !== false)}</div></div>`;
+  const modes = product.service_modes || ["takeaway"];
+  element.innerHTML = `<summary><strong>${escapeHtml(product.emoji || "🛒")} ${escapeHtml(product.name || itemDisplay(product.item_key).name || "Nouveau produit")}</strong><small>${Number(product.price || 0)} écus</small></summary><div class="module-content"><button type="button" class="remove">×</button><div class="form-grid">${itemSelector("Objet vendu", "product_item", product.item_key || "", "consumable")}${input("Nom affiché", "product_name", product.name || "")}${input("Emoji", "product_emoji", product.emoji || "🛒")}${input("Prix", "product_price", product.price || 0, "number", "min=0")}${input("Stock initial", "product_stock", product.initial_stock || 0, "number", "min=0")}${input("Maximum par commande", "product_max", product.maximum_per_purchase || 1, "number", "min=1")}${itemSelector("Objet remis à emporter", "product_takeaway_item", product.takeaway_item_key || product.item_key || "", "consumable")}${input("Supplément à emporter", "product_takeaway_surcharge", product.takeaway_surcharge || 0, "number", "min=0")}${input("Catégorie catalogue", "product_category", product.category || "")}${input("Type de bonus / filtre", "product_bonus_type", product.bonus_type || "")}</div><div class="checks">${check("Disponible au comptoir", "product_active", product.active !== false)}${check("Consommation sur place", "product_on_site", modes.includes("on_site"))}${check("Vente à emporter", "product_takeaway", modes.includes("takeaway"))}</div></div>`;
   $("#product-modules").append(element);
   bindItemSelectors(element);
   element.querySelector(".remove").onclick = () => element.remove();
@@ -10023,6 +10114,11 @@ function readProductModules() {
     price: fieldValue("product_price", element),
     initial_stock: fieldValue("product_stock", element),
     maximum_per_purchase: fieldValue("product_max", element),
+    service_modes: [fieldValue("product_on_site", element) ? "on_site" : null, fieldValue("product_takeaway", element) ? "takeaway" : null].filter(Boolean),
+    takeaway_item_key: fieldValue("product_takeaway_item", element) || fieldValue("product_item", element),
+    takeaway_surcharge: fieldValue("product_takeaway_surcharge", element),
+    category: fieldValue("product_category", element),
+    bonus_type: fieldValue("product_bonus_type", element),
     active: fieldValue("product_active", element),
   }));
 }
@@ -10118,6 +10214,7 @@ function addRecipeModule(recipe = {}) {
     ],
   )}${input("Salaire", "recipe_reward", recipe.reward || 0, "number", "min=0")}${input("XP totale", "recipe_experience", recipe.experience || 0, "number", "min=0")}</div><section class="workstation-recipe-config"><div class="form-grid">${select("Poste compatible", "recipe_workstation", recipe.workstation_key || "", workstationOptions(recipe.workstation_key || ""))}</div><div class="recipe-sliders">${recipeRange("Préparation", "recipe_preparation", recipe.preparation_seconds || 0)}${recipeRange("Transformation", "recipe_transformation", recipe.transformation_seconds ?? recipe.duration_seconds ?? 0)}${recipeRange("Part XP du préparateur", "recipe_xp_share", recipe.preparer_xp_percent ?? 80, 100)}</div><div class="checks">${check("Transformation active : le préparateur reste occupé", "recipe_active_transformation", !!recipe.active_transformation)}</div><div class="recipe-live-summary" aria-live="polite"></div></section><div class="section-head"><b>Ingrédients</b><button type="button" class="secondary add-recipe-ingredient">＋ Ajouter</button></div><div class="recipe-ingredients"></div><div class="checks">${check("Recette active", "recipe_active", recipe.active !== false)}</div></div>`;
   $("#recipe-modules").append(element);
+  element.querySelector(":scope > .module-content > .form-grid").insertAdjacentHTML("beforeend", input("Objectif de réserve", "recipe_reserve_target", recipe.reserve_target || 0, "number", "min=0"));
   element.querySelector(".form-grid").insertAdjacentHTML("beforeend",
     select("Prélever les ingrédients dans", "recipe_source", recipe.ingredient_source || "player_inventory", [
       ["building_stock", "Stock du bâtiment"], ["player_inventory", "Inventaire du joueur"],
@@ -10180,6 +10277,7 @@ function readRecipeModules() {
       output_destination: fieldValue("recipe_destination", element),
       reward: fieldValue("recipe_reward", element),
       experience: fieldValue("recipe_experience", element),
+      reserve_target: fieldValue("recipe_reserve_target", element),
       ingredients,
       active: fieldValue("recipe_active", element),
     };
@@ -10572,6 +10670,7 @@ function buildPayload() {
       stack_limit: fieldValue("stack_limit"),
       stackable: fieldValue("stackable"),
       consumable: fieldValue("consumable"),
+      consumption: { ...(payload.consumption || {}), effects: readConsumptionEffects() },
       sellable: fieldValue("sellable"),
       building_relations: $$("[data-item-building]:checked").map((field) => ({
         building_key: field.dataset.itemBuilding,

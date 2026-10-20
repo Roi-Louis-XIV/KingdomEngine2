@@ -718,6 +718,13 @@ def _rebuild_discord_building_ux(rows: list[dict[str, Any]]) -> None:
     # Taverne : parcours immersif, achats réels et cuisine sur postes partagés.
     tavern = buildings["edgar_tavern"]
     tavern_modules = tavern.setdefault("modules", {})
+    # Le cuisinier peut quitter son poste pendant qu'une marmite partagée
+    # travaille : la production appartient au bâtiment, pas à son contrat.
+    for tavern_action in tavern.get("actions", []):
+        if tavern_action.get("key") == "leave_innkeeper":
+            for effect in tavern_action.get("effects", []):
+                if effect.get("type") in {"profession_leave", "profession"}:
+                    effect["block_when_pending"] = False
     tavern_modules["workstations"] = [{
         "key": "tavern_cauldrons", "name": "Marmite", "emoji": "🍲", "slots": 3,
         "idle_text": "🟢 **Libre** · Edgar a laissé le feu prêt : cette marmite peut accueillir une nouvelle recette.",
@@ -735,10 +742,15 @@ def _rebuild_discord_building_ux(rows: list[dict[str, Any]]) -> None:
             preparer_xp_percent=int(recipe.get("preparer_xp_percent", 80)),
             ingredient_source="building_stock",
             output_destination="building_stock",
+            profession=str(recipe.get("profession") or "innkeeper"),
+            required_level=max(1, int(recipe.get("required_level", 1))),
         )
         recipe.pop("shared_mission", None)
 
     edgar = next((row["payload"] for row in rows if row["type"] == "npc" and row["key"] == "edgar"), None)
+    tavern_modules["games"] = {**(tavern_modules.get("games", {}) if isinstance(tavern_modules.get("games"), dict) else {}),
+        "edgar_dice": {"key": "edgar_dice", "name": "Dés d'Edgar", "stake": 0, "stake_resource": "money", "sides": 6,
+                       "choices": [{"key": "friendly_roll", "name": "Lancer les dés", "stake": 0, "multiplier": 0, "winning_faces": []}]}}
     if edgar is not None:
         edgar["dialogues"] = [
             {"key": "accueil", "name": "Accueil", "text": "Edgar essuie une chope et vous observe par-dessus sa moustache. « Alors, voyageur ? Vous cherchez un repas, du travail ou les dernières nouvelles du Royaume ? »", "choices": [
@@ -746,6 +758,7 @@ def _rebuild_discord_building_ux(rows: list[dict[str, Any]]) -> None:
                 {"key": "rumeurs", "label": "🗣️ Rumeurs", "next_node": "rumeurs", "response_text": "Edgar baisse la voix."},
                 {"key": "travail", "label": "👨‍🍳 Travail et métier", "next_node": "travail", "response_text": "Edgar désigne les marmites derrière lui."},
                 {"key": "quetes", "label": "📜 Quêtes disponibles", "next_node": "quetes", "response_text": "Edgar sort quelques notes de sous le comptoir."},
+                {"key": "des", "label": "🎲 Jouer aux dés", "navigate_page": "ux_tavern_dice", "response_text": "Edgar pose deux dés sur le comptoir."},
             ]},
             {"key": "royaume", "name": "Nouvelles du Royaume", "text": "La tempête inquiète le village. La mine, le vieux pont et l'église auront besoin de toutes les bonnes volontés.", "choices": [{"key": "retour", "label": "↩ Parler d'autre chose", "next_node": "accueil"}]},
             {"key": "rumeurs", "name": "Rumeurs", "parent_node": "accueil", "text": "Edgar se penche légèrement au-dessus du comptoir.", "variants": [
@@ -789,6 +802,49 @@ def _rebuild_discord_building_ux(rows: list[dict[str, Any]]) -> None:
         "bread": ("🍞 Pains et accompagnements", {"bread"}),
         "meat": ("🥩 Viandes et provisions", {"meats"}),
     }
+
+    # Offre V11 entièrement déclarative : les anciens produits restent compatibles,
+    # mais le scénario officiel autorise le service immédiat et l'emport.
+    drink_categories = {"beer", "bieres", "mead", "wine", "vins", "spiritueux", "soft"}
+    meal_categories = {"meals", "nourriture", "pies", "bread", "meats"}
+    item_payloads = {row["key"]: row["payload"] for row in rows if row["type"] == "item"}
+    for index, product in enumerate(products):
+        category = str(product.get("category", ""))
+        product["service_modes"] = ["on_site", "takeaway"]
+        product["takeaway_item_key"] = str(product["item_key"])
+        product["takeaway_surcharge"] = int(product.get("takeaway_surcharge", 1))
+        product["bonus_type"] = "alcool" if category in drink_categories - {"soft"} else ("energie" if category == "soft" else "special")
+        payload = item_payloads.get(str(product["item_key"]))
+        if payload is None: continue
+        payload["consumable"] = True
+        effects = list(payload.get("consumption", {}).get("effects", []))
+        if not effects:
+            if category in drink_categories - {"soft"}:
+                alcohol = 8 if category in {"beer", "bieres", "mead"} else 12 if category in {"wine", "vins"} else 18
+                effects = [{"type": "player_stat", "stat": "alcohol", "amount": alcohol, "minimum": 0, "maximum": 100, "change_per_hour": -12},
+                           {"type": "message", "text": "{item} servi par Edgar."}]
+            elif category == "soft":
+                effects = [{"type": "reward", "resource": "energy", "amount": 5}]
+            elif category in meal_categories:
+                bonus_cycle = [
+                    ("worker_yield", "Rendement du travailleur", "production.quantity", "multiply", 1.2),
+                    ("steady_effort", "Effort économe", "energy.cost", "multiply", 0.8),
+                ]
+                key, label, property_name, operation, value = bonus_cycle[index % len(bonus_cycle)]
+                effects = [{"type": "reward", "resource": "energy", "amount": 10},
+                           {"type": "timed_bonus", "key": key, "label": label, "emoji": "✨", "slot": "special", "duration_seconds": 900,
+                            "replacement": "replace", "modifiers": [{"property": property_name, "operation": operation, "value": value}]}]
+            payload["consumption"] = {"effects": effects}
+
+    for recipe in tavern_modules.get("recipes", []):
+        recipe["reserve_target"] = int(recipe.get("reserve_target", max(6, int(recipe.get("output_quantity", 1)) * 4)))
+    for delivery in tavern_modules.get("deliveries", []):
+        delivery["unit_price"] = max(1, int(delivery.get("unit_price", 1)))
+        delivery["dynamic_pricing"] = delivery.get("dynamic_pricing") or {
+            "target_stock": 12,
+            "tiers": [{"below_ratio": 0.25, "multiplier": 2.0}, {"below_ratio": 0.75, "multiplier": 1.5}],
+            "minimum_multiplier": 1.0,
+        }
 
     def product_page(group_key: str, return_page: str) -> dict[str, Any]:
         label, categories = product_groups[group_key]
@@ -841,6 +897,8 @@ def _rebuild_discord_building_ux(rows: list[dict[str, Any]]) -> None:
     apply("edgar_tavern", [
         hero("tavern", "À la Gueuse Cocu", "Edgar accueille les voyageurs derrière son comptoir.", "🍺"),
         text("tavern_status", "👤 **Tavernier :** Edgar Brassebarbe\n🟢 **Établissement ouvert**\n🍲 **Cuisine partagée :** consultez les marmites en temps réel."),
+        {"id": "ux_tavern_home_workstations", "type": "workstation_status", "props": {"title": "Marmites", "building": "edgar_tavern"}},
+        {"id": "ux_tavern_home_profession", "type": "profession_status", "props": {"title": "Votre métier"}},
         {"id": "tavern_ambiance", "type": "contextual_content", "props": {"replace_page_title": True,
             "fallback": {"title": "À la Gueuse Cocu", "emoji": "🍺", "text": "Une soirée presque ordinaire s’installe dans la Taverne. Le feu crépite dans l’âtre tandis qu’Edgar sert les habitués. Les conversations couvrent le bruit des chopes reposées sur les tables."},
             "variants": [
@@ -867,9 +925,14 @@ def _rebuild_discord_building_ux(rows: list[dict[str, Any]]) -> None:
              nav("edgar_work", "Travail et métier", "profession", 5, "👨‍🍳"),
              {"id": "ux_edgar_quests", "type": "button", "slot": 6, "props": {"label": "Voir mes quêtes", "emoji": "📜", "style": "secondary"}, "interaction": {"type": "quest_board"}},
              back("edgar", 9)]),
+        page("ux_tavern_dice", "Dés d'Edgar", [hero("edgar_dice", "Les dés d'Edgar", "Une partie amicale, sans mise et sans récompense.", "🎲"),
+             {"id": "ux_tavern_dice_game", "type": "dynamic_game_selector", "slot": 0, "props": {"placeholder": "Lancer les dés…"}},
+             nav("dice_edgar", "Retourner aux sujets", "ux_tavern_edgar", 5, "↩️"), back("dice", 6)]),
         page("ux_tavern_kitchen", "Cuisine", [hero("kitchen", "Cuisine de la Gueuse Cocu", "Les marmites sont partagées. Choisissez une recette libre ou consultez une préparation en cours.", "🍲"),
+             {"id": "ux_tavern_priorities", "type": "production_priorities", "props": {"title": "Plats à préparer en priorité", "building": "edgar_tavern"}},
              {"id": "ux_tavern_workstations", "type": "workstation_status", "props": {"title": "État des marmites", "building": "edgar_tavern"}},
-             {"id": "ux_tavern_recipes", "type": "select", "slot": 0, "props": {"placeholder": "Choisir une recette ou voir sa préparation…"}, "options": recipe_options},
+             {"id": "ux_tavern_recipe_catalog", "type": "recipe_catalog", "props": {"title": "Vos recettes débloquées", "building": "edgar_tavern"}},
+             {"id": "ux_tavern_recipes", "type": "dynamic_recipe_selector", "slot": 0, "props": {"placeholder": "Choisir une recette réalisable…", "page_prefix": "ux_recipe_"}},
              {"id": "ux_tavern_refresh", "type": "button", "slot": 5, "props": {"label": "Actualiser", "emoji": "🔄", "style": "secondary"}, "interaction": {"type": "refresh"}},
              back("kitchen", 9)]),
         *recipe_pages,

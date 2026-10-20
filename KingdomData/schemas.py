@@ -14,6 +14,7 @@ ACTION_TYPES = {
     "schedule", "claim_scheduled", "state", "production",
     "profession_join", "profession_leave", "profession_experience",
     "tool_grant", "tool_modify", "contribution", "player_stat",
+    "timed_bonus",
     "play_audio", "set_audio_group", "start_transformation", "claim_transformation",
 }
 CONDITION_TYPES = {
@@ -292,6 +293,13 @@ def _validate_effect(effect: dict[str, Any]) -> None:
         raise ValidationError("Une contribution doit référencer un objectif collectif.")
     if kind == "player_stat" and not str(effect.get("stat", "")).strip():
         raise ValidationError("Un effet de statistique doit référencer une statistique.")
+    if kind == "timed_bonus":
+        if not str(effect.get("key", effect.get("bonus", ""))).strip():
+            raise ValidationError("Un bonus temporaire doit posséder un identifiant.")
+        if int(effect.get("duration_seconds", 0)) < 1:
+            raise ValidationError("La durée d'un bonus temporaire doit être positive.")
+        if effect.get("replacement", "replace") not in {"replace", "reject"}:
+            raise ValidationError("La règle de remplacement du bonus est invalide.")
     if kind == "schedule":
         scope = effect.get("limit_scope", "player_action")
         if scope not in ACTIVITY_SCOPES:
@@ -408,6 +416,11 @@ def _validate_building_modules(payload: dict[str, Any]) -> None:
     for product in modules.get("products", []):
         if int(product.get("price", 0)) < 0 or int(product.get("initial_stock", 0)) < 0:
             raise ValidationError("Le prix et le stock d'un produit ne peuvent pas \u00eatre n\u00e9gatifs.")
+        modes = product.get("service_modes", ["takeaway"])
+        if not isinstance(modes, list) or not modes or set(modes) - {"on_site", "takeaway"}:
+            raise ValidationError("Les modes de service doivent être sur place et/ou à emporter.")
+        if int(product.get("takeaway_surcharge", 0)) < 0:
+            raise ValidationError("Le supplément à emporter ne peut pas être négatif.")
     for recipe in modules.get("recipes", []):
         if int(recipe.get("duration_seconds", 0)) < 0 or int(recipe.get("energy_cost", 0)) < 0:
             raise ValidationError("La dur\u00e9e et le co\u00fbt en \u00e9nergie d'une recette doivent \u00eatre positifs.")
@@ -459,6 +472,13 @@ def _validate_building_modules(payload: dict[str, Any]) -> None:
             raise ValidationError("Les limites de quantité d'une livraison sont invalides.")
         if int(delivery.get("unit_price", 0)) < 0:
             raise ValidationError("Le prix unitaire d'une livraison ne peut pas être négatif.")
+        pricing = delivery.get("dynamic_pricing", {})
+        if pricing:
+            if int(pricing.get("target_stock", 0)) < 1 or float(pricing.get("minimum_multiplier", 0)) < 0:
+                raise ValidationError("La tarification dynamique doit posséder un objectif et un coefficient valides.")
+            for tier in pricing.get("tiers", []):
+                if float(tier.get("below_ratio", 0)) < 0 or float(tier.get("multiplier", 0)) < 0:
+                    raise ValidationError("Un palier de tarification dynamique est invalide.")
         if delivery.get("conditions"):
             _validate_condition(delivery["conditions"])
         for event_rule in delivery.get("events", {}).values():
@@ -469,7 +489,7 @@ def _validate_building_modules(payload: dict[str, Any]) -> None:
 def _validate_interface(payload: dict[str, Any]) -> None:
     interactive_types = {
         "button", "select", "dynamic_inventory_selector",
-        "dynamic_product_selector", "dynamic_consumable_selector",
+        "dynamic_product_selector", "dynamic_consumable_selector", "dynamic_recipe_selector",
         "dynamic_game_selector", "npc_dialogue",
     }
     full_row_types = interactive_types - {"button"}
@@ -525,7 +545,7 @@ def _validate_interface(payload: dict[str, Any]) -> None:
             if component_id in component_ids:
                 raise ValidationError(f"Composant duplique : {component_id}")
             component_ids.add(component_id)
-            if component.get("type") not in {"hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "player_status", "building_inventory", "stock_status", "workstation_status", "contextual_content", "world_weather", "world_calendar", "event_countdown", "collective_objective", "profession_status", *interactive_types}:
+            if component.get("type") not in {"hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "player_status", "building_inventory", "stock_status", "workstation_status", "production_priorities", "recipe_catalog", "contextual_content", "world_weather", "world_calendar", "event_countdown", "collective_objective", "profession_status", *interactive_types}:
                 raise ValidationError(f"Composant inconnu : {component.get('type')}")
             if component.get("type") == "stock_status" and not str(component.get("props", {}).get("building", payload.get("target_building_key", ""))).strip():
                 raise ValidationError("Le résumé de stock doit cibler un bâtiment.")

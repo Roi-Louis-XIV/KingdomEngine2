@@ -112,3 +112,45 @@ def test_configurable_player_status_uses_real_persistent_values(tmp_path):
     assert "100 écus" in embed.fields[0].value
     assert "50 / 100" in embed.fields[0].value
     assert "Alcoolémie :** 18 / 100" in embed.fields[0].value
+
+
+def test_on_site_takeaway_and_exclusive_timed_bonus_are_persistent(tmp_path):
+    store, engine = hospitality_engine(tmp_path)
+    item = store.get("item", "apple_cider", published=True)["payload"]
+    item["consumption"]["effects"].append({
+        "type": "timed_bonus", "key": "warmth", "label": "Chaleur",
+        "duration_seconds": 600, "slot": "special", "replacement": "replace",
+        "modifiers": [{"property": "energy.cost", "operation": "multiply", "value": 0.5}],
+    })
+    draft = store.save("item", "apple_cider", item); store.publish("item", "apple_cider", draft["version"])
+    building = store.get("building", "inn_house", published=True)["payload"]
+    building["modules"]["products"][0].update(service_modes=["on_site", "takeaway"], takeaway_surcharge=1)
+    draft = store.save("building", "inn_house", building); store.publish("building", "inn_house", draft["version"])
+
+    served = asyncio.run(engine.execute_purchase("42", "inn_house", "served", "apple_cider", 1, "on_site"))
+    assert "apple_cider" not in served["player"]["inventory"]
+    assert served["bonuses"][0]["key"] == "warmth"
+    assert served["player"]["money"] == 95
+    carried = asyncio.run(engine.execute_purchase("42", "inn_house", "carried", "apple_cider", 1, "takeaway"))
+    assert carried["player"]["inventory"]["apple_cider"] == 1
+    assert carried["player"]["money"] == 89
+    restarted = GameEngine(ContentStore(store.path))
+    restarted.store.initialize()
+    assert restarted.active_bonuses("42")[0]["remaining_seconds"] > 0
+
+
+def test_dynamic_delivery_prices_each_unit_against_evolving_stock(tmp_path):
+    store, engine = hospitality_engine(tmp_path)
+    published(store, "item", "grain_sack", {"name": "Sac de grain"})
+    published(store, "building", "granary", {"name": "Grenier", "actions": [], "modules": {
+        "professions": [], "activities": [], "recipes": [], "products": [], "upgrades": [],
+        "deliveries": [{"item_key": "grain_sack", "target_building_key": "granary", "unit_price": 10,
+                        "minimum_quantity": 1, "dynamic_pricing": {"target_stock": 4,
+                        "tiers": [{"below_ratio": 0.5, "multiplier": 2}, {"below_ratio": 1, "multiplier": 1.5}],
+                        "minimum_multiplier": 1}}],
+    }})
+    with store.connection() as db: engine._change_resource(db, "42", "grain_sack", 4)
+    result = asyncio.run(engine.execute_delivery("42", "granary", "delivery", {"grain_sack": 4}))
+    assert result["delivery"][0]["price_breakdown"] == [20, 20, 15, 15]
+    assert result["payments"]["money"] == 70
+    assert result["player"]["money"] == 170

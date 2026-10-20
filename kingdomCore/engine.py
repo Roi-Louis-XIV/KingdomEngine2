@@ -256,7 +256,36 @@ class GameEngine:
         rules = building.get("modules", {}).get("deliveries", [])
         with self.store.connection() as db:
             inventory = {str(row[0]): int(row[1]) for row in db.execute("SELECT item_key,quantity FROM inventory WHERE discord_id=? AND quantity>0", (discord_id,))}
-        return [{**rule, "resource": str(rule.get("item_key", rule.get("resource"))), "quantity": inventory[str(rule.get("item_key", rule.get("resource")))], "name": self._item_name(str(rule.get("item_key", rule.get("resource")))), "destination_name": self._building_name(str(rule.get("target_building_key", rule.get("building", building_key))))} for rule in rules if inventory.get(str(rule.get("item_key", rule.get("resource"))), 0) >= int(rule.get("minimum_quantity", 1))]
+            stocks = {(str(row[0]), str(row[1])): int(row[2]) for row in db.execute("SELECT building_key,item_key,quantity FROM building_stock")}
+        result = []
+        for rule in rules:
+            resource = str(rule.get("item_key", rule.get("resource")))
+            if inventory.get(resource, 0) < int(rule.get("minimum_quantity", 1)):
+                continue
+            destination = str(rule.get("target_building_key", rule.get("building", building_key)))
+            current = stocks.get((destination, resource), 0)
+            unit_price = self._delivery_prices(rule, current, 1)[0]
+            result.append({**rule, "resource": resource, "quantity": inventory[resource], "name": self._item_name(resource),
+                           "destination_name": self._building_name(destination), "current_stock": current,
+                           "target_stock": int(rule.get("dynamic_pricing", {}).get("target_stock", 0)), "unit_price": unit_price})
+        return result
+
+    @staticmethod
+    def _delivery_prices(rule: dict[str, Any], current_stock: int, quantity: int) -> list[int]:
+        """Prix progressif par unité : un gros dépôt fait évoluer son propre tarif."""
+        base = int(rule.get("unit_price", 0)); pricing = rule.get("dynamic_pricing", {}) or {}
+        target = max(1, int(pricing.get("target_stock", 1)))
+        tiers = sorted(pricing.get("tiers", []), key=lambda item: float(item.get("below_ratio", 0)))
+        minimum = float(pricing.get("minimum_multiplier", 1))
+        prices = []
+        for offset in range(quantity):
+            ratio = (current_stock + offset) / target
+            multiplier = minimum
+            for tier in tiers:
+                if ratio < float(tier.get("below_ratio", 0)):
+                    multiplier = float(tier.get("multiplier", 1)); break
+            prices.append(max(0, round(base * multiplier)))
+        return prices
 
     def commerce_options(self, building_key: str) -> list[dict[str, Any]]:
         """Catalogue générique enrichi du stock courant, sans règle liée au lieu."""
@@ -271,15 +300,18 @@ class GameEngine:
                 for product in products if product.get("active", True)]
 
     async def execute_purchase(self, discord_id: str, building_key: str, interaction_id: str,
-                               item_key: str, quantity: int) -> dict[str, Any]:
+                               item_key: str, quantity: int, service_mode: str = "takeaway") -> dict[str, Any]:
         """Transfert commercial quantifié, atomique et idempotent."""
         self._world_snapshot = self.world_clock.state()
         quantity = int(quantity)
         if quantity < 1: raise ValidationError("La quantité doit être supérieure à zéro.")
         product = next((item for item in self.commerce_options(building_key) if item["item_key"] == item_key), None)
         if not product: raise ValidationError("Ce produit n'est pas disponible.")
+        modes = list(product.get("service_modes", ["takeaway"]))
+        if service_mode not in modes: raise ValidationError("Ce mode de service n'est pas disponible pour ce produit.")
         maximum = int(product.get("maximum_per_purchase", quantity))
         if quantity > maximum: raise ValidationError(f"Maximum par commande : {maximum}.")
+        purchase_messages: list[str] = []; emitted: list[Event] = []
         with self.store.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             previous = db.execute("SELECT result_json FROM action_log WHERE interaction_id=?", (interaction_id,)).fetchone()
@@ -294,21 +326,39 @@ class GameEngine:
                     if amount < 1: raise ValidationError("Le coût en ressources doit être positif.")
                     self._change_resource(db, discord_id, str(resource), -amount)
                     payments[str(resource)] = amount
+                surcharge_total = quantity * int(product.get("takeaway_surcharge", 0)) if service_mode == "takeaway" else 0
+                if surcharge_total:
+                    self._change_resource(db, discord_id, "money", -surcharge_total)
+                    payments["money"] = payments.get("money", 0) + surcharge_total
                 total = 0
             else:
-                unit_price = self._effective_number(product.get("price", 0), "economy.price", {"building_key": building_key, "item_key": item_key})
-                total = quantity * unit_price
+                unit_price = self._effective_number(product.get("price", 0), "economy.price", {"discord_id": discord_id, "building_key": building_key, "item_key": item_key})
+                surcharge = int(product.get("takeaway_surcharge", 0)) if service_mode == "takeaway" else 0
+                total = quantity * (unit_price + surcharge)
                 currency = str(product.get("currency", "money"))
                 self._change_resource(db, discord_id, currency, -total)
                 payments[currency] = total
-            self._change_resource(db, discord_id, item_key, quantity)
+            delivered_item = str(product.get("takeaway_item_key") or item_key) if service_mode == "takeaway" else ""
+            if service_mode == "takeaway":
+                self._change_resource(db, discord_id, delivered_item, quantity)
+            else:
+                item = self.store.get("item", item_key, published=True)["payload"]
+                if not item.get("consumable"): raise ValidationError("Ce produit ne peut pas être consommé sur place.")
+                self._apply_consumption_effects(db, discord_id, building_key, item_key, item, quantity, purchase_messages, emitted)
+                quest = self.quests.advance_event(db, discord_id, "consumption", interaction_id, [
+                    {"type": "action", "building_key": building_key, "action_key": f"consume_{item_key}"}
+                ])
             maximum_durability = self.building(building_key)["payload"].get("modules", {}).get("repairs", {}).get("durability", {}).get(item_key)
             if maximum_durability:
                 self._grant_tool(db, discord_id, {"tool": item_key, "max_durability": maximum_durability})
-            result = {"purchase": {"item": item_key, "name": product["name"], "quantity": quantity,
-                                    "total": total, "payments": payments}, "player": self.player(discord_id, db)}
+            result = {"purchase": {"item": item_key, "delivered_item": delivered_item, "name": product["name"], "quantity": quantity,
+                                    "service_mode": service_mode, "total": total, "payments": payments}, "player": self.player(discord_id, db),
+                      "messages": purchase_messages, "bonuses": self.active_bonuses(discord_id, db)}
+            if service_mode == "on_site" and quest is not None:
+                result["quest"] = quest
             db.execute("INSERT INTO action_log(interaction_id,discord_id,building_key,action_key,result_json,created_at) VALUES(?,?,?,?,?,?)",
                        (interaction_id, discord_id, building_key, "commerce", json.dumps(result, ensure_ascii=False), _now()))
+        for event in emitted: await self.bus.publish(event)
         await self._publish_configured_events(product.get("events", {}), "on_success", discord_id, building_key, "commerce", result)
         await self.bus.publish(Event("building.commerce.purchased", f"building:{building_key}", {"discord_id": discord_id, "building": building_key, **result["purchase"]}))
         return result
@@ -329,22 +379,13 @@ class GameEngine:
             if previous: return json.loads(previous[0])
             self._ensure_player(db, discord_id)
             self._change_resource(db, discord_id, item_key, -quantity)
-            for effect in effects:
-                kind = str(effect.get("type"))
-                amount = float(effect.get("amount", 0)) * quantity
-                if kind in {"reward", "cost"}:
-                    self._change_resource(db, discord_id, str(effect.get("resource", "money")), int(amount) * (1 if kind == "reward" else -1))
-                elif kind == "player_stat":
-                    self._change_player_stat(db, discord_id, str(effect["stat"]), amount, effect)
-                elif kind == "message": messages.append(str(effect.get("text", "")).format(item=item.get("name", item_key), quantity=quantity))
-                elif kind == "emit": emitted.append(Event(str(effect["event"]), f"building:{building_key}", {"discord_id": discord_id, "building": building_key, "item": item_key, **effect.get("payload", {})}))
-                elif kind == "state": self._change_state(db, discord_id, str(effect["key"]), str(effect.get("operation", "set")), effect.get("value"))
-                else: raise ValidationError(f"Effet de consommation inconnu : {kind}.")
+            self._apply_consumption_effects(db, discord_id, building_key, item_key, item, quantity, messages, emitted)
             quest = self.quests.advance_event(db, discord_id, "consumption", interaction_id, [
                 {"type": "action", "building_key": building_key, "action_key": f"consume_{item_key}"}
             ])
             result = {"consumption": {"item": item_key, "name": item.get("name", item_key), "quantity": quantity},
-                      "messages": messages, "stats": self.player_stats(discord_id, db), "player": self.player(discord_id, db)}
+                      "messages": messages, "stats": self.player_stats(discord_id, db), "player": self.player(discord_id, db),
+                      "bonuses": self.active_bonuses(discord_id, db)}
             if quest is not None:
                 result["quest"] = quest
             db.execute("INSERT INTO action_log(interaction_id,discord_id,building_key,action_key,result_json,created_at) VALUES(?,?,?,?,?,?)",
@@ -353,6 +394,32 @@ class GameEngine:
         await self._publish_configured_events(item.get("consumption", {}).get("events", {}), "on_success", discord_id, building_key, f"consume:{item_key}", result)
         await self.bus.publish(Event("building.item.consumed", f"building:{building_key}", {"discord_id": discord_id, "building": building_key, "item": item_key, "quantity": quantity}))
         return result
+
+    def _apply_consumption_effects(self, db, discord_id: str, building_key: str, item_key: str,
+                                   item: dict[str, Any], quantity: int, messages: list[str], emitted: list[Event]) -> None:
+        for effect in item.get("consumption", {}).get("effects", item.get("effects", [])):
+            kind = str(effect.get("type")); amount = float(effect.get("amount", 0)) * quantity
+            if kind in {"reward", "cost"}:
+                self._change_resource(db, discord_id, str(effect.get("resource", "money")), int(amount) * (1 if kind == "reward" else -1))
+            elif kind == "player_stat": self._change_player_stat(db, discord_id, str(effect["stat"]), amount, effect)
+            elif kind == "message": messages.append(str(effect.get("text", "")).format(item=item.get("name", item_key), quantity=quantity))
+            elif kind == "emit": emitted.append(Event(str(effect["event"]), f"building:{building_key}", {"discord_id": discord_id, "building": building_key, "item": item_key, **effect.get("payload", {})}))
+            elif kind == "state": self._change_state(db, discord_id, str(effect["key"]), str(effect.get("operation", "set")), effect.get("value"))
+            elif kind == "timed_bonus":
+                slot = str(effect.get("slot", "special")); now = time.time()
+                active = db.execute("SELECT bonus_key,expires_at FROM player_bonuses WHERE discord_id=? AND slot_key=? AND expires_at>?", (discord_id, slot, now)).fetchone()
+                if active and effect.get("replacement", "replace") == "reject": raise ValidationError("Un bonus de ce type est déjà actif.")
+                bonus_key = str(effect.get("key", effect.get("bonus")))
+                db.execute("INSERT INTO player_bonuses(discord_id,slot_key,bonus_key,label,emoji,modifiers_json,started_at,expires_at,source_item_key,metadata_json) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(discord_id,slot_key) DO UPDATE SET bonus_key=excluded.bonus_key,label=excluded.label,emoji=excluded.emoji,modifiers_json=excluded.modifiers_json,started_at=excluded.started_at,expires_at=excluded.expires_at,source_item_key=excluded.source_item_key,metadata_json=excluded.metadata_json",
+                           (discord_id, slot, bonus_key, str(effect.get("label") or bonus_key.replace("_", " ").title()), str(effect.get("emoji", "✨")), json.dumps(effect.get("modifiers", []), ensure_ascii=False), now, now + int(effect["duration_seconds"]), item_key, json.dumps({"replacement": effect.get("replacement", "replace")}, ensure_ascii=False)))
+            else: raise ValidationError(f"Effet de consommation inconnu : {kind}.")
+
+    def active_bonuses(self, discord_id: str, db=None) -> list[dict[str, Any]]:
+        if db is None:
+            with self.store.connection() as connection: return self.active_bonuses(discord_id, connection)
+        now = time.time(); db.execute("DELETE FROM player_bonuses WHERE discord_id=? AND expires_at<=?", (discord_id, now))
+        rows = db.execute("SELECT slot_key,bonus_key,label,emoji,modifiers_json,expires_at,source_item_key FROM player_bonuses WHERE discord_id=? ORDER BY expires_at", (discord_id,)).fetchall()
+        return [{"slot": str(row[0]), "key": str(row[1]), "label": str(row[2]), "emoji": str(row[3]), "modifiers": json.loads(row[4] or "[]"), "expires_at": float(row[5]), "remaining_seconds": max(0, int(float(row[5]) - now)), "source_item_key": str(row[6])} for row in rows]
 
     def player_stats(self, discord_id: str, db=None) -> dict[str, float]:
         if db is None:
@@ -447,13 +514,18 @@ class GameEngine:
             for resource, quantity_value in quantities.items():
                 quantity, rule = int(quantity_value), rules[resource]
                 destination = str(rule.get("target_building_key", rule.get("building", building_key)))
-                currency, unit_price = str(rule.get("payment_resource", rule.get("currency", "money"))), int(rule.get("unit_price", 0))
+                currency = str(rule.get("payment_resource", rule.get("currency", "money")))
+                current_row = db.execute("SELECT quantity FROM building_stock WHERE building_key=? AND item_key=?", (destination, resource)).fetchone()
+                current_stock = int(current_row[0]) if current_row else 0
+                prices = self._delivery_prices(rule, current_stock, quantity)
+                unit_price = prices[0] if prices else int(rule.get("unit_price", 0))
                 db.execute("UPDATE inventory SET quantity=quantity-? WHERE discord_id=? AND item_key=?", (quantity, discord_id, resource)); db.execute("DELETE FROM inventory WHERE discord_id=? AND item_key=? AND quantity<=0", (discord_id, resource))
                 if rule.get("destination", "building_stock") == "building_stock": self._change_stock(db, destination, resource, quantity)
                 else: self._change_resource(db, discord_id, resource, quantity)
-                payment = quantity * unit_price; total_by_currency[currency] = total_by_currency.get(currency, 0) + payment
-                db.execute("INSERT INTO delivery_log VALUES(NULL,?,?,?,?,?,?,?,?,?,?)", (interaction_id, discord_id, building_key, destination, resource, quantity, unit_price, payment, currency, _now()))
-                lines.append({"resource": resource, "resource_name": self._item_name(resource), "quantity": quantity, "destination": destination, "destination_name": self._building_name(destination), "unit_price": unit_price, "payment": payment})
+                payment = sum(prices); total_by_currency[currency] = total_by_currency.get(currency, 0) + payment
+                average_price = round(payment / quantity) if quantity else 0
+                db.execute("INSERT INTO delivery_log VALUES(NULL,?,?,?,?,?,?,?,?,?,?)", (interaction_id, discord_id, building_key, destination, resource, quantity, average_price, payment, currency, _now()))
+                lines.append({"resource": resource, "resource_name": self._item_name(resource), "quantity": quantity, "destination": destination, "destination_name": self._building_name(destination), "unit_price": unit_price, "average_unit_price": average_price, "payment": payment, "stock_before": current_stock, "stock_after": current_stock + quantity, "price_breakdown": prices})
             for currency, payment in total_by_currency.items():
                 if payment: self._change_resource(db, discord_id, currency, payment)
             quest = self.quests.advance_event(db, discord_id, "delivery", interaction_id, [
@@ -477,7 +549,7 @@ class GameEngine:
         if not action or not action.get("enabled", True):
             raise NotFoundError("Cette action n’est pas disponible.")
         action = {**action}
-        modifier_context = {"building_key": building_key, "action_key": action_key, **action.get("modifier_context", {})}
+        modifier_context = {"discord_id": discord_id, "building_key": building_key, "action_key": action_key, **action.get("modifier_context", {})}
         if self._effective_number(1, "availability", modifier_context) <= 0:
             raise ValidationError("Cette activité est temporairement indisponible.")
         action["cooldown_seconds"] = self._effective_number(action.get("cooldown_seconds", 0), "cooldown.duration", {**modifier_context, "cooldown_scope": "player"})
@@ -661,7 +733,7 @@ class GameEngine:
                     count = self._pending_count(db, discord_id, building_key, effect["action"], scope, category)
                     if count >= maximum:
                         raise ValidationError("La limite d'activites en cours est atteinte.")
-                    duration = self._effective_number(effect.get("duration_seconds", 0), "activity.duration", {"building_key": building_key, "action_key": str(effect.get("action", action_key)), "activity_key": str(effect.get("action", action_key))})
+                    duration = self._effective_number(effect.get("duration_seconds", 0), "activity.duration", {"discord_id": discord_id, "building_key": building_key, "action_key": str(effect.get("action", action_key)), "activity_key": str(effect.get("action", action_key))})
                     ready_at = time.time() + duration
                     resolved_effects, scheduled_selected = self._resolve_random_effects(db, discord_id, list(effect.get("effects", [])))
                     selected_results.extend(scheduled_selected)
@@ -827,7 +899,8 @@ class GameEngine:
         preparation_ends = now + preparation
         transformation_ends = preparation_ends + transformation
         status = "preparation" if preparation else ("transformation" if transformation else "ready")
-        output = {str(effect["output_item_key"]): max(1, int(effect.get("output_quantity", 1)))}
+        output_quantity = self._effective_number(effect.get("output_quantity", 1), "production.quantity", {"discord_id": discord_id, "building_key": building_key, "recipe_key": str(effect.get("recipe_key", "")), "item_key": str(effect.get("output_item_key", ""))})
+        output = {str(effect["output_item_key"]): max(1, output_quantity)}
         stamp = _now()
         cursor = db.execute(
             "INSERT INTO transformation_jobs(building_key,recipe_key,workstation_key,slot_index,preparer_id,status,"
@@ -944,6 +1017,9 @@ class GameEngine:
             events.append({**payload, "key": row["entity_key"], "active": row["entity_key"] in active_keys})
         weather = world["weather"]
         environment = [{"key": f"weather_{weather.get('key', 'current')}", "modifiers": weather.get("modifiers", [])}]
+        if context.get("discord_id"):
+            environment.extend({"key": f"player_bonus_{bonus['key']}", "modifiers": bonus.get("modifiers", [])}
+                               for bonus in self.active_bonuses(str(context["discord_id"])))
         resolver = ModifierEngine()
         effective_minimum, _ = resolver.effective(minimum, property_name, context, environment, events)
         effective_maximum, _ = resolver.effective(maximum, property_name, context, environment, events)
@@ -1118,8 +1194,10 @@ class GameEngine:
             (building_key, item_key, current + amount),
         )
 
-    @staticmethod
-    def _award_experience(db, discord_id: str, profession: str, experience: int, experience_per_level: int) -> None:
+    def _award_experience(self, db, discord_id: str, profession: str, experience: int, experience_per_level: int) -> None:
+        experience = self._effective_number(experience, "profession.experience", {
+            "discord_id": discord_id, "profession_key": profession,
+        })
         row = db.execute(
             "SELECT experience FROM player_professions WHERE discord_id=? AND profession_key=? AND active=1",
             (discord_id, profession),
