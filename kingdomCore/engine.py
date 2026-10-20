@@ -332,7 +332,7 @@ class GameEngine:
                     payments["money"] = payments.get("money", 0) + surcharge_total
                 total = 0
             else:
-                unit_price = self._effective_number(product.get("price", 0), "economy.price", {"discord_id": discord_id, "building_key": building_key, "item_key": item_key})
+                unit_price = self._effective_number(product.get("price", 0), "economy.price", {"discord_id": discord_id, "building_key": building_key, "item_key": item_key}, db)
                 surcharge = int(product.get("takeaway_surcharge", 0)) if service_mode == "takeaway" else 0
                 total = quantity * (unit_price + surcharge)
                 currency = str(product.get("currency", "money"))
@@ -416,7 +416,13 @@ class GameEngine:
 
     def active_bonuses(self, discord_id: str, db=None) -> list[dict[str, Any]]:
         if db is None:
-            with self.store.connection() as connection: return self.active_bonuses(discord_id, connection)
+            # Lecture pure : cette méthode est aussi appelée par le calcul des
+            # modificateurs alors qu'une transaction BEGIN IMMEDIATE est active.
+            # Une purge via une seconde connexion provoquerait une attente SQLite.
+            with self.store.connection() as connection:
+                now = time.time()
+                rows = connection.execute("SELECT slot_key,bonus_key,label,emoji,modifiers_json,expires_at,source_item_key FROM player_bonuses WHERE discord_id=? AND expires_at>? ORDER BY expires_at", (discord_id, now)).fetchall()
+                return [{"slot": str(row[0]), "key": str(row[1]), "label": str(row[2]), "emoji": str(row[3]), "modifiers": json.loads(row[4] or "[]"), "expires_at": float(row[5]), "remaining_seconds": max(0, int(float(row[5]) - now)), "source_item_key": str(row[6])} for row in rows]
         now = time.time(); db.execute("DELETE FROM player_bonuses WHERE discord_id=? AND expires_at<=?", (discord_id, now))
         rows = db.execute("SELECT slot_key,bonus_key,label,emoji,modifiers_json,expires_at,source_item_key FROM player_bonuses WHERE discord_id=? ORDER BY expires_at", (discord_id,)).fetchall()
         return [{"slot": str(row[0]), "key": str(row[1]), "label": str(row[2]), "emoji": str(row[3]), "modifiers": json.loads(row[4] or "[]"), "expires_at": float(row[5]), "remaining_seconds": max(0, int(float(row[5]) - now)), "source_item_key": str(row[6])} for row in rows]
@@ -584,9 +590,13 @@ class GameEngine:
                     (str(context.get("display_name", "")), str(context.get("avatar_url", "")), now, discord_id),
                 )
             self._refresh_transformation_jobs(db)
-            if self._player_transformation_busy(db, discord_id) and not any(
-                effect.get("type") == "claim_transformation" for effect in action.get("effects", [])
-            ):
+            effects_allow_busy = any(
+                effect.get("type") == "claim_transformation"
+                or effect.get("type") == "profession_leave"
+                or (effect.get("type") == "profession" and effect.get("operation") == "leave")
+                for effect in action.get("effects", [])
+            )
+            if self._player_transformation_busy(db, discord_id) and not effects_allow_busy:
                 raise ValidationError("Vous êtes déjà occupé par une transformation.")
             self._check_cooldowns(db, discord_id, building_key, action)
             self._check_requirements(db, discord_id, action.get("requirements", {}))
@@ -600,7 +610,7 @@ class GameEngine:
                 elif kind in {"reward", "cost"}:
                     property_name = str(effect.get("modifier_property") or ("energy.cost" if kind == "cost" and effect.get("resource") == "energy" else "production.quantity"))
                     effect_context = {**modifier_context, **effect.get("_modifier_context", {}), "item_key": effect.get("resource"), "ingredient_key": effect.get("ingredient_key"), "recipe_key": effect.get("recipe_key", effect.get("_modifier_context", {}).get("recipe_key", modifier_context.get("recipe_key")))}
-                    minimum, maximum = self._effective_range(effect.get("amount", 0), property_name, effect_context)
+                    minimum, maximum = self._effective_range(effect.get("amount", 0), property_name, effect_context, db)
                     amount = self.rng.randint(minimum, maximum) * (1 if kind == "reward" else -1)
                     self._change_resource(db, discord_id, effect.get("resource", "money"), amount)
                     if kind == "cost" and amount < 0:
@@ -608,7 +618,7 @@ class GameEngine:
                         if resource not in {"money", "energy"}:
                             quest_costs[resource] = quest_costs.get(resource, 0) - amount
                 elif kind == "production":
-                    minimum, maximum = self._effective_range(effect.get("amount", 0), "production.quantity", {"building_key": building_key, "action_key": action_key, "item_key": effect.get("resource", effect.get("item"))})
+                    minimum, maximum = self._effective_range(effect.get("amount", 0), "production.quantity", {"discord_id": discord_id, "building_key": building_key, "action_key": action_key, "item_key": effect.get("resource", effect.get("item"))}, db)
                     amount = self.rng.randint(minimum, maximum)
                     resource = str(effect.get("resource", effect.get("item")))
                     if effect.get("destination", "player_inventory") in {"player", "player_inventory"}:
@@ -654,7 +664,7 @@ class GameEngine:
                         emitted.append(Event(str(chosen["event"]), f"building:{building_key}", {"discord_id": discord_id, "building": building_key, "action": action_key, **chosen.get("payload", {})}))
                 elif kind in {"stock_cost", "stock_reward"}:
                     if effect.get("modifier_property"):
-                        minimum, maximum = self._effective_range(effect.get("amount", 0), str(effect["modifier_property"]), {**modifier_context, "item_key": effect.get("item"), "ingredient_key": effect.get("ingredient_key"), "recipe_key": effect.get("recipe_key", modifier_context.get("recipe_key"))})
+                        minimum, maximum = self._effective_range(effect.get("amount", 0), str(effect["modifier_property"]), {**modifier_context, "item_key": effect.get("item"), "ingredient_key": effect.get("ingredient_key"), "recipe_key": effect.get("recipe_key", modifier_context.get("recipe_key"))}, db)
                     else:
                         minimum, maximum = self._range(effect.get("amount", 0))
                     amount = self.rng.randint(minimum, maximum) * (1 if kind == "stock_reward" else -1)
@@ -733,7 +743,7 @@ class GameEngine:
                     count = self._pending_count(db, discord_id, building_key, effect["action"], scope, category)
                     if count >= maximum:
                         raise ValidationError("La limite d'activites en cours est atteinte.")
-                    duration = self._effective_number(effect.get("duration_seconds", 0), "activity.duration", {"discord_id": discord_id, "building_key": building_key, "action_key": str(effect.get("action", action_key)), "activity_key": str(effect.get("action", action_key))})
+                    duration = self._effective_number(effect.get("duration_seconds", 0), "activity.duration", {"discord_id": discord_id, "building_key": building_key, "action_key": str(effect.get("action", action_key)), "activity_key": str(effect.get("action", action_key))}, db)
                     ready_at = time.time() + duration
                     resolved_effects, scheduled_selected = self._resolve_random_effects(db, discord_id, list(effect.get("effects", [])))
                     selected_results.extend(scheduled_selected)
@@ -899,7 +909,7 @@ class GameEngine:
         preparation_ends = now + preparation
         transformation_ends = preparation_ends + transformation
         status = "preparation" if preparation else ("transformation" if transformation else "ready")
-        output_quantity = self._effective_number(effect.get("output_quantity", 1), "production.quantity", {"discord_id": discord_id, "building_key": building_key, "recipe_key": str(effect.get("recipe_key", "")), "item_key": str(effect.get("output_item_key", ""))})
+        output_quantity = self._effective_number(effect.get("output_quantity", 1), "production.quantity", {"discord_id": discord_id, "building_key": building_key, "recipe_key": str(effect.get("recipe_key", "")), "item_key": str(effect.get("output_item_key", ""))}, db)
         output = {str(effect["output_item_key"]): max(1, output_quantity)}
         stamp = _now()
         cursor = db.execute(
@@ -1003,7 +1013,7 @@ class GameEngine:
             return int(value.get("min", 0)), int(value.get("max", value.get("min", 0)))
         return int(value), int(value)
 
-    def _effective_range(self, value: Any, property_name: str, context: dict[str, Any]) -> tuple[int, int]:
+    def _effective_range(self, value: Any, property_name: str, context: dict[str, Any], db=None) -> tuple[int, int]:
         minimum, maximum = self._range(value)
         world = self._world_snapshot or self.world_clock.state()
         active_keys = {event["key"] for event in world["active_events"]}
@@ -1019,14 +1029,14 @@ class GameEngine:
         environment = [{"key": f"weather_{weather.get('key', 'current')}", "modifiers": weather.get("modifiers", [])}]
         if context.get("discord_id"):
             environment.extend({"key": f"player_bonus_{bonus['key']}", "modifiers": bonus.get("modifiers", [])}
-                               for bonus in self.active_bonuses(str(context["discord_id"])))
+                               for bonus in self.active_bonuses(str(context["discord_id"]), db))
         resolver = ModifierEngine()
         effective_minimum, _ = resolver.effective(minimum, property_name, context, environment, events)
         effective_maximum, _ = resolver.effective(maximum, property_name, context, environment, events)
         return max(0, round(effective_minimum)), max(0, round(effective_maximum))
 
-    def _effective_number(self, value: Any, property_name: str, context: dict[str, Any]) -> int:
-        return self._effective_range(value, property_name, context)[0]
+    def _effective_number(self, value: Any, property_name: str, context: dict[str, Any], db=None) -> int:
+        return self._effective_range(value, property_name, context, db)[0]
 
     def _check_requirements(self, db, discord_id: str, requirements: dict[str, Any]) -> None:
         if requirements.get("no_active_profession"):
@@ -1197,16 +1207,16 @@ class GameEngine:
     def _award_experience(self, db, discord_id: str, profession: str, experience: int, experience_per_level: int) -> None:
         experience = self._effective_number(experience, "profession.experience", {
             "discord_id": discord_id, "profession_key": profession,
-        })
+        }, db)
         row = db.execute(
-            "SELECT experience FROM player_professions WHERE discord_id=? AND profession_key=? AND active=1",
+            "SELECT experience,active FROM player_professions WHERE discord_id=? AND profession_key=?",
             (discord_id, profession),
         ).fetchone()
         total = (int(row[0]) if row else 0) + experience
         level = max(1, total // max(1, experience_per_level) + 1)
         db.execute(
             "INSERT INTO player_professions(discord_id,profession_key,level,experience) VALUES(?,?,?,?) "
-            "ON CONFLICT(discord_id,profession_key) DO UPDATE SET level=excluded.level,experience=excluded.experience,active=1",
+            "ON CONFLICT(discord_id,profession_key) DO UPDATE SET level=excluded.level,experience=excluded.experience",
             (discord_id, profession, level, total),
         )
 

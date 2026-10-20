@@ -120,7 +120,7 @@ def test_on_site_takeaway_and_exclusive_timed_bonus_are_persistent(tmp_path):
     item["consumption"]["effects"].append({
         "type": "timed_bonus", "key": "warmth", "label": "Chaleur",
         "duration_seconds": 600, "slot": "special", "replacement": "replace",
-        "modifiers": [{"property": "energy.cost", "operation": "multiply", "value": 0.5}],
+        "modifiers": [{"property": "energy.cost", "operator": "multiply", "value": 0.5}],
     })
     draft = store.save("item", "apple_cider", item); store.publish("item", "apple_cider", draft["version"])
     building = store.get("building", "inn_house", published=True)["payload"]

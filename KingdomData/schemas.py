@@ -300,6 +300,11 @@ def _validate_effect(effect: dict[str, Any]) -> None:
             raise ValidationError("La durée d'un bonus temporaire doit être positive.")
         if effect.get("replacement", "replace") not in {"replace", "reject"}:
             raise ValidationError("La règle de remplacement du bonus est invalide.")
+        for modifier in effect.get("modifiers", []):
+            if not str(modifier.get("property", "")).strip():
+                raise ValidationError("La propriété d'un bonus temporaire est obligatoire.")
+            if modifier.get("operator", "multiply") not in {"set", "add", "multiply", "min", "max"}:
+                raise ValidationError("L'opérateur d'un bonus temporaire est invalide.")
     if kind == "schedule":
         scope = effect.get("limit_scope", "player_action")
         if scope not in ACTIVITY_SCOPES:

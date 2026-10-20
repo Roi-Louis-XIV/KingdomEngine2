@@ -720,11 +720,14 @@ def _rebuild_discord_building_ux(rows: list[dict[str, Any]]) -> None:
     tavern_modules = tavern.setdefault("modules", {})
     # Le cuisinier peut quitter son poste pendant qu'une marmite partagée
     # travaille : la production appartient au bâtiment, pas à son contrat.
-    for tavern_action in tavern.get("actions", []):
-        if tavern_action.get("key") == "leave_innkeeper":
-            for effect in tavern_action.get("effects", []):
-                if effect.get("type") in {"profession_leave", "profession"}:
-                    effect["block_when_pending"] = False
+    for profession in tavern_modules.get("professions", []):
+        if profession.get("key") == "innkeeper":
+            profession["block_leave_when_pending"] = False
+    profession_page = next((page for page in tavern.get("interface", {}).get("pages", []) if page.get("key") == "profession"), None)
+    if profession_page:
+        for component in profession_page.get("components", []):
+            if component.get("interaction", {}).get("action") == "leave_innkeeper":
+                component["visible_when"] = {"profession": "innkeeper"}
     tavern_modules["workstations"] = [{
         "key": "tavern_cauldrons", "name": "Marmite", "emoji": "🍲", "slots": 3,
         "idle_text": "🟢 **Libre** · Edgar a laissé le feu prêt : cette marmite peut accueillir une nouvelle recette.",
@@ -833,7 +836,7 @@ def _rebuild_discord_building_ux(rows: list[dict[str, Any]]) -> None:
                 key, label, property_name, operation, value = bonus_cycle[index % len(bonus_cycle)]
                 effects = [{"type": "reward", "resource": "energy", "amount": 10},
                            {"type": "timed_bonus", "key": key, "label": label, "emoji": "✨", "slot": "special", "duration_seconds": 900,
-                            "replacement": "replace", "modifiers": [{"property": property_name, "operation": operation, "value": value}]}]
+                            "replacement": "replace", "modifiers": [{"property": property_name, "operator": operation, "value": value}]}]
             payload["consumption"] = {"effects": effects}
 
     for recipe in tavern_modules.get("recipes", []):

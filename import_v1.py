@@ -640,7 +640,8 @@ def actions_from_modules(building_key: str, modules: dict[str, Any]) -> list[dic
         actions.append({
             "key": f"leave_{profession['key']}", "name": f"Quitter le métier {profession.get('name', profession['key'])}",
             "emoji": "🚪", "enabled": True, "requirements": {"profession": profession["key"], "min_level": 1},
-            "effects": [{"type": "profession", "operation": "leave", "profession": profession["key"], "block_when_pending": True}],
+            "effects": [{"type": "profession", "operation": "leave", "profession": profession["key"],
+                         "block_when_pending": bool(profession.get("block_leave_when_pending", True))}],
         })
     for activity in modules.get("activities", []):
         profession = str(activity.get("profession", ""))

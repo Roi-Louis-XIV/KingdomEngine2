@@ -73,6 +73,10 @@ async def _auto_refresh_loop() -> None:
                 await interaction.edit_original_response(embed=view.embed(), view=view)
             except (discord.NotFound, discord.Forbidden, discord.HTTPException):
                 AUTO_REFRESH_INTERFACES.pop(key, None)
+            except Exception:
+                # Une vue supprimée ou une définition republiée ne doit jamais
+                # arrêter l'ordonnanceur partagé des autres bâtiments.
+                AUTO_REFRESH_INTERFACES.pop(key, None)
 
 
 async def close_active_building_interfaces(

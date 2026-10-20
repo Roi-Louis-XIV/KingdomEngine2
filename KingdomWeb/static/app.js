@@ -6318,6 +6318,10 @@ function renderPropertyPanel() {
   if (["dynamic_product_selector", "dynamic_consumable_selector"].includes(component.type)) {
     fields += `<label>Objets de cette catégorie<select data-prop="item_keys" multiple size="6">${state.catalogs.item.map((item) => `<option value="${escapeHtml(item.entity_key)}" ${(props.item_keys || []).includes(item.entity_key) ? "selected" : ""}>${escapeHtml(item.payload.name)}</option>`).join("")}</select></label><small>Aucune sélection : tous les objets disponibles. Ctrl ou Cmd permet de sélectionner plusieurs objets.</small>`;
   }
+  if (component.type === "dynamic_product_selector") {
+    const knownBonusTypes = [["alcool", "Alcool"], ["energie", "Énergie"], ["special", "Bonus spécial"]];
+    fields += `<label>Types de bonus<select data-prop="bonus_types" multiple size="3">${knownBonusTypes.map(([key, label]) => `<option value="${key}" ${(props.bonus_types || []).includes(key) ? "selected" : ""}>${label}</option>`).join("")}</select></label><small>Aucune sélection : tous les types de bonus.</small>`;
+  }
   if (component.type === "button") fields = buttonPropertyFields(component);
   if (component.type === "select") fields = selectPropertyFields(component);
   const componentFields = `<h4>${COMPONENT_LIBRARY[component.type].icon} ${COMPONENT_LIBRARY[component.type].name}</h4>${fields}<button type="button" class="delete-component secondary">Supprimer le composant</button>`,
@@ -8225,6 +8229,14 @@ function bindPropertyPanel() {
           renderVisualStudio();
           return;
         }
+        if (component && key === "bonus_types") {
+          const selected = Array.from(field.selectedOptions, (option) => option.value);
+          component.props ||= {};
+          if (selected.length) component.props.bonus_types = selected;
+          else delete component.props.bonus_types;
+          renderVisualStudio();
+          return;
+        }
         const stockMatch = key.match(/^stock_group_(\d+)_(.+)$/);
         if (component && stockMatch) {
           const group = component.props.groups[Number(stockMatch[1])], property = stockMatch[2];
@@ -9367,7 +9379,7 @@ function addConsumptionEffect(container, source = {}) {
     let fields = "";
     if (["reward", "cost"].includes(type)) fields = `${itemSelector("Ressource", "consumption_resource", effect.resource || "energy", "any")}${input("Quantité", "consumption_amount", effect.amount ?? 1, "number")}`;
     else if (type === "player_stat") fields = `${input("Statistique", "consumption_stat", effect.stat || "")}${input("Variation", "consumption_amount", effect.amount ?? 1, "number")}${input("Minimum", "consumption_min", effect.minimum ?? 0, "number")}${input("Maximum", "consumption_max", effect.maximum ?? 100, "number")}${input("Évolution par heure", "consumption_decay", effect.change_per_hour ?? 0, "number")}`;
-    else if (type === "timed_bonus") fields = `${input("Identifiant", "consumption_bonus_key", effect.key || "")}${input("Nom visible", "consumption_bonus_label", effect.label || "")}${input("Emoji", "consumption_bonus_emoji", effect.emoji || "✨")}${input("Durée (secondes)", "consumption_duration", effect.duration_seconds || 600, "number", "min=1")}${input("Emplacement exclusif", "consumption_slot", effect.slot || "special")}${select("Si un bonus est déjà actif", "consumption_replacement", effect.replacement || "replace", [["replace", "Remplacer"], ["reject", "Refuser"]])}${input("Propriété modifiée", "consumption_modifier_property", effect.modifiers?.[0]?.property || "")}${select("Opération", "consumption_modifier_operation", effect.modifiers?.[0]?.operation || "multiply", [["multiply", "Multiplier"], ["add", "Ajouter"], ["set", "Définir"]])}${input("Valeur", "consumption_modifier_value", effect.modifiers?.[0]?.value ?? 1, "number", "step=0.01")}`;
+    else if (type === "timed_bonus") fields = `${input("Identifiant", "consumption_bonus_key", effect.key || "")}${input("Nom visible", "consumption_bonus_label", effect.label || "")}${input("Emoji", "consumption_bonus_emoji", effect.emoji || "✨")}${input("Durée (secondes)", "consumption_duration", effect.duration_seconds || 600, "number", "min=1")}${input("Emplacement exclusif", "consumption_slot", effect.slot || "special")}${select("Si un bonus est déjà actif", "consumption_replacement", effect.replacement || "replace", [["replace", "Remplacer"], ["reject", "Refuser"]])}${input("Propriété modifiée", "consumption_modifier_property", effect.modifiers?.[0]?.property || "")}${select("Opération", "consumption_modifier_operation", effect.modifiers?.[0]?.operator || "multiply", [["multiply", "Multiplier"], ["add", "Ajouter"], ["set", "Définir"]])}${input("Valeur", "consumption_modifier_value", effect.modifiers?.[0]?.value ?? 1, "number", "step=0.01")}`;
     else if (type === "message") fields = input("Message", "consumption_text", effect.text || "");
     else if (type === "state") fields = `${input("État", "consumption_state", effect.key || "")}${select("Opération", "consumption_operation", effect.operation || "set", [["set", "Définir"], ["increment", "Ajouter"]])}${input("Valeur", "consumption_value", effect.value ?? 1)}`;
     else fields = select("Événement", "consumption_event", effect.event || "", catalogOptions("event", effect.event || ""));
@@ -9386,7 +9398,7 @@ function readConsumptionEffects() {
     if (type === "player_stat") return { type, stat: fieldValue("consumption_stat", element), amount: fieldValue("consumption_amount", element), minimum: fieldValue("consumption_min", element), maximum: fieldValue("consumption_max", element), change_per_hour: fieldValue("consumption_decay", element) };
     if (type === "timed_bonus") {
       const property = fieldValue("consumption_modifier_property", element);
-      return { type, key: fieldValue("consumption_bonus_key", element), label: fieldValue("consumption_bonus_label", element), emoji: fieldValue("consumption_bonus_emoji", element), duration_seconds: fieldValue("consumption_duration", element), slot: fieldValue("consumption_slot", element) || "special", replacement: fieldValue("consumption_replacement", element), modifiers: property ? [{ property, operation: fieldValue("consumption_modifier_operation", element), value: fieldValue("consumption_modifier_value", element) }] : [] };
+      return { type, key: fieldValue("consumption_bonus_key", element), label: fieldValue("consumption_bonus_label", element), emoji: fieldValue("consumption_bonus_emoji", element), duration_seconds: fieldValue("consumption_duration", element), slot: fieldValue("consumption_slot", element) || "special", replacement: fieldValue("consumption_replacement", element), modifiers: property ? [{ property, operator: fieldValue("consumption_modifier_operation", element), value: fieldValue("consumption_modifier_value", element) }] : [] };
     }
     if (type === "message") return { type, text: fieldValue("consumption_text", element) };
     if (type === "state") return { type, key: fieldValue("consumption_state", element), operation: fieldValue("consumption_operation", element), value: fieldValue("consumption_value", element) };
@@ -9411,7 +9423,7 @@ function addProfessionModule(profession = {}) {
   element.className = "builder profession-module module-card";
   element.open = !profession.key;
   element.dataset.original = JSON.stringify(profession);
-  element.innerHTML = `<summary><strong>📜 ${escapeHtml(profession.name || "Nouveau métier")}</strong><small>${escapeHtml(profession.key || "à configurer")}</small></summary><div class="module-content"><button type="button" class="remove">×</button><div class="form-grid">${input("Nom du métier", "module_profession_name", profession.name || "")}${input("Identifiant", "module_profession_key", profession.key || "")}${input("Emoji", "module_profession_emoji", profession.emoji || "📜")}${select("Outil ou objet requis", "module_profession_item", profession.required_item || "", catalogOptions("item", profession.required_item || ""))}${input("Niveau initial de l’outil", "module_profession_tool_level", profession.tool_level || 1, "number", "min=1")}${input("Durabilité initiale", "module_profession_initial_durability", profession.initial_durability || profession.max_durability || 1, "number", "min=0")}${input("Durabilité maximale", "module_profession_max_durability", profession.max_durability || 1, "number", "min=1")}</div><div class="checks">${check("Donner automatiquement cet outil", "module_profession_grant", profession.grant_required_item === true)}</div></div>`;
+  element.innerHTML = `<summary><strong>📜 ${escapeHtml(profession.name || "Nouveau métier")}</strong><small>${escapeHtml(profession.key || "à configurer")}</small></summary><div class="module-content"><button type="button" class="remove">×</button><div class="form-grid">${input("Nom du métier", "module_profession_name", profession.name || "")}${input("Identifiant", "module_profession_key", profession.key || "")}${input("Emoji", "module_profession_emoji", profession.emoji || "📜")}${select("Outil ou objet requis", "module_profession_item", profession.required_item || "", catalogOptions("item", profession.required_item || ""))}${input("Niveau initial de l’outil", "module_profession_tool_level", profession.tool_level || 1, "number", "min=1")}${input("Durabilité initiale", "module_profession_initial_durability", profession.initial_durability || profession.max_durability || 1, "number", "min=0")}${input("Durabilité maximale", "module_profession_max_durability", profession.max_durability || 1, "number", "min=1")}</div><div class="checks">${check("Donner automatiquement cet outil", "module_profession_grant", profession.grant_required_item === true)}${check("Bloquer la démission pendant une activité", "module_profession_block_leave", profession.block_leave_when_pending !== false)}</div></div>`;
   $("#profession-modules").append(element);
   element.querySelector(".remove").onclick = () => {
     element.remove();
@@ -10369,6 +10381,7 @@ function readProfessionModules() {
       emoji: fieldValue("module_profession_emoji", element),
       required_item: fieldValue("module_profession_item", element) || undefined,
       grant_required_item: fieldValue("module_profession_grant", element),
+      block_leave_when_pending: fieldValue("module_profession_block_leave", element),
       tool_level: fieldValue("module_profession_tool_level", element),
       initial_durability: fieldValue(
         "module_profession_initial_durability",

@@ -206,8 +206,14 @@ def test_tavern_uses_shared_cauldrons_and_six_validated_player_routes(tmp_path):
         "Commander à boire", "Commander à manger", "Parler à Edgar", "Cuisiner", "Stocks & livraisons",
     ]
     kitchen = InterfaceView(GameEngine(world), building["interface"], page_key="ux_tavern_kitchen", owner_id=42)
-    assert "Libre" in kitchen.embed().to_dict()["fields"][0]["value"]
-    assert any(getattr(item, "placeholder", "") == "Choisir une recette ou voir sa préparation…" for item in kitchen.children)
+    kitchen_fields = kitchen.embed().to_dict()["fields"]
+    assert "Libre" in next(field["value"] for field in kitchen_fields if field["name"] == "État des marmites")
+    recipe_selector = next(component for component in pages["ux_tavern_kitchen"]["components"] if component["type"] == "dynamic_recipe_selector")
+    assert recipe_selector["props"]["placeholder"] == "Choisir une recette réalisable…"
+    kitchen_types = {component["type"] for component in pages["ux_tavern_kitchen"]["components"]}
+    assert {"production_priorities", "workstation_status", "recipe_catalog", "dynamic_recipe_selector"} <= kitchen_types
+    assert all(recipe["profession"] == "innkeeper" and recipe["required_level"] >= 1 for recipe in building["modules"]["recipes"])
+    assert all(recipe["reserve_target"] > 0 for recipe in building["modules"]["recipes"])
 
 
 def test_tavern_shared_recipe_start_status_claim_and_restart(tmp_path):
@@ -216,13 +222,17 @@ def test_tavern_shared_recipe_start_status_claim_and_restart(tmp_path):
     asyncio.run(engine.execute("42", "edgar_tavern", "join_innkeeper", "join-cook"))
     result = asyncio.run(engine.execute("42", "edgar_tavern", "cook_onion_soup", "start-soup", {"display_name": "Attila"}))
     assert result["workstations"][0]["status"] in {"preparation", "transformation"}
+    asyncio.run(engine.execute("42", "edgar_tavern", "leave_innkeeper", "leave-during-soup"))
+    with world.connection() as db:
+        assert db.execute("SELECT active FROM player_professions WHERE discord_id='42' AND profession_key='innkeeper'").fetchone()[0] == 0
     active = InterfaceView(engine, world.get("building", "edgar_tavern", published=True)["payload"]["interface"], page_key="ux_tavern_kitchen", owner_id=42)
-    rendered = active.embed().to_dict()["fields"][0]["value"]
+    rendered = next(field["value"] for field in active.embed().to_dict()["fields"] if field["name"] == "État des marmites")
     assert "Attila" in rendered and "soupes à l'oignon" in rendered and "Production" in rendered
     with world.connection() as db:
         db.execute("UPDATE transformation_jobs SET preparation_ends_at=0,transformation_ends_at=0")
     restarted = GameEngine(ContentStore(world.path))
     assert restarted.workstation_states("edgar_tavern")[0]["status"] == "ready"
+    asyncio.run(restarted.execute("42", "edgar_tavern", "join_innkeeper", "rejoin-for-claim"))
     asyncio.run(restarted.execute("42", "edgar_tavern", "claim_cook_onion_soup", "claim-soup"))
     assert restarted.workstation_states("edgar_tavern") == []
     with world.connection() as db:
