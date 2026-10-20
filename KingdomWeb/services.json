@@ -1,0 +1,7 @@
+{
+  "services": [
+    {"key": "web", "name": "KingdomWeb", "emoji": "🌐", "module": "web", "controllable": false},
+    {"key": "core", "name": "KingdomCore", "emoji": "👑", "module": "core", "controllable": true},
+    {"key": "voice", "name": "KingdomVoice", "emoji": "🎙️", "module": "voice", "controllable": true}
+  ]
+}
