@@ -70,7 +70,7 @@ async def _auto_refresh_loop() -> None:
                 if not any(item.get("type") in {"workstation_status", "production_priorities"} for item in live):
                     continue
                 view._render_interactions()
-                await interaction.edit_original_response(embed=view.embed(), view=view)
+                await interaction.edit_original_response(content=None, embed=None, view=view)
             except (discord.NotFound, discord.Forbidden, discord.HTTPException):
                 AUTO_REFRESH_INTERFACES.pop(key, None)
             except Exception:
@@ -121,7 +121,7 @@ async def refresh_active_building_interfaces(
         for interaction in interactions:
             view = InterfaceView(engine, definition, page_key=entry_page, owner_id=member_id)
             try:
-                await interaction.edit_original_response(embed=view.embed(), view=view)
+                await interaction.edit_original_response(content=None, embed=None, view=view)
                 still_active.append(interaction)
                 refreshed += 1
             except (discord.NotFound, discord.Forbidden, discord.HTTPException):
@@ -279,15 +279,46 @@ class WorldExplorerView(discord.ui.View):
         if len(self.children)<25:self.add_item(refresh)
 
 
-class QuestBoardView(discord.ui.View):
+class QuestBoardView(discord.ui.LayoutView):
     """Panneau privé ouvert depuis le bâtiment qui porte les quêtes."""
 
     def __init__(self, engine: GameEngine, owner_id: int, building_key: str, notice: str = "",
                  return_view: Any | None = None) -> None:
+        self._controls: list[discord.ui.Item[Any]] = []
         super().__init__(timeout=300)
         self.engine, self.owner_id, self.building_key, self.notice = engine, owner_id, building_key, notice
         self.return_view = return_view
+        self._collecting = False
         self._render()
+
+    @property
+    def children(self) -> list[discord.ui.Item[Any]]:
+        """Compatibilité des contrôles publics malgré l'habillage Components V2."""
+        return list(self._controls)
+
+    def add_item(self, item: discord.ui.Item[Any]):
+        if self._collecting and isinstance(item, (discord.ui.Button, discord.ui.Select)):
+            self._controls.append(item)
+            return self
+        return super().add_item(item)
+
+    def _render_components(self) -> None:
+        presentation = self.embed()
+        super().clear_items()
+        heading = f"## {presentation.title}" + (f"\n{presentation.description}" if presentation.description else "")
+        super().add_item(discord.ui.Container(discord.ui.TextDisplay(heading[:4000]), accent_colour=discord.Colour(0x885C34)))
+        for field in presentation.fields:
+            super().add_item(discord.ui.Container(
+                discord.ui.TextDisplay(f"### {field.name}\n{field.value}"[:4000]),
+                accent_colour=discord.Colour(0x526D52 if "✅" in str(field.value) else 0x885C34),
+            ))
+        if presentation.footer and presentation.footer.text:
+            super().add_item(discord.ui.TextDisplay(f"-# {presentation.footer.text}"[:4000]))
+        rows: dict[int, list[discord.ui.Item[Any]]] = {}
+        for control in self._controls:
+            rows.setdefault(int(control.row or 0), []).append(control)
+        for row in sorted(rows):
+            super().add_item(discord.ui.ActionRow(*rows[row]))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.owner_id:
@@ -351,7 +382,9 @@ class QuestBoardView(discord.ui.View):
         return embed
 
     def _render(self) -> None:
-        self.clear_items()
+        super().clear_items()
+        self._controls = []
+        self._collecting = True
         board = self.engine.quest_board(str(self.owner_id))
         active = board["active"]
         if active:
@@ -365,14 +398,14 @@ class QuestBoardView(discord.ui.View):
                     except Exception as exc:
                         self.notice = str(exc)
                     self._render()
-                    await interaction.response.edit_message(embed=self.embed(), view=self)
+                    await interaction.response.edit_message(content=None, embed=None, view=self)
 
                 claim.callback = claim_callback
                 self.add_item(claim)
             abandon = discord.ui.Button(label="Abandonner", emoji="🗑️", style=discord.ButtonStyle.danger)
 
             async def abandon_callback(interaction: discord.Interaction):
-                confirmation = discord.ui.View(timeout=120)
+                confirmation = discord.ui.LayoutView(timeout=120)
                 confirm = discord.ui.Button(label="Confirmer l'abandon", style=discord.ButtonStyle.danger)
                 cancel = discord.ui.Button(label="Annuler", emoji="↩️", style=discord.ButtonStyle.secondary)
 
@@ -385,18 +418,20 @@ class QuestBoardView(discord.ui.View):
                     except Exception as exc:
                         self.notice = str(exc)
                     self._render()
-                    await confirm_interaction.response.edit_message(content=None, embed=self.embed(), view=self)
+                    await confirm_interaction.response.edit_message(content=None, embed=None, view=self)
 
                 async def cancel_callback(cancel_interaction: discord.Interaction):
                     if not await self.interaction_check(cancel_interaction):
                         return
-                    await cancel_interaction.response.edit_message(content=None, embed=self.embed(), view=self)
+                    await cancel_interaction.response.edit_message(content=None, embed=None, view=self)
 
                 confirm.callback = confirm_callback
                 cancel.callback = cancel_callback
-                confirmation.add_item(confirm); confirmation.add_item(cancel)
-                await interaction.response.edit_message(content="Abandonner cette quête sans récompense ?",
-                                                        embed=None, view=confirmation)
+                confirmation.add_item(discord.ui.Container(
+                    discord.ui.TextDisplay("## Abandonner cette quête ?\nCette action ne donne aucune récompense."),
+                    discord.ui.ActionRow(confirm, cancel), accent_colour=discord.Colour(0x9B3A3A),
+                ))
+                await interaction.response.edit_message(content=None, embed=None, view=confirmation)
 
             abandon.callback = abandon_callback
             self.add_item(abandon)
@@ -413,7 +448,7 @@ class QuestBoardView(discord.ui.View):
                 except Exception as exc:
                     self.notice = str(exc)
                 self._render()
-                await interaction.response.edit_message(embed=self.embed(), view=self)
+                await interaction.response.edit_message(content=None, embed=None, view=self)
 
             select.callback = select_callback
             self.add_item(select)
@@ -422,7 +457,7 @@ class QuestBoardView(discord.ui.View):
         async def refresh_callback(interaction: discord.Interaction):
             self.notice = ""
             self._render()
-            await interaction.response.edit_message(embed=self.embed(), view=self)
+            await interaction.response.edit_message(content=None, embed=None, view=self)
 
         refresh.callback = refresh_callback
         self.add_item(refresh)
@@ -432,14 +467,16 @@ class QuestBoardView(discord.ui.View):
             async def back_callback(interaction: discord.Interaction):
                 self.return_view.notice = ""
                 self.return_view._render_interactions()
-                await interaction.response.edit_message(embed=self.return_view.embed(), view=self.return_view)
+                await interaction.response.edit_message(content=None, embed=None, view=self.return_view)
 
             back.callback = back_callback
             self.add_item(back)
+        self._collecting = False
+        self._render_components()
 
 
-class InterfaceView(discord.ui.View):
-    """Rend les pages, boutons et menus produits par le constructeur KingdomWeb."""
+class InterfaceView(discord.ui.LayoutView):
+    """Rend les bâtiments avec les Components V2 du constructeur KingdomWeb."""
 
     def __init__(
         self,
@@ -448,6 +485,8 @@ class InterfaceView(discord.ui.View):
         page_key: str | None = None,
         owner_id: int | None = None,
     ):
+        self._interaction_items: list[discord.ui.Item[Any]] = []
+        self._control_summaries: dict[int, str] = {}
         super().__init__(timeout=300)
         self.engine, self.definition = engine, definition
         self.page_key = page_key or definition["start_page"]
@@ -456,7 +495,102 @@ class InterfaceView(discord.ui.View):
         self.notice = ""
         self._dialogue_states: dict[str, dict[str, Any]] = {}
         self._dialogue_history: dict[str, list[str]] = {}
+        self._collecting_interactions = False
         self._render_interactions()
+
+    @property
+    def children(self) -> list[discord.ui.Item[Any]]:
+        """Expose les contrôles comme avant ; Discord sérialise le layout via ``_children``."""
+        return list(self._interaction_items)
+
+    def add_item(self, item: discord.ui.Item[Any]):
+        """Collecte les contrôles classiques avant de les ranger dans des ActionRows V2."""
+        if self._collecting_interactions and isinstance(item, (discord.ui.Button, discord.ui.Select)):
+            self._interaction_items.append(item)
+            return self
+        return super().add_item(item)
+
+    @staticmethod
+    def _layout_colour(text: str, default: int) -> int:
+        lowered = text.casefold()
+        if any(marker in lowered for marker in ("terminé", "prêt", "succès", "disponible")):
+            return 0x526D52
+        if any(marker in lowered for marker in ("rupture", "erreur", "impossible", "refus")):
+            return 0x9B3A3A
+        if any(marker in lowered for marker in ("en cours", "restant", "stock faible", "attention")):
+            return 0xB88935
+        return default
+
+    def _render_layout(self) -> None:
+        """Convertit la présentation existante en cartes Components V2 lisibles."""
+        presentation = self.embed()
+        theme = self.definition.get("theme", {})
+        try:
+            accent = int(str(theme.get("color", "885c34")).lstrip("#"), 16)
+        except ValueError:
+            accent = 0x885C34
+
+        super().clear_items()
+        title = str(presentation.title or self.page.get("name") or self.definition.get("name") or "Interface")
+        description = str(presentation.description or "").strip()
+        heading = f"## {title}" + (f"\n{description}" if description else "")
+        super().add_item(discord.ui.Container(
+            discord.ui.TextDisplay(heading[:4000]),
+            accent_colour=discord.Colour(self._layout_colour(heading, accent)),
+        ))
+        image_url = getattr(presentation.image, "url", None)
+        if image_url:
+            super().add_item(discord.ui.MediaGallery(discord.MediaGalleryItem(str(image_url))))
+
+        for field in presentation.fields:
+            text = f"### {field.name}\n{field.value}"[:4000]
+            # Un poste par carte rend les productions simultanées immédiatement lisibles.
+            blocks = [text]
+            if "action disponible" in text.casefold() and "\n\n" in text:
+                prefix, value = f"### {field.name}\n", str(field.value)
+                chunks = [chunk.strip() for chunk in value.split("\n\n") if chunk.strip()]
+                if len(chunks) > 1:
+                    blocks = [f"{prefix if index == 0 else ''}{chunk}" for index, chunk in enumerate(chunks)]
+            for block in blocks:
+                if self.total_children_count >= 34:
+                    break
+                super().add_item(discord.ui.Container(
+                    discord.ui.TextDisplay(block[:4000]),
+                    accent_colour=discord.Colour(self._layout_colour(block, accent)),
+                ))
+
+        buttons = [item for item in self._interaction_items if isinstance(item, discord.ui.Button)]
+        controls = [item for item in self._interaction_items if not isinstance(item, discord.ui.Button)]
+        if len(buttons) >= 3:
+            for offset in range(0, len(buttons), 4):
+                chunk = buttons[offset:offset + 4]
+                children: list[discord.ui.Item[Any]] = [discord.ui.TextDisplay("### Activités disponibles")]
+                for index, button in enumerate(chunk):
+                    if index:
+                        children.append(discord.ui.Separator())
+                    summary = self._control_summaries.get(id(button), "Ouvrir cette rubrique")
+                    children.append(discord.ui.Section(
+                        discord.ui.TextDisplay(f"**{button.emoji or '◆'} {button.label or 'Action'}**\n{summary}"[:4000]),
+                        accessory=button,
+                    ))
+                if self.total_children_count + len(children) + 1 <= 40:
+                    super().add_item(discord.ui.Container(*children, accent_colour=discord.Colour(accent)))
+        else:
+            controls.extend(buttons)
+
+        rows: dict[int, list[discord.ui.Item[Any]]] = {}
+        for item in controls:
+            rows.setdefault(int(item.row or 0), []).append(item)
+        for row in sorted(rows):
+            if self.total_children_count + len(rows[row]) + 1 > 40:
+                break
+            super().add_item(discord.ui.ActionRow(*rows[row]))
+
+    async def _edit_response(self, interaction: discord.Interaction) -> None:
+        await interaction.response.edit_message(content=None, embed=None, view=self)
+
+    async def _edit_original_response(self, interaction: discord.Interaction) -> None:
+        await interaction.edit_original_response(content=None, embed=None, view=self)
 
     async def on_error(
         self,
@@ -489,9 +623,9 @@ class InterfaceView(discord.ui.View):
     def embed(self) -> discord.Embed:
         theme = self.definition.get("theme", {})
         try:
-            color = int(str(theme.get("color", "7a1f1f")).lstrip("#"), 16)
+            color = int(str(theme.get("color", "885c34")).lstrip("#"), 16)
         except ValueError:
-            color = 0x7A1F1F
+            color = 0x885C34
         embed = discord.Embed(title=self.page.get("name", self.definition["name"]), color=color)
         descriptions: list[str] = []
         field_count = 0
@@ -659,7 +793,7 @@ class InterfaceView(discord.ui.View):
                     if workstation.get("busy_text"):
                         detail += "\n" + str(workstation["busy_text"])
                 lines.append(f"**{workstation.get('emoji', '🍲')} {station_name}**\n{detail}")
-        embed.add_field(name=title[:256], value=("\n".join(lines) or "Aucun poste configuré.")[:1024], inline=False)
+        embed.add_field(name=title[:256], value=("\n\n".join(lines) or "Aucun poste configuré.")[:1024], inline=False)
 
     def _add_production_priorities(self, embed: discord.Embed, building_key: str, title: str) -> None:
         building = self._cached_building(building_key); states = self._cached_workstations(building_key)
@@ -925,7 +1059,10 @@ class InterfaceView(discord.ui.View):
 
     def _render_interactions(self) -> None:
         self._reset_render_cache()
-        self.clear_items()
+        super().clear_items()
+        self._interaction_items = []
+        self._control_summaries = {}
+        self._collecting_interactions = True
         styles = {
             "primary": discord.ButtonStyle.primary, "secondary": discord.ButtonStyle.secondary,
             "success": discord.ButtonStyle.success, "danger": discord.ButtonStyle.danger,
@@ -962,6 +1099,8 @@ class InterfaceView(discord.ui.View):
                 self._add_select(component, row)
             else:
                 self._add_button(component, row, styles)
+        self._collecting_interactions = False
+        self._render_layout()
 
     def _add_button(self, component: dict[str, Any], row: int, styles: dict[str, discord.ButtonStyle]) -> None:
         props, interaction = component.get("props", {}), component.get("interaction", {})
@@ -1037,13 +1176,23 @@ class InterfaceView(discord.ui.View):
             label=label, emoji=props.get("emoji") or None, style=style, disabled=disabled,
             custom_id=f"kei:{component['id']}"[:100], row=row,
         )
+        summary = str(props.get("description") or props.get("help") or "").strip()
+        if not summary and interaction.get("type") == "navigate":
+            target_page = next((page for page in self.definition.get("pages", [])
+                                if str(page.get("key")) == str(interaction.get("page"))), {})
+            target_hero = next((entry for entry in target_page.get("components", [])
+                                if entry.get("type") == "hero"), {})
+            summary = str(target_hero.get("props", {}).get("subtitle") or target_page.get("name") or "")
+        if not summary and action:
+            summary = str(action.get("description") or action.get("name") or "")
+        self._control_summaries[id(button)] = summary or "Ouvrir cette rubrique"
         if interaction.get("type") == "navigate":
             async def navigate_callback(discord_interaction: discord.Interaction, target: str = interaction.get("page")):
                 self.page_key = target
                 self.page_started_at = time.time()
                 self.notice = ""
                 self._render_interactions()
-                await discord_interaction.response.edit_message(embed=self.embed(), view=self)
+                await self._edit_response(discord_interaction)
                 asyncio.create_task(self._refresh_text_sequence(discord_interaction, target))
             button.callback = navigate_callback
         elif interaction.get("type") == "action":
@@ -1063,13 +1212,13 @@ class InterfaceView(discord.ui.View):
             async def refresh_callback(discord_interaction: discord.Interaction):
                 self.notice = ""
                 self._render_interactions()
-                await discord_interaction.response.edit_message(embed=self.embed(), view=self)
+                await self._edit_response(discord_interaction)
             button.callback = refresh_callback
         elif interaction.get("type") == "quest_board":
             async def quest_board_callback(discord_interaction: discord.Interaction):
                 view = QuestBoardView(self.engine, discord_interaction.user.id, self._building_key(),
                                       return_view=self)
-                await discord_interaction.response.edit_message(embed=view.embed(), view=view)
+                await discord_interaction.response.edit_message(content=None, embed=None, view=view)
                 remember_active_building_interface(discord_interaction, self._building_key())
             button.callback = quest_board_callback
         elif interaction.get("type") == "world_state":
@@ -1102,7 +1251,7 @@ class InterfaceView(discord.ui.View):
                     result = await self.engine.execute_delivery(str(discord_interaction.user.id), self._building_key(), str(discord_interaction.id), {item["resource"]: item["quantity"] for item in options})
                     self.notice = self._delivery_notice(result)
                 except Exception as exc: self.notice = str(exc)
-                self._render_interactions(); await discord_interaction.edit_original_response(embed=self.embed(), view=self)
+                self._render_interactions(); await self._edit_original_response(discord_interaction)
             button.callback = deliver_all_callback
         else:
             button.disabled = True
@@ -1130,7 +1279,7 @@ class InterfaceView(discord.ui.View):
                         async def confirm_delivery(confirm_interaction: discord.Interaction):
                             try: result = await parent.engine.execute_delivery(str(confirm_interaction.user.id), parent._building_key(), str(confirm_interaction.id), {resource: amount}); parent.notice = parent._delivery_notice(result)
                             except Exception as exc: parent.notice = str(exc)
-                            parent._render_interactions(); await confirm_interaction.response.edit_message(content=None, embed=parent.embed(), view=parent)
+                            parent._render_interactions(); await parent._edit_response(confirm_interaction)
                         async def cancel_delivery(cancel_interaction: discord.Interaction): await cancel_interaction.response.edit_message(content="Livraison annulée.", view=None)
                         confirm.callback = confirm_delivery; cancel.callback = cancel_delivery; confirmation.add_item(confirm); confirmation.add_item(cancel)
                         target = int(selected.get("target_stock", 0)); stock = int(selected.get("current_stock", 0))
@@ -1201,7 +1350,7 @@ class InterfaceView(discord.ui.View):
                         mode_label = "consommé sur place" if mode == "on_site" else "ajouté à votre sac"
                         parent.notice = f"Commande servie : {amount} × {product['name']} · {mode_label}" + (f" · **{payment}**." if payment else ".")
                     except Exception as exc: parent.notice = str(exc)
-                    parent._render_interactions(); await order_interaction.response.edit_message(content=None, embed=parent.embed(), view=parent)
+                    parent._render_interactions(); await parent._edit_response(order_interaction)
                 if len(modes) == 1:
                     await execute_order(modal_interaction, modes[0]); return
                 choice = discord.ui.View(timeout=300)
@@ -1212,7 +1361,7 @@ class InterfaceView(discord.ui.View):
                     async def choose_mode(chosen: discord.Interaction, selected_mode=mode): await execute_order(chosen, selected_mode)
                     button.callback = choose_mode; choice.add_item(button)
                 cancel = discord.ui.Button(label="Retour", emoji="↩️", style=discord.ButtonStyle.secondary)
-                async def cancel_order(chosen: discord.Interaction): parent._render_interactions(); await chosen.response.edit_message(content=None, embed=parent.embed(), view=parent)
+                async def cancel_order(chosen: discord.Interaction): parent._render_interactions(); await parent._edit_response(chosen)
                 cancel.callback = cancel_order; choice.add_item(cancel)
                 base = int(product.get("price", 0)) * amount
                 await modal_interaction.response.edit_message(content=f"**{amount} × {product['name']}** · prix de base {base} {parent._currency_label(str(product.get('currency', 'money')), base)}\nComment souhaitez-vous être servi ?", embed=None, view=choice)
@@ -1239,7 +1388,7 @@ class InterfaceView(discord.ui.View):
                 result = await self.engine.execute_consumption(str(interaction.user.id), self._building_key(), str(interaction.id), key)
                 self.notice = "\n".join(result.get("messages", [])) or f"{result['consumption']['name']} consommé."
             except Exception as exc: self.notice = str(exc)
-            self._render_interactions(); await interaction.response.edit_message(embed=self.embed(), view=self)
+            self._render_interactions(); await self._edit_response(interaction)
         select.callback = choose; self.add_item(select)
 
     def _add_dynamic_recipe(self, component: dict[str, Any], row: int) -> None:
@@ -1264,7 +1413,7 @@ class InterfaceView(discord.ui.View):
             if not any(str(page.get("key")) == target for page in self.definition.get("pages", [])):
                 await interaction.response.send_message("La page de cette recette n'est pas configurée.", ephemeral=True); return
             self.page_key = target; self.notice = ""; self._dialogue_states.clear(); self._render_interactions()
-            await interaction.response.edit_message(embed=self.embed(), view=self)
+            await self._edit_response(interaction)
         select.callback = choose; self.add_item(select)
 
     def _add_dynamic_game(self, component: dict[str, Any], row: int) -> None:
@@ -1280,7 +1429,7 @@ class InterfaceView(discord.ui.View):
                 try:
                     result = await self.engine.confirm_game(str(confirm_interaction.user.id), prepared["session_key"], str(confirm_interaction.id)); self.notice = f"Le résultat est **{result['outcome']}**. " + (f"Victoire : **{result['payout']} {self._currency_label('money', result['payout'])}** !" if result["won"] else f"Mise perdue : **{result['stake']} {self._currency_label('money', result['stake'])}**.")
                 except Exception as exc: self.notice = str(exc)
-                self._render_interactions(); await confirm_interaction.response.edit_message(content=None, embed=self.embed(), view=self)
+                self._render_interactions(); await self._edit_response(confirm_interaction)
             async def cancel_game(cancel_interaction: discord.Interaction): self.engine.cancel_game(str(cancel_interaction.user.id), prepared["session_key"]); await cancel_interaction.response.edit_message(content="Partie annulée.", view=None)
             confirm.callback = confirm_game; cancel.callback = cancel_game; confirmation.add_item(confirm); confirmation.add_item(cancel)
             await interaction.response.send_message(f"**{prepared['choice'].get('name', choice_key)}**\nMise : **{prepared['stake']} {self._currency_label('money', prepared['stake'])}**\nLe tirage aura lieu après confirmation.", view=confirmation, ephemeral=True)
@@ -1344,7 +1493,7 @@ class InterfaceView(discord.ui.View):
             except (NpcError, KeyError, ValueError) as exc:
                 self.notice = str(exc)
             self._render_interactions()
-            await interaction.response.edit_message(embed=self.embed(), view=self)
+            await self._edit_response(interaction)
         select.callback = choose
         self.add_item(select)
 
@@ -1378,7 +1527,7 @@ class InterfaceView(discord.ui.View):
                 self.page_started_at = time.time()
                 self.notice = ""
                 self._render_interactions()
-                await discord_interaction.response.edit_message(embed=self.embed(), view=self)
+                await self._edit_response(discord_interaction)
             elif interaction.get("type") == "action":
                 await self._execute_action(discord_interaction, interaction)
             elif interaction.get("type") == "purchase":
@@ -1420,7 +1569,7 @@ class InterfaceView(discord.ui.View):
             )
             self.notice = str(exc)
         self._render_interactions()
-        await interaction.edit_original_response(embed=self.embed(), view=self)
+        await self._edit_original_response(interaction)
         if result.get("workstations"):
             asyncio.create_task(self._refresh_workstations(interaction, self.page_key))
         action_key = str(target.get("action", ""))
@@ -1435,7 +1584,7 @@ class InterfaceView(discord.ui.View):
             states = self.engine.workstation_states(self._building_key())
             self._render_interactions()
             try:
-                await interaction.edit_original_response(embed=self.embed(), view=self)
+                await self._edit_original_response(interaction)
             except (discord.NotFound, discord.HTTPException):
                 return
             if not any(item["status"] in {"preparation", "transformation"} for item in states):
@@ -1447,7 +1596,8 @@ class InterfaceView(discord.ui.View):
         duration = sum(max(0.0, float(step.get("delay_seconds", 0))) for step in steps)
         while self.page_key == page_key and time.time() - self.page_started_at <= duration + 1:
             try:
-                await interaction.edit_original_response(embed=self.embed(), view=self)
+                self._render_interactions()
+                await self._edit_original_response(interaction)
             except (discord.NotFound, discord.HTTPException):
                 return
             await asyncio.sleep(1)
@@ -1459,7 +1609,7 @@ class InterfaceView(discord.ui.View):
             remaining = max(0, int(float(pending["ready_at"]) - time.time())) if pending else self.engine.cooldown_remaining(str(interaction.user.id), self._building_key(), action_key)
             self._render_interactions()
             try:
-                await interaction.edit_original_response(embed=self.embed(), view=self)
+                await self._edit_original_response(interaction)
             except (discord.NotFound, discord.HTTPException):
                 return
             if remaining <= 0:
@@ -1511,7 +1661,7 @@ class PrivateInterfaceLauncher(discord.ui.View):
         await close_active_building_interfaces(
             getattr(interaction, "guild_id", None), interaction.user.id, building_key,
         )
-        await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
+        await interaction.response.send_message(view=view, ephemeral=True)
         remember_active_building_interface(interaction, building_key)
         register_auto_refresh(interaction, building_key, view)
 

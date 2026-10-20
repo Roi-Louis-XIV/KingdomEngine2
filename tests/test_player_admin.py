@@ -250,6 +250,28 @@ def test_interface_reflows_select_when_explicit_slots_overlap_buttons():
     assert selector.row == 1
 
 
+def test_building_interface_uses_components_v2_without_losing_controls():
+    import discord
+    from kingdomCore.discord_bot import InterfaceView
+
+    definition = {"name": "Taverne", "target_building_key": "tavern", "start_page": "home", "pages": [{
+        "key": "home", "name": "Accueil", "components": [
+            {"id": "hero", "type": "hero", "props": {"title": "À la Gueuse Cocu", "emoji": "🍺", "subtitle": "Bienvenue chez Edgar."}},
+            *[{"id": f"page_{index}", "type": "button", "slot": index,
+               "props": {"label": label, "emoji": emoji}, "interaction": {"type": "navigate", "page": "home"}}
+              for index, (label, emoji) in enumerate((("Boissons", "🍺"), ("Repas", "🍗"), ("Edgar", "💬")))],
+        ],
+    }]}
+    view = InterfaceView(object(), definition)
+    payload = view.to_components()
+    assert isinstance(view, discord.ui.LayoutView)
+    assert payload[0]["type"] == discord.ComponentType.container.value
+    assert any(component["type"] == discord.ComponentType.container.value and any(
+        child["type"] == discord.ComponentType.section.value for child in component.get("components", [])
+    ) for component in payload)
+    assert [item.label for item in view.children] == ["Boissons", "Repas", "Edgar"]
+
+
 def test_activity_interface_shows_locked_zones_but_filters_them_from_selector():
     import discord
     from import_v1 import definitions_from_v1
