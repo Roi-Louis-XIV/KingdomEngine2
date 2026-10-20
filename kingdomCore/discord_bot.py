@@ -296,6 +296,10 @@ class QuestBoardView(discord.ui.LayoutView):
         """Compatibilité des contrôles publics malgré l'habillage Components V2."""
         return list(self._controls)
 
+    def has_components_v2(self) -> bool:
+        """Le layout sérialisé contient des containers, même si ``children`` expose les contrôles."""
+        return True
+
     def add_item(self, item: discord.ui.Item[Any]):
         if self._collecting and isinstance(item, (discord.ui.Button, discord.ui.Select)):
             self._controls.append(item)
@@ -502,6 +506,10 @@ class InterfaceView(discord.ui.LayoutView):
     def children(self) -> list[discord.ui.Item[Any]]:
         """Expose les contrôles comme avant ; Discord sérialise le layout via ``_children``."""
         return list(self._interaction_items)
+
+    def has_components_v2(self) -> bool:
+        """Force le drapeau Discord Components V2 requis par les containers sérialisés."""
+        return True
 
     def add_item(self, item: discord.ui.Item[Any]):
         """Collecte les contrôles classiques avant de les ranger dans des ActionRows V2."""

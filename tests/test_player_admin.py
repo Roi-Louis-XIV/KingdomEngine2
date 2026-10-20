@@ -265,6 +265,11 @@ def test_building_interface_uses_components_v2_without_losing_controls():
     view = InterfaceView(object(), definition)
     payload = view.to_components()
     assert isinstance(view, discord.ui.LayoutView)
+    assert view.has_components_v2() is True
+    from discord.http import handle_message_parameters
+    flags = discord.MessageFlags(); flags.ephemeral = True
+    parameters = handle_message_parameters(view=view, flags=flags)
+    assert discord.MessageFlags._from_value(parameters.payload["flags"]).components_v2 is True
     assert payload[0]["type"] == discord.ComponentType.container.value
     assert any(component["type"] == discord.ComponentType.container.value and any(
         child["type"] == discord.ComponentType.section.value for child in component.get("components", [])
