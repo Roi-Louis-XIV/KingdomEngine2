@@ -117,6 +117,14 @@
 #editor .building-mode .property-mode-tabs button{min-height:36px;border:0;border-radius:7px;background:transparent;color:var(--text-secondary);font-weight:700}
 #editor .building-mode .property-mode-tabs button.active{background:var(--accent);color:var(--accent-contrast)}
 #editor .building-mode .property-mode-content{min-width:0}
+#editor .building-mode .studio-filter{box-sizing:border-box;width:calc(100% - 20px);min-height:38px;margin:10px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-muted);color:var(--text-primary)}
+#editor .building-mode .studio-filter:focus{outline:2px solid color-mix(in srgb,var(--accent) 40%,transparent);border-color:var(--accent)}
+#editor .building-mode .screen-presets{margin:0 8px 12px;padding:10px;border:1px solid color-mix(in srgb,var(--accent) 32%,var(--border));border-radius:10px;background:color-mix(in srgb,var(--accent) 6%,var(--surface))}
+#editor .building-mode .screen-presets h4{margin:0 0 8px;color:var(--accent)}
+#editor .building-mode .screen-presets .component-library{padding:0!important}
+#editor .building-mode .property-panel select[multiple]{min-height:94px;padding:6px;background:var(--surface-muted);color:var(--text-primary)}
+#editor .building-mode .property-panel select[multiple] option{padding:6px;border-radius:5px}
+#editor .building-mode .property-panel>small,#editor .building-mode .property-mode-content small{display:block;margin:-6px 0 10px;color:var(--text-muted);line-height:1.35}
 
 @media(max-width:1180px){
   #editor .building-mode .visual-studio,

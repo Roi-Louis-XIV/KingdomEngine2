@@ -693,13 +693,13 @@ class InterfaceView(discord.ui.LayoutView):
                 self._add_stock_status(embed, component)
                 field_count += 1
             elif component["type"] == "workstation_status" and field_count < 25:
-                self._add_workstation_status(embed, str(props.get("building") or self._building_key()), str(props.get("title") or "État des postes"))
+                self._add_workstation_status(embed, str(props.get("building") or self._building_key()), str(props.get("title") or "État des postes"), props)
                 field_count += 1
             elif component["type"] == "production_priorities" and field_count < 25:
-                self._add_production_priorities(embed, str(props.get("building") or self._building_key()), str(props.get("title") or "Productions prioritaires"))
+                self._add_production_priorities(embed, str(props.get("building") or self._building_key()), str(props.get("title") or "Productions prioritaires"), props)
                 field_count += 1
             elif component["type"] == "recipe_catalog" and self.owner_id is not None and field_count < 25:
-                self._add_recipe_catalog(embed, str(props.get("building") or self._building_key()), str(props.get("title") or "Recettes débloquées"))
+                self._add_recipe_catalog(embed, str(props.get("building") or self._building_key()), str(props.get("title") or "Recettes débloquées"), props)
                 field_count += 1
             elif component["type"] == "npc_dialogue" and field_count < 25:
                 dialogue = self._dialogue_state(component)
@@ -755,7 +755,12 @@ class InterfaceView(discord.ui.LayoutView):
                 field_count += 1
             elif component["type"] == "profession_status" and self.owner_id is not None and field_count < 25:
                 professions = self._cached_player().get("professions", {})
-                value = "\n".join(f"**{key}** · niveau {entry.get('level', 1)} · {entry.get('experience', 0)} XP" for key, entry in professions.items()) or "Aucun métier actif"
+                allowed = {str(key) for key in props.get("profession_keys", []) if str(key)}
+                definitions = {str(item.get("key")): item for item in self._cached_building(self._building_key()).get("modules", {}).get("professions", [])}
+                value = "\n".join(
+                    f"{definitions.get(key, {}).get('emoji', '🛠️')} **{definitions.get(key, {}).get('name', key)}** · niveau {entry.get('level', 1)} · {entry.get('experience', 0)} XP"
+                    for key, entry in professions.items() if not allowed or key in allowed
+                ) or str(props.get("empty_label") or "Aucun métier actif")
                 embed.add_field(name=str(props.get("title") or "Votre métier")[:256], value=value[:1024], inline=False)
                 field_count += 1
         if field_count < 25 and hasattr(self.engine, "building") and not any(component.get("type") == "workstation_status" for component in visible_components):
@@ -767,13 +772,17 @@ class InterfaceView(discord.ui.LayoutView):
         embed.description = "\n\n".join(descriptions)[:4096] or None
         return embed
 
-    def _add_workstation_status(self, embed: discord.Embed, building_key: str, title: str) -> None:
+    def _add_workstation_status(self, embed: discord.Embed, building_key: str, title: str, props: dict[str, Any] | None = None) -> None:
+        props = props or {}
         states = self._cached_workstations(building_key)
         building = self._cached_building(building_key)
         recipes = {str(item.get("key")): item for item in building.get("modules", {}).get("recipes", [])}
         active = {(str(item["workstation_key"]), int(item["slot_index"])): item for item in states}
         lines = []
+        allowed = {str(key) for key in props.get("workstation_keys", []) if str(key)}
         for workstation in building.get("modules", {}).get("workstations", []):
+            if allowed and str(workstation.get("key")) not in allowed:
+                continue
             for slot in range(max(1, int(workstation.get("slots", 1)))):
                 state = active.get((str(workstation.get("key")), slot))
                 station_name = str(workstation.get("name") or workstation.get("key"))
@@ -795,15 +804,19 @@ class InterfaceView(discord.ui.LayoutView):
                     with self.engine.store.connection() as db:
                         player = db.execute("SELECT display_name FROM players WHERE discord_id=?", (str(state.get("preparer_id", "")),)).fetchone()
                     preparer = str(player[0]) if player and player[0] else f"Joueur {state.get('preparer_id', '?')}"
-                    detail = (f"⏳ **{recipe_name}** — {remaining // 60:02d}:{remaining % 60:02d} restantes\n"
-                              f"Préparé par **{preparer}** · Production : {quantity}× {output}\n"
+                    timer = f" — {remaining // 60:02d}:{remaining % 60:02d} restantes" if props.get("show_timer", True) not in {False, "false"} else ""
+                    author = f"Préparé par **{preparer}** · " if props.get("show_preparer", True) not in {False, "false"} else ""
+                    production = f"Production : {quantity}× {output}\n" if props.get("show_output", True) not in {False, "false"} else ""
+                    detail = (f"⏳ **{recipe_name}**{timer}\n"
+                              f"{author}{production}"
                               "Action disponible : Voir la recette")
                     if workstation.get("busy_text"):
                         detail += "\n" + str(workstation["busy_text"])
                 lines.append(f"**{workstation.get('emoji', '🍲')} {station_name}**\n{detail}")
         embed.add_field(name=title[:256], value=("\n\n".join(lines) or "Aucun poste configuré.")[:1024], inline=False)
 
-    def _add_production_priorities(self, embed: discord.Embed, building_key: str, title: str) -> None:
+    def _add_production_priorities(self, embed: discord.Embed, building_key: str, title: str, props: dict[str, Any] | None = None) -> None:
+        props = props or {}
         building = self._cached_building(building_key); states = self._cached_workstations(building_key)
         with self.engine.store.connection() as db:
             stock = {str(row[0]): int(row[1]) for row in db.execute("SELECT item_key,quantity FROM building_stock WHERE building_key=?", (building_key,))}
@@ -813,7 +826,10 @@ class InterfaceView(discord.ui.LayoutView):
             recipe = next((item for item in building.get("modules", {}).get("recipes", []) if str(item.get("key")) == str(state.get("recipe_key"))), {})
             output = str(recipe.get("output_item_key", "")); pending[output] = pending.get(output, 0) + int(recipe.get("output_quantity", 1))
         lines = []
+        allowed = {str(key) for key in props.get("recipe_keys", []) if str(key)}
         for recipe in building.get("modules", {}).get("recipes", []):
+            if allowed and str(recipe.get("key")) not in allowed:
+                continue
             target = int(recipe.get("reserve_target", 0)); output = str(recipe.get("output_item_key", ""))
             if not target or not output: continue
             current, underway = stock.get(output, 0), pending.get(output, 0)
@@ -824,17 +840,31 @@ class InterfaceView(discord.ui.LayoutView):
         lines.sort(key=lambda line: ("🔴" not in line, "🟠" not in line))
         embed.add_field(name=title[:256], value=("\n".join(lines) or "Aucun objectif de réserve configuré.")[:1024], inline=False)
 
-    def _add_recipe_catalog(self, embed: discord.Embed, building_key: str, title: str) -> None:
+    def _add_recipe_catalog(self, embed: discord.Embed, building_key: str, title: str, props: dict[str, Any] | None = None) -> None:
+        props = props or {}
         building = self._cached_building(building_key); professions = self._cached_player().get("professions", {})
         with self.engine.store.connection() as db:
             stock = {str(row[0]): int(row[1]) for row in db.execute("SELECT item_key,quantity FROM building_stock WHERE building_key=?", (building_key,))}
         lines = []
+        allowed = {str(key) for key in props.get("recipe_keys", []) if str(key)}
+        stations = {str(key) for key in props.get("workstation_keys", []) if str(key)}
+        profession_filter = {str(key) for key in props.get("profession_keys", []) if str(key)}
         for recipe in building.get("modules", {}).get("recipes", []):
+            if allowed and str(recipe.get("key")) not in allowed: continue
+            if stations and str(recipe.get("workstation_key", "")) not in stations: continue
+            if profession_filter and str(recipe.get("profession", "")) not in profession_filter: continue
             profession = str(recipe.get("profession", ""))
             if profession and int(professions.get(profession, {}).get("level", 0)) < int(recipe.get("required_level", 1)): continue
             missing = [f"{self.engine._item_name(str(key))} {stock.get(str(key), 0)}/{int(amount)}" for key, amount in recipe.get("ingredients", {}).items() if stock.get(str(key), 0) < int(amount)]
             state = "✅ réalisable" if not missing else "❌ " + " · ".join(missing[:2])
-            lines.append(f"**{recipe.get('name') or recipe.get('title') or recipe.get('key')}** — {state}")
+            details = []
+            if props.get("show_duration", True) not in {False, "false"}:
+                duration = int(recipe.get("preparation_seconds", 0)) + int(recipe.get("transformation_seconds", recipe.get("duration_seconds", 0)))
+                details.append(f"{duration // 60:02d}:{duration % 60:02d}")
+            if props.get("show_output", True) not in {False, "false"}:
+                details.append(f"{int(recipe.get('output_quantity', 1))}× {self.engine._item_name(str(recipe.get('output_item_key', '')))}")
+            suffix = f" · {' · '.join(details)}" if details else ""
+            lines.append(f"**{recipe.get('name') or recipe.get('title') or recipe.get('key')}** — {state}{suffix}")
         embed.add_field(name=title[:256], value=("\n".join(lines) or "Aucune recette débloquée pour votre métier.")[:1024], inline=False)
 
     def _add_player_status(self, embed: discord.Embed, props: dict[str, Any]) -> None:
@@ -1272,6 +1302,9 @@ class InterfaceView(discord.ui.LayoutView):
 
     def _add_dynamic_delivery(self, component: dict[str, Any], row: int) -> None:
         options_data = self.engine.delivery_options(str(self.owner_id), self._building_key()) if self.owner_id is not None else []
+        allowed = {str(key) for key in component.get("props", {}).get("item_keys", []) if str(key)}
+        if allowed:
+            options_data = [item for item in options_data if str(item.get("resource", "")) in allowed]
         if not options_data: return
         select = discord.ui.Select(placeholder=str(component.get("props", {}).get("placeholder", "Choisir une ressource à livrer…"))[:150], options=[discord.SelectOption(label=str(item["name"])[:100], value=item["resource"][:100], description=f"x{item['quantity']} · {item.get('unit_price', 0)} /u → {item.get('destination_name', 'destination')}"[:100]) for item in options_data[:25]], row=row)
         async def choose(interaction: discord.Interaction):
@@ -1333,6 +1366,12 @@ class InterfaceView(discord.ui.LayoutView):
         bonus_types = {str(value) for value in component.get("props", {}).get("bonus_types", []) if str(value)}
         if bonus_types:
             products = [item for item in products if str(item.get("bonus_type", "")) in bonus_types]
+        categories = {str(value) for value in component.get("props", {}).get("category_keys", []) if str(value)}
+        if categories:
+            products = [item for item in products if str(item.get("category", "")) in categories]
+        modes = {str(value) for value in component.get("props", {}).get("service_modes", []) if str(value)}
+        if modes:
+            products = [item for item in products if modes.intersection(str(mode) for mode in item.get("service_modes", []))]
         if not products: return
         select = discord.ui.Select(placeholder=str(component.get("props", {}).get("placeholder", "Choisir un produit…"))[:150], options=[discord.SelectOption(label=str(item["name"])[:100], value=item["item_key"][:100], description=(f"{self._product_cost_label(item)} · stock {item.get('quantity', 0)}" + (f" · {item['bonus_type']}" if item.get("bonus_type") else ""))[:100], emoji=item.get("emoji") or None) for item in products[:25]], row=row)
         async def choose(interaction: discord.Interaction):
@@ -1408,10 +1447,17 @@ class InterfaceView(discord.ui.LayoutView):
         states = self._cached_workstations(self._building_key())
         stations = {str(item.get("key")): max(1, int(item.get("slots", 1))) for item in modules.get("workstations", [])}
         occupied = {key: sum(1 for state in states if str(state.get("workstation_key")) == key) for key in stations}
+        props = component.get("props", {})
+        allowed_recipes = {str(key) for key in props.get("recipe_keys", []) if str(key)}
+        allowed_stations = {str(key) for key in props.get("workstation_keys", []) if str(key)}
+        allowed_professions = {str(key) for key in props.get("profession_keys", []) if str(key)}
         recipes = []
         for recipe in modules.get("recipes", []):
             profession = str(recipe.get("profession", "")); level = int(professions.get(profession, {}).get("level", 0))
             workstation = str(recipe.get("workstation_key", ""))
+            if allowed_recipes and str(recipe.get("key")) not in allowed_recipes: continue
+            if allowed_stations and workstation not in allowed_stations: continue
+            if allowed_professions and profession not in allowed_professions: continue
             if recipe.get("active", True) and (not profession or level >= int(recipe.get("required_level", 1))) and not any(stock.get(str(key), 0) < int(amount) for key, amount in recipe.get("ingredients", {}).items()) and (not workstation or occupied.get(workstation, 0) < stations.get(workstation, 0)):
                 recipes.append(recipe)
         if not recipes: return

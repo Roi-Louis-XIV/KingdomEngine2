@@ -5226,7 +5226,7 @@ const COMPONENT_LIBRARY = {
   workstation_status: {
     name: "État des postes",
     icon: "🍲",
-    props: { title: "État des postes", building: "" },
+    props: { title: "État des postes", building: "", workstation_keys: [], show_timer: true, show_preparer: true, show_output: true },
   },
   production_priorities: {
     name: "Priorités de production",
@@ -5236,7 +5236,7 @@ const COMPONENT_LIBRARY = {
   recipe_catalog: {
     name: "Catalogue de recettes",
     icon: "📖",
-    props: { title: "Recettes débloquées", building: "" },
+    props: { title: "Recettes débloquées", building: "", recipe_keys: [], workstation_keys: [], profession_keys: [], show_duration: true, show_output: true },
   },
   contextual_content: {
     name: "Contenu conditionnel",
@@ -5271,7 +5271,7 @@ const COMPONENT_LIBRARY = {
   dynamic_product_selector: {
     name: "Boutique / Acheter",
     icon: "🛒",
-    props: { placeholder: "Choisir un objet à acheter…" },
+    props: { placeholder: "Choisir un objet à acheter…", category_keys: [], bonus_types: [], service_modes: [] },
   },
   dynamic_inventory_selector: {
     name: "Vendre / Livrer",
@@ -5286,7 +5286,7 @@ const COMPONENT_LIBRARY = {
   dynamic_recipe_selector: {
     name: "Recettes réalisables",
     icon: "🍲",
-    props: { placeholder: "Choisir une recette réalisable…", page_prefix: "ux_recipe_" },
+    props: { placeholder: "Choisir une recette réalisable…", page_prefix: "ux_recipe_", recipe_keys: [], workstation_keys: [], profession_keys: [] },
   },
   npc_dialogue: {
     name: "Dialogue de personnage",
@@ -5390,6 +5390,13 @@ const PREDEFINED_COMPONENTS = {
   recipes: { name: "Catalogue de recettes", icon: "📖", component: { type: "recipe_catalog", props: { title: "Recettes débloquées", building: "" } } },
 };
 
+const BUILDER_SCREEN_PRESETS = {
+  commerce: { name: "Catalogue filtré", icon: "🛒", components: ["hero", "player_status", "dynamic_product_selector"] },
+  kitchen: { name: "Cuisine partagée", icon: "🍲", components: ["hero", "workstation_status", "recipe_catalog", "dynamic_recipe_selector"] },
+  stock: { name: "Stocks & livraisons", icon: "📦", components: ["hero", "stock_status", "building_inventory", "dynamic_inventory_selector"] },
+  profession: { name: "Métier & production", icon: "🛠️", components: ["hero", "profession_status", "production_priorities"] },
+};
+
 const INTERACTIVE_COMPONENT_TYPES = new Set([
   "button",
   "select",
@@ -5489,7 +5496,7 @@ function componentTiles(types) {
 function visualStudioMarkup() {
   return `<section class="visual-studio library-open inspector-open" data-studio-view="editor">
     <nav class="studio-layout-toolbar" aria-label="Disposition de l’éditeur"><button type="button" data-toggle-studio-library aria-expanded="true">☷ Bibliothèque</button><div><button type="button" class="active" data-studio-view-button="editor">Éditeur</button><button type="button" data-studio-view-button="graph">Graphe de navigation</button></div><button type="button" data-toggle-studio-inspector aria-expanded="true">Inspecteur ◫</button></nav>
-    <aside class="studio-panel component-palette"><div class="studio-panel-head"><h3>Composants</h3><small>Glisser</small></div><div class="component-group"><h4>📝 Contenu de l'embed</h4><p>Éléments affichés dans le message Discord.</p><div class="component-library">${componentTiles(["hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "player_status", "building_inventory", "stock_status", "workstation_status", "contextual_content"])}</div><h5>Composants prêts à l'emploi</h5><div class="component-library preset-library">${Object.entries(PREDEFINED_COMPONENTS).map(([key, item]) => `<button type="button" class="component-tile preset-tile" draggable="true" data-content-preset="${key}"><span>${item.icon}</span><b>${item.name}</b></button>`).join("")}</div></div><div class="component-group interaction-components"><h4>🖱️ Boutons et menus</h4><p>Éléments interactifs placés dans la grille.</p><div class="component-library">${componentTiles(["button", "select", "npc_dialogue"])}</div><h5>Boutons prêts à l'emploi</h5><div class="component-library preset-library">${Object.entries(
+    <aside class="studio-panel component-palette"><div class="studio-panel-head"><h3>Composants</h3><small>Glisser ou cliquer</small></div><input class="studio-filter" id="component-filter" type="search" placeholder="Rechercher un composant…"><div class="component-group screen-presets"><h4>⚡ Écrans prêts à configurer</h4><div class="component-library preset-library">${Object.entries(BUILDER_SCREEN_PRESETS).map(([key, item]) => `<button type="button" class="component-tile preset-tile" data-screen-preset="${key}"><span>${item.icon}</span><b>${item.name}</b></button>`).join("")}</div></div><div class="component-group"><h4>📝 Contenu de l'embed</h4><p>Éléments affichés dans le message Discord.</p><div class="component-library">${componentTiles(["hero", "text", "sequence", "card", "stat", "divider", "image", "player_inventory", "player_status", "building_inventory", "stock_status", "workstation_status", "production_priorities", "recipe_catalog", "contextual_content"])}</div><h5>Composants prêts à l'emploi</h5><div class="component-library preset-library">${Object.entries(PREDEFINED_COMPONENTS).map(([key, item]) => `<button type="button" class="component-tile preset-tile" draggable="true" data-content-preset="${key}"><span>${item.icon}</span><b>${item.name}</b></button>`).join("")}</div></div><div class="component-group interaction-components"><h4>🖱️ Boutons et menus</h4><p>Éléments interactifs placés dans la grille.</p><div class="component-library">${componentTiles(["button", "select", "npc_dialogue", "dynamic_product_selector", "dynamic_inventory_selector", "dynamic_consumable_selector", "dynamic_recipe_selector"])}</div><h5>Boutons prêts à l'emploi</h5><div class="component-library preset-library">${Object.entries(
       PREDEFINED_INTERACTIONS,
     )
       .map(
@@ -5498,7 +5505,7 @@ function visualStudioMarkup() {
       )
       .join("")}</div></div></aside>
     <section class="studio-panel canvas-shell"><div class="canvas-toolbar"><strong id="canvas-page-name"></strong><span>Contenu puis grille Discord de 25 emplacements.</span></div><div class="studio-editor-view"><div class="builder-canvas" id="builder-canvas"></div><div class="interaction-zone"><div class="interaction-title"><b>Interactions Discord</b><small>5 lignes × 5 emplacements</small></div><div class="interaction-grid" id="interaction-grid"></div></div></div><div class="studio-graph-view" hidden><div class="page-link-graph" id="page-link-graph"></div></div></section>
-    <aside class="studio-panel studio-inspector"><div class="studio-panel-head"><h3>Pages</h3><button type="button" class="secondary" id="add-page">＋</button></div><div class="page-tree" id="page-tree"></div><div class="property-panel" id="property-panel"></div></aside>
+    <aside class="studio-panel studio-inspector"><div class="studio-panel-head"><h3>Pages</h3><button type="button" class="secondary" id="add-page">＋</button></div><input class="studio-filter" id="page-filter" type="search" placeholder="Filtrer les pages…"><div class="page-tree" id="page-tree"></div><div class="property-panel" id="property-panel"></div></aside>
   </section>`;
 }
 
@@ -5748,14 +5755,22 @@ function bindVisualStudio() {
       ),
     ),
   );
-  $$("[data-content-preset]").forEach((tile) =>
+  $$("[data-content-preset]").forEach((tile) => {
     tile.addEventListener("dragstart", (event) =>
-      event.dataTransfer.setData(
-        "text/plain",
-        `contentpreset:${tile.dataset.contentPreset}`,
-      ),
-    ),
+      event.dataTransfer.setData("text/plain", `contentpreset:${tile.dataset.contentPreset}`),
+    );
+    tile.addEventListener("click", () => addContentPreset(tile.dataset.contentPreset));
+  });
+  $$("[data-screen-preset]").forEach((tile) =>
+    tile.addEventListener("click", () => addScreenPreset(tile.dataset.screenPreset)),
   );
+  const componentFilter = $("#component-filter");
+  componentFilter.oninput = () => {
+    const query = componentFilter.value.trim().toLowerCase();
+    $$(".component-palette .component-tile").forEach((tile) =>
+      (tile.hidden = !!query && !tile.textContent.toLowerCase().includes(query)),
+    );
+  };
   $("#add-page").onclick = () => {
     const index = state.interfaceDraft.pages.length + 1;
     const key = technicalKey(`page_${index}`);
@@ -5820,6 +5835,46 @@ function bindVisualStudio() {
     }
     renderVisualStudio();
   };
+}
+
+function applyCurrentBuildingToComponent(component) {
+  component.props ||= {};
+  if (["building_inventory", "stock_status", "workstation_status", "production_priorities", "recipe_catalog"].includes(component.type) && !component.props.building)
+    component.props.building = state.interfaceDraft.target_building_key || "";
+  return component;
+}
+
+function addContentPreset(key) {
+  const preset = PREDEFINED_COMPONENTS[key];
+  if (!preset) return;
+  const component = applyCurrentBuildingToComponent(clone(preset.component));
+  component.id = technicalKey(`component_${key}_${Date.now()}`);
+  currentInterfacePage().components.push(component);
+  state.selectedComponent = component.id;
+  state.interfaceInspectorMode = "component";
+  renderVisualStudio();
+}
+
+function addScreenPreset(key) {
+  const preset = BUILDER_SCREEN_PRESETS[key];
+  if (!preset) return;
+  const page = currentInterfacePage();
+  if (page.components.length && !confirm("Ajouter ces composants à la page actuelle ?")) return;
+  const occupied = new Set(page.components.filter((item) => INTERACTIVE_COMPONENT_TYPES.has(item.type)).map((item) => Math.floor(Number(item.slot || 0) / 5)));
+  let row = 0;
+  for (const type of preset.components) {
+    const component = applyCurrentBuildingToComponent(newComponent(type));
+    if (INTERACTIVE_COMPONENT_TYPES.has(type)) {
+      while (occupied.has(row) && row < 5) row++;
+      if (row >= 5) continue;
+      component.slot = row * 5;
+      occupied.add(row++);
+    }
+    page.components.push(component);
+  }
+  state.selectedComponent = null;
+  state.interfaceInspectorMode = "page";
+  renderVisualStudio();
 }
 
 function slotComponent(page, slot) {
@@ -5991,6 +6046,18 @@ function renderVisualStudio() {
         `<div class="page-row"><button type="button" class="page-button ${item.key === page.key ? "active" : ""}" data-page="${item.key}">${item.key === state.interfaceDraft.start_page ? "★ " : ""}${escapeHtml(item.name)}</button><div class="mini-actions"><button type="button" title="Dupliquer" data-copy-page="${item.key}">⧉</button></div></div>`,
     )
     .join("");
+  const pageFilter = $("#page-filter");
+  if (pageFilter) {
+    pageFilter.value = state.interfacePageQuery || "";
+    pageFilter.oninput = () => {
+      state.interfacePageQuery = pageFilter.value;
+      const query = pageFilter.value.trim().toLowerCase();
+      $$("#page-tree .page-row").forEach((row) =>
+        (row.hidden = !!query && !row.textContent.toLowerCase().includes(query)),
+      );
+    };
+    pageFilter.oninput();
+  }
   $$("[data-page]").forEach(
     (button) =>
       (button.onclick = () => {
@@ -6132,6 +6199,16 @@ function renderCanvasComponent(component) {
     content = `<div class="preview-card"><b>📦 ${escapeHtml(props.title || "Stock commun")}</b><p>Les ressources stockées dans ce bâtiment seront affichées ici.</p></div>`;
   if (component.type === "stock_status")
     content = `<div class="preview-card"><b>📊 ${escapeHtml(props.title || "État des réserves")}</b><p>${(props.groups || []).map((group) => `${escapeHtml(group.label || group.key || "Réserve")} · seuils ${group.critical_min || 1}/${group.low_min || 4}/${group.comfortable_min || 10}`).join("<br>") || "Ajoutez des catégories de stock."}</p></div>`;
+  if (component.type === "workstation_status") {
+    const stations = (currentBuildingModules().workstations || []).filter((item) => !(props.workstation_keys || []).length || props.workstation_keys.includes(item.key));
+    content = `<div class="preview-card"><b>🍲 ${escapeHtml(props.title || "État des postes")}</b><p>${stations.map((item) => `${escapeHtml(item.emoji || "🍲")} <b>${escapeHtml(item.name || item.key)}</b> · 🟢 Libre · ${Number(item.slots || 1)} poste(s)`).join("<br>") || "Aucun poste configuré dans ce bâtiment."}</p></div>`;
+  }
+  if (component.type === "production_priorities")
+    content = `<div class="preview-card"><b>📌 ${escapeHtml(props.title || "Productions prioritaires")}</b><p>Ruptures, réserves cibles et productions en cours seront calculées en direct.</p></div>`;
+  if (component.type === "recipe_catalog") {
+    const recipes = (currentBuildingModules().recipes || []).filter((item) => !(props.recipe_keys || []).length || props.recipe_keys.includes(item.key));
+    content = `<div class="preview-card"><b>📖 ${escapeHtml(props.title || "Recettes débloquées")}</b><p>${recipes.slice(0, 6).map((item) => `✅ ${escapeHtml(item.name || item.title || item.key)}`).join("<br>") || "Aucune recette configurée."}</p></div>`;
+  }
   if (component.type === "contextual_content")
     content = `<div class="preview-card"><b>🔀 Contenu conditionnel</b><p>${(props.variants || []).length} variante(s) · un fallback</p></div>`;
   if (component.type === "world_weather")
@@ -6152,6 +6229,24 @@ function propertyInput(label, key, value, type = "text") {
 }
 function propertySelect(label, key, value, options) {
   return `<label>${label}<select data-prop="${key}">${options.map(([option, text]) => `<option value="${option}" ${option === value ? "selected" : ""}>${text}</option>`).join("")}</select></label>`;
+}
+function propertyMultiSelect(label, key, selected, options, emptyLabel = "Aucune sélection : tout afficher.") {
+  const values = new Set(Array.isArray(selected) ? selected.map(String) : []);
+  return `<label>${label}<select data-prop="${key}" multiple size="${Math.min(7, Math.max(3, options.length))}">${options.map(([option, text]) => `<option value="${escapeHtml(String(option))}" ${values.has(String(option)) ? "selected" : ""}>${escapeHtml(String(text))}</option>`).join("")}</select></label><small>${emptyLabel} Ctrl ou Cmd permet une sélection multiple.</small>`;
+}
+function currentBuildingModules() {
+  return state.buildingBase?.modules || {};
+}
+function moduleOptions(kind) {
+  return (currentBuildingModules()[kind] || []).filter((item) => item?.key).map((item) => [item.key, `${item.emoji || ""} ${item.name || item.title || item.key}`.trim()]);
+}
+function productCategoryOptions() {
+  const categories = new Map();
+  for (const product of currentBuildingModules().products || []) {
+    const key = String(product.category || "").trim();
+    if (key) categories.set(key, product.category_name || key.replaceAll("_", " "));
+  }
+  return [...categories.entries()];
 }
 function renderPropertyPanel() {
   const page = currentInterfacePage(),
@@ -6271,7 +6366,11 @@ function renderPropertyPanel() {
         "building",
         props.building || state.interfaceDraft.target_building_key,
         buildingTargetOptions(props.building || state.interfaceDraft.target_building_key),
-      );
+      ) +
+      propertyMultiSelect("Postes affichés", "workstation_keys", props.workstation_keys, moduleOptions("workstations")) +
+      propertySelect("Afficher le temps restant", "show_timer", String(props.show_timer !== false), [["true", "Oui"], ["false", "Non"]]) +
+      propertySelect("Afficher le préparateur", "show_preparer", String(props.show_preparer !== false), [["true", "Oui"], ["false", "Non"]]) +
+      propertySelect("Afficher la production", "show_output", String(props.show_output !== false), [["true", "Oui"], ["false", "Non"]]);
   if (component.type === "production_priorities")
     fields =
       propertyInput("Titre", "title", props.title || "Productions prioritaires") +
@@ -6280,11 +6379,16 @@ function renderPropertyPanel() {
         "building",
         props.building || state.interfaceDraft.target_building_key,
         buildingTargetOptions(props.building || state.interfaceDraft.target_building_key),
-      );
+      ) + propertyMultiSelect("Recettes suivies", "recipe_keys", props.recipe_keys, moduleOptions("recipes"));
   if (component.type === "recipe_catalog")
     fields = propertyInput("Titre", "title", props.title || "Recettes débloquées") +
       propertySelect("Bâtiment affiché", "building", props.building || state.interfaceDraft.target_building_key,
-        buildingTargetOptions(props.building || state.interfaceDraft.target_building_key));
+        buildingTargetOptions(props.building || state.interfaceDraft.target_building_key)) +
+      propertyMultiSelect("Recettes affichées", "recipe_keys", props.recipe_keys, moduleOptions("recipes")) +
+      propertyMultiSelect("Postes compatibles", "workstation_keys", props.workstation_keys, moduleOptions("workstations")) +
+      propertyMultiSelect("Métiers autorisés", "profession_keys", props.profession_keys, moduleOptions("professions")) +
+      propertySelect("Afficher la durée", "show_duration", String(props.show_duration !== false), [["true", "Oui"], ["false", "Non"]]) +
+      propertySelect("Afficher le résultat", "show_output", String(props.show_output !== false), [["true", "Oui"], ["false", "Non"]]);
   if (component.type === "contextual_content")
     fields = contextualContentPropertyFields(component);
   if (component.type === "world_weather")
@@ -6305,22 +6409,28 @@ function renderPropertyPanel() {
       propertyInput("Titre", "title", props.title || "Progression collective") +
       propertyInput("Clé de l’objectif", "objective_key", props.objective_key || "");
   if (component.type === "profession_status")
-    fields = propertyInput("Titre", "title", props.title || "Votre métier");
+    fields = propertyInput("Titre", "title", props.title || "Votre métier") +
+      propertyMultiSelect("Métiers affichés", "profession_keys", props.profession_keys, moduleOptions("professions"));
   if (component.type.startsWith("dynamic_"))
     fields = propertyInput("Texte d’invitation", "placeholder", props.placeholder || "Choisir…");
   if (component.type === "dynamic_recipe_selector")
-    fields += propertyInput("Préfixe des pages recette", "page_prefix", props.page_prefix || "ux_recipe_");
+    fields += propertyInput("Préfixe des pages recette", "page_prefix", props.page_prefix || "ux_recipe_") +
+      propertyMultiSelect("Recettes proposées", "recipe_keys", props.recipe_keys, moduleOptions("recipes")) +
+      propertyMultiSelect("Postes autorisés", "workstation_keys", props.workstation_keys, moduleOptions("workstations")) +
+      propertyMultiSelect("Métiers autorisés", "profession_keys", props.profession_keys, moduleOptions("professions"));
   if (component.type === "npc_dialogue")
     fields =
       propertyInput("Texte d’invitation", "placeholder", props.placeholder || "Que souhaitez-vous demander ?") +
       propertySelect("Personnage", "npc_key", props.npc_key || "", catalogOptions("npc", props.npc_key || "")) +
       propertyInput("Nœud de départ (optionnel)", "node_key", props.node_key || "");
-  if (["dynamic_product_selector", "dynamic_consumable_selector"].includes(component.type)) {
-    fields += `<label>Objets de cette catégorie<select data-prop="item_keys" multiple size="6">${state.catalogs.item.map((item) => `<option value="${escapeHtml(item.entity_key)}" ${(props.item_keys || []).includes(item.entity_key) ? "selected" : ""}>${escapeHtml(item.payload.name)}</option>`).join("")}</select></label><small>Aucune sélection : tous les objets disponibles. Ctrl ou Cmd permet de sélectionner plusieurs objets.</small>`;
+  if (["dynamic_product_selector", "dynamic_consumable_selector", "dynamic_inventory_selector"].includes(component.type)) {
+    fields += `<label>Objets autorisés<select data-prop="item_keys" multiple size="6">${state.catalogs.item.map((item) => `<option value="${escapeHtml(item.entity_key)}" ${(props.item_keys || []).includes(item.entity_key) ? "selected" : ""}>${escapeHtml(item.payload.name)}</option>`).join("")}</select></label><small>Aucune sélection : tous les objets disponibles. Ctrl ou Cmd permet de sélectionner plusieurs objets.</small>`;
   }
   if (component.type === "dynamic_product_selector") {
     const knownBonusTypes = [["alcool", "Alcool"], ["energie", "Énergie"], ["special", "Bonus spécial"]];
-    fields += `<label>Types de bonus<select data-prop="bonus_types" multiple size="3">${knownBonusTypes.map(([key, label]) => `<option value="${key}" ${(props.bonus_types || []).includes(key) ? "selected" : ""}>${label}</option>`).join("")}</select></label><small>Aucune sélection : tous les types de bonus.</small>`;
+    fields += `<label>Types de bonus<select data-prop="bonus_types" multiple size="3">${knownBonusTypes.map(([key, label]) => `<option value="${key}" ${(props.bonus_types || []).includes(key) ? "selected" : ""}>${label}</option>`).join("")}</select></label><small>Aucune sélection : tous les types de bonus.</small>` +
+      propertyMultiSelect("Catégories du menu", "category_keys", props.category_keys, productCategoryOptions()) +
+      propertyMultiSelect("Modes de service", "service_modes", props.service_modes, [["on_site", "Sur place"], ["takeaway", "À emporter"]]);
   }
   if (component.type === "button") fields = buttonPropertyFields(component);
   if (component.type === "select") fields = selectPropertyFields(component);
@@ -6364,6 +6474,7 @@ function buttonPropertyFields(component) {
   let fields =
     propertyInput("Libellé", "label", props.label) +
     propertyInput("Emoji", "emoji", props.emoji) +
+    propertyInput("Description dans la carte Discord", "description", props.description || "") +
     propertySelect("Style", "style", props.style || "primary", [
       ["primary", "Principal"],
       ["secondary", "Secondaire"],
@@ -8237,6 +8348,14 @@ function bindPropertyPanel() {
           renderVisualStudio();
           return;
         }
+        if (component && ["category_keys", "service_modes", "recipe_keys", "workstation_keys", "profession_keys"].includes(key)) {
+          const selected = Array.from(field.selectedOptions, (option) => option.value);
+          component.props ||= {};
+          if (selected.length) component.props[key] = selected;
+          else delete component.props[key];
+          renderVisualStudio();
+          return;
+        }
         const stockMatch = key.match(/^stock_group_(\d+)_(.+)$/);
         if (component && stockMatch) {
           const group = component.props.groups[Number(stockMatch[1])], property = stockMatch[2];
@@ -8418,7 +8537,7 @@ function bindPropertyPanel() {
           component.props.inline = value === "true";
         else if (component && key === "replace_page_title")
           component.props.replace_page_title = value === "true";
-        else if (component && ["show_money", "show_energy"].includes(key))
+        else if (component && ["show_money", "show_energy", "show_timer", "show_preparer", "show_output", "show_duration"].includes(key))
           component.props[key] = value === "true";
         else if (component && key === "access_type") {
           if (value === "none") delete component.access_when;

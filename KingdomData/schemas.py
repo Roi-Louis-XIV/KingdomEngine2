@@ -560,6 +560,12 @@ def _validate_interface(payload: dict[str, Any]) -> None:
                         _validate_condition(variant["condition"])
             if component.get("type") == "workstation_status" and not str(component.get("props", {}).get("building", payload.get("target_building_key", ""))).strip():
                 raise ValidationError("L’état des postes doit cibler un bâtiment.")
+            props = component.get("props", {})
+            for filter_key in ("item_keys", "bonus_types", "category_keys", "service_modes", "recipe_keys", "workstation_keys", "profession_keys"):
+                if filter_key in props and not isinstance(props[filter_key], list):
+                    raise ValidationError(f"Le filtre {filter_key} doit être une liste.")
+                if isinstance(props.get(filter_key), list) and any(not isinstance(value, str) for value in props[filter_key]):
+                    raise ValidationError(f"Le filtre {filter_key} ne peut contenir que des identifiants texte.")
             if component.get("type") == "npc_dialogue" and not str(component.get("props", {}).get("npc_key", "")).strip():
                 raise ValidationError("Un dialogue doit cibler un personnage.")
             if component.get("type") in interactive_types:
