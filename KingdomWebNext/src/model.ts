@@ -1,4 +1,4 @@
-import type { BuildingPayload, Entity, World } from "./types";
+import type { BuildingPayload, Entity, World, SyncStatus } from "./types";
 
 export function editIdentity(
   payload: BuildingPayload,
@@ -34,11 +34,24 @@ export function filterEntities(
       ).includes(normalize(search)),
   );
 }
-export function canEdit(world: Pick<World, "role" | "permissions">): boolean {
+export function canEdit(
+  world: Pick<World, "role" | "permissions">,
+  account?: { is_admin: boolean },
+): boolean {
   return (
+    account?.is_admin === true ||
     ["proprietaire", "gestionnaire", "editeur"].includes(world.role) ||
     world.permissions.some((p) => p === "*" || p === "contenu:modifier")
   );
+}
+export function buildingSyncMessage(sync: SyncStatus, key: string): string {
+  if (sync.scope !== "building" || sync.building_key !== key)
+    return "Une autre opération est affichée par le moteur. La synchronisation de ce bâtiment reste à vérifier.";
+  if (sync.status === "done")
+    return "Le moteur signale la synchronisation terminée.";
+  if (sync.status === "failed" || sync.status === "error")
+    return "La synchronisation a échoué. Consultez le diagnostic dans KingdomWeb classique.";
+  return "Demande en attente de traitement par le bot Discord. Le panneau Discord n’est pas encore confirmé.";
 }
 export const date = (value?: string) =>
   value

@@ -19,14 +19,26 @@ Base : `00778b78f4fc68ee012a78279ca339af357aaa7c` (`agent/kingdomengine2-v2`). B
 - La publication V2 et sa file Discord sont deux transactions ; aucun succès Discord réel n'est annoncé sans retour approprié.
 
 ### Vérifications initiales
-- Vitest : 7 tests passent (client API, isolation monde des écritures, erreurs et timeout, conservation du payload, configuration vide, recherche et droits).
+- Vitest : 9 tests passent (client API, isolation monde des écritures, erreurs et timeout, conservation du payload, configuration vide, recherche et droits).
 - Intégration V3 pytest : 3 tests passent (point d'entrée/absence de build, cycle authentifié SQLite/conflit/publication/persistance et droits).
 - TypeScript strict et build Vite : passent.
-- Playwright Chromium : 5 parcours passent (création/sauvegarde/publication/rechargement, changements de monde, conflit/reconnexion, mobile/lecture seule, panne API).
-- Suite backend complète : **364 réussites, 12 échecs**. Comparaison avec l'archive V2 intacte en cours au moment de cette entrée ; détails finaux consignés ci-dessous avant clôture.
+- Playwright Chromium : 9 parcours passent (création/sauvegarde/publication/rechargement, changements de monde, conflit/reconnexion, mobile/lecture seule, panne API).
+- Suite backend complète : **364 réussites, 12 échecs**. La référence V2 intacte donne **361 réussites et les mêmes 12 échecs** ; les trois tests V3 supplémentaires passent. Détails et noms complets dans `V3_VERIFICATION.md`.
 
 ### Limites
 Pas encore de canvas Discord V2, simulateur, graphe ou éditeurs spécialisés V3. Aucun test sur un serveur Discord réel (pas de bot de test configuré). Le backend historique ne doit pas être annoncé entièrement vert tant que ses échecs sont ouverts.
 
 ### Prochaine action
 Après clôture des vérifications de cette tranche : implémenter les éditeurs de primitives et sélecteurs typés, puis l'éditeur Discord, selon `V3_ROADMAP.md`. Ne pas réécrire le runtime ni supprimer le Builder classique.
+
+### Clôture des vérifications
+- Neuf tests unitaires et neuf parcours navigateur réussis sur l’arbre final, trois tests d’intégration V3 réussis. Axe ne rapporte aucune violation sur les écrans testés (tableau de bord et formulaire) ; ce n’est pas une certification complète de l’application.
+- Audit premium statique strict : zéro constat ; formatage Prettier, TypeScript strict et build Vite réussis. Lint officiel DESIGN.md : zéro erreur, huit avertissements de références YAML de tokens ; ces tokens sont consommés dans CSS.
+- Relecture indépendante : trois constats importants corrigés et vérifiés RED→GREEN (administrateur autorisé, statut Discord d’une autre opération, rechargement concurrent). Restitution du focus corrigée à partir d’un test navigateur en échec. Aucun autre constat bloquant.
+- Les 12 échecs historiques de la suite complète sont reproduits sur V2. Aucun test désactivé, aucun changement du runtime pour masquer les défauts.
+
+### Commits et reprise
+- `ba1c398` : contrats, route V3 séparée, documentation et tests SQLite.
+- `e2b2d6e` : Studio React connecté, design system, éditeur et tests navigateur.
+- Commit de clôture suivant : corrections de relecture, restitution du focus et preuves finales (`git log -3 --oneline`).
+- Fichiers de référence du besoin conservés dans `V3_BRIEF.md` et `V3_TAVERN_REFERENCE.md`. Aucun déploiement ni fusion effectués. Branche V3 à conserver pour la prochaine tranche.

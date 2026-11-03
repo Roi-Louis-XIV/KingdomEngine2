@@ -33,7 +33,7 @@ export interface World {
   bot_installed?: boolean;
 }
 export interface Profile {
-  account: { display_name: string; username: string };
+  account: { display_name: string; username: string; is_admin: boolean };
   servers: World[];
   current_server: string;
 }
@@ -70,6 +70,7 @@ export interface Overview {
   }>;
 }
 export interface SyncStatus {
+  scope?: string;
   status?: string;
   building_key?: string;
   summary?: string;

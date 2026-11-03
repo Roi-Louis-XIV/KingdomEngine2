@@ -24,11 +24,24 @@ export function Dialog({
   onDismiss: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const restoreFocus = useRef(
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null,
+  );
   const id = useId();
   useEffect(() => {
     const node = ref.current;
     node?.showModal();
-    return () => node?.close();
+    return () => {
+      node?.close();
+      queueMicrotask(() => {
+        const trigger = restoreFocus.current;
+        if (trigger?.isConnected && !trigger.matches(":disabled"))
+          trigger.focus();
+        else document.getElementById("main-content")?.focus();
+      });
+    };
   }, []);
   return (
     <dialog

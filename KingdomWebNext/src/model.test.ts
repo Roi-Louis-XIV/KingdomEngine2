@@ -1,5 +1,11 @@
 import { expect, it } from "vitest";
-import { editIdentity, filterEntities, newBuilding, canEdit } from "./model";
+import {
+  editIdentity,
+  filterEntities,
+  newBuilding,
+  canEdit,
+  buildingSyncMessage,
+} from "./model";
 
 it("edits identity without dropping historical rules, relations or extensions", () => {
   const original = {
@@ -48,4 +54,34 @@ it("uses the server role and explicit grants for editing", () => {
   expect(canEdit({ role: "custom", permissions: ["contenu:modifier"] })).toBe(
     true,
   );
+});
+
+it("honors a platform administrator on an accessible world without changing ordinary reader rights", () => {
+  expect(
+    canEdit({ role: "administrateur", permissions: [] }, { is_admin: true }),
+  ).toBe(true);
+  expect(
+    canEdit({ role: "lecture", permissions: [] }, { is_admin: false }),
+  ).toBe(false);
+});
+
+it("does not confuse a completed global uninstall or another building sync with this publication", () => {
+  expect(
+    buildingSyncMessage(
+      { scope: "uninstall", building_key: "", status: "done" },
+      "atelier",
+    ),
+  ).toContain("autre opération");
+  expect(
+    buildingSyncMessage(
+      { scope: "building", building_key: "other", status: "done" },
+      "atelier",
+    ),
+  ).toContain("autre opération");
+  expect(
+    buildingSyncMessage(
+      { scope: "building", building_key: "atelier", status: "done" },
+      "atelier",
+    ),
+  ).toContain("terminée");
 });

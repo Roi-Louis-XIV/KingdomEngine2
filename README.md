@@ -1,5 +1,20 @@
 # KingdomEngine 2
 
+### KingdomWeb Next — fondations V3
+
+La nouvelle interface est développée séparément dans `KingdomWebNext/` et s'ouvre
+sur `/next`, après `npm --prefix KingdomWebNext ci` puis
+`npm --prefix KingdomWebNext run build`. L'interface classique reste sur `/`.
+Cette première tranche relie le tableau de bord, le sélecteur global de monde,
+la bibliothèque et l'identité des bâtiments aux sessions et API réelles du moteur.
+Les modules historiques restent conservés ; leurs éditeurs spécialisés et le
+canvas Discord complet sont les prochaines tranches.
+
+Voir [l'architecture et le démarrage V3](docs/V3_ARCHITECTURE.md),
+[le suivi et les tests](docs/V3_PROGRESS.md),
+[l'inventaire](docs/V3_FEATURE_INVENTORY.md) et
+[la feuille de route](docs/V3_ROADMAP.md).
+
 ### Accès aux paramètres avancés des événements
 
 Dans **Événements → Modifier → 5 · Avancé**, le raccourci ouvre les propriétés

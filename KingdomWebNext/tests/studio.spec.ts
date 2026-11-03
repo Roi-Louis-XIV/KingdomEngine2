@@ -316,3 +316,56 @@ test("has no serious accessibility violations in dashboard and editor", async ({
     ),
   ).not.toBe("auto");
 });
+
+test("freezes editing while a conflict reload is in flight", async ({
+  page,
+}) => {
+  await login(page);
+  const headers = { "X-Kingdom-Server": "royaume-principal" };
+  const created = await page.request.post("/api/content/building/reload_race", {
+    headers,
+    data: {
+      payload: { name: "Avant rechargement", actions: [] },
+      expected_version: 0,
+    },
+  });
+  expect(created.status()).toBe(200);
+  await page.goto("/next#/studio/reload_race?world=royaume-principal");
+  await page.getByLabel("Nom du bâtiment").fill("Saisie locale");
+  await page.request.post("/api/content/building/reload_race", {
+    headers,
+    data: {
+      payload: { name: "Version distante", actions: [] },
+      expected_version: 1,
+    },
+  });
+  await page.getByRole("button", { name: "Enregistrer le brouillon" }).click();
+  await expect(page.getByText("Une autre révision existe.")).toBeVisible();
+  let release: (() => void) | undefined;
+  let intercepted = false;
+  await page.route("**/api/content/building/reload_race", async (route) => {
+    const response = await route.fetch();
+    intercepted = true;
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await route.fulfill({ response });
+  });
+  await page
+    .getByRole("button", { name: "Recharger la dernière version" })
+    .click();
+  await page.getByRole("button", { name: "Recharger", exact: true }).click();
+  await expect.poll(() => intercepted).toBe(true);
+  try {
+    await expect(page.getByLabel("Nom du bâtiment")).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: "Enregistrer le brouillon" }),
+    ).toBeDisabled();
+  } finally {
+    release?.();
+  }
+  await expect(page.getByLabel("Nom du bâtiment")).toHaveValue(
+    "Version distante",
+  );
+  await expect(page.getByLabel("Nom du bâtiment")).toBeEnabled();
+});

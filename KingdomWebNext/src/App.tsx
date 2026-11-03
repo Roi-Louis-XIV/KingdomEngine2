@@ -225,7 +225,7 @@ export function App() {
                     world,
                     profile,
                     href,
-                    writable: canEdit(world),
+                    writable: canEdit(world, profile.account),
                   } satisfies Workspace
                 }
               />

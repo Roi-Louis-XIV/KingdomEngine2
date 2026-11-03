@@ -21,7 +21,13 @@ import { ApiError } from "../api";
 import { useWorkspace } from "../context";
 import { useResource } from "../useResource";
 import type { BuildingPayload, Entity, Overview, SyncStatus } from "../types";
-import { date, editIdentity, moduleLabels, newBuilding } from "../model";
+import {
+  date,
+  editIdentity,
+  moduleLabels,
+  newBuilding,
+  buildingSyncMessage,
+} from "../model";
 import { Dialog, Empty, ErrorNotice, Loading, Status } from "../components/ui";
 
 const tabs = [
@@ -248,15 +254,7 @@ function Editor({ initial }: { initial: Entity }) {
         {sync && (
           <section className="sync-panel" aria-label="Synchronisation Discord">
             <strong>Synchronisation Discord</strong>
-            <p>
-              {sync.building_key && sync.building_key !== record.entity_key
-                ? "Une autre opération est affichée par le moteur. La synchronisation de ce bâtiment reste à vérifier."
-                : sync.status === "done"
-                  ? "Le moteur signale la synchronisation terminée."
-                  : sync.status === "failed" || sync.status === "error"
-                    ? "La synchronisation a échoué. Consultez le diagnostic dans KingdomWeb classique."
-                    : "Demande en attente de traitement par le bot Discord. Le panneau Discord n’est pas encore confirmé."}
-            </p>
+            <p>{buildingSyncMessage(sync, record.entity_key)}</p>
             {sync.error && <p className="form-error">{sync.error}</p>}
             <button className="button" disabled={syncBusy} onClick={checkSync}>
               {syncBusy ? "Vérification…" : "Vérifier la synchronisation"}
@@ -676,7 +674,10 @@ function Editor({ initial }: { initial: Entity }) {
             <button
               className="button primary"
               onClick={async () => {
+                if (busy) return;
                 setReloadConfirm(false);
+                setBusy(true);
+                setNotice("");
                 try {
                   const latest = await api.get<Entity>(
                     `/api/content/building/${record.entity_key}`,
@@ -687,6 +688,8 @@ function Editor({ initial }: { initial: Entity }) {
                   setNotice("Dernière révision chargée.");
                 } catch (e) {
                   setError(e as Error);
+                } finally {
+                  setBusy(false);
                 }
               }}
             >
