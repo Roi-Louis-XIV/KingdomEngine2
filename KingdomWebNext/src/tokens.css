@@ -1,0 +1,21 @@
+:root {
+  color-scheme: dark;
+  --background: #101715;
+  --surface: #18211e;
+  --surface-raised: #202c27;
+  --border: #33463c;
+  --text: #edf2ed;
+  --muted: #a9b9ae;
+  --primary: #a3cbb3;
+  --primary-ink: #13261c;
+  --warning: #e6c38b;
+  --danger: #f2a9a1;
+  --focus: #c3e6d0;
+  --scroll-thumb: #526b5d;
+  --scroll-track: #101715;
+  --scroll-hover: #73947f;
+  --radius: 12px;
+  --font-body: "Segoe UI", "Helvetica Neue", sans-serif;
+  --font-display: "Palatino Linotype", Palatino, Georgia, serif;
+  --font-data: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+}

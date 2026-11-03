@@ -1,0 +1,19 @@
+{
+  "profile": "product-admin",
+  "sourceRoots": ["KingdomWebNext/src"],
+  "locale": "fr-FR",
+  "canonicalMap": "UX-CONTRACT.md",
+  "requiredCapabilities": ["Select/Listbox", "Form", "Scrollbar", "Toast", "CRUD"],
+  "ownership": { "Select/Listbox": "native" },
+  "requiredCommands": ["unit", "e2e", "typecheck", "build"],
+  "commands": {
+    "unit": "npm --prefix KingdomWebNext test",
+    "e2e": "npm --prefix KingdomWebNext run test:e2e",
+    "typecheck": "npm --prefix KingdomWebNext run typecheck",
+    "build": "npm --prefix KingdomWebNext run build"
+  },
+  "evidence": {
+    "crudFullFlow": "KingdomWebNext/tests/studio.spec.ts",
+    "failurePaths": "KingdomWebNext/tests/studio.spec.ts"
+  }
+}
