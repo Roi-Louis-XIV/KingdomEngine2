@@ -12,3 +12,8 @@ htmlcov/
 browser.db*
 KingdomData/runtime/
 KingdomData/official-workspaces/
+node_modules/
+KingdomWeb/static/next/
+*.tsbuildinfo
+test-results/
+playwright-report/

@@ -156,6 +156,7 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Kingdom Studio", version="2.0.0", lifespan=lifespan)
 STATIC = Path(__file__).with_name("static")
+NEXT_INDEX = STATIC / "next" / "index.html"
 KINGDOM_DATA_ROOT = persistent_data_root()
 BOT_AVATAR_ASSETS = KINGDOM_DATA_ROOT / "assets" / "bot-avatars"
 PRESENCE_AVATAR_ASSETS = KINGDOM_DATA_ROOT / "assets" / "presence-avatars"
@@ -172,10 +173,19 @@ async def disable_studio_cache(request, call_next):
     finally:
         if jeton_selection is not None:
             store.finir_requete(jeton_selection)
-    if request.url.path == "/" or request.url.path.startswith("/static/"):
+    if request.url.path in {"/", "/next", "/next/"} or request.url.path.startswith("/static/"):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
     return response
+
+
+@app.get("/next", include_in_schema=False)
+@app.get("/next/", include_in_schema=False)
+def next_studio():
+    """Entrée V3 additive ; la V2 et ses routes restent disponibles."""
+    if not NEXT_INDEX.is_file():
+        raise HTTPException(503, "KingdomWeb Next doit être compilé : cd KingdomWebNext && npm ci && npm run build")
+    return FileResponse(NEXT_INDEX)
 
 
 def _permission_requise(request: Request) -> str:
