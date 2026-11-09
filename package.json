@@ -1,0 +1,24 @@
+{
+  "name": "kingdom-engine",
+  "version": "4.0.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "description": "KingdomEngine 4 — moteur no-code de mondes interactifs pour Discord",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.6"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --no-warnings --test \"packages/*/test/*.test.ts\" \"apps/bot/test/*.test.ts\"",
+    "typecheck": "tsc -p .",
+    "bot": "node --env-file-if-exists=.env --import tsx apps/bot/src/index.ts",
+    "emulator": "node scripts/build-emulator.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "@types/node": "^22.15.0"
+  }
+}

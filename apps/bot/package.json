@@ -1,0 +1,14 @@
+{
+  "name": "@kingdom/bot",
+  "version": "4.0.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "description": "Bot Discord de KingdomEngine : affiche les écrans du moteur en Components V2",
+  "scripts": {
+    "start": "cd ../.. && npm run bot"
+  },
+  "dependencies": {
+    "discord.js": "^14.22.0",
+    "tsx": "^4.20.0"
+  }
+}

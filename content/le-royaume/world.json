@@ -1,0 +1,2125 @@
+{
+  "format": "kingdom-world@1",
+  "id": "le-royaume",
+  "name": "Le Royaume",
+  "description": "Monde de démonstration : la Taverne d’Edgar reconstruite uniquement à partir de modules génériques.",
+  "settings": {
+    "maxActiveJobs": 1
+  },
+  "stats": [
+    {
+      "id": "ecus",
+      "name": "Bourse",
+      "emoji": "💰",
+      "min": 0,
+      "initial": 100,
+      "kind": "currency",
+      "unit": "écus"
+    },
+    {
+      "id": "energie",
+      "name": "Énergie",
+      "emoji": "⚡",
+      "min": 0,
+      "max": 100,
+      "initial": 70,
+      "kind": "gauge"
+    },
+    {
+      "id": "alcool",
+      "name": "Alcoolémie",
+      "emoji": "🍺",
+      "min": 0,
+      "max": 100,
+      "initial": 0,
+      "kind": "gauge"
+    }
+  ],
+  "items": [
+    {
+      "id": "legumes",
+      "name": "Légumes",
+      "emoji": "🥕",
+      "category": "Matières premières",
+      "baseValue": 4
+    },
+    {
+      "id": "viande",
+      "name": "Viande",
+      "emoji": "🥩",
+      "category": "Matières premières",
+      "baseValue": 7
+    },
+    {
+      "id": "farine",
+      "name": "Farine",
+      "emoji": "🌾",
+      "category": "Matières premières",
+      "baseValue": 3
+    },
+    {
+      "id": "epices",
+      "name": "Épices",
+      "emoji": "🌶️",
+      "category": "Matières premières",
+      "baseValue": 8
+    },
+    {
+      "id": "eau",
+      "name": "Eau",
+      "emoji": "🪣",
+      "category": "Matières premières",
+      "baseValue": 2
+    },
+    {
+      "id": "biere",
+      "name": "Bière",
+      "emoji": "🍺",
+      "category": "Boissons en réserve",
+      "baseValue": 5
+    },
+    {
+      "id": "hydromel",
+      "name": "Hydromel",
+      "emoji": "🍯",
+      "category": "Boissons en réserve",
+      "baseValue": 7
+    },
+    {
+      "id": "eau_potable",
+      "name": "Eau à boire",
+      "emoji": "💧",
+      "category": "Boissons en réserve",
+      "baseValue": 2
+    },
+    {
+      "id": "jus_pomme",
+      "name": "Jus de pomme",
+      "emoji": "🍎",
+      "category": "Boissons en réserve",
+      "baseValue": 4
+    },
+    {
+      "id": "vin",
+      "name": "Vin",
+      "emoji": "🍷",
+      "category": "Boissons en réserve",
+      "baseValue": 6
+    },
+    {
+      "id": "plat_soupe",
+      "name": "Soupe paysanne",
+      "emoji": "🥣",
+      "category": "Plats préparés"
+    },
+    {
+      "id": "plat_ragout",
+      "name": "Ragoût de sanglier",
+      "emoji": "🍖",
+      "category": "Plats préparés"
+    },
+    {
+      "id": "plat_pain",
+      "name": "Pain rustique",
+      "emoji": "🍞",
+      "category": "Plats préparés"
+    },
+    {
+      "id": "plat_festin",
+      "name": "Festin du Royaume",
+      "emoji": "🍗",
+      "category": "Plats préparés"
+    },
+    {
+      "id": "plat_royal",
+      "name": "Banquet royal",
+      "emoji": "👑",
+      "category": "Plats préparés"
+    },
+    {
+      "id": "gourde_eau",
+      "name": "Gourde d’eau",
+      "emoji": "💧",
+      "category": "À emporter",
+      "consumable": {
+        "effects": [
+          {
+            "type": "stat.add",
+            "stat": "energie",
+            "amount": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "bouteille_biere",
+      "name": "Bouteille de bière",
+      "emoji": "🍺",
+      "category": "À emporter",
+      "consumable": {
+        "effects": [
+          {
+            "type": "stat.add",
+            "stat": "energie",
+            "amount": 5
+          },
+          {
+            "type": "stat.add",
+            "stat": "alcool",
+            "amount": 10
+          }
+        ]
+      }
+    },
+    {
+      "id": "flasque_hydromel",
+      "name": "Flasque d’hydromel",
+      "emoji": "🍯",
+      "category": "À emporter",
+      "consumable": {
+        "effects": [
+          {
+            "type": "stat.add",
+            "stat": "energie",
+            "amount": 5
+          },
+          {
+            "type": "stat.add",
+            "stat": "alcool",
+            "amount": 20
+          }
+        ]
+      }
+    },
+    {
+      "id": "bouteille_jus",
+      "name": "Bouteille de jus",
+      "emoji": "🍎",
+      "category": "À emporter",
+      "consumable": {
+        "effects": [
+          {
+            "type": "stat.add",
+            "stat": "energie",
+            "amount": 10
+          },
+          {
+            "type": "modifier.apply",
+            "modifier": "bois",
+            "durationSec": 600
+          }
+        ]
+      }
+    },
+    {
+      "id": "bouteille_vin",
+      "name": "Bouteille de vin",
+      "emoji": "🍷",
+      "category": "À emporter",
+      "consumable": {
+        "effects": [
+          {
+            "type": "stat.add",
+            "stat": "energie",
+            "amount": 5
+          },
+          {
+            "type": "stat.add",
+            "stat": "alcool",
+            "amount": 15
+          },
+          {
+            "type": "modifier.apply",
+            "modifier": "xp",
+            "durationSec": 600
+          }
+        ]
+      }
+    },
+    {
+      "id": "gamelle_soupe",
+      "name": "Soupe en gamelle",
+      "emoji": "🥣",
+      "category": "À emporter",
+      "consumable": {
+        "effects": [
+          {
+            "type": "stat.add",
+            "stat": "energie",
+            "amount": 35
+          },
+          {
+            "type": "modifier.apply",
+            "modifier": "economie",
+            "durationSec": 600
+          }
+        ]
+      }
+    },
+    {
+      "id": "gamelle_ragout",
+      "name": "Ragoût en gamelle",
+      "emoji": "🍖",
+      "category": "À emporter",
+      "consumable": {
+        "effects": [
+          {
+            "type": "stat.add",
+            "stat": "energie",
+            "amount": 55
+          },
+          {
+            "type": "modifier.apply",
+            "modifier": "mine",
+            "durationSec": 900
+          }
+        ]
+      }
+    },
+    {
+      "id": "pain_emballe",
+      "name": "Pain emballé",
+      "emoji": "🍞",
+      "category": "À emporter",
+      "consumable": {
+        "effects": [
+          {
+            "type": "stat.add",
+            "stat": "energie",
+            "amount": 15
+          }
+        ]
+      }
+    }
+  ],
+  "modifiers": [
+    {
+      "id": "mine",
+      "name": "Récolte minière +15 %",
+      "emoji": "⛏️",
+      "shortName": "Mine",
+      "exclusiveGroup": "repas",
+      "value": 0.15
+    },
+    {
+      "id": "bois",
+      "name": "Récolte de bois +10 %",
+      "emoji": "🪓",
+      "shortName": "Forêt",
+      "exclusiveGroup": "repas",
+      "value": 0.1
+    },
+    {
+      "id": "xp",
+      "name": "Expérience métier +10 %",
+      "emoji": "⭐",
+      "shortName": "XP métier",
+      "exclusiveGroup": "repas",
+      "value": 0.1
+    },
+    {
+      "id": "economie",
+      "name": "Coût énergétique −10 %",
+      "emoji": "⚡",
+      "shortName": "Énergie",
+      "exclusiveGroup": "repas",
+      "value": 0.1
+    }
+  ],
+  "jobs": [
+    {
+      "id": "cuisinier",
+      "name": "Cuisinier",
+      "emoji": "👨‍🍳",
+      "xpPerLevel": 100
+    },
+    {
+      "id": "mineur",
+      "name": "Mineur",
+      "emoji": "⛏️",
+      "xpPerLevel": 100
+    }
+  ],
+  "variables": [
+    {
+      "id": "phase",
+      "name": "Phase du scénario",
+      "initial": "calme",
+      "options": [
+        {
+          "value": "calme",
+          "label": "🟢 Calme"
+        },
+        {
+          "value": "tempete",
+          "label": "🌩️ Tempête"
+        },
+        {
+          "value": "apres",
+          "label": "⛪ Après-tempête"
+        }
+      ]
+    }
+  ],
+  "newPlayer": {
+    "items": {
+      "legumes": 12,
+      "viande": 8,
+      "farine": 10,
+      "epices": 3,
+      "eau": 10,
+      "biere": 4
+    }
+  },
+  "buildings": [
+    {
+      "id": "taverne",
+      "name": "À la Gueuse Cocue",
+      "emoji": "🍺",
+      "accentColor": 8936500,
+      "npc": {
+        "name": "Edgar Brassebarbe",
+        "emoji": "🍺",
+        "title": "Tavernier"
+      },
+      "homeScreen": "accueil",
+      "modules": [
+        {
+          "type": "inventory",
+          "id": "reserve",
+          "name": "Réserve de la taverne",
+          "emoji": "📦",
+          "initial": {
+            "legumes": 12,
+            "eau": 8,
+            "viande": 7,
+            "farine": 2,
+            "epices": 0,
+            "biere": 6,
+            "hydromel": 3,
+            "eau_potable": 10,
+            "jus_pomme": 5,
+            "vin": 4
+          },
+          "targets": {
+            "legumes": 30,
+            "viande": 20,
+            "farine": 20,
+            "epices": 15,
+            "eau": 30,
+            "biere": 20,
+            "hydromel": 15,
+            "eau_potable": 20,
+            "jus_pomme": 15,
+            "vin": 15
+          }
+        },
+        {
+          "type": "inventory",
+          "id": "plats",
+          "name": "Plats préparés",
+          "emoji": "🍗",
+          "initial": {},
+          "targets": {
+            "plat_soupe": 12,
+            "plat_ragout": 10,
+            "plat_pain": 15,
+            "plat_festin": 6,
+            "plat_royal": 5
+          }
+        },
+        {
+          "type": "shop",
+          "id": "comptoir",
+          "name": "Comptoir",
+          "emoji": "🍺",
+          "inventory": "reserve",
+          "currency": "ecus",
+          "offers": [
+            {
+              "id": "eau",
+              "name": "Eau fraîche",
+              "emoji": "💧",
+              "category": "Sans alcool",
+              "stockItem": "eau_potable",
+              "price": 2,
+              "effects": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": 5
+                }
+              ],
+              "takeaway": {
+                "item": "gourde_eau",
+                "surcharge": 1
+              }
+            },
+            {
+              "id": "biere",
+              "name": "Chope de bière",
+              "emoji": "🍺",
+              "category": "Bières",
+              "stockItem": "biere",
+              "price": 8,
+              "effects": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": 5
+                },
+                {
+                  "type": "stat.add",
+                  "stat": "alcool",
+                  "amount": 10
+                }
+              ],
+              "takeaway": {
+                "item": "bouteille_biere",
+                "surcharge": 1
+              }
+            },
+            {
+              "id": "hydromel",
+              "name": "Hydromel",
+              "emoji": "🍯",
+              "category": "Spiritueux",
+              "stockItem": "hydromel",
+              "price": 12,
+              "effects": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": 5
+                },
+                {
+                  "type": "stat.add",
+                  "stat": "alcool",
+                  "amount": 20
+                }
+              ],
+              "takeaway": {
+                "item": "flasque_hydromel",
+                "surcharge": 2
+              }
+            },
+            {
+              "id": "jus",
+              "name": "Jus de pomme",
+              "emoji": "🍎",
+              "category": "Sans alcool",
+              "stockItem": "jus_pomme",
+              "price": 6,
+              "effects": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": 10
+                },
+                {
+                  "type": "modifier.apply",
+                  "modifier": "bois",
+                  "durationSec": 600
+                }
+              ],
+              "takeaway": {
+                "item": "bouteille_jus",
+                "surcharge": 1
+              }
+            },
+            {
+              "id": "vin",
+              "name": "Vin du Royaume",
+              "emoji": "🍷",
+              "category": "Vins",
+              "stockItem": "vin",
+              "price": 16,
+              "effects": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": 5
+                },
+                {
+                  "type": "stat.add",
+                  "stat": "alcool",
+                  "amount": 15
+                },
+                {
+                  "type": "modifier.apply",
+                  "modifier": "xp",
+                  "durationSec": 600
+                }
+              ],
+              "takeaway": {
+                "item": "bouteille_vin",
+                "surcharge": 2
+              }
+            }
+          ]
+        },
+        {
+          "type": "shop",
+          "id": "carte",
+          "name": "Carte des repas",
+          "emoji": "🍗",
+          "inventory": "plats",
+          "currency": "ecus",
+          "offers": [
+            {
+              "id": "soupe",
+              "name": "Soupe paysanne",
+              "emoji": "🥣",
+              "category": "Soupes",
+              "stockItem": "plat_soupe",
+              "price": 9,
+              "effects": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": 35
+                },
+                {
+                  "type": "modifier.apply",
+                  "modifier": "economie",
+                  "durationSec": 600
+                }
+              ],
+              "takeaway": {
+                "item": "gamelle_soupe",
+                "surcharge": 3
+              }
+            },
+            {
+              "id": "ragout",
+              "name": "Ragoût de sanglier",
+              "emoji": "🍖",
+              "category": "Plats complets",
+              "stockItem": "plat_ragout",
+              "price": 12,
+              "effects": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": 55
+                },
+                {
+                  "type": "modifier.apply",
+                  "modifier": "mine",
+                  "durationSec": 900
+                }
+              ],
+              "takeaway": {
+                "item": "gamelle_ragout",
+                "surcharge": 3
+              }
+            },
+            {
+              "id": "pain",
+              "name": "Pain rustique",
+              "emoji": "🍞",
+              "category": "Encas",
+              "stockItem": "plat_pain",
+              "price": 6,
+              "effects": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": 15
+                }
+              ],
+              "takeaway": {
+                "item": "pain_emballe",
+                "surcharge": 1
+              }
+            },
+            {
+              "id": "festin",
+              "name": "Festin du Royaume",
+              "emoji": "🍗",
+              "category": "Festins",
+              "stockItem": "plat_festin",
+              "price": 18,
+              "effects": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": 70
+                },
+                {
+                  "type": "modifier.apply",
+                  "modifier": "xp",
+                  "durationSec": 900
+                }
+              ]
+            },
+            {
+              "id": "royal",
+              "name": "Banquet royal",
+              "emoji": "👑",
+              "category": "Festins",
+              "stockItem": "plat_royal",
+              "price": 24,
+              "effects": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": 90
+                },
+                {
+                  "type": "modifier.apply",
+                  "modifier": "xp",
+                  "durationSec": 1200
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "buyback",
+          "id": "rachat",
+          "name": "Rachat de ressources",
+          "inventory": "reserve",
+          "currency": "ecus",
+          "prices": {
+            "legumes": 4,
+            "viande": 7,
+            "farine": 3,
+            "epices": 8,
+            "eau": 2,
+            "biere": 5,
+            "hydromel": 7,
+            "eau_potable": 2,
+            "jus_pomme": 4,
+            "vin": 6
+          },
+          "emptyFactor": 1.5,
+          "tiers": [
+            {
+              "maxRatio": 0.25,
+              "factor": 1.3
+            },
+            {
+              "maxRatio": 0.5,
+              "factor": 1.15
+            },
+            {
+              "maxRatio": 0.8,
+              "factor": 1
+            }
+          ],
+          "aboveFactor": 0.8,
+          "quantities": [
+            1,
+            5,
+            10
+          ]
+        },
+        {
+          "type": "production",
+          "id": "cuisine",
+          "name": "Cuisine",
+          "stationName": "🍲 Marmite",
+          "stationCount": 3,
+          "job": "cuisinier",
+          "inputInventory": "reserve",
+          "outputInventory": "plats",
+          "xp": {
+            "start": 80,
+            "collect": 20
+          },
+          "recipes": [
+            {
+              "id": "soupe",
+              "name": "Soupe paysanne",
+              "emoji": "🥣",
+              "level": 1,
+              "durationSec": 60,
+              "inputs": {
+                "legumes": 3,
+                "eau": 1
+              },
+              "outputs": {
+                "plat_soupe": 3
+              }
+            },
+            {
+              "id": "ragout",
+              "name": "Ragoût de sanglier",
+              "emoji": "🍖",
+              "level": 2,
+              "durationSec": 90,
+              "inputs": {
+                "viande": 2,
+                "legumes": 2
+              },
+              "outputs": {
+                "plat_ragout": 4
+              }
+            },
+            {
+              "id": "pain",
+              "name": "Pain rustique",
+              "emoji": "🍞",
+              "level": 2,
+              "durationSec": 75,
+              "inputs": {
+                "farine": 3,
+                "eau": 1
+              },
+              "outputs": {
+                "plat_pain": 2
+              }
+            },
+            {
+              "id": "festin",
+              "name": "Festin du Royaume",
+              "emoji": "🍗",
+              "level": 3,
+              "durationSec": 120,
+              "inputs": {
+                "viande": 4,
+                "legumes": 3,
+                "epices": 2
+              },
+              "outputs": {
+                "plat_festin": 6
+              }
+            },
+            {
+              "id": "royal",
+              "name": "Banquet royal",
+              "emoji": "👑",
+              "level": 5,
+              "durationSec": 180,
+              "inputs": {
+                "viande": 6,
+                "epices": 3
+              },
+              "outputs": {
+                "plat_royal": 8
+              }
+            }
+          ],
+          "labels": {
+            "start": "Cuisiner"
+          }
+        },
+        {
+          "type": "dialogue",
+          "id": "edgar",
+          "name": "Discussions avec Edgar",
+          "speaker": {
+            "name": "Edgar",
+            "emoji": "🍺"
+          },
+          "narration": "Edgar Brassebarbe s’appuie sur son comptoir.",
+          "start": "accueil",
+          "nodes": [
+            {
+              "id": "accueil",
+              "title": "💬 Parler à Edgar",
+              "lines": [
+                "« Alors, camarade, qu’est-ce qui t’amène ? »"
+              ],
+              "choices": [
+                {
+                  "label": "Les nouvelles",
+                  "emoji": "📰",
+                  "goto": "rumeurs"
+                },
+                {
+                  "label": "Le travail",
+                  "emoji": "🧑‍🍳",
+                  "goto": "travail"
+                },
+                {
+                  "label": "Edgar lui-même",
+                  "emoji": "🍺",
+                  "goto": "histoire"
+                },
+                {
+                  "label": "Jouer aux dés",
+                  "emoji": "🎲",
+                  "screen": "des"
+                }
+              ]
+            },
+            {
+              "id": "rumeurs",
+              "title": "📰 Nouvelles du Royaume",
+              "lines": [
+                {
+                  "cases": [
+                    {
+                      "when": {
+                        "type": "variable",
+                        "variable": "phase",
+                        "op": "eq",
+                        "value": "calme"
+                      },
+                      "text": "« On murmure que le ciel va tourner. Mais pour le moment, les voyageurs sont tranquilles. »"
+                    },
+                    {
+                      "when": {
+                        "type": "variable",
+                        "variable": "phase",
+                        "op": "eq",
+                        "value": "tempete"
+                      },
+                      "text": "« Par la Sainte Pelle ! Ferme la porte ! Le vent emporterait jusqu’aux moustaches de Roland ! »"
+                    },
+                    {
+                      "when": {
+                        "type": "variable",
+                        "variable": "phase",
+                        "op": "eq",
+                        "value": "apres"
+                      },
+                      "text": "« L’Église est en ruines. Si tout le Royaume n’aide pas, il ne restera que des gravats ! »"
+                    }
+                  ]
+                }
+              ],
+              "choices": [
+                {
+                  "label": "Et l’Église ?",
+                  "emoji": "⛪",
+                  "goto": "eglise"
+                },
+                {
+                  "label": "Le temps ?",
+                  "emoji": "🌩️",
+                  "goto": "meteo"
+                },
+                {
+                  "label": "Du travail ?",
+                  "emoji": "📜",
+                  "goto": "quete"
+                }
+              ]
+            },
+            {
+              "id": "eglise",
+              "title": "⛪ L’Église de la Sainte Pelle",
+              "lines": [
+                {
+                  "cases": [
+                    {
+                      "when": {
+                        "type": "variable",
+                        "variable": "phase",
+                        "op": "eq",
+                        "value": "calme"
+                      },
+                      "text": "« L’Église tient bon. Espérons que cela dure ! »"
+                    },
+                    {
+                      "when": {
+                        "type": "variable",
+                        "variable": "phase",
+                        "op": "eq",
+                        "value": "tempete"
+                      },
+                      "text": "« J’entends les cloches à travers la tempête... ce n’est pas rassurant ! »"
+                    },
+                    {
+                      "when": {
+                        "type": "variable",
+                        "variable": "phase",
+                        "op": "eq",
+                        "value": "apres"
+                      },
+                      "text": "« La Sainte Pelle a besoin de bras pour rebâtir son Église. »"
+                    }
+                  ]
+                }
+              ],
+              "choices": [
+                {
+                  "label": "Autres nouvelles",
+                  "emoji": "📰",
+                  "goto": "rumeurs"
+                },
+                {
+                  "label": "Aider le Royaume",
+                  "emoji": "📜",
+                  "goto": "quete"
+                }
+              ]
+            },
+            {
+              "id": "meteo",
+              "title": "🌩️ Le ciel du Royaume",
+              "lines": [
+                {
+                  "cases": [
+                    {
+                      "when": {
+                        "type": "variable",
+                        "variable": "phase",
+                        "op": "eq",
+                        "value": "calme"
+                      },
+                      "text": "« La journée est douce... mais je sens de vilains nuages arriver. »"
+                    },
+                    {
+                      "when": {
+                        "type": "variable",
+                        "variable": "phase",
+                        "op": "eq",
+                        "value": "tempete"
+                      },
+                      "text": "« Le vent hurle plus fort que mes habitués après la troisième tournée ! »"
+                    },
+                    {
+                      "when": {
+                        "type": "variable",
+                        "variable": "phase",
+                        "op": "eq",
+                        "value": "apres"
+                      },
+                      "text": "« Les rafales sont passées. Maintenant il faut réparer les dégâts. »"
+                    }
+                  ]
+                }
+              ],
+              "choices": [
+                {
+                  "label": "Les nouvelles",
+                  "emoji": "📰",
+                  "goto": "rumeurs"
+                },
+                {
+                  "label": "Parle-moi de toi",
+                  "emoji": "🍺",
+                  "goto": "histoire"
+                }
+              ]
+            },
+            {
+              "id": "travail",
+              "title": "⚒️ Les métiers",
+              "lines": [
+                {
+                  "cases": [
+                    {
+                      "when": {
+                        "type": "hasJob",
+                        "job": "cuisinier"
+                      },
+                      "text": "« Ah, mon cuisinier ! Niveau {player.level.cuisinier}, déjà ! Surveille bien mes marmites, camarade ! »"
+                    },
+                    {
+                      "when": {
+                        "type": "hasJob"
+                      },
+                      "text": "« Tu travailles déjà comme {player.job}. Un seul métier à la fois : même moi je ne peux tenir deux comptoirs ! »"
+                    },
+                    {
+                      "text": "« Tu cherches un métier ? Il me faut des cuisiniers pour ces marmites ! »"
+                    }
+                  ]
+                }
+              ],
+              "choices": [
+                {
+                  "label": "Devenir cuisinier",
+                  "emoji": "🍲",
+                  "goto": "cuisine"
+                },
+                {
+                  "label": "Des services à rendre",
+                  "emoji": "📜",
+                  "goto": "quete"
+                },
+                {
+                  "label": "Ton histoire",
+                  "emoji": "🍺",
+                  "goto": "histoire"
+                }
+              ]
+            },
+            {
+              "id": "cuisine",
+              "title": "🍲 Les fourneaux",
+              "lines": [
+                {
+                  "cases": [
+                    {
+                      "when": {
+                        "type": "hasJob",
+                        "job": "cuisinier"
+                      },
+                      "text": "« Mes fourneaux te sont ouverts. Et n’oublie pas : tout le monde peut récupérer un plat, tant qu’il est cuisinier ! »"
+                    },
+                    {
+                      "when": {
+                        "type": "hasJob"
+                      },
+                      "text": "« Tu devras quitter ton métier actuel avant d’enfiler le tablier, mon ami. »"
+                    },
+                    {
+                      "text": "« Si tu veux apprendre, commence comme cuisinier. Tu progresseras en préparant nos recettes. »"
+                    }
+                  ]
+                }
+              ],
+              "choices": [
+                {
+                  "label": "Les métiers",
+                  "emoji": "⚒️",
+                  "goto": "travail"
+                },
+                {
+                  "label": "Les réserves",
+                  "emoji": "📜",
+                  "goto": "quete"
+                }
+              ]
+            },
+            {
+              "id": "histoire",
+              "title": "🍺 L’histoire du tavernier",
+              "lines": [
+                "« J’ai servi tant de chopes que j’ai oublié le nombre de printemps passés ici ! Mais jamais mes clients. Enfin... presque. »",
+                "« La meilleure bière du Royaume ? Celle que tu paies, camarade ! »",
+                "« Ce comptoir a vu passer des héros, des vauriens et deux ou trois seigneurs qui réunissaient les deux qualités. »"
+              ],
+              "choices": [
+                {
+                  "label": "Tu connais le Roi ?",
+                  "emoji": "👑",
+                  "goto": "roi"
+                },
+                {
+                  "label": "Une partie de dés ?",
+                  "emoji": "🎲",
+                  "screen": "des"
+                },
+                {
+                  "label": "Des rumeurs ?",
+                  "emoji": "📰",
+                  "goto": "rumeurs"
+                }
+              ]
+            },
+            {
+              "id": "roi",
+              "title": "👑 Le Roi",
+              "lines": [
+                "« Notre Roi ? Eh ! Je le connais surtout à la façon dont ses sujets vident mes réserves ! »",
+                "« Le Roi commande le Royaume ; moi, je commande les fûts. Chacun sa couronne ! »"
+              ],
+              "choices": [
+                {
+                  "label": "Ton histoire",
+                  "emoji": "🍺",
+                  "goto": "histoire"
+                },
+                {
+                  "label": "Les nouvelles",
+                  "emoji": "📰",
+                  "goto": "rumeurs"
+                }
+              ]
+            },
+            {
+              "id": "quete",
+              "title": "📜 Un service pour Edgar",
+              "lines": [
+                {
+                  "cases": [
+                    {
+                      "when": {
+                        "type": "variable",
+                        "variable": "phase",
+                        "op": "eq",
+                        "value": "calme"
+                      },
+                      "text": "« Je cherche toujours des volontaires pour les provisions. Un jour je te confierai peut-être une livraison ! »"
+                    },
+                    {
+                      "when": {
+                        "type": "variable",
+                        "variable": "phase",
+                        "op": "eq",
+                        "value": "tempete"
+                      },
+                      "text": "« Pas question de t’envoyer sur les routes avec ce déluge ! »"
+                    },
+                    {
+                      "when": {
+                        "type": "variable",
+                        "variable": "phase",
+                        "op": "eq",
+                        "value": "apres"
+                      },
+                      "text": "« Le Royaume a besoin de renforts. Il faudra des ressources pour réparer l’Église. »"
+                    }
+                  ]
+                }
+              ],
+              "choices": [
+                {
+                  "label": "La cuisine",
+                  "emoji": "🍲",
+                  "goto": "cuisine"
+                },
+                {
+                  "label": "Les nouvelles",
+                  "emoji": "📰",
+                  "goto": "rumeurs"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "dice",
+          "id": "des",
+          "name": "Dés d’Edgar",
+          "dice": 2,
+          "faces": 6,
+          "opponent": "Edgar",
+          "texts": {
+            "win": "🏆 **Tu as gagné !** Edgar râle en essuyant son comptoir.",
+            "lose": "🍺 **Edgar gagne !** « On remet ça, camarade ? »",
+            "draw": "🤝 **Égalité !** Edgar réclame une revanche."
+          }
+        }
+      ],
+      "screens": [
+        {
+          "id": "accueil",
+          "name": "Accueil",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": {
+                    "cases": [
+                      {
+                        "when": {
+                          "type": "variable",
+                          "variable": "phase",
+                          "op": "eq",
+                          "value": "calme"
+                        },
+                        "text": "## 🍺 À LA GUEUSE COCUE\n*La chaleur du foyer accueille les voyageurs. Edgar essuie une chope derrière son comptoir.*"
+                      },
+                      {
+                        "when": {
+                          "type": "variable",
+                          "variable": "phase",
+                          "op": "eq",
+                          "value": "tempete"
+                        },
+                        "text": "## 🍺 À LA GUEUSE COCUE\n*Les volets tremblent ; la pluie frappe les fenêtres. Les voyageurs se réfugient près du feu.*"
+                      },
+                      {
+                        "when": {
+                          "type": "variable",
+                          "variable": "phase",
+                          "op": "eq",
+                          "value": "apres"
+                        },
+                        "text": "## 🍺 À LA GUEUSE COCUE\n*La tempête s’est calmée. À la Taverne, on ne parle que des dégâts causés à l’Église.*"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "👤 **Tavernier :** Edgar Brassebarbe\n🟢 **Établissement :** Ouvert\n💰 **Votre bourse :** {player.stat.ecus} écus"
+                }
+              ]
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "### 📋 Activités de la Taverne"
+                },
+                {
+                  "type": "section",
+                  "text": "**🍺 Boissons**\nCommander au comptoir · stocks en temps réel",
+                  "button": {
+                    "label": "Boissons",
+                    "rule": {
+                      "onSuccess": {
+                        "goto": "boissons"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "separator"
+                },
+                {
+                  "type": "section",
+                  "text": "**🍗 Repas**\nPlats préparés par les cuisiniers du Royaume",
+                  "button": {
+                    "label": "Repas",
+                    "rule": {
+                      "onSuccess": {
+                        "goto": "repas"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "separator"
+                },
+                {
+                  "type": "section",
+                  "text": "**🍲 Cuisine**\n👨‍🍳 Cuisinier niveau {player.level.cuisinier} · {player.xp.cuisinier} XP\n🟢 {production.cuisine.free} libre · 🟠 {production.cuisine.cooking} en cuisson · ✅ {production.cuisine.ready} prête",
+                  "button": {
+                    "label": "Cuisiner",
+                    "rule": {
+                      "onSuccess": {
+                        "goto": "cuisine"
+                      }
+                    },
+                    "style": "success"
+                  },
+                  "visibleIf": {
+                    "type": "hasJob",
+                    "job": "cuisinier"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": "**🍲 Cuisine**\n🔒 Métier actuel : {player.job}. Un seul métier autorisé.",
+                  "button": {
+                    "label": "Métier occupé",
+                    "rule": {
+                      "onSuccess": {
+                        "goto": "accueil"
+                      }
+                    }
+                  },
+                  "visibleIf": {
+                    "type": "all",
+                    "conditions": [
+                      {
+                        "type": "hasJob"
+                      },
+                      {
+                        "type": "not",
+                        "condition": {
+                          "type": "hasJob",
+                          "job": "cuisinier"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": "**🍲 Cuisine**\n👤 Aucun métier actif · 🟢 {production.cuisine.free} marmite(s) libre(s)",
+                  "button": {
+                    "label": "Devenir cuisinier",
+                    "rule": {
+                      "onSuccess": {
+                        "goto": "metier"
+                      }
+                    },
+                    "style": "success"
+                  },
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob"
+                    }
+                  }
+                },
+                {
+                  "type": "separator"
+                },
+                {
+                  "type": "section",
+                  "text": "**📦 Stocks & livraisons**\nRéserves communes et approvisionnements",
+                  "button": {
+                    "label": "Stocks",
+                    "rule": {
+                      "onSuccess": {
+                        "goto": "stocks"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": {
+                    "cases": [
+                      {
+                        "when": {
+                          "type": "variable",
+                          "variable": "phase",
+                          "op": "eq",
+                          "value": "calme"
+                        },
+                        "text": "### 💬 Edgar Brassebarbe\n*« Alors, camarade ! Une chope ou quelques nouvelles du Royaume ? »*\n\n**Rumeurs :** 🍻 Tout est calme au Royaume."
+                      },
+                      {
+                        "when": {
+                          "type": "variable",
+                          "variable": "phase",
+                          "op": "eq",
+                          "value": "tempete"
+                        },
+                        "text": "### 💬 Edgar Brassebarbe\n*« Par la Sainte Pelle ! Ce vent va emporter mon enseigne ! »*\n\n**Rumeurs :** 🌩️ Tempête sur le Royaume."
+                      },
+                      {
+                        "when": {
+                          "type": "variable",
+                          "variable": "phase",
+                          "op": "eq",
+                          "value": "apres"
+                        },
+                        "text": "### 💬 Edgar Brassebarbe\n*« L’Église est en ruines... Il va falloir tous mettre la main à la pâte ! »*\n\n**Rumeurs :** ⛪ Reconstruction de l’Église de la Sainte Pelle."
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "buttons",
+                  "buttons": [
+                    {
+                      "label": "Parler à Edgar",
+                      "rule": {
+                        "onSuccess": {
+                          "goto": "dialogue"
+                        }
+                      },
+                      "style": "primary"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "📜 Démissionner",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "demission"
+                    }
+                  },
+                  "style": "danger",
+                  "visibleIf": {
+                    "type": "hasJob",
+                    "job": "cuisinier"
+                  }
+                },
+                {
+                  "label": "🎒 Mon inventaire",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "text": "**🎭 Laboratoire : simuler le scénario**"
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Calme",
+                  "rule": {
+                    "actions": [
+                      {
+                        "type": "variable.set",
+                        "variable": "phase",
+                        "value": "calme"
+                      }
+                    ],
+                    "onSuccess": {
+                      "goto": "accueil",
+                      "notice": "🎭 Phase de scénario simulée modifiée."
+                    }
+                  }
+                },
+                {
+                  "label": "Tempête",
+                  "rule": {
+                    "actions": [
+                      {
+                        "type": "variable.set",
+                        "variable": "phase",
+                        "value": "tempete"
+                      }
+                    ],
+                    "onSuccess": {
+                      "goto": "accueil",
+                      "notice": "🎭 Phase de scénario simulée modifiée."
+                    }
+                  }
+                },
+                {
+                  "label": "Après",
+                  "rule": {
+                    "actions": [
+                      {
+                        "type": "variable.set",
+                        "variable": "phase",
+                        "value": "apres"
+                      }
+                    ],
+                    "onSuccess": {
+                      "goto": "accueil",
+                      "notice": "🎭 Phase de scénario simulée modifiée."
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "metier",
+          "name": "Devenir cuisinier",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 👨‍🍳 Devenir cuisinier\n*« Tu veux mettre la main à la pâte ? J’ai de la place aux fourneaux ! » — Edgar*\n\n**Niveau retrouvé :** {player.level.cuisinier} · **XP conservée :** {player.xp.cuisinier}\n**Activité :** recettes, cuisson et récupération · **Un seul métier actif à la fois.**"
+                }
+              ]
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Accepter le métier",
+                  "rule": {
+                    "actions": [
+                      {
+                        "type": "job.join",
+                        "job": "cuisinier"
+                      }
+                    ],
+                    "onSuccess": {
+                      "goto": "cuisine",
+                      "notice": "👨‍🍳 Bienvenue aux fourneaux !"
+                    },
+                    "onFailure": {
+                      "goto": "accueil"
+                    }
+                  },
+                  "style": "success",
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob"
+                    }
+                  }
+                },
+                {
+                  "label": "Annuler",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  },
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob"
+                    }
+                  }
+                },
+                {
+                  "label": "Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  },
+                  "visibleIf": {
+                    "type": "hasJob"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "demission",
+          "name": "Démission",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 📜 Démission du métier de cuisinier\n*« Tu abandonnes mes fourneaux ? Bon, les autres finiront les marmites ! » — Edgar*\n\n**Niveau conservé :** {player.level.cuisinier} · **XP conservée :** {player.xp.cuisinier}\n✅ Les préparations déjà lancées continuent.\n✅ Un autre cuisinier actif pourra les récupérer.\n🔒 L’accès aux marmites est immédiatement retiré."
+                }
+              ]
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Confirmer la démission",
+                  "rule": {
+                    "when": {
+                      "type": "hasJob",
+                      "job": "cuisinier"
+                    },
+                    "actions": [
+                      {
+                        "type": "job.leave",
+                        "job": "cuisinier"
+                      }
+                    ],
+                    "onSuccess": {
+                      "goto": "accueil",
+                      "notice": "📜 Démission enregistrée. XP et niveau conservés ; les cuissons continuent."
+                    },
+                    "onFailure": {
+                      "goto": "accueil",
+                      "notice": "Tu n’es pas cuisinier."
+                    }
+                  },
+                  "style": "danger"
+                },
+                {
+                  "label": "Annuler",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cuisine",
+          "name": "Cuisine",
+          "guard": {
+            "when": {
+              "type": "hasJob",
+              "job": "cuisinier"
+            },
+            "redirect": "accueil",
+            "notice": "⛔ Seuls les cuisiniers actifs peuvent interagir avec les marmites."
+          },
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🍲 Les fourneaux d’Edgar\n*« Attention à ne pas brûler le ragoût, bande de manchots ! »*\n\n🟢 {production.cuisine.free} libre(s)　🟠 {production.cuisine.cooking} en cuisson　✅ {production.cuisine.ready} prête(s)\n👨‍🍳 **Cuisinier niveau {player.level.cuisinier}** · {player.xp.cuisinier} XP"
+                }
+              ]
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "production.priorities",
+                "production": "cuisine",
+                "limit": 4,
+                "title": "📋 Plats à préparer en priorité"
+              }
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "production.stations",
+                "production": "cuisine",
+                "recipeScreen": "recettes"
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "cuisine"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "recettes",
+          "name": "Livre de recettes",
+          "guard": {
+            "when": {
+              "type": "hasJob",
+              "job": "cuisinier"
+            },
+            "redirect": "accueil",
+            "notice": "⛔ Seuls les cuisiniers actifs peuvent interagir avec les marmites."
+          },
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 📖 Livre de recettes d’Edgar\n*Seules les recettes débloquées et réalisables apparaissent dans le menu déroulant.*"
+                }
+              ]
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "production.recipes",
+                "production": "cuisine",
+                "backScreen": "cuisine"
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Retour aux marmites",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "cuisine"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "boissons",
+          "name": "Boissons",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🍺 Le comptoir d’Edgar\n*« Alors camarade, qu’est-ce que je te sers ? »*\nSur place ou à emporter : à toi de choisir !"
+                }
+              ]
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "player.status",
+                "stats": [
+                  "ecus",
+                  "energie",
+                  "alcool"
+                ],
+                "accent": 5399163
+              }
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.catalog",
+                "shop": "comptoir",
+                "checkoutScreen": "commande",
+                "accent": 5399163
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "🎒 Inventaire",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                },
+                {
+                  "label": "Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "boissons"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "repas",
+          "name": "Repas",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🍗 Les repas de la Taverne\n*« Un estomac vide ne gagne pas de bataille ! » — Edgar*\nLes cuisiniers remplissent la carte en récupérant leurs préparations."
+                }
+              ]
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "player.status",
+                "stats": [
+                  "ecus",
+                  "energie",
+                  "alcool"
+                ],
+                "accent": 5399163
+              }
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.catalog",
+                "shop": "carte",
+                "checkoutScreen": "commande",
+                "accent": 8411704
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "🎒 Inventaire",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                },
+                {
+                  "label": "Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "repas"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "commande",
+          "name": "Commande",
+          "blocks": [
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.checkout",
+                "backScreen": "boissons",
+                "prompt": "« Tu prends ça ici ou je te prépare ça pour la route ? » — Edgar"
+              }
+            },
+            {
+              "type": "notice"
+            }
+          ]
+        },
+        {
+          "id": "inventaire",
+          "name": "Inventaire",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🎒 Inventaire alimentaire\n*Les bonus durent en temps réel, même hors ligne.*"
+                }
+              ]
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "player.status",
+                "title": "👤 Votre état",
+                "stats": [
+                  "energie",
+                  "alcool"
+                ],
+                "accent": 5399163
+              }
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "player.consumables",
+                "title": "🎒 À consommer",
+                "accent": 5399163
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Retour à la Taverne",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "dialogue",
+          "name": "Discussion",
+          "blocks": [
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "dialogue",
+                "dialogue": "edgar",
+                "exitScreen": "accueil",
+                "accent": 8936500
+              }
+            },
+            {
+              "type": "text",
+              "text": "**Ambiance :** {var.phase.label}"
+            }
+          ]
+        },
+        {
+          "id": "des",
+          "name": "Jeu de dés",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🎲 Les dés d’Edgar\n*« Une partie, camarade ? Deux dés chacun. Le meilleur total gagne ! »*\n\n**Règles :** 2 dés à six faces par joueur · égalité possible · aucune mise."
+                }
+              ],
+              "accent": 5401938
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "dice",
+                "dice": "des"
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "💬 Parler à Edgar",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "dialogue"
+                    }
+                  }
+                },
+                {
+                  "label": "← Accueil",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "stocks",
+          "name": "Stocks & livraisons",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 📦 Stocks & livraisons\n*« Les étagères sont grandes, mais le ventre du Royaume l’est encore plus ! » — Edgar*\n**Stockage illimité** · Les objectifs indiquent les besoins, sans bloquer les dépôts."
+                }
+              ]
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "inventory.stock",
+                "views": [
+                  {
+                    "label": "Matières premières",
+                    "emoji": "🥕",
+                    "inventory": "reserve",
+                    "buyback": "rachat"
+                  },
+                  {
+                    "label": "Plats préparés",
+                    "emoji": "🍗",
+                    "inventory": "plats"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "💰 Vendre mes ressources",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "vente"
+                    }
+                  },
+                  "style": "success"
+                },
+                {
+                  "label": "Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "stocks"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "vente",
+          "name": "Vente de ressources",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 💰 Vendre des ressources à Edgar\n*« Apporte-moi de quoi remplir les marmites, je te paierai au juste prix ! »*\n**Bourse :** {player.stat.ecus} écus\n**Prix dynamiques** : plus une ressource manque, plus Edgar la rachète cher.\n*Pas de limite de stockage. Chaque unité est tarifée selon les réserves au moment de son entrée.*"
+                }
+              ]
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "buyback.sell",
+                "buyback": "rachat"
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "📦 Voir les stocks",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "stocks"
+                    }
+                  }
+                },
+                {
+                  "label": "Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "@kingdom/engine",
+  "version": "4.0.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "description": "Moteur pur (sans Discord) : modèle de monde, règles, rendu Components V2 neutre",
+  "exports": { ".": "./src/index.ts" }
+}
