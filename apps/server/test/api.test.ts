@@ -95,7 +95,7 @@ test('serveurs : création depuis un modèle, unicité Discord, isolation entre 
 test('supervision : vue d’ensemble avec bâtiments, réserves, alertes et variables', async () => {
   const o = await louis.get(`/api/servers/${serverId}/overview`);
   assert.equal(o.status, 200);
-  assert.equal(o.data.counts.buildings, 1);
+  assert.equal(o.data.counts.buildings, 2);
   assert.equal(o.data.buildings[0].name, 'À la Gueuse Cocue');
   assert.ok(o.data.alerts.some((a: any) => /rupture/.test(a.text)));
   assert.deepEqual(o.data.variables.map((v: any) => [v.id, v.value]), [['phase', 'calme']]);

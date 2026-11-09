@@ -166,6 +166,34 @@ export async function playerPage(main: HTMLElement, params: string[]) {
                 ),
               )
             : h('p', { class: 'muted' }, 'Aucun métier dans ce monde.'),
+          w.items.some((i) => i.tool && st.items[i.id])
+            ? [
+                h('h2', null, 'Outils'),
+                h(
+                  'table',
+                  { class: 'grid' },
+                  h(
+                    'tbody',
+                    null,
+                    w.items
+                      .filter((i) => i.tool && st.items[i.id])
+                      .map((i) => {
+                        const dur = st.tools?.[i.id] ?? i.tool!.maxDurability;
+                        return h(
+                          'tr',
+                          null,
+                          h('td', null, `${i.emoji ?? ''} ${i.name}`),
+                          h('td', { class: 'r' }, h('b', { class: dur === 0 ? 'bad' : '' }, `${dur}/${i.tool!.maxDurability}`)),
+                          manager && dur < i.tool!.maxDurability ? h('td', { class: 'r' }, h('button', { class: 'btn small', onclick: () => void apply([{ type: 'tool.repair', item: i.id }], 'réparation gratuite') }, 'Réparer')) : h('td'),
+                        );
+                      }),
+                  ),
+                ),
+              ]
+            : null,
+          Object.keys(st.activities ?? {}).length
+            ? [h('h2', null, 'Activités en cours'), h('ul', { class: 'plain' }, Object.entries(st.activities).map(([k, a]: [string, any]) => h('li', null, `${k.split('/').pop()} — ${a.endsAt > Date.now() ? `fin ${ago(a.endsAt)}` : 'prête à récupérer'}`)))]
+            : null,
           h('h2', null, 'Bonus actifs'),
           st.modifiers.filter((m: any) => m.expiresAt > Date.now()).length
             ? h(

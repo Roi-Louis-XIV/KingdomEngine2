@@ -290,6 +290,30 @@
           }
         ]
       }
+    },
+    {
+      "id": "hache",
+      "name": "Hache de bûcheron",
+      "emoji": "🪓",
+      "category": "Outils",
+      "baseValue": 25,
+      "tool": {
+        "maxDurability": 20
+      }
+    },
+    {
+      "id": "buche",
+      "name": "Bûche",
+      "emoji": "🪵",
+      "category": "Matières premières",
+      "baseValue": 3
+    },
+    {
+      "id": "champignon",
+      "name": "Champignon des bois",
+      "emoji": "🍄",
+      "category": "Matières premières",
+      "baseValue": 5
     }
   ],
   "modifiers": [
@@ -337,6 +361,12 @@
       "id": "mineur",
       "name": "Mineur",
       "emoji": "⛏️",
+      "xpPerLevel": 100
+    },
+    {
+      "id": "bucheron",
+      "name": "Bûcheron",
+      "emoji": "🪓",
       "xpPerLevel": 100
     }
   ],
@@ -2136,6 +2166,411 @@
                   "rule": {
                     "onSuccess": {
                       "goto": "accueil"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "foret",
+      "name": "La Forêt du Royaume",
+      "emoji": "🌲",
+      "accentColor": 4156229,
+      "npc": {
+        "name": "Sylvain",
+        "emoji": "🌲",
+        "title": "Garde-forestier"
+      },
+      "homeScreen": "accueil",
+      "audio": {
+        "ambience": {
+          "cases": [
+            {
+              "when": {
+                "type": "variable",
+                "variable": "phase",
+                "op": "eq",
+                "value": "tempete"
+              },
+              "sound": "foret-tempete"
+            },
+            {
+              "sound": "foret-calme"
+            }
+          ]
+        },
+        "volume": 0.5
+      },
+      "modules": [
+        {
+          "type": "activity",
+          "id": "travaux",
+          "name": "🌲 Travaux de la forêt",
+          "activities": [
+            {
+              "id": "abattre",
+              "name": "Abattre un arbre",
+              "emoji": "🪓",
+              "description": "Le travail du bûcheron : du bois pour tout le Royaume.",
+              "durationSec": 30,
+              "cooldownSec": 15,
+              "when": {
+                "type": "hasJob",
+                "job": "bucheron"
+              },
+              "costs": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": -10
+                }
+              ],
+              "tool": {
+                "item": "hache",
+                "wear": 2
+              },
+              "job": {
+                "id": "bucheron",
+                "xp": 15
+              },
+              "rolls": 1,
+              "boostedBy": [
+                "bois"
+              ],
+              "results": [
+                {
+                  "weight": 70,
+                  "label": "Belle coupe",
+                  "actions": [
+                    {
+                      "type": "item.give",
+                      "item": "buche",
+                      "qty": 3
+                    }
+                  ]
+                },
+                {
+                  "weight": 25,
+                  "label": "Arbre noueux",
+                  "actions": [
+                    {
+                      "type": "item.give",
+                      "item": "buche",
+                      "qty": 1
+                    }
+                  ]
+                },
+                {
+                  "weight": 5,
+                  "label": "Trésor au pied de l’arbre !",
+                  "actions": [
+                    {
+                      "type": "item.give",
+                      "item": "buche",
+                      "qty": 2
+                    },
+                    {
+                      "type": "item.give",
+                      "item": "champignon",
+                      "qty": 2
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "ramasser",
+              "name": "Ramasser du bois mort",
+              "emoji": "🍂",
+              "description": "Ouvert à tous, sans outil.",
+              "durationSec": 0,
+              "cooldownSec": 60,
+              "costs": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": -3
+                }
+              ],
+              "rolls": 1,
+              "results": [
+                {
+                  "weight": 1,
+                  "label": "Quelques branches",
+                  "actions": [
+                    {
+                      "type": "item.give",
+                      "item": "buche",
+                      "qty": 1
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "cueillir",
+              "name": "Cueillir des champignons",
+              "emoji": "🍄",
+              "durationSec": 20,
+              "cooldownSec": 30,
+              "costs": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": -5
+                }
+              ],
+              "rolls": 1,
+              "results": [
+                {
+                  "weight": 60,
+                  "label": "Panier modeste",
+                  "actions": [
+                    {
+                      "type": "item.give",
+                      "item": "champignon",
+                      "qty": 1
+                    }
+                  ]
+                },
+                {
+                  "weight": 40,
+                  "label": "Bonne cueillette",
+                  "actions": [
+                    {
+                      "type": "item.give",
+                      "item": "champignon",
+                      "qty": 2
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "objective",
+          "id": "eglise",
+          "name": "⛪ Reconstruction de l’Église",
+          "description": "*La Sainte Pelle a besoin de bois pour sa charpente et de vivres pour nourrir les ouvriers.*",
+          "goals": {
+            "buche": 40,
+            "legumes": 10
+          },
+          "currency": "ecus",
+          "unitRewards": {
+            "buche": 2,
+            "legumes": 1
+          },
+          "quantities": [
+            1,
+            5,
+            10
+          ],
+          "onComplete": {
+            "actions": [
+              {
+                "type": "variable.set",
+                "variable": "phase",
+                "value": "calme"
+              }
+            ],
+            "announce": "L’Église est rebâtie : le Royaume retrouve son calme."
+          }
+        }
+      ],
+      "screens": [
+        {
+          "id": "accueil",
+          "name": "Accueil",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": {
+                    "cases": [
+                      {
+                        "when": {
+                          "type": "variable",
+                          "variable": "phase",
+                          "op": "eq",
+                          "value": "tempete"
+                        },
+                        "text": "## 🌲 La Forêt du Royaume\n*Des arbres arrachés jonchent le sentier. Sylvain compte les dégâts.*"
+                      },
+                      {
+                        "text": "## 🌲 La Forêt du Royaume\n*Les grands chênes bruissent. Sylvain, le garde-forestier, veille sur ses arbres.*"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "⚡ **Énergie :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus"
+                }
+              ]
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "activity.board",
+                "activity": "travaux",
+                "accent": 4156229
+              }
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "player.tools",
+                "repair": {
+                  "currency": "ecus",
+                  "costPerPoint": 1
+                }
+              }
+            },
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "section",
+                  "text": "**🪓 Devenir bûcheron**\nSylvain te confie une hache. Un seul métier à la fois.",
+                  "button": {
+                    "label": "Devenir bûcheron",
+                    "rule": {
+                      "actions": [
+                        {
+                          "type": "job.join",
+                          "job": "bucheron"
+                        },
+                        {
+                          "type": "item.give",
+                          "item": "hache",
+                          "qty": 1
+                        }
+                      ],
+                      "onSuccess": {
+                        "notice": "🪓 Sylvain te tend une hache : bienvenue parmi les bûcherons !"
+                      }
+                    },
+                    "style": "success"
+                  },
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob"
+                    }
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": "**🪓 Bûcheron niveau {player.level.bucheron}** · {player.xp.bucheron} XP",
+                  "button": {
+                    "label": "Démissionner",
+                    "rule": {
+                      "actions": [
+                        {
+                          "type": "job.leave",
+                          "job": "bucheron"
+                        }
+                      ],
+                      "onSuccess": {
+                        "notice": "📜 Démission enregistrée. Ta hache et ton expérience sont conservées."
+                      }
+                    },
+                    "style": "danger"
+                  },
+                  "visibleIf": {
+                    "type": "hasJob",
+                    "job": "bucheron"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": "**⛪ Chantier de l’Église**\nApporte du bois et des vivres pour rebâtir l’Église.",
+                  "button": {
+                    "label": "Chantier",
+                    "rule": {
+                      "onSuccess": {
+                        "goto": "chantier"
+                      }
+                    },
+                    "style": "primary"
+                  },
+                  "visibleIf": {
+                    "type": "variable",
+                    "variable": "phase",
+                    "op": "eq",
+                    "value": "apres"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "*⛪ Le chantier de l’Église ouvrira après la tempête.*",
+                  "visibleIf": {
+                    "type": "variable",
+                    "variable": "phase",
+                    "op": "neq",
+                    "value": "apres"
+                  }
+                }
+              ],
+              "accent": 4156229
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "chantier",
+          "name": "Chantier de l’Église",
+          "blocks": [
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "objective.board",
+                "objective": "eglise",
+                "accent": 8936500
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "← Forêt",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "chantier"
                     }
                   }
                 }

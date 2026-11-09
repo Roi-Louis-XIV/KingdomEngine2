@@ -248,8 +248,18 @@ export function registerApi(router: Router, deps: ApiDeps) {
           };
         })
         .filter(Boolean);
+      const objectives = b.modules
+        .filter((m) => m.type === 'objective')
+        .map((m) => {
+          if (m.type !== 'objective') return null;
+          const st = snap.objectives?.[`${b.id}/${m.id}`];
+          const total = Object.values(m.goals).reduce((x, y) => x + y, 0);
+          const done = Object.entries(m.goals).reduce((x, [it, g]) => x + Math.min(g, st?.progress[it] ?? 0), 0);
+          return { id: m.id, name: m.name, percent: Math.floor((done / Math.max(1, total)) * 100), completed: !!st?.completedAt, contributors: Object.keys(st?.contributors ?? {}).length };
+        })
+        .filter(Boolean);
       if (s.guildId && !channels[b.id]?.text) alerts.push({ level: 'info', text: `${b.name} n’a pas encore de salon Discord.`, link: 'discord' });
-      return { id: b.id, name: b.name, emoji: b.emoji ?? '', npc: b.npc?.name ?? null, modules: b.modules.map((m) => m.type), stocks, stations, channels: channels[b.id] ?? {} };
+      return { id: b.id, name: b.name, emoji: b.emoji ?? '', npc: b.npc?.name ?? null, modules: b.modules.map((m) => m.type), stocks, stations, objectives, channels: channels[b.id] ?? {} };
     });
     const players = engine ? engine.playerIds() : [];
     const issues = engine ? validateWorld(engine.world) : [];
@@ -321,7 +331,7 @@ export function registerApi(router: Router, deps: ApiDeps) {
     const s = server(r, 'manager');
     const actions = r.body.actions as Action[];
     if (!Array.isArray(actions) || !actions.length) throw new HttpError(400, 'Aucune action.');
-    const allowed = new Set(['stat.add', 'stat.set', 'item.give', 'item.take', 'job.join', 'job.leave', 'job.setLevel', 'job.xp', 'modifier.apply']);
+    const allowed = new Set(['stat.add', 'stat.set', 'item.give', 'item.take', 'job.join', 'job.leave', 'job.setLevel', 'job.xp', 'modifier.apply', 'tool.repair', 'tool.wear']);
     if (actions.some((a) => !allowed.has(a?.type))) throw new HttpError(400, 'Action non autorisée en intervention.');
     const summary = runtimes.adminApply(s.id, me(r), r.params.pid!, actions, r.body.reason);
     return { summary, state: runtimes.require(s.id).player(r.params.pid!) };

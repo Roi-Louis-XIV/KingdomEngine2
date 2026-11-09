@@ -252,6 +252,35 @@ textarea.code { font-family: var(--mono); font-size: .82rem; line-height: 1.45; 
 .step h3 { margin-top: 2px; }
 .danger-zone { border: 1px solid #7d3a30; border-radius: var(--r-lg); padding: 18px; }
 
+/* ---------- Conditions, textes variables, boutons ---------- */
+.cond-box { display: flex; flex-direction: column; gap: 6px; }
+.cond-box.depth1, .cond-box.depth2 { padding-left: 10px; border-left: 2px solid var(--line-2); }
+.cond-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cond-line select, .cond-line input:not([type=checkbox]) { width: auto; flex: 0 1 auto; min-width: 90px; }
+.cond-children { display: flex; flex-direction: column; gap: 6px; padding-left: 12px; border-left: 2px solid var(--verdigris-deep); }
+.check.small { font-size: .82rem; color: var(--muted); }
+.text-editor { display: flex; flex-direction: column; gap: 6px; }
+.text-case { border: 1px solid var(--line); border-radius: var(--r); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.text-case-head { display: flex; gap: 8px; align-items: flex-start; }
+.text-case-head .cond-box { flex: 1; }
+.link.small { font-size: .82rem; align-self: flex-start; padding: 2px 0; }
+.btn-details { border: 1px solid var(--line); border-radius: var(--r); background: var(--ink); }
+.btn-details > summary { cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 6px 8px; }
+.btn-details > summary .icon-btn { margin-left: auto; }
+.btn-details[open] > summary { border-bottom: 1px solid var(--line); }
+.button-editor { padding: 10px; }
+.button-editor h4, .outcome h4 { margin: 6px 0 0; font-size: .9rem; font-family: var(--sans); color: var(--brass); font-weight: 600; }
+.outcome { border-top: 1px dashed var(--line); padding-top: 8px; }
+.d-btn.mini { min-height: 24px; padding: 2px 10px; font-size: 13px; border-radius: 6px; display: inline-flex; align-items: center; cursor: inherit; }
+.blk-body { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.blk-visibility { margin-top: 6px; font-size: .85rem; }
+.blk-visibility > summary { cursor: pointer; color: var(--muted); }
+.blk-visibility[open] > summary { margin-bottom: 6px; }
+.widget-fields { margin-top: 8px; }
+.result { border: 1px solid var(--line); border-radius: var(--r); padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+.picker.assistant { border-style: solid; border-color: var(--verdigris-deep); }
+.objective-line { display: grid; grid-template-columns: minmax(140px, 1fr) 2fr auto auto; gap: 10px; align-items: center; font-size: .88rem; margin-bottom: 10px; }
+
 /* ---------- Émulateur Discord ---------- */
 .emulator { border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; margin-top: 10px; }
 .emu-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 10px; background: var(--ink-2); border-bottom: 1px solid var(--line); }

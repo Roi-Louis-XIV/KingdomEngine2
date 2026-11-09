@@ -126,6 +126,16 @@ export async function overviewPage(main: HTMLElement) {
                       ),
                     ),
                   ),
+                  b.objectives.map((ob: any) =>
+                    h(
+                      'div',
+                      { class: 'objective-line' },
+                      h('span', null, ob.name),
+                      h('span', { class: 'bar', role: 'meter', 'aria-valuenow': ob.percent, 'aria-valuemax': 100, 'aria-label': ob.name }, h('i', { style: `width:${ob.percent}%` })),
+                      h('b', null, ob.completed ? 'Atteint' : `${ob.percent} %`),
+                      h('small', { class: 'muted' }, `${ob.contributors} contributeur(s)`),
+                    ),
+                  ),
                   b.stocks.map((inv: any) =>
                     h(
                       'details',

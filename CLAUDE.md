@@ -12,7 +12,7 @@ Plateforme no-code de mondes interactifs pour Discord, pour Payen Studio (Louis)
 - `packages/engine` : moteur **pur, synchrone, sans dépendance**. Modèle de monde (`model.ts`), règles et actions atomiques (`rules.ts`), widgets des modules (`widgets.ts`), sessions et interactions (`engine.ts`), validation (`validate.ts`). Il tourne aussi dans le navigateur (émulateur du Studio).
 - `apps/server` : un seul processus. `platform.ts` (SQLite via `node:sqlite` : comptes, serveurs, droits, versions, état, audit), `runtime.ts` (un Engine par serveur), `api.ts` (routes), `http.ts` (micro-routeur), `discord/core.ts` (bot unique multi-serveurs), `voice/` (pool pur testé + adaptateur `@discordjs/voice`).
 - `apps/studio` : Studio web en TypeScript natif **sans framework** (`ui.ts` fournit `h()`), compilé par `tsc` en modules ES.
-- `content/` : modèles de mondes en JSON. `le-royaume/world.json` = Taverne d'Edgar V11, la recette d'acceptation.
+- `content/` : modèles de mondes en JSON. `le-royaume/world.json` = Taverne d'Edgar V11 (recette d'acceptation) + la Forêt et le chantier de l'Église.
 
 ## Règles du projet
 1. **Aucun contenu d'univers dans le code.** Edgar, la Tempête, etc. sont des données. Toute nouvelle mécanique devient une primitive générique (module, action, condition, widget) configurable dans le Studio.
@@ -24,9 +24,11 @@ Plateforme no-code de mondes interactifs pour Discord, pour Payen Studio (Louis)
 7. Ne pas fusionner dans `main` ni déployer en production sans l'accord de Louis.
 
 ## État actuel
-- Phase 0 (moteur + Taverne) et phase 1 (plateforme, Studio, bot, voix) terminées. Voir `docs/ROADMAP.md`.
+- Phases 0, 1 et 2 terminées (moteur, plateforme, Studio, bot, voix, outils, activités, objectifs, édition visuelle). Voir `docs/ROADMAP.md`.
 - **Jamais testé sur un vrai Discord** : le bot principal et les Voice Workers sont à valider en premier (`.env.example`).
 - Inventaire complet de ce qui reste à porter depuis KE2 : `docs/KE2_INVENTAIRE.md`. Ancien code de référence : branche `agent/kingdomengine2-v2` de ce dépôt.
 
-## Prochaines étapes (phase 2)
-Outils et durabilité ; module `activity` (récoltes temporisées, résultats aléatoires pondérés, cooldowns) ; module `objective` (objectifs collectifs) ; rôles d'accès aux bâtiments et serment d'arrivée ; éditeur visuel des règles de boutons et des conditions (supprimer le besoin du JSON) ; assistants « Ajouter une cuisine / une boutique ».
+## Prochaines étapes
+1. Brancher le bot et les Voice Workers sur un serveur Discord de test et corriger ce qui doit l'être.
+2. Phase 2 bis : rôles d'accès aux bâtiments, serment d'arrivée, nettoyage des salons.
+3. Phase 3 : quêtes, événements et Live Ops, calendrier et météo, géographie et voyages (voir `docs/KE2_INVENTAIRE.md`).

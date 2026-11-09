@@ -9,6 +9,18 @@ export interface PlayerState {
   /** Progression conservée même après une démission. */
   jobs: Record<Id, { xp: number; level: number }>;
   modifiers: { id: Id; expiresAt: number }[];
+  /** Durabilité actuelle de chaque outil possédé. */
+  tools: Record<Id, number>;
+  /** Fin de temps de recharge, par clé `${bâtiment}/${module}/${activité}`. */
+  cooldowns: Record<string, number>;
+  /** Activités en cours, par la même clé. Le hasard est tiré au lancement. */
+  activities: Record<string, { startedAt: number; endsAt: number; results: number[] }>;
+}
+
+export interface ObjectiveState {
+  progress: Record<Id, number>;
+  contributors: Record<Id, number>;
+  completedAt?: number;
 }
 
 export interface StationState {
@@ -40,6 +52,8 @@ export interface WorldState {
   /** Clé : `${bâtiment}/${module}` ; null = poste libre. */
   stations: Record<string, (StationState | null)[]>;
   sessions: Record<Id, SessionState>;
+  /** Clé : `${bâtiment}/${module}`. */
+  objectives: Record<string, ObjectiveState>;
 }
 
 export const scopeKey = (building: Id, module: Id) => `${building}/${module}`;
@@ -53,6 +67,7 @@ export function createInitialState(world: WorldDef): WorldState {
     inventories: {},
     stations: {},
     sessions: {},
+    objectives: {},
   };
   for (const v of world.variables) state.variables[v.id] = v.initial;
   syncStructure(world, state);
@@ -64,11 +79,15 @@ export function createInitialState(world: WorldDef): WorldState {
  * (nouvel inventaire, poste supplémentaire…) sans jamais effacer de progression.
  */
 export function syncStructure(world: WorldDef, state: WorldState): void {
+  state.objectives ??= {};
+  // États antérieurs à la phase 2 : champs ajoutés sans perte.
+  for (const p of Object.values(state.players)) normalizePlayer(p);
   for (const v of world.variables) if (!(v.id in state.variables)) state.variables[v.id] = v.initial;
   for (const b of world.buildings) {
     for (const m of b.modules) {
       const key = scopeKey(b.id, m.id);
       if (m.type === 'inventory' && !state.inventories[key]) state.inventories[key] = { ...m.initial };
+      if (m.type === 'objective' && !state.objectives[key]) state.objectives[key] = { progress: {}, contributors: {} };
       if (m.type === 'production') {
         const current = state.stations[key] ?? [];
         while (current.length < m.stationCount) current.push(null);
@@ -82,5 +101,18 @@ export function newPlayer(world: WorldDef): PlayerState {
   const stats: Record<Id, number> = {};
   for (const s of world.stats) stats[s.id] = s.initial;
   const jobs: PlayerState['jobs'] = {};
-  return { stats, items: { ...(world.newPlayer?.items ?? {}) }, activeJobs: [], jobs, modifiers: [] };
+  const items = { ...(world.newPlayer?.items ?? {}) };
+  const tools: Record<Id, number> = {};
+  for (const id of Object.keys(items)) {
+    const t = world.items.find((i) => i.id === id)?.tool;
+    if (t) tools[id] = t.maxDurability;
+  }
+  return { stats, items, activeJobs: [], jobs, modifiers: [], tools, cooldowns: {}, activities: {} };
+}
+
+export function normalizePlayer(p: PlayerState): PlayerState {
+  p.tools ??= {};
+  p.cooldowns ??= {};
+  p.activities ??= {};
+  return p;
 }

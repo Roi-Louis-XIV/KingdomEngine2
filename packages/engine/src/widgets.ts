@@ -3,7 +3,7 @@
  * (boutique, production, stocks, rachat, dialogue, dés, état du joueur).
  * Chaque widget = un rendu + un gestionnaire d'interactions.
  */
-import type { Action, Id, ShopOffer, WidgetDef, ProductionModule, Recipe, BuybackModule } from './model.ts';
+import type { Action, ActivityDef, ActivityModule, Id, ShopOffer, WidgetDef, ProductionModule, Recipe, BuybackModule } from './model.ts';
 import type { RButton, RContainer, RSelect, RSelectOption, RTopLevel, RText } from './components.ts';
 import type { SessionState } from './state.ts';
 import { scopeKey } from './state.ts';
@@ -101,6 +101,8 @@ export function effectsLine(ctx: Ctx, effects: Action[]): string {
       parts.push(`${m?.emoji ?? '✨'} ${m?.name ?? e.modifier} (${Math.round(e.durationSec / 60)} min)`);
     } else if (e.type === 'item.give') {
       parts.push(`🎁 ${itemName(ctx.world, e.item)} ×${e.qty}`);
+    } else if (e.type === 'item.take') {
+      parts.push(`−${e.qty} ${itemName(ctx.world, e.item)}`);
     }
   }
   return parts.join(' · ') || 'Aucun effet';
@@ -508,6 +510,134 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
       return out;
     }
 
+    case 'activity.board': {
+      const mod = findModule(ctx.building, w.activity, 'activity');
+      const children: RContainer['children'] = [text(`### ${mod.name}`)];
+      mod.activities.forEach((a, i) => {
+        if (i > 0) children.push({ type: 'separator' });
+        const key = activityKey(ctx, mod, a);
+        const pending = p.activities[key];
+        const reqs: string[] = [];
+        if (a.costs.length) reqs.push(effectsLine(ctx, a.costs));
+        if (a.tool) {
+          const def = findItem(ctx.world, a.tool.item);
+          const dur = p.tools[a.tool.item];
+          reqs.push(`${itemName(ctx.world, a.tool.item)} (−${a.tool.wear} durabilité${(p.items[a.tool.item] ?? 0) > 0 ? ` · état ${dur ?? def?.tool?.maxDurability}/${def?.tool?.maxDurability}` : ''})`);
+        }
+        reqs.push(a.durationSec ? `⏱️ ${duration(a.durationSec)}` : '⚡ immédiat');
+        let status: string;
+        let btn: RButton;
+        if (pending && ctx.now < pending.endsAt) {
+          status = `⏳ En cours : **${mmss(pending.endsAt - ctx.now)}**`;
+          env.wake(Math.min(pending.endsAt, ctx.now + 5000));
+          btn = { ...button(env.id('claim', a.id), 'En cours', 'secondary'), disabled: true };
+        } else if (pending) {
+          status = '✅ **Terminé !** Récupère ta récolte.';
+          btn = button(env.id('claim', a.id), 'Récupérer', 'primary');
+        } else {
+          const lock = activityLock(ctx, mod, a);
+          if (lock) {
+            status = `🔒 ${lock.text}`;
+            if (lock.until) env.wake(Math.min(lock.until, ctx.now + 5000));
+            btn = { ...button(env.id('start', a.id), 'Lancer', 'secondary'), disabled: true };
+          } else {
+            status = '🟢 Disponible';
+            btn = button(env.id('start', a.id), 'Lancer', 'success');
+          }
+        }
+        children.push({
+          type: 'section',
+          texts: [text(`**${a.emoji ?? ''} ${a.name}**${a.description ? `\n${a.description}` : ''}\n${reqs.join(' · ')}\n${status}`)],
+          accessory: btn,
+        });
+      });
+      return [{ type: 'container', accent: w.accent, children }];
+    }
+
+    case 'objective.board': {
+      const mod = findModule(ctx.building, w.objective, 'objective');
+      const st = objectiveState(ctx, mod.id);
+      const goals = Object.entries(mod.goals);
+      const total = goals.reduce((s, [, g]) => s + g, 0);
+      const done = goals.reduce((s, [it, g]) => s + Math.min(g, st.progress[it] ?? 0), 0);
+      const lines = [`### ${mod.name}`];
+      const desc = pickText(ctx, mod.description);
+      if (desc) lines.push(desc);
+      lines.push('');
+      for (const [it, g] of goals) {
+        const q = Math.min(g, st.progress[it] ?? 0);
+        lines.push(`${q >= g ? '✅' : '▫️'} **${itemName(ctx.world, it)}** ${q}/${g}  \`${gauge(q, g)}\``);
+      }
+      lines.push('', st.completedAt ? '🎉 **Objectif atteint !** Merci à tous les contributeurs.' : `**Avancement : ${Math.floor((done / Math.max(1, total)) * 100)} %**`);
+      const top = Object.entries(st.contributors).sort((a, b) => b[1] - a[1]).slice(0, 3);
+      if (top.length) lines.push(`🏅 ${top.map(([id, n]) => `<@${id}> (${n})`).join(' · ')}`);
+      const out: RTopLevel[] = [box(lines.join('\n'), w.accent ?? 0x526d52)];
+      if (st.completedAt) return out;
+      const sel = env.ui(`objective:${mod.id}`, () => ({ item: '', qty: 1 }));
+      const usable = goals.filter(([it, g]) => (p.items[it] ?? 0) > 0 && (st.progress[it] ?? 0) < g);
+      if (!usable.length) {
+        out.push(text('*Tu n’as rien à apporter pour l’instant.*'));
+        return out;
+      }
+      out.push({
+        type: 'row',
+        items: [
+          select(
+            env.id('item'),
+            'Choisir ce que tu apportes…',
+            usable.map(([it, g]) => ({
+              label: findItem(ctx.world, it)?.name ?? it,
+              value: it,
+              emoji: findItem(ctx.world, it)?.emoji,
+              description: `Tu en as ${p.items[it]} · il en manque ${g - (st.progress[it] ?? 0)}`,
+              default: it === sel.item,
+            })),
+          ),
+        ],
+      });
+      if (sel.item && usable.some(([it]) => it === sel.item)) {
+        const max = Math.min(p.items[sel.item] ?? 0, (mod.goals[sel.item] ?? 0) - (st.progress[sel.item] ?? 0));
+        const qty = Math.min(sel.qty, max);
+        const reward = mod.currency && mod.unitRewards?.[sel.item] ? ` · récompense ${money(ctx, mod.currency, mod.unitRewards[sel.item]! * qty)}` : '';
+        const quick = [...new Set([...mod.quantities.filter((n) => n < max), max])].map((n) => button(env.id('qty', String(n)), n === max ? `Tout (${n})` : `×${n}`, n === qty ? 'primary' : 'secondary'));
+        out.push(...rowOf(quick));
+        out.push({ type: 'row', items: [button(env.id('give'), `Apporter ×${qty}${reward}`, 'success', '🤝')] });
+      }
+      return out;
+    }
+
+    case 'player.tools': {
+      const owned = Object.entries(p.items).filter(([id, q]) => q > 0 && findItem(ctx.world, id)?.tool);
+      const lines = [`### ${w.title ?? '🧰 Tes outils'}`];
+      for (const [id] of owned) {
+        const max = findItem(ctx.world, id)!.tool!.maxDurability;
+        const dur = p.tools[id] ?? max;
+        lines.push(`**${itemName(ctx.world, id)}** ${dur}/${max}  \`${gauge(dur, max)}\`${dur === 0 ? ' · 💥 cassé' : ''}`);
+      }
+      if (!owned.length) lines.push('*Aucun outil.*');
+      const out: RTopLevel[] = [box(lines.join('\n'), w.accent)];
+      if (w.repair) {
+        const worn = owned.filter(([id]) => (p.tools[id] ?? 0) < findItem(ctx.world, id)!.tool!.maxDurability);
+        if (worn.length) {
+          const rep = w.repair;
+          out.push({
+            type: 'row',
+            items: [
+              select(
+                env.id('repair'),
+                'Faire réparer un outil…',
+                worn.map(([id]) => {
+                  const max = findItem(ctx.world, id)!.tool!.maxDurability;
+                  return { label: findItem(ctx.world, id)!.name, value: id, emoji: findItem(ctx.world, id)!.emoji, description: `${p.tools[id] ?? 0}/${max} · réparation : ${money(ctx, rep.currency, (max - (p.tools[id] ?? 0)) * rep.costPerPoint)}` };
+                }),
+              ),
+            ],
+          });
+        }
+      }
+      return out;
+    }
+
     case 'dice': {
       const dice = findModule(ctx.building, w.dice, 'dice');
       const st = env.local(() => ({ me: [] as number[], them: [] as number[], rounds: 0 }));
@@ -527,6 +657,78 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
       return out;
     }
   }
+}
+
+const duration = (sec: number) => (sec < 60 ? `${sec} s` : sec % 60 ? `${Math.floor(sec / 60)} min ${sec % 60} s` : `${sec / 60} min`);
+
+export const activityKey = (ctx: Ctx, mod: ActivityModule, a: ActivityDef) => `${ctx.building.id}/${mod.id}/${a.id}`;
+
+/** Raison pour laquelle une activité ne peut pas être lancée, ou null. */
+export function activityLock(ctx: Ctx, mod: ActivityModule, a: ActivityDef): { text: string; until?: number } | null {
+  const p = ctx.player;
+  const until = p.cooldowns[activityKey(ctx, mod, a)];
+  if (until && until > ctx.now) return { text: `Disponible dans ${mmss(until - ctx.now)}`, until };
+  const v = evaluate(ctx, a.when);
+  if (!v.ok) return { text: v.reason.charAt(0).toUpperCase() + v.reason.slice(1) };
+  if (a.tool) {
+    const t = evaluate(ctx, { type: 'tool', item: a.tool.item });
+    if (!t.ok) return { text: t.reason.charAt(0).toUpperCase() + t.reason.slice(1) };
+  }
+  for (const c of a.costs) {
+    if (c.type === 'stat.add' && c.amount < 0) {
+      const def = findStat(ctx.world, c.stat);
+      const have = p.stats[c.stat] ?? def?.initial ?? 0;
+      if (have + c.amount < (def?.min ?? 0)) return { text: `${def?.emoji ?? ''} ${def?.name ?? c.stat} insuffisant(e) (${have}/${-c.amount})`.trim() };
+    }
+    if (c.type === 'item.take' && !c.inventory && (p.items[c.item] ?? 0) < c.qty) return { text: `${itemName(ctx.world, c.item)} : ${p.items[c.item] ?? 0}/${c.qty}` };
+  }
+  return null;
+}
+
+function objectiveState(ctx: Ctx, module: Id) {
+  return (ctx.state.objectives[scopeKey(ctx.building.id, module)] ??= { progress: {}, contributors: {} });
+}
+
+/** Applique les résultats tirés, avec les bonus actifs qui augmentent les objets reçus. */
+function claimActivity(ctx: Ctx, mod: ActivityModule, a: ActivityDef, results: number[]): string {
+  const p = ctx.player;
+  const active = activeModifiers(p, ctx.now).filter((m) => a.boostedBy?.includes(m.id));
+  const boost = active.reduce((s, m) => s + (findModifier(ctx.world, m.id)?.value ?? 0), 0);
+  const labels: string[] = [];
+  const before = ctx.changes.length;
+  for (const i of results) {
+    const r = a.results[i];
+    if (!r) continue;
+    labels.push(r.label);
+    for (const act of r.actions) {
+      if (act.type === 'item.give' && !act.inventory && boost > 0) applyAction(ctx, { ...act, qty: Math.max(act.qty, Math.round(act.qty * (1 + boost))) });
+      else applyAction(ctx, act);
+    }
+  }
+  if (a.job?.xp) applyAction(ctx, { type: 'job.xp', job: a.job.id, amount: a.job.xp });
+  delete p.activities[activityKey(ctx, mod, a)];
+  if (a.cooldownSec) p.cooldowns[activityKey(ctx, mod, a)] = ctx.now + a.cooldownSec * 1000;
+  const fx = describeChanges(ctx, ctx.changes.slice(before));
+  const bonus = active.length ? ` (${active.map((m) => findModifier(ctx.world, m.id)?.emoji ?? '✨').join('')} bonus +${Math.round(boost * 100)} %)` : '';
+  return `✅ **${a.emoji ?? ''} ${a.name}** : ${labels.join(', ') || 'terminé'}${fx ? ` · ${fx}` : ''}${bonus}`;
+}
+
+function rollResults(a: ActivityDef, random: () => number): number[] {
+  const total = a.results.reduce((s, r) => s + Math.max(0, r.weight), 0);
+  const out: number[] = [];
+  for (let n = 0; n < Math.max(1, a.rolls); n++) {
+    let x = random() * total;
+    let idx = a.results.length - 1;
+    for (let i = 0; i < a.results.length; i++) {
+      x -= Math.max(0, a.results[i]!.weight);
+      if (x < 0) {
+        idx = i;
+        break;
+      }
+    }
+    if (total > 0) out.push(idx);
+  }
+  return out;
 }
 
 function modifierLine(env: WidgetEnv): string {
@@ -757,6 +959,85 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
         if (!v.ok) throw new RuleError(`Ce choix n'est pas disponible (${v.reason}).`);
         if (choice.goto) goNode(choice.goto);
         if (choice.screen) return { goto: choice.screen };
+      }
+      return {};
+    }
+
+    case 'activity.board': {
+      const mod = findModule(ctx.building, w.activity, 'activity');
+      const a = mod.activities.find((x) => x.id === arg);
+      if (!a) throw new RuleError('Activité inconnue (contenu modifié ?).');
+      const key = activityKey(ctx, mod, a);
+      if (verb === 'start') {
+        if (p.activities[key]) throw new RuleError('⏳ Cette activité est déjà en cours.');
+        const lock = activityLock(ctx, mod, a);
+        if (lock) throw new RuleError(`🔒 ${lock.text}`);
+        if (a.tool) applyAction(ctx, { type: 'tool.wear', item: a.tool.item, amount: a.tool.wear });
+        for (const c of a.costs) applyAction(ctx, c);
+        // Le hasard est tiré au lancement : relancer l'interface ne change pas le résultat.
+        const results = rollResults(a, env.random);
+        if (!a.durationSec) return { notice: claimActivity(ctx, mod, a, results) };
+        p.activities[key] = { startedAt: ctx.now, endsAt: ctx.now + a.durationSec * 1000, results };
+        return { notice: `${a.emoji ?? '⏳'} **${a.name}** lancé(e) : retour dans ${duration(a.durationSec)}.` };
+      }
+      if (verb === 'claim') {
+        const pending = p.activities[key];
+        if (!pending) throw new RuleError('Rien à récupérer.');
+        if (ctx.now < pending.endsAt) throw new RuleError(`⏳ Encore ${mmss(pending.endsAt - ctx.now)}.`);
+        return { notice: claimActivity(ctx, mod, a, pending.results) };
+      }
+      return {};
+    }
+
+    case 'objective.board': {
+      const mod = findModule(ctx.building, w.objective, 'objective');
+      const st = objectiveState(ctx, mod.id);
+      const sel = env.ui(`objective:${mod.id}`, () => ({ item: '', qty: 1 }));
+      if (verb === 'item') {
+        sel.item = value;
+        sel.qty = 1;
+        return {};
+      }
+      if (verb === 'qty') {
+        sel.qty = Math.max(1, Number(arg) || 1);
+        return {};
+      }
+      if (verb === 'give') {
+        if (st.completedAt) throw new RuleError('Cet objectif est déjà atteint.');
+        const goal = mod.goals[sel.item];
+        if (!goal) throw new RuleError('Choisis ce que tu apportes.');
+        const remaining = goal - (st.progress[sel.item] ?? 0);
+        const qty = Math.min(sel.qty, remaining, p.items[sel.item] ?? 0);
+        if (qty <= 0) throw new RuleError(remaining <= 0 ? 'Cette ressource est déjà complète.' : 'Tu n’en as plus.');
+        applyAction(ctx, { type: 'item.take', item: sel.item, qty });
+        st.progress[sel.item] = (st.progress[sel.item] ?? 0) + qty;
+        st.contributors[ctx.playerId] = (st.contributors[ctx.playerId] ?? 0) + qty;
+        let notice = `🤝 Merci ! ${qty} ${itemName(ctx.world, sel.item)} apporté(s).`;
+        const unit = mod.unitRewards?.[sel.item];
+        if (mod.currency && unit) {
+          applyAction(ctx, { type: 'stat.add', stat: mod.currency, amount: unit * qty });
+          notice += ` +${money(ctx, mod.currency, unit * qty)}.`;
+        }
+        sel.item = '';
+        sel.qty = 1;
+        if (Object.entries(mod.goals).every(([it, g]) => (st.progress[it] ?? 0) >= g)) {
+          st.completedAt = ctx.now;
+          for (const act of mod.onComplete?.actions ?? []) applyAction(ctx, act);
+          notice += `\n🎉 **Objectif atteint !** ${pickText(ctx, mod.onComplete?.announce)}`;
+        }
+        return { notice };
+      }
+      return {};
+    }
+
+    case 'player.tools': {
+      if (verb === 'repair' && w.repair) {
+        const def = findItem(ctx.world, value);
+        if (!def?.tool || (p.items[value] ?? 0) < 1) throw new RuleError('Outil introuvable.');
+        const cost = (def.tool.maxDurability - (p.tools[value] ?? 0)) * w.repair.costPerPoint;
+        if (cost > 0) applyAction(ctx, { type: 'stat.add', stat: w.repair.currency, amount: -cost });
+        applyAction(ctx, { type: 'tool.repair', item: value });
+        return { notice: `🔧 ${itemName(ctx.world, value)} réparé(e) comme neuf·ve. −${money(ctx, w.repair.currency, cost)}.` };
       }
       return {};
     }

@@ -25,7 +25,8 @@ export type Change =
   | { kind: 'modifier'; modifier: Id; durationSec: number; replaced?: Id }
   | { kind: 'job'; job: Id; joined: boolean }
   | { kind: 'xp'; job: Id; amount: number; levelBefore: number; levelAfter: number }
-  | { kind: 'variable'; variable: Id; value: string | number };
+  | { kind: 'variable'; variable: Id; value: string | number }
+  | { kind: 'tool'; item: Id; before: number; after: number; max: number };
 
 /** Refus métier : annule la transaction et affiche un message (avec redirection éventuelle). */
 export class RuleError extends Error {
@@ -159,6 +160,13 @@ export function evaluate(ctx: Ctx, c: Condition | undefined): Verdict {
       const ok = c.modifier ? active.some((m) => m.id === c.modifier) : active.length > 0;
       return { ok, reason: ok ? 'bonus actif' : 'aucun bonus correspondant actif' };
     }
+    case 'tool': {
+      const name = itemName(w, c.item);
+      if ((p.items[c.item] ?? 0) < 1) return { ok: false, reason: `${name} requis(e)` };
+      const dur = p.tools?.[c.item] ?? findItem(w, c.item)?.tool?.maxDurability ?? 0;
+      const min = c.minDurability ?? 1;
+      return dur >= min ? { ok: true, reason: `${name} : ${dur} de durabilité` } : { ok: false, reason: dur <= 0 ? `${name} cassé(e) : fais-le réparer` : `${name} trop usé(e) (${dur}/${min})` };
+    }
   }
 }
 
@@ -265,8 +273,11 @@ export function applyAction(ctx: Ctx, a: Action): void {
       return;
     }
     case 'item.give': {
-      if (!findItem(w, a.item)) throw new RuleError(`Objet inconnu : ${a.item}`);
+      const def = findItem(w, a.item);
+      if (!def) throw new RuleError(`Objet inconnu : ${a.item}`);
       const inv = inventoryOf(ctx, a.inventory);
+      // Un outil reçu par un joueur qui n'en avait pas arrive neuf.
+      if (!a.inventory && def.tool && (inv[a.item] ?? 0) === 0) p.tools[a.item] = def.tool.maxDurability;
       inv[a.item] = (inv[a.item] ?? 0) + a.qty;
       ctx.changes.push({ kind: 'item', item: a.item, delta: a.qty, inventory: a.inventory });
       return;
@@ -276,7 +287,10 @@ export function applyAction(ctx: Ctx, a: Action): void {
       const have = inv[a.item] ?? 0;
       if (have < a.qty) throw new RuleError(`${itemName(w, a.item)} : ${have}/${a.qty} disponible(s)`);
       inv[a.item] = have - a.qty;
-      if (inv[a.item] === 0) delete inv[a.item];
+      if (inv[a.item] === 0) {
+        delete inv[a.item];
+        if (!a.inventory) delete p.tools[a.item];
+      }
       ctx.changes.push({ kind: 'item', item: a.item, delta: -a.qty, inventory: a.inventory });
       return;
     }
@@ -338,6 +352,26 @@ export function applyAction(ctx: Ctx, a: Action): void {
       ctx.changes.push({ kind: 'modifier', modifier: mod.id, durationSec: a.durationSec, replaced });
       return;
     }
+    case 'tool.wear': {
+      const def = findItem(w, a.item);
+      if (!def?.tool) throw new RuleError(`${itemName(w, a.item)} n'est pas un outil.`);
+      if ((p.items[a.item] ?? 0) < 1) throw new RuleError(`${itemName(w, a.item)} requis(e).`);
+      const before = p.tools[a.item] ?? def.tool.maxDurability;
+      if (before <= 0) throw new RuleError(`${itemName(w, a.item)} est cassé(e) : fais-le réparer.`);
+      p.tools[a.item] = Math.max(0, before - a.amount);
+      ctx.changes.push({ kind: 'tool', item: a.item, before, after: p.tools[a.item]!, max: def.tool.maxDurability });
+      return;
+    }
+    case 'tool.repair': {
+      const def = findItem(w, a.item);
+      if (!def?.tool) throw new RuleError(`${itemName(w, a.item)} n'est pas un outil.`);
+      if ((p.items[a.item] ?? 0) < 1) throw new RuleError(`${itemName(w, a.item)} absent(e) de l'inventaire.`);
+      const before = p.tools[a.item] ?? def.tool.maxDurability;
+      if (before >= def.tool.maxDurability) throw new RuleError(`${itemName(w, a.item)} est déjà en parfait état.`);
+      p.tools[a.item] = Math.min(def.tool.maxDurability, before + (a.amount ?? def.tool.maxDurability));
+      ctx.changes.push({ kind: 'tool', item: a.item, before, after: p.tools[a.item]!, max: def.tool.maxDurability });
+      return;
+    }
     case 'audio.play': {
       if (!a.sound) throw new RuleError('Son non défini.');
       ctx.events.push({ type: 'audio.play', building: ctx.building.id, sound: a.sound, player: ctx.playerId });
@@ -371,6 +405,12 @@ export function describeChanges(ctx: Ctx, changes: Change[] = ctx.changes): stri
         parts.push(s);
         break;
       }
+      case 'tool':
+        parts.push(`${itemName(ctx.world, c.item)} **${c.before} → ${c.after}/${c.max}**${c.after === 0 ? ' (cassé·e !)' : ''}`);
+        break;
+      case 'item':
+        if (!c.inventory && c.delta > 0) parts.push(`+${c.delta} ${itemName(ctx.world, c.item)}`);
+        break;
       case 'xp':
         if (c.amount) parts.push(`+${c.amount} XP ${findJob(ctx.world, c.job)?.name ?? c.job}`);
         if (c.levelAfter > c.levelBefore) parts.push(`🎉 Niveau ${c.levelAfter} atteint !`);

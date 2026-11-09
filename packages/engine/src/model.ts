@@ -39,7 +39,9 @@ export type Condition =
   | { type: 'variable'; variable: Id; op: CompareOp; value: string | number }
   /** Quantité d'un objet chez le joueur ou dans un inventaire de bâtiment. */
   | { type: 'item'; item: Id; op: CompareOp; value: number; inventory?: Id }
-  | { type: 'modifierActive'; modifier?: Id };
+  | { type: 'modifierActive'; modifier?: Id }
+  /** Le joueur possède cet outil, en état de servir (durabilité ≥ minDurability, 1 par défaut). */
+  | { type: 'tool'; item: Id; minDurability?: number };
 
 // ---------------------------------------------------------------------------
 // Actions : exécutées dans une transaction atomique (tout ou rien)
@@ -57,7 +59,11 @@ export type Action =
   | { type: 'modifier.apply'; modifier: Id; durationSec: number }
   | { type: 'variable.set'; variable: Id; value: string | number }
   /** Joue un son de la médiathèque dans le vocal du bâtiment (si une présence vocale est active). */
-  | { type: 'audio.play'; sound: Id };
+  | { type: 'audio.play'; sound: Id }
+  /** Use un outil du joueur. Échoue si l'outil est absent ou cassé. */
+  | { type: 'tool.wear'; item: Id; amount: number }
+  /** Répare un outil (entièrement si amount est omis). */
+  | { type: 'tool.repair'; item: Id; amount?: number };
 
 /** Une règle : conditions → actions → résultat (écran suivant, message). */
 export interface Rule {
@@ -99,6 +105,8 @@ export interface ItemDef {
   baseValue?: number;
   /** Si présent : l'objet peut être consommé depuis l'inventaire du joueur. */
   consumable?: { effects: Action[] };
+  /** Si présent : l'objet est un outil qui s'use (une durabilité par joueur et par outil). */
+  tool?: { maxDurability: number };
 }
 
 export interface ModifierDef {
@@ -183,7 +191,9 @@ export type ModuleDef =
   | BuybackModule
   | ProductionModule
   | DialogueModule
-  | DiceModule;
+  | DiceModule
+  | ActivityModule
+  | ObjectiveModule;
 
 /** Inventaire partagé du bâtiment. Les objectifs sont des repères, jamais des plafonds. */
 export interface InventoryModule {
@@ -304,6 +314,61 @@ export interface DiceModule {
   texts: { win: Text; lose: Text; draw: Text };
 }
 
+/** Un résultat possible d'une activité, tiré au hasard selon son poids. */
+export interface ActivityResult {
+  weight: number;
+  /** Libellé affiché au joueur (« Belle récolte ! »). */
+  label: string;
+  actions: Action[];
+}
+
+/** Activité personnelle temporisée : récolte, expédition, entraînement… */
+export interface ActivityDef {
+  id: Id;
+  name: string;
+  emoji?: string;
+  description?: string;
+  /** 0 = résultat immédiat. */
+  durationSec: number;
+  /** Délai avant de pouvoir recommencer (compté depuis la récupération). */
+  cooldownSec: number;
+  /** Condition d'accès (métier, niveau, phase…). */
+  when?: Condition;
+  /** Coûts payés au lancement (énergie…). */
+  costs: Action[];
+  /** Outil nécessaire, usé au lancement. */
+  tool?: { item: Id; wear: number };
+  /** Expérience de métier gagnée à la récupération. */
+  job?: { id: Id; xp: number };
+  /** Nombre de tirages dans la table des résultats. */
+  rolls: number;
+  results: ActivityResult[];
+  /** Bonus qui augmentent les objets obtenus (valeur du bonus : 0.10 = +10 %). */
+  boostedBy?: Id[];
+}
+
+export interface ActivityModule {
+  type: 'activity';
+  id: Id;
+  name: string;
+  activities: ActivityDef[];
+}
+
+/** Objectif collectif : tous les joueurs apportent des objets jusqu'à atteindre les quantités visées. */
+export interface ObjectiveModule {
+  type: 'objective';
+  id: Id;
+  name: string;
+  description?: Text;
+  goals: Record<Id, number>;
+  /** Récompense par unité apportée (ex. 3 écus par planche). */
+  currency?: Id;
+  unitRewards?: Record<Id, number>;
+  quantities: number[];
+  /** Quand l'objectif est atteint : actions sur le monde (variable.set…) et annonce. */
+  onComplete?: { actions: Action[]; announce?: Text };
+}
+
 // ---------------------------------------------------------------------------
 // Écrans : une interface Discord = un message, navigation par écrans
 // ---------------------------------------------------------------------------
@@ -344,7 +409,10 @@ export type WidgetDef =
     }
   | { kind: 'buyback.sell'; buyback: Id; accent?: number }
   | { kind: 'dialogue'; dialogue: Id; exitScreen: Id; accent?: number }
-  | { kind: 'dice'; dice: Id; accent?: number };
+  | { kind: 'dice'; dice: Id; accent?: number }
+  | { kind: 'activity.board'; activity: Id; accent?: number }
+  | { kind: 'objective.board'; objective: Id; accent?: number }
+  | { kind: 'player.tools'; title?: string; repair?: { currency: Id; costPerPoint: number }; accent?: number };
 
 export interface ScreenDef {
   id: Id;

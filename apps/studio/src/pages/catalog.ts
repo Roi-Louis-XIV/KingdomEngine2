@@ -178,6 +178,13 @@ function itemsTab(w: WorldDef, changed: () => void, redraw: () => void) {
                 ),
                 it.consumable ? effectsEditor(w, it.consumable.effects, changed) : null,
                 h(
+                  'label',
+                  { class: 'check' },
+                  h('input', { type: 'checkbox', checked: !!it.tool, onchange: (e: Event) => ((e.target as HTMLInputElement).checked ? (it.tool = { maxDurability: 20 }) : delete it.tool, changed(), draw()) }),
+                  'C’est un outil qui s’use',
+                ),
+                it.tool ? field(it.tool, 'maxDurability', { label: 'Durabilité maximale', type: 'number', min: 1, hint: 'Chaque joueur a sa propre durabilité. À 0, l’outil est cassé jusqu’à réparation.' }, changed) : null,
+                h(
                   'button',
                   {
                     class: 'btn ghost danger-text small',

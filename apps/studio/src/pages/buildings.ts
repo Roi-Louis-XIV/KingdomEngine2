@@ -1,8 +1,8 @@
-import type { Block, BuildingDef, ModuleDef, ScreenDef, WidgetDef, WorldDef, SoundChoice } from '../../../../packages/engine/src/index.ts';
+import type { Block, BuildingDef, ButtonDef, ModuleDef, ScreenDef, WidgetDef, WorldDef, SoundChoice } from '../../../../packages/engine/src/index.ts';
 import { h, clear, field, selectField, toast, modal, confirmDialog, emptyState, uniqueId } from '../ui.ts';
 import { get } from '../api.ts';
 import { can, draft, server, state, touch } from '../store.ts';
-import { effectsEditor, qtyMapEditor, opts, variableCondition } from '../editors.ts';
+import { effectsEditor, qtyMapEditor, opts, variableCondition, conditionEditor, buttonEditor, textEditor } from '../editors.ts';
 import { Emulator } from '../preview.ts';
 import { go } from '../main.ts';
 
@@ -13,6 +13,8 @@ const MODULE_TYPES: { type: ModuleDef['type']; label: string; text: string }[] =
   { type: 'production', label: 'Atelier de production', text: 'Postes partagés, recettes par niveau, durée et expérience.' },
   { type: 'dialogue', label: 'Dialogue', text: 'Un personnage avec des sujets de conversation.' },
   { type: 'dice', label: 'Jeu de dés', text: 'Un duel de dés contre un personnage.' },
+  { type: 'activity', label: 'Activités', text: 'Récoltes et travaux temporisés, avec résultats aléatoires et outils.' },
+  { type: 'objective', label: 'Objectif collectif', text: 'Tous les joueurs apportent des ressources vers un but commun.' },
 ];
 const moduleLabel = (t: string) => MODULE_TYPES.find((m) => m.type === t)?.label ?? t;
 
@@ -107,7 +109,25 @@ function defaultModule(type: ModuleDef['type'], b: BuildingDef, w: WorldDef): Mo
       return { type, id, name: 'Discussion', speaker: { name: b.npc?.name ?? 'Personnage', emoji: '💬' }, start: 'accueil', nodes: [{ id: 'accueil', title: '💬 Discussion', lines: ['« Bonjour, voyageur ! »'], choices: [] }] };
     case 'dice':
       return { type, id, name: 'Dés', dice: 2, faces: 6, opponent: b.npc?.name ?? 'Le tavernier', texts: { win: '🏆 **Tu as gagné !**', lose: '😤 **Perdu !**', draw: '🤝 **Égalité !**' } };
+    case 'activity':
+      return { type, id, name: 'Activités', activities: [newActivity(w, [])] };
+    case 'objective':
+      return { type, id, name: 'Objectif collectif', goals: w.items[0] ? { [w.items[0].id]: 50 } : {}, quantities: [1, 5, 10], currency: cur || undefined, unitRewards: {} };
   }
+}
+
+function newActivity(w: WorldDef, taken: string[]) {
+  const energy = w.stats.find((s) => s.kind === 'gauge');
+  return {
+    id: uniqueId('activite', taken),
+    name: 'Nouvelle activité',
+    emoji: '⛏️',
+    durationSec: 60,
+    cooldownSec: 30,
+    costs: energy ? [{ type: 'stat.add' as const, stat: energy.id, amount: -5 }] : [],
+    rolls: 1,
+    results: [{ weight: 1, label: 'Réussite', actions: w.items[0] ? [{ type: 'item.give' as const, item: w.items[0].id, qty: 1 }] : [] }],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -183,7 +203,7 @@ export async function buildingPage(main: HTMLElement, params: string[]) {
       body.append(modulesTab(w, b, changed, sounds));
       break;
     case 'ecrans':
-      body.append(screensTab(w, b, changed));
+      body.append(screensTab(w, b, changed, sounds));
       break;
     case 'audio':
       body.append(audioTab(w, b, changed, sounds));
@@ -259,7 +279,33 @@ function modulesTab(w: WorldDef, b: BuildingDef, changed: () => void, sounds: st
       h(
         'section',
         { class: 'block' },
-        h('h2', null, 'Ajouter un module'),
+        h('h2', null, 'Assistants'),
+        h('p', { class: 'muted' }, 'Crée en un clic le module, ses écrans Discord et le bouton d’accès depuis l’accueil. Tout reste modifiable ensuite.'),
+        h(
+          'div',
+          { class: 'module-picker' },
+          ASSISTANTS.map((a) =>
+            h(
+              'button',
+              {
+                class: 'picker assistant',
+                onclick: () => {
+                  const screenId = a.run(w, b);
+                  changed();
+                  draw();
+                  toast(`${a.label} ajouté(e) : écran « ${b.screens.find((s) => s.id === screenId)?.name} » et bouton sur l’accueil.`);
+                },
+              },
+              h('b', null, a.label),
+              h('span', null, a.text),
+            ),
+          ),
+        ),
+      ),
+      h(
+        'section',
+        { class: 'block' },
+        h('h2', null, 'Ajouter un module seul'),
         h(
           'div',
           { class: 'module-picker' },
@@ -481,6 +527,83 @@ function moduleEditor(w: WorldDef, b: BuildingDef, m: ModuleDef, changed: () => 
       drawNodes();
       return h('div', { class: 'form' }, h('div', { class: 'row-fields' }, name, field(m.speaker, 'name', { label: 'Personnage' }, changed), field(m.speaker, 'emoji', { label: 'Symbole' }, changed)), field(m, 'narration', { label: 'Description de la scène', type: 'textarea' }, changed), h('h3', null, 'Sujets'), list);
     }
+    case 'activity': {
+      const list = h('div', { class: 'offers' });
+      const tools = w.items.filter((i) => i.tool).map((i) => ({ value: i.id, label: `${i.emoji ?? ''} ${i.name}` }));
+      const drawActs = () =>
+        clear(
+          list,
+          m.activities.map((a, i) =>
+            h(
+              'details',
+              { class: 'offer' },
+              h('summary', null, `${a.emoji ?? ''} ${a.name}`, h('span', { class: 'muted' }, ` — ${a.durationSec ? `${a.durationSec} s` : 'immédiat'} · recharge ${a.cooldownSec} s`)),
+              h(
+                'div',
+                { class: 'form' },
+                h('div', { class: 'row-fields' }, field(a, 'emoji', { label: 'Symbole' }, changed), field(a, 'name', { label: 'Nom' }, changed), field(a, 'durationSec', { label: 'Durée (s, 0 = immédiat)', type: 'number', min: 0 }, changed), field(a, 'cooldownSec', { label: 'Recharge (s)', type: 'number', min: 0 }, changed)),
+                field(a, 'description', { label: 'Description' }, changed),
+                h('h3', null, 'Accessible si'),
+                conditionEditor(w, b, a.when, (c) => (c ? (a.when = c) : delete a.when, changed())),
+                h('h3', null, 'Coûts au lancement'),
+                effectsEditor(w, a.costs, changed, sounds),
+                h(
+                  'div',
+                  { class: 'row-fields' },
+                  selectField('Outil nécessaire', a.tool?.item ?? '', tools, (v) => (v ? (a.tool = { item: v, wear: a.tool?.wear ?? 1 }) : delete a.tool, changed(), drawActs()), { allowEmpty: 'Aucun' }),
+                  a.tool ? field(a.tool, 'wear', { label: 'Usure par lancement', type: 'number', min: 0 }, changed) : null,
+                  selectField('Métier qui gagne l’XP', a.job?.id ?? '', opts.jobs(w), (v) => (v ? (a.job = { id: v, xp: a.job?.xp ?? 10 }) : delete a.job, changed(), drawActs()), { allowEmpty: 'Aucun' }),
+                  a.job ? field(a.job, 'xp', { label: 'XP gagnée', type: 'number', min: 0 }, changed) : null,
+                ),
+                h('h3', null, 'Résultats possibles'),
+                h('p', { class: 'muted small' }, 'Chaque tirage choisit un résultat selon son poids. Le hasard est tiré au lancement.'),
+                h('div', { class: 'row-fields' }, field(a, 'rolls', { label: 'Nombre de tirages', type: 'number', min: 1, max: 5 }, changed)),
+                a.results.map((r, j) => {
+                  const total = a.results.reduce((s, x) => s + Math.max(0, x.weight), 0) || 1;
+                  return h(
+                    'div',
+                    { class: 'result' },
+                    h(
+                      'div',
+                      { class: 'row-fields' },
+                      field(r, 'label', { label: 'Libellé' }, changed),
+                      field(r, 'weight', { label: `Poids (${Math.round((Math.max(0, r.weight) / total) * 100)} %)`, type: 'number', min: 0 }, () => (changed(), drawActs())),
+                      a.results.length > 1 ? h('button', { class: 'icon-btn', 'aria-label': 'Retirer ce résultat', onclick: () => (a.results.splice(j, 1), changed(), drawActs()) }, '✕') : null,
+                    ),
+                    effectsEditor(w, r.actions, changed, sounds),
+                  );
+                }),
+                h('button', { class: 'btn small', onclick: () => (a.results.push({ weight: 1, label: 'Autre résultat', actions: [] }), changed(), drawActs()) }, '+ Résultat'),
+                w.modifiers.length
+                  ? h(
+                      'div',
+                      { class: 'field' },
+                      h('span', { class: 'field-label' }, 'Bonus qui augmentent les objets obtenus'),
+                      h('div', { class: 'chips' }, w.modifiers.map((md) => h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: !!a.boostedBy?.includes(md.id), onchange: (e: Event) => { const on = (e.target as HTMLInputElement).checked; a.boostedBy = (a.boostedBy ?? []).filter((x) => x !== md.id).concat(on ? [md.id] : []); if (!a.boostedBy.length) delete a.boostedBy; changed(); } }), `${md.emoji ?? ''} ${md.name}`))),
+                    )
+                  : null,
+                h('button', { class: 'btn ghost danger-text small', onclick: () => (m.activities.splice(i, 1), changed(), drawActs()) }, 'Retirer cette activité'),
+              ),
+            ),
+          ),
+          h('button', { class: 'btn small', onclick: () => (m.activities.push(newActivity(w, m.activities.map((x) => x.id))), changed(), drawActs()) }, '+ Ajouter une activité'),
+        );
+      drawActs();
+      return h('div', { class: 'form' }, name, h('h3', null, 'Activités'), list);
+    }
+    case 'objective':
+      m.onComplete ??= { actions: [] };
+      m.unitRewards ??= {};
+      return h(
+        'div',
+        { class: 'form' },
+        name,
+        h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Description'), textEditor(w, b, () => m.description ?? '', (t) => ((m.description = t), changed()), 2)),
+        h('div', { class: 'two' }, h('div', null, h('h3', null, 'Ressources visées'), qtyMapEditor(w, m.goals, changed, { qty: 'Quantité', add: '+ Ressource…' })), h('div', null, h('h3', null, 'Récompense par unité'), selectField('Monnaie', m.currency ?? '', stats, (v) => (v ? (m.currency = v) : delete m.currency, changed()), { allowEmpty: 'Aucune récompense' }), qtyMapEditor(w, m.unitRewards, changed, { qty: 'Par unité', add: '+ Récompense…' }))),
+        h('h3', null, 'Quand l’objectif est atteint'),
+        effectsEditor(w, m.onComplete.actions, changed, sounds),
+        h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Annonce'), textEditor(w, b, () => m.onComplete?.announce ?? '', (t) => ((m.onComplete!.announce = t), changed()), 2)),
+      );
     case 'dice':
       return h(
         'div',
@@ -492,6 +615,103 @@ function moduleEditor(w: WorldDef, b: BuildingDef, m: ModuleDef, changed: () => 
       );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Assistants : module + écrans + accès depuis l'accueil
+// ---------------------------------------------------------------------------
+
+function ensureModule<T extends ModuleDef['type']>(w: WorldDef, b: BuildingDef, type: T): Extract<ModuleDef, { type: T }> {
+  const m = defaultModule(type, b, w) as Extract<ModuleDef, { type: T }>;
+  b.modules.push(m);
+  return m;
+}
+
+function ensureInventory(w: WorldDef, b: BuildingDef): string {
+  return b.modules.find((m) => m.type === 'inventory')?.id ?? ensureModule(w, b, 'inventory').id;
+}
+
+function addScreen(b: BuildingDef, name: string, blocks: Block[]): string {
+  const id = uniqueId(name, b.screens.map((s) => s.id));
+  b.screens.push({ id, name, blocks });
+  return id;
+}
+
+/** Ajoute sur l'écran d'accueil une ligne avec un bouton vers l'écran créé. */
+function linkFromHome(b: BuildingDef, title: string, text: string, screen: string, label: string) {
+  const home = b.screens.find((s) => s.id === b.homeScreen);
+  if (!home) return;
+  const at = home.blocks.findIndex((x) => x.type === 'buttons');
+  const block: Block = { type: 'container', children: [{ type: 'section', text: `**${title}**\n${text}`, button: { label, style: 'primary', rule: { onSuccess: { goto: screen } } } }] };
+  if (at >= 0) home.blocks.splice(at, 0, block);
+  else home.blocks.push(block);
+}
+
+const back = (b: BuildingDef, to = b.homeScreen): Block => ({ type: 'buttons', buttons: [{ label: 'Retour', rule: { onSuccess: { goto: to } } }] });
+const header = (title: string, text: string): Block => ({ type: 'container', children: [{ type: 'text', text: `## ${title}\n*${text}*` }] });
+
+const ASSISTANTS: { label: string; text: string; run: (w: WorldDef, b: BuildingDef) => string }[] = [
+  {
+    label: 'Boutique',
+    text: 'Catalogue avec filtres, validation sur place ou à emporter, état du joueur.',
+    run: (w, b) => {
+      ensureInventory(w, b);
+      const shop = ensureModule(w, b, 'shop');
+      const checkout = addScreen(b, 'Commande', [{ type: 'widget', widget: { kind: 'shop.checkout', backScreen: b.homeScreen } }, { type: 'notice' }]);
+      const screen = addScreen(b, shop.name, [header(`🛒 ${shop.name}`, 'Que désires-tu ?'), { type: 'widget', widget: { kind: 'player.status', stats: w.stats.map((s) => s.id) } }, { type: 'notice' }, { type: 'widget', widget: { kind: 'shop.catalog', shop: shop.id, checkoutScreen: checkout } }, back(b)]);
+      const c = b.screens.find((s) => s.id === checkout)!.blocks[0]!;
+      if (c.type === 'widget' && c.widget.kind === 'shop.checkout') c.widget.backScreen = screen;
+      linkFromHome(b, `🛒 ${shop.name}`, 'Acheter sur place ou à emporter.', screen, 'Entrer');
+      return screen;
+    },
+  },
+  {
+    label: 'Atelier de production',
+    text: 'Postes partagés avec minuteur, livre de recettes, priorités selon les réserves.',
+    run: (w, b) => {
+      ensureInventory(w, b);
+      const prod = ensureModule(w, b, 'production');
+      const recipes = addScreen(b, 'Recettes', [header('📖 Recettes', 'Choisis ce que tu veux préparer.'), { type: 'notice' }, { type: 'widget', widget: { kind: 'production.recipes', production: prod.id, backScreen: b.homeScreen } }]);
+      const screen = addScreen(b, prod.name, [header(`⚒️ ${prod.name}`, 'Les postes de travail sont partagés par tous.'), { type: 'notice' }, { type: 'widget', widget: { kind: 'production.priorities', production: prod.id } }, { type: 'widget', widget: { kind: 'production.stations', production: prod.id, recipeScreen: recipes } }, back(b)]);
+      const r = b.screens.find((s) => s.id === recipes)!;
+      const wd = r.blocks[2]!;
+      if (wd.type === 'widget' && wd.widget.kind === 'production.recipes') wd.widget.backScreen = screen;
+      r.blocks.push(back(b, screen));
+      linkFromHome(b, `⚒️ ${prod.name}`, 'Lancer et récupérer les productions.', screen, 'Travailler');
+      return screen;
+    },
+  },
+  {
+    label: 'Activités et récoltes',
+    text: 'Travaux temporisés aux résultats aléatoires, outils et réparation.',
+    run: (w, b) => {
+      const act = ensureModule(w, b, 'activity');
+      const repair = w.stats.find((s) => s.kind === 'currency');
+      const screen = addScreen(b, act.name, [{ type: 'notice' }, { type: 'widget', widget: { kind: 'activity.board', activity: act.id } }, { type: 'widget', widget: { kind: 'player.tools', repair: repair ? { currency: repair.id, costPerPoint: 1 } : undefined } }, back(b)]);
+      linkFromHome(b, '⛏️ Activités', 'Récolter, explorer, travailler.', screen, 'Y aller');
+      return screen;
+    },
+  },
+  {
+    label: 'Objectif collectif',
+    text: 'Une barre d’avancement commune et les meilleurs contributeurs.',
+    run: (w, b) => {
+      const obj = ensureModule(w, b, 'objective');
+      const screen = addScreen(b, obj.name, [{ type: 'notice' }, { type: 'widget', widget: { kind: 'objective.board', objective: obj.id } }, back(b)]);
+      linkFromHome(b, `🤝 ${obj.name}`, 'Participer à l’effort commun.', screen, 'Contribuer');
+      return screen;
+    },
+  },
+  {
+    label: 'Personnage qui parle',
+    text: 'Un arbre de conversation avec des sujets et des réponses.',
+    run: (w, b) => {
+      const dlg = ensureModule(w, b, 'dialogue');
+      const screen = addScreen(b, 'Discussion', [{ type: 'widget', widget: { kind: 'dialogue', dialogue: dlg.id, exitScreen: b.homeScreen } }]);
+      linkFromHome(b, `💬 ${dlg.speaker.name}`, 'Discuter.', screen, 'Parler');
+      return screen;
+    },
+  },
+];
 
 // ---------------------------------------------------------------------------
 // Écrans
@@ -509,6 +729,9 @@ const WIDGETS: { kind: WidgetDef['kind']; label: string; needs?: ModuleDef['type
   { kind: 'buyback.sell', label: 'Vente au bâtiment', needs: 'buyback' },
   { kind: 'dialogue', label: 'Dialogue', needs: 'dialogue' },
   { kind: 'dice', label: 'Jeu de dés', needs: 'dice' },
+  { kind: 'activity.board', label: 'Tableau des activités', needs: 'activity' },
+  { kind: 'objective.board', label: 'Objectif collectif', needs: 'objective' },
+  { kind: 'player.tools', label: 'Outils du joueur (et réparation)' },
 ];
 
 function newWidget(kind: WidgetDef['kind'], b: BuildingDef, w: WorldDef, screen: ScreenDef): WidgetDef {
@@ -537,6 +760,12 @@ function newWidget(kind: WidgetDef['kind'], b: BuildingDef, w: WorldDef, screen:
       return { kind, dialogue: mod('dialogue'), exitScreen: home };
     case 'dice':
       return { kind, dice: mod('dice') };
+    case 'activity.board':
+      return { kind, activity: mod('activity') };
+    case 'objective.board':
+      return { kind, objective: mod('objective') };
+    case 'player.tools':
+      return { kind, repair: w.stats.find((s) => s.kind === 'currency') ? { currency: w.stats.find((s) => s.kind === 'currency')!.id, costPerPoint: 1 } : undefined };
   }
 }
 
@@ -559,7 +788,7 @@ function blockSummary(bl: Block): string {
   }
 }
 
-function screensTab(w: WorldDef, b: BuildingDef, changed: () => void) {
+function screensTab(w: WorldDef, b: BuildingDef, changed: () => void, sounds: string[]) {
   const box = h('div');
   let current = b.screens[0]?.id ?? '';
   const draw = () => {
@@ -585,15 +814,33 @@ function screensTab(w: WorldDef, b: BuildingDef, changed: () => void) {
           '+ Écran',
         ),
       ),
-      screen ? screenEditor(w, b, screen, changed, draw) : null,
+      screen ? screenEditor(w, b, screen, changed, draw, sounds) : null,
     );
   };
   draw();
   return box;
 }
 
-function screenEditor(w: WorldDef, b: BuildingDef, screen: ScreenDef, changed: () => void, redraw: () => void) {
-  const nav = b.screens.map((s) => ({ value: s.id, label: s.name }));
+const MODULE_KEYS: Record<string, ModuleDef['type']> = { shop: 'shop', production: 'production', dialogue: 'dialogue', dice: 'dice', buyback: 'buyback', activity: 'activity', objective: 'objective' };
+
+/** Réglages d'un widget : module utilisé et écrans de destination. */
+function widgetEditor(b: BuildingDef, wd: WidgetDef, changed: () => void): HTMLElement | null {
+  const fields: HTMLElement[] = [];
+  const rec = wd as unknown as Record<string, unknown>;
+  for (const [k, v] of Object.entries(rec)) {
+    if (typeof v !== 'string' || k === 'kind') continue;
+    if (k in MODULE_KEYS) {
+      const type = MODULE_KEYS[k]!;
+      fields.push(selectField('Module', v, b.modules.filter((m) => m.type === type).map((m) => ({ value: m.id, label: m.name })), (x) => ((rec[k] = x), changed())));
+    } else if (/Screen$/.test(k)) {
+      const label = { checkoutScreen: 'Écran de validation d’achat', backScreen: 'Écran de retour', recipeScreen: 'Écran des recettes', exitScreen: 'Écran de sortie' }[k] ?? k;
+      fields.push(selectField(label, v, b.screens.map((s) => ({ value: s.id, label: s.name })), (x) => ((rec[k] = x), changed())));
+    } else if (k === 'title') fields.push(field(rec as Record<string, string>, k, { label: 'Titre' }, changed));
+  }
+  return fields.length ? h('div', { class: 'row-fields widget-fields' }, fields) : null;
+}
+
+function screenEditor(w: WorldDef, b: BuildingDef, screen: ScreenDef, changed: () => void, redraw: () => void, sounds: string[] = []) {
   const move = (list: Block[], i: number, d: number) => {
     const j = i + d;
     if (j < 0 || j >= list.length) return;
@@ -601,6 +848,20 @@ function screenEditor(w: WorldDef, b: BuildingDef, screen: ScreenDef, changed: (
     changed();
     redraw();
   };
+  const target = (btn: ButtonDef) => {
+    const g = btn.rule.onSuccess?.goto;
+    const parts = [];
+    if (btn.rule.actions?.length) parts.push(`${btn.rule.actions.length} action(s)`);
+    if (g) parts.push(`→ ${b.screens.find((s) => s.id === g)?.name ?? g}`);
+    return parts.join(' ') || 'reste sur l’écran';
+  };
+  const btnDetails = (btn: ButtonDef, remove: (() => void) | null) =>
+    h(
+      'details',
+      { class: 'btn-details' },
+      h('summary', null, h('span', { class: `d-btn mini ${btn.style ?? 'secondary'}` }, typeof btn.label === 'string' ? btn.label || '…' : 'Libellé variable'), h('span', { class: 'muted small' }, target(btn)), remove ? h('button', { class: 'icon-btn', 'aria-label': 'Retirer le bouton', onclick: (e: Event) => (e.preventDefault(), remove()) }, '✕') : null),
+      buttonEditor(w, b, btn, changed, sounds),
+    );
   const blockRow = (list: Block[], bl: Block, i: number, depth: number): HTMLElement =>
     h(
       'li',
@@ -614,27 +875,25 @@ function screenEditor(w: WorldDef, b: BuildingDef, screen: ScreenDef, changed: (
         h('button', { class: 'icon-btn', 'aria-label': 'Descendre', onclick: () => move(list, i, 1) }, '↓'),
         h('button', { class: 'icon-btn', 'aria-label': 'Supprimer', onclick: () => (list.splice(i, 1), changed(), redraw()) }, '✕'),
       ),
-      bl.type === 'text' && typeof bl.text === 'string'
-        ? h('textarea', { rows: Math.min(8, bl.text.split('\n').length + 1), class: 'blk-text', 'aria-label': 'Texte', oninput: (e: Event) => ((bl.text = (e.target as HTMLTextAreaElement).value), changed()) }, bl.text)
+      bl.type === 'text' ? h('div', { class: 'blk-body' }, textEditor(w, b, () => bl.text, (t) => ((bl.text = t), changed()))) : null,
+      bl.type === 'section'
+        ? h('div', { class: 'blk-body' }, textEditor(w, b, () => bl.text, (t) => ((bl.text = t), changed()), 2), btnDetails(bl.button, null))
         : null,
       bl.type === 'buttons'
         ? h(
             'div',
             { class: 'blk-buttons' },
-            bl.buttons.map((btn, j) =>
-              h(
-                'div',
-                { class: 'row-fields' },
-                typeof btn.label === 'string' ? field(btn, 'label', { label: 'Libellé' }, changed) : h('span', { class: 'muted' }, 'Libellé variable'),
-                !btn.rule.actions?.length && !btn.rule.when
-                  ? selectField('Ouvre l’écran', btn.rule.onSuccess?.goto ?? '', nav, (v) => ((btn.rule.onSuccess = { ...btn.rule.onSuccess, goto: v }), changed()))
-                  : h('span', { class: 'note' }, 'Bouton avec règle (onglet Avancé)'),
-                h('button', { class: 'icon-btn', 'aria-label': 'Retirer le bouton', onclick: () => (bl.buttons.splice(j, 1), changed(), redraw()) }, '✕'),
-              ),
-            ),
+            bl.buttons.map((btn, j) => btnDetails(btn, () => (bl.buttons.splice(j, 1), changed(), redraw()))),
             bl.buttons.length < 5 ? h('button', { class: 'btn small', onclick: () => (bl.buttons.push({ label: 'Bouton', rule: { onSuccess: { goto: b.homeScreen } } }), changed(), redraw()) }, '+ Bouton') : null,
           )
         : null,
+      bl.type === 'widget' ? widgetEditor(b, bl.widget, changed) : null,
+      h(
+        'details',
+        { class: 'blk-visibility', open: !!bl.visibleIf },
+        h('summary', null, bl.visibleIf ? 'Affiché sous condition' : 'Toujours affiché'),
+        conditionEditor(w, b, bl.visibleIf, (c) => (c ? (bl.visibleIf = c) : delete bl.visibleIf, changed())),
+      ),
       bl.type === 'container' ? h('ul', { class: 'blk-children' }, bl.children.map((c, j) => blockRow(bl.children, c, j, depth + 1))) : null,
     );
   return h(

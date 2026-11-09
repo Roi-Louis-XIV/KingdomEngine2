@@ -51,9 +51,9 @@ Légende : ✅ fait · 🟡 partiel · ⏳ planifié (phase indiquée)
 | Consommables, énergie, bonus temporaires | Statistiques, objets consommables, bonus exclusifs | ✅ |
 | Dialogues PNJ conditionnels, mini-jeu de dés | Modules `dialogue`, `dice` | ✅ |
 | Conditions récursives all/any/not | Conditions expliquées | ✅ |
-| Outils, durabilité, réparation, amélioration | Objets à état (durabilité, niveau) | ⏳ P2 |
-| Activités temporisées, résultats aléatoires pondérés, cooldowns | Module `activity` (récolte, expédition) | ⏳ P2 |
-| Objectifs collectifs et contributions | Module `objective` | ⏳ P2 |
+| Outils, durabilité, réparation, amélioration | Objets-outils (durabilité par joueur), usure, réparation payante | ✅ P2 (amélioration de niveau ⏳ P3) |
+| Activités temporisées, résultats aléatoires pondérés, cooldowns | Module `activity` : durée, recharge, coûts, outil, XP, tirages pondérés figés au lancement, bonus de récolte | ✅ P2 |
+| Objectifs collectifs et contributions | Module `objective` : contributions, récompense par unité, meilleurs contributeurs, actions à l’achèvement | ✅ P2 |
 | Livraisons rémunérées | ✅ via `buyback` | ✅ |
 | Quêtes | Module `quest` | ⏳ P3 |
 | Événements, Live Ops (démarrer/pause/reprendre/arrêter), timeline | Planificateur d’événements | ⏳ P3 |
@@ -91,6 +91,8 @@ Légende : ✅ fait · 🟡 partiel · ⏳ planifié (phase indiquée)
 |---|---|---|
 | Connexion, shell, thème sombre, navigation | Studio sans dépendance (TypeScript natif) | ✅ P1 |
 | Éditeurs objets, métiers, statistiques | Éditeurs de catalogues | ✅ P1 |
-| Builder de bâtiments plein écran, modes Simple/Avancé | Éditeur de modules + édition avancée JSON + émulateur intégré | 🟡 P1 (builder visuel d’écrans ⏳ P2) |
-| Builder visuel des pages Discord (glisser-déposer) | Éditeur d’écrans avec aperçu en direct | ⏳ P2 |
+| Builder de bâtiments plein écran, modes Simple/Avancé | Éditeur de modules, d’écrans et d’audio + édition avancée JSON + émulateur intégré | ✅ P2 |
+| Builder visuel des pages Discord (glisser-déposer) | Éditeur d’écrans : blocs ordonnables, boutons et règles, conditions, textes variables, réglages des modules, aperçu en direct | ✅ P2 (glisser-déposer ⏳) |
+| Boutons conditionnels, conditions all/any/not | Éditeur visuel de conditions récursif | ✅ P2 |
+| Presets de bâtiments | Assistants : boutique, atelier, activités, objectif, personnage | ✅ P2 |
 | Académie, tutoriels interactifs | — | ⏳ P4 |

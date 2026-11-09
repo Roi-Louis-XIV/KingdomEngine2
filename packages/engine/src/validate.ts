@@ -66,6 +66,9 @@ export function validateWorld(w: WorldDef): Issue[] {
       case 'modifierActive':
         if (c.modifier && !mods.has(c.modifier)) err(where, `bonus inconnu : ${c.modifier}`);
         break;
+      case 'tool':
+        if (!w.items.find((i) => i.id === c.item)?.tool) err(where, `${c.item} n’est pas un outil`);
+        break;
     }
   };
 
@@ -101,6 +104,10 @@ export function validateWorld(w: WorldDef): Issue[] {
         break;
       case 'audio.play':
         if (!a.sound) err(where, 'son non défini');
+        break;
+      case 'tool.wear':
+      case 'tool.repair':
+        if (!w.items.find((i) => i.id === a.item)?.tool) err(where, `${a.item} n’est pas un outil`);
         break;
     }
   };
@@ -176,6 +183,29 @@ export function validateWorld(w: WorldDef): Issue[] {
         case 'dice':
           if (m.dice < 1 || m.faces < 2) err(where, 'dés invalides');
           break;
+        case 'activity': {
+          ids(m.activities, where);
+          if (m.activities.length > 8) warn(where, 'plus de 8 activités : l’écran risque de dépasser la limite Discord');
+          for (const a of m.activities) {
+            const here = `${where} › ${a.id}`;
+            checkCondition(here, a.when, b);
+            a.costs.forEach((x) => checkAction(here, x, b));
+            if (a.tool && !w.items.find((i) => i.id === a.tool!.item)?.tool) err(here, `${a.tool.item} n’est pas un outil`);
+            if (a.job && !jobs.has(a.job.id)) err(here, `métier inconnu : ${a.job.id}`);
+            if (!a.results.length || a.results.every((r) => r.weight <= 0)) err(here, 'au moins un résultat avec un poids positif');
+            a.results.forEach((r) => r.actions.forEach((x) => checkAction(here, x, b)));
+            a.boostedBy?.forEach((x) => mods.has(x) || err(here, `bonus inconnu : ${x}`));
+            if (a.durationSec < 0 || a.cooldownSec < 0) err(here, 'durées négatives');
+          }
+          break;
+        }
+        case 'objective':
+          Object.keys(m.goals).forEach((i) => checkItem(where, i));
+          if (!Object.keys(m.goals).length) err(where, 'aucune ressource visée');
+          if (m.currency && !stats.has(m.currency)) err(where, `monnaie inconnue : ${m.currency}`);
+          checkText(where, m.description, b);
+          m.onComplete?.actions.forEach((x) => checkAction(where, x, b));
+          break;
       }
     }
 
@@ -219,6 +249,15 @@ export function validateWorld(w: WorldDef): Issue[] {
           modOf(wd.dice, 'dice', where);
           break;
         case 'player.consumables':
+          break;
+        case 'activity.board':
+          modOf(wd.activity, 'activity', where);
+          break;
+        case 'objective.board':
+          modOf(wd.objective, 'objective', where);
+          break;
+        case 'player.tools':
+          if (wd.repair && !stats.has(wd.repair.currency)) err(where, `monnaie inconnue : ${wd.repair.currency}`);
           break;
       }
     };

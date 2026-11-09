@@ -15,13 +15,15 @@ Moteur générique et atomique, Taverne d’Edgar V11 en pur contenu, émulateur
 
 **À valider sur un vrai Discord** : le bot et les Voice Workers n’ont pas pu être testés dans l’environnement de développement (pas d’accès au réseau Discord).
 
-## Phase 2 — Mécaniques et Discord avancé
-- Objets à état : outils, durabilité, réparation, amélioration.
-- Module `activity` : récoltes et expéditions temporisées, résultats aléatoires pondérés, cooldowns.
-- Module `objective` : objectifs collectifs et contributions.
-- Rôles d’accès aux bâtiments (entrée/sortie du vocal), parcours d’arrivée (serment, dotation).
-- Éditeur visuel complet des écrans : règles de boutons et conditions sans JSON, textes variables.
-- Assistants : « Ajouter une cuisine », « Ajouter une boutique » créent le module et ses écrans.
+## ✅ Phase 2 — Mécaniques et édition visuelle
+- Outils : durabilité par joueur, usure, casse, réparation payante (widget « Outils du joueur »).
+- Module `activity` : récoltes et travaux temporisés ou immédiats, coûts, outil, XP, recharge, tirages pondérés figés au lancement, bonus qui augmentent les récoltes.
+- Module `objective` : objectif collectif, récompense par unité, meilleurs contributeurs, actions à l’achèvement (ex. retour au calme).
+- Contenu : la Forêt (bûcheron, hache) et le chantier de l’Église dans « Le Royaume ».
+- Studio : éditeur visuel de conditions (récursif), de règles de boutons, de textes variables, réglages des widgets ; assistants boutique, atelier, activités, objectif, personnage ; outils et activités dans la fiche joueur ; objectifs dans la vue d’ensemble.
+
+## Phase 2 bis — Discord avancé (après validation sur un vrai serveur)
+- Rôles d’accès aux bâtiments (entrée/sortie du vocal), parcours d’arrivée (serment, dotation), nettoyage et désinstallation des salons.
 
 ## Phase 3 — Monde vivant
 Quêtes ; événements et Live Ops (démarrer / pause / reprendre / arrêter) ; timeline de scénario ; calendrier, saisons, météo ; lieux, voyages, carte ; groupes d’ambiance multicouches ; réactions vocales des personnages.
