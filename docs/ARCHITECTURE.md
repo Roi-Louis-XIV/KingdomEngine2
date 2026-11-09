@@ -1,56 +1,78 @@
 # Architecture de KingdomEngine 4
 
-## Principe : un seul moteur, plusieurs afficheurs
+## Vue d’ensemble
 
 ```
- world.json (contenu)          état (JSON, sauvegardé)
-        │                               │
-        ▼                               ▼
- ┌──────────────────────────────────────────────┐
- │  packages/engine — moteur pur et synchrone   │
- │  conditions · actions · transactions · rendu │
- └───────────────┬──────────────────────────────┘
-                 │ rendu neutre (calqué sur Components V2)
-       ┌─────────┴──────────┐
-       ▼                    ▼
-  apps/bot (Discord)   apps/emulator (navigateur) → futur Studio
+                    ┌──────────── apps/server (un seul processus) ────────────┐
+ Navigateur ──HTTP──▶ API du Studio ─┐                                         │
+ (apps/studio)      │                ▼                                         │
+                    │  Platform (SQLite) : comptes, serveurs, droits,          │
+                    │  versions de contenu, état, joueurs, activité, audit     │
+                    │                ▲                                         │
+                    │  Runtimes : un Engine par serveur ◀── publication        │
+                    │     │  signaux « changed / reloaded / engine »          │
+                    │     ▼                                                    │
+ Discord ◀──────────┤  CoreBot (discord.js) : commandes, interfaces, salons    │
+                    │  VoiceWorkers (@discordjs/voice) : présences vocales     │
+                    └──────────────────────────────────────────────────────────┘
+                                     ▲
+                       packages/engine (pur, sans dépendance)
+                       — aussi exécuté dans le navigateur pour l’émulateur —
 ```
 
-- **Le moteur ne connaît pas Discord.** Il produit un arbre neutre (encadrés, textes, sections, séparateurs, rangées de boutons, menus) que chaque afficheur traduit.
-- **L’émulateur exécute le même code que le bot.** Ce que le créateur teste est exactement ce que vivront les joueurs.
-- **Atomicité.** Chaque interaction s’exécute sur une copie de l’état, validée seulement si toutes les actions réussissent. Les méthodes étant synchrones, deux clics ne peuvent pas s’entrelacer. Exemple : deux cuisiniers visent la même marmite, un seul réussit et aucun ingrédient n’est perdu.
-- **Boutons sans état.** Un `customId` contient la session, l’écran et le chemin du bloc. Les interfaces restent donc utilisables après un redémarrage.
+## Principes
 
-## Le modèle d’un monde (`packages/engine/src/model.ts`)
+1. **Le moteur ne connaît ni Discord ni la base.** Il reçoit un monde (`WorldDef`) et un état (`WorldState`). Il expose des opérations synchrones et atomiques et rend un arbre neutre calqué sur Components V2.
+2. **Le même moteur partout.** L’émulateur du Studio fait tourner exactement le code du bot, sur le brouillon.
+3. **Contenu ≠ code.** Un monde est un document JSON versionné. Publier recharge le moteur à chaud, sans perdre aucune progression.
+4. **Un seul processus.** Studio, API, bot et voix partagent la même mémoire : pas de file d’attente entre services, pas de désynchronisation. La base SQLite en mode WAL est la seule source de vérité.
+5. **Discord est un afficheur.** Le bot ouvre des interfaces, transmet les clics, rafraîchit les messages et ne décide de rien.
+6. **La voix ne bloque jamais le jeu.** Un son ou un worker manquant laisse le bâtiment silencieux, sans erreur côté joueur.
 
-| Élément | Exemple dans la Taverne |
+## Données (`apps/server/src/db.ts`)
+
+| Table | Contenu |
 |---|---|
-| **Statistiques** du joueur (jauge, monnaie, valeur) | Bourse, Énergie 0–100, Alcoolémie |
-| **Objets** (consommables ou non) | Légumes, Bouteille de vin (+5 énergie, bonus XP) |
-| **Bonus temporaires** (groupes exclusifs) | Récolte minière +15 % pendant 15 min |
-| **Métiers** (XP, niveaux, maximum simultané) | Cuisinier, 100 XP par niveau, un seul métier |
-| **Variables du monde** | Phase : calme / tempête / après |
-| **Bâtiments** = modules + écrans | À la Gueuse Cocue |
+| `accounts`, `sessions` | Comptes (mots de passe scrypt), sessions (jetons hachés) |
+| `servers`, `access` | Mondes, serveur Discord associé (unique), droits par compte |
+| `content` | Versions du monde : un brouillon, une version publiée, des archives |
+| `states` | État de jeu de chaque monde (joueurs, réserves, postes, variables) |
+| `players`, `activity` | Noms Discord des joueurs, fil d’activité |
+| `audit` | Historique des modifications et interventions |
+| `audio`, `server_settings` | Médiathèque, salons Discord des bâtiments |
 
-### Modules génériques d’un bâtiment
+Les migrations sont numérotées et additives : une base existante n’est jamais vidée.
 
-| Module | Ce qu’il fait |
+## Droits
+
+| Rôle | Peut |
 |---|---|
-| `inventory` | Réserve partagée, sans plafond, avec objectifs indicatifs |
-| `shop` | Catalogue : sur place (effets immédiats) ou à emporter (objet + supplément) |
-| `buyback` | Rachat aux joueurs, prix selon la réserve (paliers configurables) |
-| `production` | Postes partagés, recettes par niveau, durée, XP lancement/récupération |
-| `dialogue` | Arbre de sujets, répliques conditionnelles et en rotation |
-| `dice` | Duel de dés contre un PNJ |
+| Lecture | Tout consulter |
+| Éditeur | Modifier le contenu et le publier |
+| Gestionnaire | En plus : intervenir sur les joueurs, changer le scénario, Discord, sons |
+| Propriétaire | En plus : gérer les accès, renommer, supprimer le monde |
+| Administrateur plateforme | Tous les mondes, comptes, état des bots |
 
-### Écrans
+Chaque requête vérifie le droit côté serveur. Un monde inaccessible répond « introuvable » pour ne pas révéler son existence. Les écritures exigent le cookie `SameSite=Strict` et un en-tête propre au Studio.
 
-Un écran est une liste de **blocs** : texte, encadré, séparateur, section avec bouton, rangée de boutons, emplacement du message de retour, ou **widget** de module (catalogue, marmites, recettes, stocks, vente, dialogue, dés, état du joueur, inventaire).
+## Contenu et publication
 
-Chaque bouton porte une **règle** : *condition → actions → résultat (écran suivant, message)*. Les textes peuvent varier selon des conditions et contenir des variables comme `{player.stat.ecus}`, `{player.level.cuisinier}`, `{var.phase.label}` ou `{production.cuisine.free}`.
+- **Brouillon.** Le Studio édite une copie locale du monde. La barre d’enregistrement apparaît dès qu’il y a une modification.
+- **Concurrence.** L’enregistrement envoie la révision lue ; si quelqu’un a enregistré entre-temps, le serveur répond 409.
+- **Publication.** `validateWorld` doit être sans erreur. La version précédente est archivée, le moteur rechargé à chaud, les commandes Discord du serveur réenregistrées.
+- **Restauration.** Toute version archivée peut redevenir le brouillon.
 
-Un écran peut avoir une **garde** : la cuisine renvoie à l’accueil quiconque n’est pas cuisinier, même s’il clique un ancien bouton.
+## Voix
 
-## Diagnostic
+- `voice/planner.ts` : un bâtiment dont le salon vocal contient au moins un joueur, et qui a une configuration audio, demande une **présence** (identité du personnage, ambiance selon les variables du monde).
+- `voice/pool.ts` : attribue les présences aux workers libres et installés sur le bon serveur. Une présence garde son worker tant qu’elle est souhaitée, avec 30 s de grâce après le départ du dernier joueur. Si l’ambiance change (Tempête), le son est mis à jour sans changer de worker.
+- `voice/workers.ts` : applique ces décisions sur Discord. Le worker rejoint le salon, prend le nom du personnage, joue l’accueil puis l’ambiance en boucle, ainsi que les sons déclenchés par l’action `audio.play`.
 
-`validateWorld()` signale les références cassées (objet, écran ou module inconnu…) avec leur emplacement. `validateRendered()` vérifie les limites Discord : 40 composants, 4 000 caractères, 5 boutons par rangée, 25 options par menu, `customId` de 100 caractères au plus. Le futur Studio les affichera en direct.
+## Le modèle d’un monde
+
+Voir `packages/engine/src/model.ts`.
+
+- **Global** : statistiques, objets, bonus, métiers, variables.
+- **Bâtiments** : modules génériques (`inventory`, `shop`, `buyback`, `production`, `dialogue`, `dice`) + écrans faits de blocs (texte, encadré, boutons, widgets de modules) + audio.
+- **Boutons** : règle *condition → actions → résultat*.
+- **Textes** : conditionnels, avec variables (`{player.stat.ecus}`, `{var.phase.label}`…).

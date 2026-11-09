@@ -385,3 +385,21 @@ test('tous les écrans respectent les limites Discord Components V2', () => {
     check(label);
   }
 });
+
+test('audio : ambiance selon la phase et son déclenché par un achat', () => {
+  const { engine } = makeEngine();
+  assert.equal(engine.ambienceFor('taverne'), 'taverne-calme');
+  engine.adminApply('alice', undefined, [{ type: 'variable.set', variable: 'phase', value: 'tempete' }]);
+  assert.equal(engine.ambienceFor('taverne'), 'taverne-tempete');
+  const p = new Player(engine, 'alice');
+  p.click('Boissons').choose(/Choisir un article/, 'biere').click(/Sur place/);
+  const r = engine.interact('alice', p.button('Confirmer l’achat').customId);
+  assert.deepEqual(r.events, [{ type: 'audio.play', building: 'taverne', sound: 'chope-servie', player: 'alice' }]);
+  assert.match(r.notice!, /Chope de bière consommé/);
+  // Un achat refusé n'émet aucun son.
+  engine.adminApply('alice', undefined, [{ type: 'stat.set', stat: 'ecus', value: 0 }]);
+  p.message = r.message!;
+  p.choose(/Choisir un article/, 'biere').click(/Sur place/);
+  const r2 = engine.interact('alice', p.button('Confirmer l’achat').customId);
+  assert.deepEqual(r2.events, []);
+});

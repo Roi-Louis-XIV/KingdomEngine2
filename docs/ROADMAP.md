@@ -1,26 +1,30 @@
 # Feuille de route
 
-## ✅ Jalon 1 — Fondations (fait)
-- Moteur générique, atomique et sans dépendance (TypeScript).
-- Taverne d’Edgar V11 reconstruite en pur contenu JSON.
-- 23 tests : métier unique, cuisson minutée, XP 80/20, démission, concurrence, achats sur place / à emporter, bonus exclusifs, rachat dynamique, dialogues conditionnels, dés, gardes d’accès, redémarrage, limites Discord.
-- Bot Discord (Components V2) avec sauvegarde atomique et rafraîchissement automatique.
-- Émulateur navigateur exécutant le vrai moteur.
+Le détail fonction par fonction est dans [`KE2_INVENTAIRE.md`](KE2_INVENTAIRE.md).
 
-## Jalon 2 — Studio (prochaine étape)
-L’objectif : **créer un bâtiment complet sans toucher au JSON**.
-- Application web : liste des bâtiments, éditeur pleine page, émulateur intégré à droite qui se met à jour à chaque modification.
-- Assistants guidés : « Ajouter une boutique », « Ajouter une cuisine », « Ajouter un dialogue ». Chacun crée le module ET des écrans prêts à l’emploi.
-- Éditeurs dédiés : objets, statistiques, bonus, métiers, recettes, offres, arbre de dialogue.
-- Éditeur d’écran : glisser-déposer des blocs, inspecteur de propriétés, éditeur de règles (*quand → si → alors*) avec explication des conditions.
-- Diagnostic en direct et publication vers le bot (rechargement à chaud du monde).
+## ✅ Phase 0 — Moteur
+Moteur générique et atomique, Taverne d’Edgar V11 en pur contenu, émulateur.
 
-## Jalon 3 — Robustesse et production
-- Stockage SQLite, sauvegardes, historique des versions du contenu.
-- Comptes, permissions, plusieurs mondes et serveurs.
-- Rechargement du monde sans redémarrer le bot.
+## ✅ Phase 1 — Plateforme
+- Serveur unique : comptes, sessions, droits à quatre niveaux, plusieurs mondes par compte, modèles de départ.
+- Contenu versionné : brouillon, conflits, validation, publication à chaud, restauration, audit.
+- Supervision : vue d’ensemble en direct, alertes, scénario, réserves, postes, activité, fiches joueurs, interventions auditées.
+- Discord : bot unique multi-serveurs, commandes générées, création des salons des bâtiments.
+- Voix : pool de Voice Workers, présences automatiques, identité du personnage, ambiance selon le scénario, sons d’action, médiathèque.
+- Studio : navigation, sélecteur de serveur, éditeurs de bâtiments (modules, écrans, audio), catalogue, émulateur intégré, publication, Discord & voix, administration, mode mobile.
 
-## Plus tard
-- Quêtes et événements planifiés, calendrier, timeline de scénario.
-- Bots vocaux (ambiances, PNJ parlants), médiathèque.
-- Nouveaux modules : quêtes, récolte, artisanat, mini-jeux supplémentaires.
+**À valider sur un vrai Discord** : le bot et les Voice Workers n’ont pas pu être testés dans l’environnement de développement (pas d’accès au réseau Discord).
+
+## Phase 2 — Mécaniques et Discord avancé
+- Objets à état : outils, durabilité, réparation, amélioration.
+- Module `activity` : récoltes et expéditions temporisées, résultats aléatoires pondérés, cooldowns.
+- Module `objective` : objectifs collectifs et contributions.
+- Rôles d’accès aux bâtiments (entrée/sortie du vocal), parcours d’arrivée (serment, dotation).
+- Éditeur visuel complet des écrans : règles de boutons et conditions sans JSON, textes variables.
+- Assistants : « Ajouter une cuisine », « Ajouter une boutique » créent le module et ses écrans.
+
+## Phase 3 — Monde vivant
+Quêtes ; événements et Live Ops (démarrer / pause / reprendre / arrêter) ; timeline de scénario ; calendrier, saisons, météo ; lieux, voyages, carte ; groupes d’ambiance multicouches ; réactions vocales des personnages.
+
+## Phase 4 — Produit
+Bibliothèque de modèles (officiels et communautaires), Académie et tutoriels, journaux plateforme, Support Mode, modèles « Royaume médiéval » et « Station spatiale ».

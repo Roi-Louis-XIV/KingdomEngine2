@@ -383,6 +383,26 @@
         "title": "Tavernier"
       },
       "homeScreen": "accueil",
+      "audio": {
+        "ambience": {
+          "cases": [
+            {
+              "when": {
+                "type": "variable",
+                "variable": "phase",
+                "op": "eq",
+                "value": "tempete"
+              },
+              "sound": "taverne-tempete"
+            },
+            {
+              "sound": "taverne-calme"
+            }
+          ]
+        },
+        "welcome": "edgar-bienvenue",
+        "volume": 0.6
+      },
       "modules": [
         {
           "type": "inventory",
@@ -472,6 +492,10 @@
                   "type": "stat.add",
                   "stat": "alcool",
                   "amount": 10
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "chope-servie"
                 }
               ],
               "takeaway": {

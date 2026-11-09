@@ -55,7 +55,9 @@ export type Action =
   | { type: 'job.xp'; job: Id; amount: number }
   | { type: 'job.setLevel'; job: Id; level: number }
   | { type: 'modifier.apply'; modifier: Id; durationSec: number }
-  | { type: 'variable.set'; variable: Id; value: string | number };
+  | { type: 'variable.set'; variable: Id; value: string | number }
+  /** Joue un son de la médiathèque dans le vocal du bâtiment (si une présence vocale est active). */
+  | { type: 'audio.play'; sound: Id };
 
 /** Une règle : conditions → actions → résultat (écran suivant, message). */
 export interface Rule {
@@ -155,10 +157,24 @@ export interface BuildingDef {
   emoji?: string;
   /** Couleur d'accent par défaut des encadrés (0xRRGGBB). */
   accentColor?: number;
-  npc?: { name: string; emoji?: string; title?: string };
+  npc?: { name: string; emoji?: string; title?: string; avatarUrl?: string };
+  /** Audio du salon vocal du bâtiment (joué par un Voice Worker). */
+  audio?: BuildingAudio;
   modules: ModuleDef[];
   screens: ScreenDef[];
   homeScreen: Id;
+}
+
+/** Choix d'un son, éventuellement selon des conditions (phase du scénario…). */
+export type SoundChoice = Id | { cases: { when?: Condition; sound: Id }[] };
+
+export interface BuildingAudio {
+  /** Fond sonore en boucle tant que des joueurs sont présents. */
+  ambience?: SoundChoice;
+  /** Son joué à l'arrivée du Voice Worker. */
+  welcome?: Id;
+  /** Volume 0–1 (défaut 0.6). */
+  volume?: number;
 }
 
 export type ModuleDef =

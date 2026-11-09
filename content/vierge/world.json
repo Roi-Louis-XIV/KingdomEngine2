@@ -1,0 +1,13 @@
+{
+  "format": "kingdom-world@1",
+  "id": "vierge",
+  "name": "Monde vierge",
+  "description": "Point de départ vide : une monnaie, aucun bâtiment.",
+  "settings": { "maxActiveJobs": 1 },
+  "stats": [{ "id": "ecus", "name": "Bourse", "emoji": "💰", "min": 0, "initial": 100, "kind": "currency", "unit": "écus" }],
+  "items": [],
+  "modifiers": [],
+  "jobs": [],
+  "variables": [],
+  "buildings": []
+}

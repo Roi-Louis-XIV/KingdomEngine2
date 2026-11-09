@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toDiscord } from '../src/discord-render.ts';
+import { toDiscord } from '../src/discord/render.ts';
 import { Player, makeEngine } from '../../../packages/engine/test/harness.ts';
 
 test('conversion en Components V2 (types et champs de l’API Discord)', () => {

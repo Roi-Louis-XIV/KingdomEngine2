@@ -2,7 +2,7 @@
  * Traduction du rendu neutre du moteur en charge utile Discord Components V2 (JSON brut de l'API).
  * Types : 1 rangée · 2 bouton · 3 menu · 9 section · 10 texte · 14 séparateur · 17 encadré.
  */
-import type { RButton, RSelect, RTopLevel, RenderedMessage, RText } from '../../../packages/engine/src/index.ts';
+import type { RButton, RSelect, RTopLevel, RenderedMessage, RText } from '../../../../packages/engine/src/index.ts';
 
 const STYLE = { primary: 1, secondary: 2, success: 3, danger: 4 } as const;
 

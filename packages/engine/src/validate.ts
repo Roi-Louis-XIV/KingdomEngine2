@@ -99,6 +99,9 @@ export function validateWorld(w: WorldDef): Issue[] {
       case 'variable.set':
         if (!vars.has(a.variable)) err(where, `variable inconnue : ${a.variable}`);
         break;
+      case 'audio.play':
+        if (!a.sound) err(where, 'son non défini');
+        break;
     }
   };
 
@@ -117,6 +120,8 @@ export function validateWorld(w: WorldDef): Issue[] {
       if (id && !sid.has(id)) err(where, `écran inconnu : ${id}`);
     };
     screen(b.homeScreen, `${at} › écran d'accueil`);
+    const amb = b.audio?.ambience;
+    if (amb && typeof amb !== 'string') amb.cases.forEach((c) => checkCondition(`${at} › audio`, c.when, b));
     void mid;
 
     for (const m of b.modules) {

@@ -3,22 +3,30 @@
   "version": "4.0.0-alpha.1",
   "private": true,
   "type": "module",
-  "description": "KingdomEngine 4 — moteur no-code de mondes interactifs pour Discord",
+  "description": "KingdomEngine 4 — plateforme no-code de mondes interactifs pour Discord (Studio, bot, voix)",
   "workspaces": [
-    "packages/*",
-    "apps/*"
+    "packages/*"
   ],
   "engines": {
-    "node": ">=22.6"
+    "node": ">=22.12"
   },
   "scripts": {
-    "test": "node --experimental-strip-types --no-warnings --test \"packages/*/test/*.test.ts\" \"apps/bot/test/*.test.ts\"",
-    "typecheck": "tsc -p .",
-    "bot": "node --env-file-if-exists=.env --import tsx apps/bot/src/index.ts",
-    "emulator": "node scripts/build-emulator.mjs"
+    "prestart": "node scripts/build-studio.mjs",
+    "start": "node --env-file-if-exists=.env --import tsx apps/server/src/main.ts",
+    "build": "node scripts/build-studio.mjs && node scripts/build-emulator.mjs",
+    "test": "node --experimental-strip-types --no-warnings --test \"packages/*/test/*.test.ts\" \"apps/server/test/*.test.ts\"",
+    "typecheck": "tsc -p . && tsc -p apps/studio --noEmit"
   },
   "devDependencies": {
     "typescript": "^5.9.0",
     "@types/node": "^22.15.0"
+  },
+  "dependencies": {
+    "discord.js": "^14.22.0",
+    "@discordjs/voice": "^0.19.0",
+    "opusscript": "^0.1.1",
+    "ffmpeg-static": "^5.2.0",
+    "libsodium-wrappers": "^0.7.15",
+    "tsx": "^4.20.0"
   }
 }

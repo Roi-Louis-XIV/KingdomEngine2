@@ -13,7 +13,11 @@ export interface Ctx {
   now: number;
   /** Changements accumulés pendant la transaction (pour les messages « avant → après »). */
   changes: Change[];
+  /** Effets externes à transmettre aux adaptateurs (audio…), émis seulement si la transaction est validée. */
+  events: EngineEvent[];
 }
+
+export type EngineEvent = { type: 'audio.play'; building: Id; sound: Id; player: Id };
 
 export type Change =
   | { kind: 'stat'; stat: Id; before: number; after: number }
@@ -332,6 +336,11 @@ export function applyAction(ctx: Ctx, a: Action): void {
       });
       p.modifiers.push({ id: mod.id, expiresAt: ctx.now + a.durationSec * 1000 });
       ctx.changes.push({ kind: 'modifier', modifier: mod.id, durationSec: a.durationSec, replaced });
+      return;
+    }
+    case 'audio.play': {
+      if (!a.sound) throw new RuleError('Son non défini.');
+      ctx.events.push({ type: 'audio.play', building: ctx.building.id, sound: a.sound, player: ctx.playerId });
       return;
     }
     case 'variable.set': {

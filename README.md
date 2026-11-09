@@ -1,37 +1,46 @@
 # KingdomEngine 4
 
-Moteur **no-code** de mondes interactifs pour Discord. Un monde complet (bâtiments, objets, métiers, boutiques, cuisines, dialogues, mini-jeux, écrans Discord) est **un simple fichier JSON**. Le moteur ne contient aucun contenu propre à un univers.
+Plateforme **no-code** de mondes interactifs pour Discord. Elle comprend :
 
-> Preuve de concept : la Taverne d’Edgar V11 est entièrement reconstruite dans `content/le-royaume/world.json`. Elle ne contient aucune ligne de code spécifique et ses mécaniques sont couvertes par 23 tests.
+- **un Studio web** pour créer et superviser ses mondes : bâtiments, objets, métiers, écrans Discord, joueurs, sons ;
+- **un bot Discord unique** qui sert tous les serveurs, chacun avec son propre monde ;
+- **des Voice Workers**, bots vocaux qui incarnent les personnages et jouent l’ambiance des bâtiments occupés.
 
-## Démarrage rapide
+Un monde est **un document de données**. Le moteur ne contient aucun contenu propre à un univers : la Taverne d’Edgar est livrée comme modèle (`content/le-royaume`).
 
-Prérequis : **Node.js 22.6 ou plus récent** (`node -v`).
+## Démarrage
+
+Prérequis : **Node.js 22.12 ou plus récent** (`node -v`).
 
 ```sh
 npm install
-npm test            # 23 tests : moteur + Taverne + format Discord
-npm run emulator    # génère apps/emulator/dist/index.html
+npm test          # moteur, Taverne, API, voix
+npm start         # compile le Studio puis démarre tout
 ```
 
-Ouvre `apps/emulator/dist/index.html` dans ton navigateur. Tu peux alors jouer la Taverne avec plusieurs joueurs, accélérer le temps, changer la phase du scénario et inspecter l’état. Il n’y a ni serveur ni bot à lancer.
+Ouvre **http://localhost:8080**. Au premier lancement, crée ton compte : il administre l’installation. Crée ensuite un monde depuis le modèle « Le Royaume » ou « Monde vierge ».
 
-### Lancer le bot Discord
+Sans configuration Discord, le Studio fonctionne déjà entièrement. L’onglet **Tester** fait jouer ton brouillon dans un émulateur Discord qui exécute le vrai moteur.
 
-1. Copie `.env.example` en `.env`, puis renseigne `DISCORD_TOKEN` et `DISCORD_GUILD_ID` (ton serveur de test).
-2. `npm run bot`
-3. Sur Discord, tape `/taverne`. La commande `/admin` (réservée aux administrateurs) change la phase, le métier ou le niveau.
+### Brancher Discord
 
-L’état est sauvegardé après chaque action dans `var/le-royaume.state.json`, avec une copie `.bak`. Un redémarrage ne perd rien, et les anciens boutons continuent de fonctionner.
+1. Copie `.env.example` en `.env`.
+2. **Bot principal** : crée une application sur le [Discord Developer Portal](https://discord.com/developers/applications), copie le jeton du bot dans `KINGDOM_CORE_TOKEN`.
+3. **Voice Workers** (facultatif) : crée une application par connexion vocale simultanée, puis renseigne `VOICE_WORKER_1_TOKEN` et `VOICE_WORKER_1_APPLICATION_ID`, puis `VOICE_WORKER_2_TOKEN`, etc.
+4. Redémarre (`npm start`). Dans le Studio, la page **Discord & voix** guide le reste en quatre étapes : associer le serveur, inviter le bot, créer les salons, inviter les workers.
+5. Importe les sons dans la **Médiathèque**. Les clés attendues par la Taverne y sont listées : `taverne-calme`, `taverne-tempete`, `edgar-bienvenue`, `chope-servie`.
 
 ## Organisation
 
 | Dossier | Rôle |
 |---|---|
-| `packages/engine` | Le moteur pur : modèle de monde, règles, transactions, rendu. Aucune dépendance. |
-| `content/` | Les mondes (données). `le-royaume/world.json` = Taverne d’Edgar. |
-| `apps/bot` | Adaptateur Discord (discord.js) : affiche, transmet les clics, sauvegarde. |
-| `apps/emulator` | Émulateur Discord dans le navigateur, qui exécute le vrai moteur. |
-| `docs/` | Architecture et feuille de route. |
+| `packages/engine` | Moteur pur et sans dépendance : modèle de monde, règles, transactions, rendu Components V2 neutre |
+| `apps/server` | Serveur unique : API du Studio, comptes, serveurs, versions, supervision, bot Discord, Voice Workers |
+| `apps/studio` | Studio web (TypeScript natif, sans framework) |
+| `apps/emulator` | Émulateur autonome en une page (`npm run build`) |
+| `content/` | Modèles de mondes |
+| `docs/` | Architecture, feuille de route, inventaire KE2 → KE4 |
 
-Voir [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) pour comprendre comment un bâtiment se construit.
+Les données vivent dans `var/` : la base `kingdom.db` (SQLite, WAL) et les sons. Pour sauvegarder, copie ce dossier serveur arrêté.
+
+Pour aller plus loin, lis [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) et [`docs/KE2_INVENTAIRE.md`](docs/KE2_INVENTAIRE.md).

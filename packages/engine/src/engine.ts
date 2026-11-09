@@ -6,10 +6,10 @@
  * toutes les actions réussissent. Comme les méthodes sont synchrones, deux interactions
  * ne peuvent jamais s'entrelacer.
  */
-import type { Block, ButtonDef, Id, Rule, ScreenDef, WorldDef, BuildingDef } from './model.ts';
+import type { Action, Block, ButtonDef, Id, Rule, ScreenDef, WorldDef, BuildingDef } from './model.ts';
 import type { RButton, RContainer, RenderedMessage, RTopLevel } from './components.ts';
 import { createInitialState, newPlayer, syncStructure, type SessionState, type WorldState } from './state.ts';
-import { type Ctx, RuleError, applyAction, describeChanges, evaluate, pickText } from './rules.ts';
+import { type Ctx, type EngineEvent, RuleError, applyAction, describeChanges, evaluate, pickText } from './rules.ts';
 import { handleWidget, renderWidget, text, type WidgetEnv } from './widgets.ts';
 
 export interface EngineOptions {
@@ -20,6 +20,10 @@ export interface EngineOptions {
 
 export interface InteractionResult {
   ok: boolean;
+  /** Message de retour affiché au joueur (succès ou refus), utile pour le journal d'activité. */
+  notice?: string;
+  /** Effets externes déclenchés (audio…). */
+  events?: EngineEvent[];
   /** Message destiné uniquement à l'auteur du clic (interface d'un autre joueur, session expirée…). */
   private?: string;
   message?: RenderedMessage;
@@ -80,7 +84,8 @@ export class Engine {
     return result;
   }
 
-  private building(id: Id): BuildingDef {
+  private building(id: Id | undefined): BuildingDef {
+    if (id === undefined) return this.world.buildings[0] ?? NO_BUILDING;
     const b = this.world.buildings.find((x) => x.id === id);
     if (!b) throw new Error(`Bâtiment inconnu : ${id}`);
     return b;
@@ -100,6 +105,7 @@ export class Engine {
       building: this.building(session.building),
       now: this.now(),
       changes: [],
+      events: [],
     };
   }
 
@@ -123,14 +129,44 @@ export class Engine {
     if (this.state.sessions[sessionId]) this.transact((d) => void delete d.sessions[sessionId]);
   }
 
-  /** Commande d'administration / de test : applique des actions à un joueur. */
-  adminApply(playerId: Id, buildingId: Id, actions: Parameters<typeof applyAction>[1][]): string {
+  /**
+   * Intervention d'administration / de test : applique des actions à un joueur, de façon atomique.
+   * buildingId n'est nécessaire que pour les actions visant un inventaire de bâtiment.
+   */
+  adminApply(playerId: Id, buildingId: Id | undefined, actions: Action[]): string {
     return this.transact((draft) => {
       draft.players[playerId] ??= newPlayer(this.world);
-      const ctx = this.ctx(draft, { id: '', player: playerId, building: buildingId, screen: '', ui: {}, createdAt: 0 });
+      const ctx = this.ctx(draft, { id: '', player: playerId, building: buildingId ?? this.world.buildings[0]?.id ?? '', screen: '', ui: {}, createdAt: 0 });
       for (const a of actions) applyAction(ctx, a);
       return describeChanges(ctx);
     });
+  }
+
+  /** Modifie une variable du monde (phase du scénario…). */
+  setVariable(variable: Id, value: string | number): void {
+    const def = this.world.variables.find((v) => v.id === variable);
+    if (!def) throw new RuleError(`Variable inconnue : ${variable}`);
+    if (def.options && !def.options.some((o) => o.value === value))
+      throw new RuleError(`Valeur invalide pour ${def.name} : ${value}`);
+    this.transact((draft) => {
+      draft.variables[variable] = value;
+    });
+  }
+
+  /** Identifiants des joueurs connus. */
+  playerIds(): Id[] {
+    return Object.keys(this.state.players);
+  }
+
+  /** Son d'ambiance actuel d'un bâtiment (selon les variables du monde), ou undefined. */
+  ambienceFor(buildingId: Id): Id | undefined {
+    const b = this.world.buildings.find((x) => x.id === buildingId);
+    const choice = b?.audio?.ambience;
+    if (!choice) return undefined;
+    if (typeof choice === 'string') return choice;
+    const draft = structuredClone(this.state);
+    const ctx = this.ctx(draft, { id: '', player: '__ambience__', building: buildingId, screen: '', ui: {}, createdAt: 0 });
+    return choice.cases.find((c) => evaluate(ctx, c.when).ok)?.sound;
   }
 
   /** Rendu actuel d'une session (applique les redirections d'accès si nécessaire). */
@@ -267,8 +303,9 @@ export class Engine {
     const screen = b.screens.find((s) => s.id === screenId);
     if (!screen || !path) return { ok: false, private: 'Interaction inconnue.' };
 
+    let events: EngineEvent[] = [];
     try {
-      this.transact((draft) => {
+      events = this.transact((draft) => {
         const s = draft.sessions[sessionId!]!;
         const ctx = this.ctx(draft, s);
         s.notice = undefined;
@@ -281,6 +318,7 @@ export class Engine {
           if (r.goto) this.enter(s, r.goto);
           if (r.notice) s.notice = r.notice;
         } else throw new RuleError('Interaction inconnue.');
+        return ctx.events;
       });
     } catch (e) {
       if (!(e instanceof RuleError)) throw e;
@@ -291,7 +329,8 @@ export class Engine {
         s.notice = e.message;
       });
     }
-    return { ok: true, message: this.view(sessionId!).message };
+    const notice = this.state.sessions[sessionId!]?.notice;
+    return { ok: true, message: this.view(sessionId!).message, notice, events };
   }
 
   private runButton(ctx: Ctx, s: SessionState, screen: ScreenDef, path: string) {
@@ -326,6 +365,8 @@ export class Engine {
     if (notice) s.notice = notice.replace('{changes}', describeChanges(ctx));
   }
 }
+
+const NO_BUILDING: BuildingDef = { id: '', name: '', modules: [], screens: [{ id: 'vide', name: 'Vide', blocks: [] }], homeScreen: 'vide' };
 
 /** Retrouve un bloc par son chemin (« 3 », « 2.1 »). */
 export function locate(blocks: Block[], path: string): Block | undefined {
