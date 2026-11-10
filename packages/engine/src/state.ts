@@ -54,6 +54,26 @@ export interface WorldState {
   sessions: Record<Id, SessionState>;
   /** Clé : `${bâtiment}/${module}`. */
   objectives: Record<string, ObjectiveState>;
+  weather?: { value: string; since: number; until: number; auto: boolean };
+  events: Record<Id, EventRunState>;
+}
+
+export type EventStatus = 'idle' | 'running' | 'paused' | 'finished';
+
+export interface EventRunState {
+  status: EventStatus;
+  /** Programmation automatique active (sinon : uniquement à la main). */
+  auto: boolean;
+  startedAt?: number;
+  /** Temps écoulé (ms) accumulé avant la dernière reprise. */
+  elapsedMs: number;
+  resumedAt?: number;
+  stepsDone: number;
+  nextRunAt: number | null;
+  lastEndedAt?: number;
+  runs: number;
+  /** Dernière erreur rencontrée en appliquant une action (le reste continue). */
+  lastError?: string;
 }
 
 export const scopeKey = (building: Id, module: Id) => `${building}/${module}`;
@@ -68,6 +88,7 @@ export function createInitialState(world: WorldDef): WorldState {
     stations: {},
     sessions: {},
     objectives: {},
+    events: {},
   };
   for (const v of world.variables) state.variables[v.id] = v.initial;
   syncStructure(world, state);
@@ -80,6 +101,8 @@ export function createInitialState(world: WorldDef): WorldState {
  */
 export function syncStructure(world: WorldDef, state: WorldState): void {
   state.objectives ??= {};
+  state.events ??= {};
+  for (const e of world.events ?? []) state.events[e.id] ??= { status: 'idle', auto: e.schedule.type !== 'manual', elapsedMs: 0, stepsDone: 0, nextRunAt: null, runs: 0 };
   // États antérieurs à la phase 2 : champs ajoutés sans perte.
   for (const p of Object.values(state.players)) normalizePlayer(p);
   for (const v of world.variables) if (!(v.id in state.variables)) state.variables[v.id] = v.initial;

@@ -3,6 +3,10 @@
  * Utilisé par le Studio pour signaler les erreurs avant publication.
  */
 import type { Action, Block, BuildingDef, Condition, Id, Text, WidgetDef, WorldDef } from './model.ts';
+import { parseHHMM, parseLocalIso } from './clock.ts';
+
+/** Actions qui ont un sens sans joueur (météo, événements). */
+const WORLD_ACTIONS = new Set(['variable.set', 'weather.set']);
 
 export interface Issue {
   level: 'error' | 'warning';
@@ -109,10 +113,50 @@ export function validateWorld(w: WorldDef): Issue[] {
       case 'tool.repair':
         if (!w.items.find((i) => i.id === a.item)?.tool) err(where, `${a.item} n’est pas un outil`);
         break;
+      case 'weather.set':
+        if (!w.weather) err(where, 'aucune météo configurée dans ce monde');
+        else if (!w.weather.states.some((s) => s.value === a.value)) err(where, `météo inconnue : ${a.value}`);
+        break;
     }
   };
 
   for (const it of w.items) it.consumable?.effects.forEach((a) => checkAction(`Objet ${it.id}`, a));
+
+  if (w.weather) {
+    const where = 'Météo';
+    const v = w.variables.find((x) => x.id === w.weather!.variable);
+    if (!v) err(where, `variable inconnue : ${w.weather.variable}`);
+    if (!w.weather.states.length) err(where, 'aucun temps défini');
+    if (w.weather.states.every((s) => s.weight <= 0)) err(where, 'au moins un temps doit avoir un poids positif');
+    for (const s of w.weather.states) {
+      if (v?.options && !v.options.some((o) => o.value === s.value)) err(where, `« ${s.value} » n’est pas une valeur de la variable ${v.name}`);
+      if (s.minMinutes < 1 || s.maxMinutes < s.minMinutes) err(where, `durées invalides pour « ${s.value} »`);
+      checkText(where, s.announce);
+    }
+  }
+  const evIds = ids(w.events ?? [], 'Événements');
+  void evIds;
+  for (const ev of w.events ?? []) {
+    const where = `Événement ${ev.id}`;
+    const sc = ev.schedule;
+    if (sc.type === 'daily') {
+      if (!parseHHMM(sc.at)) err(where, `heure invalide : « ${sc.at} » (format HH:MM)`);
+      if (sc.days?.some((d) => d < 0 || d > 6)) err(where, 'jours invalides');
+    }
+    if (sc.type === 'interval' && !(sc.everyMinutes >= 1)) err(where, 'intervalle invalide');
+    if (sc.type === 'once' && parseLocalIso(sc.at, w.settings.timezone) === null) err(where, `date invalide : « ${sc.at} »`);
+    if (ev.durationMinutes < 0) err(where, 'durée négative');
+    const all = [...ev.onStart, ...ev.onEnd, ...ev.steps.flatMap((s) => s.actions)];
+    all.forEach((a) => checkAction(where, a));
+    if (all.some((a) => !WORLD_ACTIONS.has(a.type))) warn(where, 'certaines actions visent un joueur : sans joueur, elles seront ignorées');
+    for (const s of ev.steps) {
+      if (s.afterMinutes < 0) err(where, 'étape avec un délai négatif');
+      if (ev.durationMinutes > 0 && s.afterMinutes >= ev.durationMinutes) warn(where, `l’étape à ${s.afterMinutes} min arrive après la fin de l’événement`);
+      checkText(where, s.announce);
+    }
+    checkText(where, ev.announce?.start);
+    checkText(where, ev.announce?.end);
+  }
 
   for (const b of w.buildings) {
     const at = `Bâtiment ${b.id}`;

@@ -15,9 +15,14 @@ export interface Ctx {
   changes: Change[];
   /** Effets externes à transmettre aux adaptateurs (audio…), émis seulement si la transaction est validée. */
   events: EngineEvent[];
+  /** Hasard (tirage de la météo par weather.set sans durée). */
+  random?: () => number;
 }
 
-export type EngineEvent = { type: 'audio.play'; building: Id; sound: Id; player: Id };
+export type EngineEvent =
+  | { type: 'audio.play'; building: Id; sound: Id; player: Id }
+  /** Annonce publique (événement, météo) à diffuser dans le salon d'annonces. */
+  | { type: 'announce'; text: string; source: string };
 
 export type Change =
   | { kind: 'stat'; stat: Id; before: number; after: number }
@@ -370,6 +375,20 @@ export function applyAction(ctx: Ctx, a: Action): void {
       if (before >= def.tool.maxDurability) throw new RuleError(`${itemName(w, a.item)} est déjà en parfait état.`);
       p.tools[a.item] = Math.min(def.tool.maxDurability, before + (a.amount ?? def.tool.maxDurability));
       ctx.changes.push({ kind: 'tool', item: a.item, before, after: p.tools[a.item]!, max: def.tool.maxDurability });
+      return;
+    }
+    case 'weather.set': {
+      const def = w.weather;
+      if (!def) throw new RuleError('Aucune météo configurée dans ce monde.');
+      const st = def.states.find((s) => s.value === a.value);
+      if (!st) throw new RuleError(`Météo inconnue : ${a.value}`);
+      const minutes = a.minutes ?? Math.round((st.minMinutes + st.maxMinutes) / 2);
+      const prev = ctx.state.weather;
+      ctx.state.weather = { value: st.value, since: ctx.now, until: ctx.now + Math.max(1, minutes) * 60_000, auto: prev?.auto ?? true };
+      ctx.state.variables[def.variable] = st.value;
+      ctx.changes.push({ kind: 'variable', variable: def.variable, value: st.value });
+      const text = pickText(ctx, st.announce);
+      if (text) ctx.events.push({ type: 'announce', text, source: 'météo' });
       return;
     }
     case 'audio.play': {

@@ -285,6 +285,53 @@ textarea.code { font-family: var(--mono); font-size: .82rem; line-height: 1.45; 
 .picker.assistant { border-style: solid; border-color: var(--verdigris-deep); }
 .objective-line { display: grid; grid-template-columns: minmax(140px, 1fr) 2fr auto auto; gap: 10px; align-items: center; font-size: .88rem; margin-bottom: 10px; }
 
+/* ---------- En direct ---------- */
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--muted); white-space: nowrap; }
+.pill.live { background: var(--bottle); border-color: var(--bottle-hover); color: #fff; }
+.pill.live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: pulse 1.6s ease-in-out infinite; }
+.pill.warn { color: var(--brass); border-color: #6b5420; }
+@keyframes pulse { 50% { opacity: .25; } }
+.live-strip { width: 100%; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; text-align: left; background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 12px 16px; margin-bottom: 14px; color: var(--paper); font: inherit; cursor: pointer; }
+.live-strip:hover { border-color: var(--bottle-hover); }
+.live-weather { font-family: var(--serif); font-size: 1.15rem; font-weight: 600; }
+.live-link { margin-left: auto; color: var(--verdigris); font-weight: 600; }
+.weather-panel { display: flex; flex-wrap: wrap; gap: 24px; align-items: center; justify-content: space-between; background: var(--ink-2); border: 1px solid var(--line); border-left: 4px solid var(--bottle); border-radius: var(--r-lg); padding: 20px 24px; margin-bottom: 32px; }
+.weather-now { display: flex; flex-direction: column; gap: 2px; }
+.weather-label { font-family: var(--serif); font-size: 2rem; font-weight: 600; line-height: 1.1; }
+.weather-controls { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.weather-force { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.weather-force .num { width: 70px; min-height: 30px; padding: 4px 8px; }
+.switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+.switch input { appearance: none; width: 38px; height: 22px; min-height: 0; padding: 0; border-radius: 999px; background: var(--ink-4); border: 1px solid var(--line-2); position: relative; cursor: pointer; transition: background .15s; }
+.switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); transition: transform .15s, background .15s; }
+.switch input:checked { background: var(--bottle); border-color: var(--bottle-hover); }
+.switch input:checked::after { transform: translateX(16px); background: #fff; }
+.switch input:disabled { opacity: .5; cursor: not-allowed; }
+.events { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; margin-bottom: 32px; }
+.event-card { background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.event-card.live { border-color: var(--bottle-hover); box-shadow: inset 0 0 0 1px var(--bottle); }
+.event-card.warn { border-color: #6b5420; }
+.event-card > header { display: flex; align-items: center; gap: 12px; }
+.event-emoji { font-size: 1.8rem; }
+.event-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.event-title h3 { margin: 0; }
+.event-card p { margin: 0; }
+.event-progress { display: flex; flex-direction: column; gap: 6px; }
+.track { position: relative; height: 8px; background: var(--ink-4); border-radius: 4px; }
+.track > i { display: block; height: 100%; background: var(--bottle-hover); border-radius: 4px; transition: width 1s linear; }
+.event-card.warn .track > i { background: var(--brass); }
+.marker { position: absolute; top: -4px; width: 4px; height: 16px; margin-left: -2px; background: var(--muted); border-radius: 2px; }
+.marker.done { background: #fff; }
+.steps-mini { list-style: none; padding: 0; margin: 0; font-size: .85rem; color: var(--muted); }
+.steps-mini li::before { content: "○ "; }
+.steps-mini li.done { color: var(--paper); }
+.steps-mini li.done::before { content: "● "; color: var(--verdigris); }
+.event-card > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 10px; }
+.event-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.inline { display: flex; align-items: center; gap: 6px; }
+.weather-table .num { width: 72px; }
+@media (max-width: 760px) { .events { grid-template-columns: 1fr; } .weather-label { font-size: 1.6rem; } }
+
 /* ---------- Émulateur Discord ---------- */
 .emulator { border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; margin-top: 10px; }
 .emu-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 10px; background: var(--ink-2); border-bottom: 1px solid var(--line); }

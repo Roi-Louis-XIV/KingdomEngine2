@@ -77,6 +77,9 @@ export class CoreBot implements DiscordBridge {
     this.runtimes.on((sig) => {
       // Une publication ou une intervention du Studio rafraîchit les interfaces ouvertes.
       if (sig.type === 'reloaded') void this.syncCommands(sig.serverId).catch(() => {});
+      // Annonces des événements et de la météo dans le salon choisi.
+      if (sig.type === 'engine')
+        for (const e of sig.events) if (e.type === 'announce') void this.announce(sig.serverId, e.text).catch((err) => console.warn('Annonce :', err.message));
     });
     await c.login(this.token);
   }
@@ -176,6 +179,13 @@ export class CoreBot implements DiscordBridge {
     if (existing && g.channels.cache.has(existing)) return existing;
     const ch = await g.channels.create({ name, type, parent, reason: 'KingdomEngine : salon de bâtiment' });
     return ch.id;
+  }
+
+  private async announce(serverId: string, text: string) {
+    const channelId = this.platform.setting<string | null>(serverId, 'discord.announceChannel', null);
+    if (!channelId || !this.client.isReady()) return;
+    const ch = await this.client.channels.fetch(channelId).catch(() => null);
+    if (ch?.isTextBased() && 'send' in ch) await ch.send({ content: text.slice(0, 2000), allowedMentions: { parse: [] } });
   }
 
   async syncCommands(serverId: string): Promise<void> {

@@ -63,7 +63,9 @@ export type Action =
   /** Use un outil du joueur. Échoue si l'outil est absent ou cassé. */
   | { type: 'tool.wear'; item: Id; amount: number }
   /** Répare un outil (entièrement si amount est omis). */
-  | { type: 'tool.repair'; item: Id; amount?: number };
+  | { type: 'tool.repair'; item: Id; amount?: number }
+  /** Impose une météo (pendant `minutes`, sinon pour sa durée habituelle). */
+  | { type: 'weather.set'; value: string; minutes?: number };
 
 /** Une règle : conditions → actions → résultat (écran suivant, message). */
 export interface Rule {
@@ -144,7 +146,13 @@ export interface WorldDef {
   settings: {
     /** Nombre maximal de métiers exercés simultanément. */
     maxActiveJobs: number;
+    /** Fuseau horaire des programmations (défaut : Europe/Paris). */
+    timezone?: string;
   };
+  /** Météo automatique (pilote une variable du monde). */
+  weather?: WeatherDef;
+  /** Événements programmés ou manuels. */
+  events?: EventDef[];
   stats: StatDef[];
   items: ItemDef[];
   modifiers: ModifierDef[];
@@ -153,6 +161,57 @@ export interface WorldDef {
   /** Ce que reçoit un nouveau joueur. */
   newPlayer?: { items?: Record<Id, number> };
   buildings: BuildingDef[];
+}
+
+// ---------------------------------------------------------------------------
+// Météo et événements
+// ---------------------------------------------------------------------------
+
+export interface WeatherState {
+  /** Valeur de la variable (doit exister dans ses options). */
+  value: string;
+  /** Probabilité relative d'être tiré au prochain changement. */
+  weight: number;
+  minMinutes: number;
+  maxMinutes: number;
+  /** Annonce publiée quand ce temps s'installe. */
+  announce?: Text;
+}
+
+export interface WeatherDef {
+  /** Variable du monde pilotée (ex. « meteo »). */
+  variable: Id;
+  states: WeatherState[];
+}
+
+export type EventSchedule =
+  | { type: 'manual' }
+  /** Tous les jours (ou certains jours, 0 = dimanche) à l'heure locale HH:MM. */
+  | { type: 'daily'; at: string; days?: number[] }
+  | { type: 'interval'; everyMinutes: number }
+  /** Une seule fois, à une date ISO (heure locale du monde si sans fuseau). */
+  | { type: 'once'; at: string };
+
+export interface EventStep {
+  /** Minutes écoulées depuis le début de l'événement (hors pauses). */
+  afterMinutes: number;
+  name?: string;
+  actions: Action[];
+  announce?: Text;
+}
+
+export interface EventDef {
+  id: Id;
+  name: string;
+  emoji?: string;
+  description?: string;
+  schedule: EventSchedule;
+  /** Durée en minutes ; 0 = jusqu'à l'arrêt manuel. */
+  durationMinutes: number;
+  onStart: Action[];
+  onEnd: Action[];
+  steps: EventStep[];
+  announce?: { start?: Text; end?: Text };
 }
 
 // ---------------------------------------------------------------------------

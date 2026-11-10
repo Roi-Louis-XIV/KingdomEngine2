@@ -68,6 +68,13 @@ Chaque requête vérifie le droit côté serveur. Un monde inaccessible répond 
 - `voice/pool.ts` : attribue les présences aux workers libres et installés sur le bon serveur. Une présence garde son worker tant qu’elle est souhaitée, avec 30 s de grâce après le départ du dernier joueur. Si l’ambiance change (Tempête), le son est mis à jour sans changer de worker.
 - `voice/workers.ts` : applique ces décisions sur Discord. Le worker rejoint le salon, prend le nom du personnage, joue l’accueil puis l’ambiance en boucle, ainsi que les sons déclenchés par l’action `audio.play`.
 
+## Horloge du monde
+
+- `packages/engine/src/clock.ts` : fuseau horaire (heure de Paris par défaut, changements d’heure gérés), prochaine programmation, tirage de la météo. Fonctions pures.
+- `Engine.tick()` fait avancer la météo et les événements. Le serveur l’appelle toutes les 5 s (`KINGDOM_TICK_SECONDS`). Une nouvelle révision n’est créée que si quelque chose change.
+- Un événement compte son temps **hors pauses**. Ses étapes et sa fin sont rejouées au bon moment, même après un redémarrage du serveur. Les créneaux manqués pendant un arrêt ne sont pas rejoués en rafale.
+- Les annonces (`EngineEvent` de type `announce`) sont journalisées et publiées dans le salon d’annonces Discord choisi.
+
 ## Le modèle d’un monde
 
 Voir `packages/engine/src/model.ts`.

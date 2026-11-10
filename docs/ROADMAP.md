@@ -25,8 +25,11 @@ Moteur générique et atomique, Taverne d’Edgar V11 en pur contenu, émulateur
 ## Phase 2 bis — Discord avancé (après validation sur un vrai serveur)
 - Rôles d’accès aux bâtiments (entrée/sortie du vocal), parcours d’arrivée (serment, dotation), nettoyage et désinstallation des salons.
 
-## Phase 3 — Monde vivant
-Quêtes ; événements et Live Ops (démarrer / pause / reprendre / arrêter) ; timeline de scénario ; calendrier, saisons, météo ; lieux, voyages, carte ; groupes d’ambiance multicouches ; réactions vocales des personnages.
+## 🟡 Phase 3 — Monde vivant
+- ✅ Météo automatique : temps pondérés, durées aléatoires, annonces, forçage et suspension depuis le Studio ; elle pilote une variable dont dépendent textes, activités, ambiances.
+- ✅ Événements : manuels, quotidiens (jours au choix), à intervalle, à date unique ; étapes chronologiques ; actions et annonces de début et de fin ; démarrer / pause / reprendre / arrêter / redémarrer ; programmation activable ; reprise après redémarrage du serveur.
+- ✅ Page « En direct » (supervision et pilotage), éditeur « Météo & événements », salon d’annonces Discord.
+- ⏳ Quêtes ; saisons et cycle jour/nuit ; lieux, voyages, carte ; groupes d’ambiance multicouches ; réactions vocales des personnages.
 
 ## Phase 4 — Produit
 Bibliothèque de modèles (officiels et communautaires), Académie et tutoriels, journaux plateforme, Support Mode, modèles « Royaume médiéval » et « Station spatiale ».

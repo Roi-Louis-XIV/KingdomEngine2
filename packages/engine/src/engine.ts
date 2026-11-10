@@ -11,6 +11,35 @@ import type { RButton, RContainer, RenderedMessage, RTopLevel } from './componen
 import { createInitialState, newPlayer, syncStructure, type SessionState, type WorldState } from './state.ts';
 import { type Ctx, type EngineEvent, RuleError, applyAction, describeChanges, evaluate, pickText } from './rules.ts';
 import { handleWidget, renderWidget, text, type WidgetEnv } from './widgets.ts';
+import { DEFAULT_TZ, describeSchedule, nextRun, rollWeather } from './clock.ts';
+import type { EventDef } from './model.ts';
+import type { EventRunState } from './state.ts';
+
+export type EventCommand = 'start' | 'stop' | 'pause' | 'resume' | 'restart';
+
+export interface LiveStatus {
+  timezone: string;
+  now: number;
+  weather: null | { variable: string; value: string; label: string; since: number; until: number; auto: boolean };
+  events: {
+    id: string;
+    name: string;
+    emoji: string;
+    description: string;
+    schedule: string;
+    manual: boolean;
+    status: EventRunState['status'];
+    auto: boolean;
+    elapsedMs: number;
+    durationMs: number;
+    startedAt: number | null;
+    nextRunAt: number | null;
+    runs: number;
+    stepsDone: number;
+    steps: { name: string; afterMinutes: number }[];
+    lastError: string | null;
+  }[];
+}
 
 export interface EngineOptions {
   now?: () => number;
@@ -140,6 +169,225 @@ export class Engine {
       for (const a of actions) applyAction(ctx, a);
       return describeChanges(ctx);
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // Horloge du monde : météo et événements
+  // -------------------------------------------------------------------------
+
+  private get tz() {
+    return this.world.settings.timezone || DEFAULT_TZ;
+  }
+
+  /** Contexte d'action « monde » : aucun joueur réel n'est créé. */
+  private worldCtx(draft: WorldState): Ctx {
+    return {
+      world: this.world,
+      state: draft,
+      playerId: '__monde__',
+      player: newPlayer(this.world),
+      building: this.building(undefined),
+      now: this.now(),
+      changes: [],
+      events: [],
+      random: this.random,
+    };
+  }
+
+  /** Applique des actions « monde » ; une action en échec est consignée sans bloquer les autres. */
+  private runWorldActions(ctx: Ctx, actions: Parameters<typeof applyAction>[1][], st?: EventRunState) {
+    for (const a of actions) {
+      try {
+        applyAction(ctx, a);
+      } catch (e) {
+        if (!(e instanceof RuleError)) throw e;
+        if (st) st.lastError = e.message;
+      }
+    }
+  }
+
+  private announce(ctx: Ctx, t: Parameters<typeof pickText>[1], source: string) {
+    const msg = pickText(ctx, t);
+    if (msg) ctx.events.push({ type: 'announce', text: msg, source });
+  }
+
+  private elapsed(st: EventRunState, now: number) {
+    return st.elapsedMs + (st.status === 'running' && st.resumedAt !== undefined ? now - st.resumedAt : 0);
+  }
+
+  private startEvent(ctx: Ctx, ev: EventDef, st: EventRunState) {
+    Object.assign(st, { status: 'running', startedAt: ctx.now, elapsedMs: 0, resumedAt: ctx.now, stepsDone: 0, nextRunAt: null, lastError: undefined });
+    st.runs += 1;
+    this.runWorldActions(ctx, ev.onStart, st);
+    this.announce(ctx, ev.announce?.start, ev.name);
+    this.advanceEvent(ctx, ev, st);
+  }
+
+  private advanceEvent(ctx: Ctx, ev: EventDef, st: EventRunState) {
+    if (st.status !== 'running') return;
+    const el = this.elapsed(st, ctx.now);
+    const steps = [...ev.steps].sort((a, b) => a.afterMinutes - b.afterMinutes);
+    while (st.stepsDone < steps.length && steps[st.stepsDone]!.afterMinutes * 60_000 <= el) {
+      const step = steps[st.stepsDone]!;
+      this.runWorldActions(ctx, step.actions, st);
+      this.announce(ctx, step.announce, ev.name);
+      st.stepsDone += 1;
+    }
+    if (ev.durationMinutes > 0 && el >= ev.durationMinutes * 60_000) this.endEvent(ctx, ev, st);
+  }
+
+  private endEvent(ctx: Ctx, ev: EventDef, st: EventRunState) {
+    st.elapsedMs = this.elapsed(st, ctx.now);
+    st.resumedAt = undefined;
+    this.runWorldActions(ctx, ev.onEnd, st);
+    this.announce(ctx, ev.announce?.end, ev.name);
+    st.status = 'finished';
+    st.lastEndedAt = ctx.now;
+    st.nextRunAt = st.auto ? nextRun(ev.schedule, ctx.now, this.tz, st.startedAt) : null;
+  }
+
+  /**
+   * Fait avancer le temps du monde : météo automatique, étapes et fins d'événements,
+   * déclenchements programmés. À appeler régulièrement (le serveur le fait toutes les quelques secondes).
+   * Ne crée une nouvelle révision que si quelque chose a changé.
+   */
+  tick(): EngineEvent[] {
+    const draft = structuredClone(this.state);
+    const ctx = this.worldCtx(draft);
+    const before = JSON.stringify([draft.weather, draft.events, draft.variables]);
+    const wdef = this.world.weather;
+    if (wdef && wdef.states.length) {
+      const cur = draft.weather;
+      if (!cur || (cur.auto && ctx.now >= cur.until)) {
+        const roll = rollWeather(wdef, cur?.value ?? (draft.variables[wdef.variable] as string | undefined), this.random);
+        if (roll) {
+          applyAction(ctx, { type: 'weather.set', value: roll.state.value, minutes: roll.minutes });
+          if (cur) draft.weather!.auto = cur.auto;
+        }
+      }
+    }
+    for (const ev of this.world.events ?? []) {
+      const st = (draft.events[ev.id] ??= { status: 'idle', auto: ev.schedule.type !== 'manual', elapsedMs: 0, stepsDone: 0, nextRunAt: null, runs: 0 });
+      if (st.status === 'running') this.advanceEvent(ctx, ev, st);
+      if (st.status === 'running' || st.status === 'paused') continue;
+      if (!st.auto || ev.schedule.type === 'manual') {
+        st.nextRunAt = null;
+        continue;
+      }
+      if (st.nextRunAt === null) st.nextRunAt = nextRun(ev.schedule, ctx.now - 1, this.tz, st.startedAt);
+      if (st.nextRunAt !== null && ctx.now >= st.nextRunAt) this.startEvent(ctx, ev, st);
+    }
+    const changed = before !== JSON.stringify([draft.weather, draft.events, draft.variables]);
+    if (changed || ctx.events.length) {
+      draft.revision += 1;
+      this.state = draft;
+    }
+    return ctx.events;
+  }
+
+  /** Pilotage manuel d'un événement. */
+  eventControl(id: Id, cmd: EventCommand): EngineEvent[] {
+    const ev = (this.world.events ?? []).find((e) => e.id === id);
+    if (!ev) throw new RuleError('Événement inconnu.');
+    return this.transact((draft) => {
+      const ctx = this.worldCtx(draft);
+      const st = (draft.events[id] ??= { status: 'idle', auto: ev.schedule.type !== 'manual', elapsedMs: 0, stepsDone: 0, nextRunAt: null, runs: 0 });
+      const active = st.status === 'running' || st.status === 'paused';
+      switch (cmd) {
+        case 'start':
+          if (active) throw new RuleError('L’événement est déjà en cours.');
+          this.startEvent(ctx, ev, st);
+          break;
+        case 'pause':
+          if (st.status !== 'running') throw new RuleError('L’événement n’est pas en cours.');
+          st.elapsedMs = this.elapsed(st, ctx.now);
+          st.resumedAt = undefined;
+          st.status = 'paused';
+          break;
+        case 'resume':
+          if (st.status !== 'paused') throw new RuleError('L’événement n’est pas en pause.');
+          st.status = 'running';
+          st.resumedAt = ctx.now;
+          this.advanceEvent(ctx, ev, st);
+          break;
+        case 'stop':
+          if (!active) throw new RuleError('L’événement n’est pas en cours.');
+          this.endEvent(ctx, ev, st);
+          break;
+        case 'restart':
+          if (active) this.endEvent(ctx, ev, st);
+          this.startEvent(ctx, ev, st);
+          break;
+      }
+      return ctx.events;
+    });
+  }
+
+  /** Active ou coupe la programmation automatique d'un événement. */
+  setEventAuto(id: Id, auto: boolean): void {
+    const ev = (this.world.events ?? []).find((e) => e.id === id);
+    if (!ev) throw new RuleError('Événement inconnu.');
+    if (auto && ev.schedule.type === 'manual') throw new RuleError('Cet événement n’a pas de programmation : il se lance à la main.');
+    this.transact((draft) => {
+      const st = (draft.events[id] ??= { status: 'idle', auto, elapsedMs: 0, stepsDone: 0, nextRunAt: null, runs: 0 });
+      st.auto = auto;
+      st.nextRunAt = auto && st.status !== 'running' && st.status !== 'paused' ? nextRun(ev.schedule, this.now(), this.tz, st.startedAt) : null;
+    });
+  }
+
+  /** Impose une météo (minutes facultatives). */
+  setWeather(value: string, minutes?: number): EngineEvent[] {
+    return this.transact((draft) => {
+      const ctx = this.worldCtx(draft);
+      applyAction(ctx, { type: 'weather.set', value, minutes });
+      return ctx.events;
+    });
+  }
+
+  /** Active ou suspend les changements automatiques de météo. */
+  setWeatherAuto(auto: boolean): void {
+    if (!this.world.weather) throw new RuleError('Aucune météo configurée.');
+    this.transact((draft) => {
+      if (draft.weather) {
+        draft.weather.auto = auto;
+        // À la reprise, la météo actuelle reste au moins le temps prévu.
+        if (auto && draft.weather.until < this.now()) draft.weather.until = this.now();
+      }
+    });
+  }
+
+  /** État en direct de la météo et des événements (supervision). */
+  live(): LiveStatus {
+    const now = this.now();
+    const wdef = this.world.weather;
+    const w = this.state.weather;
+    const label = (value: string) => this.world.variables.find((v) => v.id === wdef?.variable)?.options?.find((o) => o.value === value)?.label ?? value;
+    return {
+      timezone: this.tz,
+      now,
+      weather: wdef && w ? { variable: wdef.variable, value: w.value, label: label(w.value), since: w.since, until: w.until, auto: w.auto } : null,
+      events: (this.world.events ?? []).map((ev) => {
+        const st = this.state.events[ev.id] ?? { status: 'idle' as const, auto: ev.schedule.type !== 'manual', elapsedMs: 0, stepsDone: 0, nextRunAt: null, runs: 0 };
+        return {
+          id: ev.id,
+          name: ev.name,
+          emoji: ev.emoji ?? '📅',
+          description: ev.description ?? '',
+          schedule: describeSchedule(ev.schedule),
+          manual: ev.schedule.type === 'manual',
+          status: st.status,
+          auto: st.auto,
+          elapsedMs: this.elapsed(st, now),
+          durationMs: ev.durationMinutes * 60_000,
+          startedAt: st.startedAt ?? null,
+          nextRunAt: st.nextRunAt,
+          runs: st.runs,
+          stepsDone: st.stepsDone,
+          steps: [...ev.steps].sort((a, b) => a.afterMinutes - b.afterMinutes).map((s) => ({ name: s.name ?? `Étape à ${s.afterMinutes} min`, afterMinutes: s.afterMinutes })),
+          lastError: st.lastError ?? null,
+        };
+      }),
+    };
   }
 
   /** Modifie une variable du monde (phase du scénario…). */

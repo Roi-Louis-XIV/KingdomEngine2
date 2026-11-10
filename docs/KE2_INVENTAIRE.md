@@ -56,8 +56,8 @@ Légende : ✅ fait · 🟡 partiel · ⏳ planifié (phase indiquée)
 | Objectifs collectifs et contributions | Module `objective` : contributions, récompense par unité, meilleurs contributeurs, actions à l’achèvement | ✅ P2 |
 | Livraisons rémunérées | ✅ via `buyback` | ✅ |
 | Quêtes | Module `quest` | ⏳ P3 |
-| Événements, Live Ops (démarrer/pause/reprendre/arrêter), timeline | Planificateur d’événements | ⏳ P3 |
-| Calendrier, saisons, météo, jour/nuit | Variables temporelles automatiques | ⏳ P3 |
+| Événements, Live Ops (démarrer/pause/reprendre/arrêter), timeline | Événements manuels, quotidiens, à intervalle ou datés ; étapes chronologiques ; démarrer / pause / reprendre / arrêter / redémarrer ; programmation activable ; annonces Discord | ✅ P3 |
+| Calendrier, saisons, météo, jour/nuit | Météo automatique pondérée (durées, annonces, forçage, suspension), fuseau horaire du monde | ✅ P3 (saisons, jour/nuit ⏳) |
 | Lieux, connexions, voyages, exploration | Géographie | ⏳ P3 |
 
 ## 5. Discord

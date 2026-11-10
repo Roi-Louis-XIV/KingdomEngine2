@@ -35,6 +35,17 @@ export async function overviewPage(main: HTMLElement) {
           h('div', null, h('dt', null, 'Objets'), h('dd', null, String(o.counts.items))),
         ),
       ),
+      o.live && (o.live.weather || o.live.running.length)
+        ? h(
+            'button',
+            { class: 'live-strip', onclick: () => go('direct') },
+            o.live.weather ? h('span', { class: 'live-weather' }, o.live.weather.label) : null,
+            o.live.running.length
+              ? o.live.running.map((e: any) => h('span', { class: `pill ${e.status === 'running' ? 'live' : 'warn'}` }, `${e.emoji} ${e.name}${e.status === 'paused' ? ' (en pause)' : ''}`))
+              : h('span', { class: 'muted' }, 'Aucun événement en cours'),
+            h('span', { class: 'live-link' }, 'Piloter'),
+          )
+        : null,
       o.alerts.length
         ? h(
             'section',
@@ -192,7 +203,7 @@ export async function overviewPage(main: HTMLElement) {
   };
 }
 
-export const stripMd = (s: string) => s.replace(/\*\*|__|`/g, '').replace(/<@(\d+)>/g, '@$1');
+export const stripMd = (s: string) => s.replace(/^📣 /, '').replace(/\*\*|__|`/g, '').replace(/<@(\d+)>/g, '@$1');
 const countdown = (t: number) => {
   const s = Math.max(0, Math.round((t - Date.now()) / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;

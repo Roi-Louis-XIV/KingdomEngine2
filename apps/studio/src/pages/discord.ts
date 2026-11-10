@@ -122,6 +122,18 @@ export async function discordPage(main: HTMLElement) {
           ),
         ),
       ),
+      h(
+        'section',
+        { class: 'block' },
+        h('h2', null, 'Salon d’annonces'),
+        h('p', { class: 'muted' }, 'Les débuts, étapes et fins d’événements, ainsi que les changements de météo annoncés, y sont publiés.'),
+        d.guild.inGuild && manager
+          ? selectField(null, d.announceChannel ?? '', textChannels, (v) =>
+              void put(`/api/servers/${s.id}/discord/announce`, { channel: v || null })
+                .then(() => toast(v ? 'Salon d’annonces enregistré.' : 'Annonces Discord désactivées.'))
+                .catch((err) => toast((err as Error).message, 'error')), { allowEmpty: 'Ne pas publier sur Discord' })
+          : h('p', { class: 'note' }, 'Disponible une fois le bot présent sur le serveur Discord.'),
+      ),
       h('p', { class: 'muted small' }, 'Les ambiances se règlent dans chaque bâtiment, onglet Audio ; les sons s’importent dans la Médiathèque.'),
     );
   };

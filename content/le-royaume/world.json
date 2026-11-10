@@ -4,7 +4,8 @@
   "name": "Le Royaume",
   "description": "Monde de démonstration : la Taverne d’Edgar reconstruite uniquement à partir de modules génériques.",
   "settings": {
-    "maxActiveJobs": 1
+    "maxActiveJobs": 1,
+    "timezone": "Europe/Paris"
   },
   "stats": [
     {
@@ -387,6 +388,48 @@
         {
           "value": "apres",
           "label": "⛪ Après-tempête"
+        }
+      ]
+    },
+    {
+      "id": "meteo",
+      "name": "Météo",
+      "initial": "soleil",
+      "options": [
+        {
+          "value": "soleil",
+          "label": "☀️ Ensoleillé"
+        },
+        {
+          "value": "nuages",
+          "label": "⛅ Nuageux"
+        },
+        {
+          "value": "pluie",
+          "label": "🌧️ Pluie"
+        },
+        {
+          "value": "orage",
+          "label": "⛈️ Orage"
+        },
+        {
+          "value": "brouillard",
+          "label": "🌫️ Brouillard"
+        }
+      ]
+    },
+    {
+      "id": "soiree",
+      "name": "Soirée à la Taverne",
+      "initial": "non",
+      "options": [
+        {
+          "value": "non",
+          "label": "Non"
+        },
+        {
+          "value": "oui",
+          "label": "🎻 En cours"
         }
       ]
     }
@@ -1287,9 +1330,19 @@
                 },
                 {
                   "type": "text",
-                  "text": "👤 **Tavernier :** Edgar Brassebarbe\n🟢 **Établissement :** Ouvert\n💰 **Votre bourse :** {player.stat.ecus} écus"
+                  "text": "👤 **Tavernier :** Edgar Brassebarbe\n🟢 **Établissement :** Ouvert\n💰 **Votre bourse :** {player.stat.ecus} écus\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ]
+            },
+            {
+              "type": "text",
+              "text": "🎻 **Soirée en cours !** Edgar joue de la vielle et la Taverne est pleine à craquer.",
+              "visibleIf": {
+                "type": "variable",
+                "variable": "soiree",
+                "op": "eq",
+                "value": "oui"
+              }
             },
             {
               "type": "notice"
@@ -2219,8 +2272,19 @@
               "durationSec": 30,
               "cooldownSec": 15,
               "when": {
-                "type": "hasJob",
-                "job": "bucheron"
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "hasJob",
+                    "job": "bucheron"
+                  },
+                  {
+                    "type": "variable",
+                    "variable": "meteo",
+                    "op": "neq",
+                    "value": "orage"
+                  }
+                ]
               },
               "costs": [
                 {
@@ -2349,6 +2413,68 @@
                   ]
                 }
               ]
+            },
+            {
+              "id": "cepes",
+              "name": "Chercher des cèpes",
+              "emoji": "🍄‍🟫",
+              "description": "Seulement par temps de pluie ou de brouillard.",
+              "durationSec": 45,
+              "cooldownSec": 120,
+              "when": {
+                "type": "any",
+                "conditions": [
+                  {
+                    "type": "variable",
+                    "variable": "meteo",
+                    "op": "eq",
+                    "value": "pluie"
+                  },
+                  {
+                    "type": "variable",
+                    "variable": "meteo",
+                    "op": "eq",
+                    "value": "brouillard"
+                  }
+                ]
+              },
+              "costs": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": -8
+                }
+              ],
+              "rolls": 2,
+              "results": [
+                {
+                  "weight": 50,
+                  "label": "Quelques cèpes",
+                  "actions": [
+                    {
+                      "type": "item.give",
+                      "item": "champignon",
+                      "qty": 2
+                    }
+                  ]
+                },
+                {
+                  "weight": 35,
+                  "label": "Un beau coin",
+                  "actions": [
+                    {
+                      "type": "item.give",
+                      "item": "champignon",
+                      "qty": 3
+                    }
+                  ]
+                },
+                {
+                  "weight": 15,
+                  "label": "Rien du tout",
+                  "actions": []
+                }
+              ]
             }
           ]
         },
@@ -2412,7 +2538,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Énergie :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus"
+                  "text": "⚡ **Énergie :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ]
             },
@@ -2579,6 +2705,122 @@
           ]
         }
       ]
+    }
+  ],
+  "weather": {
+    "variable": "meteo",
+    "states": [
+      {
+        "value": "soleil",
+        "weight": 40,
+        "minMinutes": 60,
+        "maxMinutes": 180
+      },
+      {
+        "value": "nuages",
+        "weight": 30,
+        "minMinutes": 45,
+        "maxMinutes": 120
+      },
+      {
+        "value": "pluie",
+        "weight": 18,
+        "minMinutes": 30,
+        "maxMinutes": 90,
+        "announce": "🌧️ La pluie se met à tomber sur le Royaume. Les cèpes ne vont pas tarder à sortir !"
+      },
+      {
+        "value": "orage",
+        "weight": 5,
+        "minMinutes": 20,
+        "maxMinutes": 45,
+        "announce": "⛈️ Un orage gronde ! Les bûcherons rentrent se mettre à l’abri."
+      },
+      {
+        "value": "brouillard",
+        "weight": 7,
+        "minMinutes": 30,
+        "maxMinutes": 60,
+        "announce": "🌫️ Un épais brouillard recouvre la forêt."
+      }
+    ]
+  },
+  "events": [
+    {
+      "id": "tempete",
+      "name": "La Tempête de la Sainte Pelle",
+      "emoji": "⛈️",
+      "description": "Scénario : la tempête frappe le Royaume puis laisse l’Église en ruines.",
+      "schedule": {
+        "type": "manual"
+      },
+      "durationMinutes": 45,
+      "onStart": [
+        {
+          "type": "variable.set",
+          "variable": "phase",
+          "value": "tempete"
+        },
+        {
+          "type": "weather.set",
+          "value": "orage",
+          "minutes": 45
+        }
+      ],
+      "steps": [
+        {
+          "afterMinutes": 30,
+          "name": "Le clocher s’effondre",
+          "actions": [],
+          "announce": "💥 Un craquement terrible : le clocher de l’Église de la Sainte Pelle s’effondre !"
+        }
+      ],
+      "onEnd": [
+        {
+          "type": "variable.set",
+          "variable": "phase",
+          "value": "apres"
+        },
+        {
+          "type": "weather.set",
+          "value": "pluie",
+          "minutes": 60
+        }
+      ],
+      "announce": {
+        "start": "⛈️ **La Tempête de la Sainte Pelle** s’abat sur le Royaume ! Réfugiez-vous à la Taverne.",
+        "end": "🌧️ La tempête s’éloigne. L’Église est en ruines : le chantier de reconstruction ouvre dans la Forêt."
+      }
+    },
+    {
+      "id": "soiree",
+      "name": "Soirée à la Taverne",
+      "emoji": "🎻",
+      "description": "Chaque soir, Edgar anime la Taverne.",
+      "schedule": {
+        "type": "daily",
+        "at": "20:00"
+      },
+      "durationMinutes": 120,
+      "onStart": [
+        {
+          "type": "variable.set",
+          "variable": "soiree",
+          "value": "oui"
+        }
+      ],
+      "steps": [],
+      "onEnd": [
+        {
+          "type": "variable.set",
+          "variable": "soiree",
+          "value": "non"
+        }
+      ],
+      "announce": {
+        "start": "🎻 La **Soirée à la Taverne** commence ! Edgar sort sa vielle à roue.",
+        "end": "🌙 La soirée s’achève, Edgar range les chopes."
+      }
     }
   ]
 }

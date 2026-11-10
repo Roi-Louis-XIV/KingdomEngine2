@@ -42,6 +42,10 @@ console.log(`🏰 KingdomEngine ${version} — Studio : http://${host === '0.0.0
 if (app.platform.accountCount() === 0) console.log('   Premier lancement : ouvre le Studio et crée ton compte (il sera administrateur).');
 
 const stops: (() => void)[] = [];
+// Horloge des mondes : météo, événements programmés, étapes.
+app.runtimes.tickAll();
+const clock = setInterval(() => app.runtimes.tickAll(), Number(env.KINGDOM_TICK_SECONDS ?? 5) * 1000);
+stops.push(() => clearInterval(clock));
 if (env.KINGDOM_CORE_TOKEN) {
   const { CoreBot } = await import('./discord/core.ts');
   const core = new CoreBot(app.platform, app.runtimes, env.KINGDOM_CORE_TOKEN);

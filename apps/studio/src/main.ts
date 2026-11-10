@@ -12,6 +12,8 @@ import { discordPage } from './pages/discord.ts';
 import { mediaPage } from './pages/media.ts';
 import { journalPage, settingsPage } from './pages/settings.ts';
 import { adminPage } from './pages/admin.ts';
+import { livePage } from './pages/live.ts';
+import { eventsPage } from './pages/events.ts';
 
 export type Page = (main: HTMLElement, params: string[]) => void | (() => void) | Promise<void | (() => void)>;
 
@@ -26,10 +28,12 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { route: 'apercu', label: 'Vue d’ensemble', icon: '◈', page: overviewPage, group: 'Superviser' },
+  { route: 'direct', label: 'En direct', icon: '◉', page: livePage, group: 'Superviser' },
   { route: 'joueurs', label: 'Joueurs', icon: '☺', page: playersPage, group: 'Superviser' },
   { route: 'journal', label: 'Journal', icon: '☰', page: journalPage, group: 'Superviser' },
   { route: 'batiments', label: 'Bâtiments', icon: '⌂', page: buildingsPage, group: 'Créer' },
   { route: 'catalogue', label: 'Objets & règles', icon: '◇', page: catalogPage, group: 'Créer' },
+  { route: 'evenements', label: 'Météo & événements', icon: '☁', page: eventsPage, group: 'Créer' },
   { route: 'tester', label: 'Tester', icon: '▷', page: testPage, group: 'Créer' },
   { route: 'publier', label: 'Publier', icon: '⇪', page: publishPage, group: 'Créer' },
   { route: 'discord', label: 'Discord & voix', icon: '◎', page: discordPage, group: 'Serveur' },

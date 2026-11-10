@@ -24,11 +24,11 @@ Plateforme no-code de mondes interactifs pour Discord, pour Payen Studio (Louis)
 7. Ne pas fusionner dans `main` ni déployer en production sans l'accord de Louis.
 
 ## État actuel
-- Phases 0, 1 et 2 terminées (moteur, plateforme, Studio, bot, voix, outils, activités, objectifs, édition visuelle). Voir `docs/ROADMAP.md`.
+- Phases 0, 1 et 2 terminées (moteur, plateforme, Studio, bot, voix, outils, activités, objectifs, édition visuelle). Phase 3 en cours : météo et événements programmés faits (`packages/engine/src/clock.ts`, `Engine.tick()` appelé toutes les 5 s par `apps/server/src/main.ts`, page Studio « En direct »). Voir `docs/ROADMAP.md`.
 - **Jamais testé sur un vrai Discord** : le bot principal et les Voice Workers sont à valider en premier (`.env.example`).
 - Inventaire complet de ce qui reste à porter depuis KE2 : `docs/KE2_INVENTAIRE.md`. Ancien code de référence : branche `agent/kingdomengine2-v2` de ce dépôt.
 
 ## Prochaines étapes
 1. Brancher le bot et les Voice Workers sur un serveur Discord de test et corriger ce qui doit l'être.
 2. Phase 2 bis : rôles d'accès aux bâtiments, serment d'arrivée, nettoyage des salons.
-3. Phase 3 : quêtes, événements et Live Ops, calendrier et météo, géographie et voyages (voir `docs/KE2_INVENTAIRE.md`).
+3. Suite de la phase 3 : quêtes, saisons et jour/nuit, géographie et voyages (voir `docs/KE2_INVENTAIRE.md`).

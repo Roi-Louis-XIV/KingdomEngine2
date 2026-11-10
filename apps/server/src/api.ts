@@ -283,6 +283,7 @@ export function registerApi(router: Router, deps: ApiDeps) {
       })),
       buildings,
       alerts,
+      live: engine ? (() => { const l = engine.live(); return { weather: l.weather, running: l.events.filter((e) => e.status === 'running' || e.status === 'paused').map((e) => ({ id: e.id, name: e.name, emoji: e.emoji, status: e.status })) }; })() : null,
       activity: platform.activity(s.id, 25).map((a) => ({ ...a, playerName: a.playerId ? meta.get(a.playerId)?.name ?? a.playerId : null })),
       discord: { ...d, guildId: s.guildId },
     };
@@ -339,8 +340,54 @@ export function registerApi(router: Router, deps: ApiDeps) {
 
   router.post('/api/servers/:id/variables', (r) => {
     const s = server(r, 'manager');
-    runtimes.setVariable(s.id, me(r), String(r.body.variable), r.body.value);
+    // La variable de météo passe par le système météo (durée, annonce, cohérence).
+    if (runtimes.require(s.id).world.weather?.variable === r.body.variable) runtimes.setWeather(s.id, me(r), String(r.body.value));
+    else runtimes.setVariable(s.id, me(r), String(r.body.variable), r.body.value);
     deps.voice.refresh();
+    return { ok: true };
+  });
+
+  // ---------------------------------------------------------------------------
+  // En direct : météo et événements
+  // ---------------------------------------------------------------------------
+
+  router.get('/api/servers/:id/live', (r) => {
+    const s = server(r, 'viewer');
+    const engine = runtimes.engine(s.id);
+    if (!engine) return { published: false, timezone: 'Europe/Paris', now: Date.now(), weather: null, events: [], weatherStates: [], announceChannel: null };
+    const def = engine.world.weather;
+    const v = engine.world.variables.find((x) => x.id === def?.variable);
+    return {
+      published: true,
+      ...engine.live(),
+      weatherStates: (def?.states ?? []).map((st) => ({ value: st.value, label: v?.options?.find((o) => o.value === st.value)?.label ?? st.value, weight: st.weight })),
+      announceChannel: platform.setting<string | null>(s.id, 'discord.announceChannel', null),
+      announcements: platform.activity(s.id, 100).filter((a) => a.text.startsWith('📣') || a.text.startsWith('📅')).slice(0, 15),
+    };
+  });
+
+  router.post('/api/servers/:id/events/:eid/:cmd', (r) => {
+    const s = server(r, 'manager');
+    const cmd = r.params.cmd!;
+    if (cmd === 'auto') runtimes.setEventAuto(s.id, me(r), r.params.eid!, !!r.body.enabled);
+    else if (['start', 'stop', 'pause', 'resume', 'restart'].includes(cmd)) runtimes.eventControl(s.id, me(r), r.params.eid!, cmd as 'start');
+    else throw new HttpError(404, 'Commande inconnue.');
+    deps.voice.refresh();
+    return runtimes.require(s.id).live();
+  });
+
+  router.post('/api/servers/:id/weather', (r) => {
+    const s = server(r, 'manager');
+    if (r.body.auto !== undefined) runtimes.setWeatherAuto(s.id, me(r), !!r.body.auto);
+    if (r.body.value) runtimes.setWeather(s.id, me(r), String(r.body.value), r.body.minutes ? Math.max(1, Number(r.body.minutes)) : undefined);
+    deps.voice.refresh();
+    return runtimes.require(s.id).live();
+  });
+
+  router.put('/api/servers/:id/discord/announce', (r) => {
+    const s = server(r, 'manager');
+    platform.setSetting(s.id, 'discord.announceChannel', r.body.channel || null);
+    platform.audit(s.id, me(r).id, 'discord.announce', r.body.channel ? 'Salon d’annonces choisi' : 'Annonces Discord désactivées');
     return { ok: true };
   });
 
@@ -365,6 +412,7 @@ export function registerApi(router: Router, deps: ApiDeps) {
       guildId: s.guildId,
       guild: g,
       channels: channelsOf(s.id),
+      announceChannel: platform.setting<string | null>(s.id, 'discord.announceChannel', null),
       workers: v.workers.map((w) => ({ ...w, installed: s.guildId ? w.guilds.includes(s.guildId) : false })),
       ffmpeg: v.ffmpeg,
       unplaced: v.unplaced.filter((u) => u.serverId === s.id),

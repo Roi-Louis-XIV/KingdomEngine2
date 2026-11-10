@@ -98,7 +98,7 @@ test('supervision : vue d’ensemble avec bâtiments, réserves, alertes et vari
   assert.equal(o.data.counts.buildings, 2);
   assert.equal(o.data.buildings[0].name, 'À la Gueuse Cocue');
   assert.ok(o.data.alerts.some((a: any) => /rupture/.test(a.text)));
-  assert.deepEqual(o.data.variables.map((v: any) => [v.id, v.value]), [['phase', 'calme']]);
+  assert.deepEqual(o.data.variables.map((v: any) => [v.id, v.value]), [['phase', 'calme'], ['meteo', 'soleil'], ['soiree', 'non']]);
 });
 
 test('jeu → supervision : un joueur agit sur Discord, la fiche et l’activité le montrent', async () => {
@@ -213,4 +213,58 @@ test('suppression d’un serveur : confirmation par le nom', async () => {
 test('déconnexion', async () => {
   await louis.post('/api/auth/logout');
   assert.equal((await louis.get(`/api/servers/${serverId}/overview`)).status, 401);
+});
+
+test('en direct : météo et événements pilotés depuis le Studio, avec audit et droits', async () => {
+  const admin2 = new Client();
+  await admin2.post('/api/auth/login', { username: 'roi', password: 'motdepasse-solide' });
+  const s = await admin2.post('/api/servers', { name: 'Monde en direct', template: 'le-royaume' });
+  const id = s.data.id;
+  app.runtimes.tickAll();
+  const live = await admin2.get(`/api/servers/${id}/live`);
+  assert.ok(live.data.weather, 'la météo tourne');
+  assert.deepEqual(live.data.events.map((e: any) => [e.id, e.status]), [['tempete', 'idle'], ['soiree', 'idle']]);
+  assert.ok(live.data.events[1].nextRunAt > Date.now(), 'la soirée est programmée');
+
+  let r = await admin2.post(`/api/servers/${id}/events/tempete/start`);
+  assert.equal(r.status, 200);
+  assert.equal(r.data.events[0].status, 'running');
+  assert.equal(app.runtimes.engine(id)!.variables.phase, 'tempete');
+  r = await admin2.post(`/api/servers/${id}/events/tempete/pause`);
+  assert.equal(r.data.events[0].status, 'paused');
+  r = await admin2.post(`/api/servers/${id}/events/tempete/start`);
+  assert.equal(r.status, 400);
+  assert.match(r.data.error, /déjà en cours/);
+  r = await admin2.post(`/api/servers/${id}/events/tempete/resume`);
+  r = await admin2.post(`/api/servers/${id}/events/tempete/restart`);
+  assert.equal(r.data.events[0].runs, 2);
+  r = await admin2.post(`/api/servers/${id}/events/tempete/stop`);
+  assert.equal(r.data.events[0].status, 'finished');
+  r = await admin2.post(`/api/servers/${id}/events/soiree/auto`, { enabled: false });
+  assert.equal(r.data.events[1].nextRunAt, null);
+
+  r = await admin2.post(`/api/servers/${id}/weather`, { value: 'brouillard', minutes: 20, auto: false });
+  assert.equal(r.data.weather.value, 'brouillard');
+  assert.equal(r.data.weather.auto, false);
+
+  const live2 = await admin2.get(`/api/servers/${id}/live`);
+  assert.ok(live2.data.announcements.some((a: any) => /Tempête de la Sainte Pelle\*\* s’abat/.test(a.text)));
+  const audit = await admin2.get(`/api/servers/${id}/audit`);
+  assert.ok(audit.data.some((a: any) => a.summary === 'Événement « La Tempête de la Sainte Pelle » mis en pause'));
+  assert.ok(audit.data.some((a: any) => a.summary === 'Météo imposée : brouillard pour 20 min'));
+
+  // Un éditeur ne pilote pas le direct.
+  await admin2.put(`/api/servers/${id}/members`, { username: 'mallory', role: 'editor' });
+  assert.equal((await intrus.post(`/api/servers/${id}/events/tempete/start`)).status, 403);
+  assert.equal((await intrus.get(`/api/servers/${id}/live`)).status, 200);
+});
+
+test('la variable de météo modifiée depuis la vue d’ensemble passe par le système météo', async () => {
+  const c = new Client();
+  await c.post('/api/auth/login', { username: 'roi', password: 'motdepasse-solide' });
+  const id = 'monde-en-direct';
+  await c.post(`/api/servers/${id}/variables`, { variable: 'meteo', value: 'pluie' });
+  const live = await c.get(`/api/servers/${id}/live`);
+  assert.equal(live.data.weather.value, 'pluie');
+  assert.ok(live.data.weather.until > Date.now());
 });

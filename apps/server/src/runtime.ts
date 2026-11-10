@@ -3,7 +3,7 @@
  * Toute modification est persistée immédiatement ; les abonnés (Discord, voix, Studio)
  * sont prévenus des changements.
  */
-import { Engine, type Action, type EngineEvent, type InteractionResult, type View } from '../../../packages/engine/src/index.ts';
+import { Engine, RuleError, type Action, type EngineEvent, type EventCommand, type InteractionResult, type View } from '../../../packages/engine/src/index.ts';
 import type { Account, Platform } from './platform.ts';
 import { HttpError } from './platform.ts';
 
@@ -127,6 +127,71 @@ export class Runtimes {
     if (r.events?.length) this.emit({ type: 'engine', serverId, events: r.events });
     if (engine.revision !== before) this.emit({ type: 'changed', serverId });
     return r;
+  }
+
+  // -------------------------------------------------------------------------
+  // Horloge du monde
+  // -------------------------------------------------------------------------
+
+  /** Diffuse les annonces et les journalise. */
+  private dispatch(serverId: string, events: EngineEvent[]) {
+    if (!events.length) return;
+    for (const e of events) if (e.type === 'announce') this.platform.logActivity(serverId, null, null, `📣 ${e.text}`);
+    this.emit({ type: 'engine', serverId, events });
+  }
+
+  /** Fait avancer météo et événements de tous les mondes publiés. */
+  tickAll(): void {
+    for (const s of this.platform.allServers()) {
+      try {
+        const engine = this.engine(s.id);
+        if (!engine) continue;
+        const before = engine.revision;
+        const events = engine.tick();
+        this.persist(s.id);
+        this.dispatch(s.id, events);
+        if (engine.revision !== before) this.emit({ type: 'changed', serverId: s.id });
+      } catch (e) {
+        console.error(`Horloge du monde ${s.id} :`, e);
+      }
+    }
+  }
+
+  private control<T>(serverId: string, account: Account, summary: string, fn: (e: Engine) => T): T {
+    const engine = this.require(serverId);
+    let out: T;
+    try {
+      out = fn(engine);
+    } catch (e) {
+      if (e instanceof RuleError) throw new HttpError(400, e.message);
+      throw e;
+    }
+    this.persist(serverId);
+    this.platform.audit(serverId, account.id, 'live', summary);
+    this.emit({ type: 'changed', serverId });
+    return out;
+  }
+
+  eventControl(serverId: string, account: Account, eventId: string, cmd: EventCommand): void {
+    const name = this.require(serverId).world.events?.find((e) => e.id === eventId)?.name ?? eventId;
+    const verb = { start: 'démarré', stop: 'arrêté', pause: 'mis en pause', resume: 'repris', restart: 'redémarré' }[cmd];
+    const events = this.control(serverId, account, `Événement « ${name} » ${verb}`, (e) => e.eventControl(eventId, cmd));
+    this.platform.logActivity(serverId, null, null, `📅 « ${name} » ${verb} par ${account.displayName}`);
+    this.dispatch(serverId, events);
+  }
+
+  setEventAuto(serverId: string, account: Account, eventId: string, auto: boolean): void {
+    const name = this.require(serverId).world.events?.find((e) => e.id === eventId)?.name ?? eventId;
+    this.control(serverId, account, `Programmation de « ${name} » ${auto ? 'activée' : 'coupée'}`, (e) => e.setEventAuto(eventId, auto));
+  }
+
+  setWeather(serverId: string, account: Account, value: string, minutes?: number): void {
+    const events = this.control(serverId, account, `Météo imposée : ${value}${minutes ? ` pour ${minutes} min` : ''}`, (e) => e.setWeather(value, minutes));
+    this.dispatch(serverId, events);
+  }
+
+  setWeatherAuto(serverId: string, account: Account, auto: boolean): void {
+    this.control(serverId, account, `Météo automatique ${auto ? 'reprise' : 'suspendue'}`, (e) => e.setWeatherAuto(auto));
   }
 
   // -------------------------------------------------------------------------
