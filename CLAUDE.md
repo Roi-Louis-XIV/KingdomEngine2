@@ -19,7 +19,7 @@ Plateforme no-code de mondes interactifs pour Discord, pour Payen Studio (Louis)
 2. **Toute modification d'état passe par une transaction du moteur** (copie, puis validation en tout-ou-rien). Jamais d'écriture partielle.
 3. **Migrations SQLite additives et numérotées** (`apps/server/src/db.ts`). On n'efface jamais une base existante.
 4. **La voix et l'audio ne bloquent jamais le jeu.**
-5. **Interface en français**, phrases simples, vocabulaire de l'utilisateur (pas de jargon technique). Direction visuelle : sombre, vert-de-gris `#6fb59a`, laiton `#c9a45c`, titres en serif.
+5. **Interface en français**, phrases simples, vocabulaire de l'utilisateur (pas de jargon technique). Direction visuelle (demandée par Louis) : fond noir, texte blanc très contrasté, **vert bouteille `#0a6b45`** en aplat aux seuls endroits forts (actif, actions principales, blason), vert clair `#34c27d` pour liens et focus, laiton `#e0b04f` et rouge `#f05252` pour les alertes, titres en serif. L'aperçu Discord garde les couleurs de Discord.
 6. Chaque fonctionnalité arrive avec ses tests (`node:test`). Les limites Discord Components V2 sont vérifiées par `validateRendered`.
 7. Ne pas fusionner dans `main` ni déployer en production sans l'accord de Louis.
 
