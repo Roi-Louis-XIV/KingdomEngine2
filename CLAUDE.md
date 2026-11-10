@@ -7,6 +7,7 @@ Plateforme no-code de mondes interactifs pour Discord, pour Payen Studio (Louis)
 - `npm start` : compile le Studio (`scripts/build-studio.mjs`) et lance le serveur unique sur http://localhost:8080.
 - `npm run typecheck` : TypeScript strict (serveur + Studio).
 - `npm run build` : Studio + émulateur autonome (`apps/emulator/dist/index.html`).
+- Production Debian : `deploy/install-debian.sh` (service systemd `kingdomengine`, code dans `/opt/kingdomengine`, données dans `/var/lib/kingdomengine`, config `/etc/kingdomengine.env`), `deploy/update.sh`, `deploy/backup.sh`. Guide : `docs/DEPLOIEMENT.md`.
 
 ## Architecture (détails : docs/ARCHITECTURE.md)
 - `packages/engine` : moteur **pur, synchrone, sans dépendance**. Modèle de monde (`model.ts`), règles et actions atomiques (`rules.ts`), widgets des modules (`widgets.ts`), sessions et interactions (`engine.ts`), validation (`validate.ts`). Il tourne aussi dans le navigateur (émulateur du Studio).

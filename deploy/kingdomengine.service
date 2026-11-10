@@ -1,0 +1,33 @@
+[Unit]
+Description=KingdomEngine 4 (Studio, bot Discord, Voice Workers)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kingdom
+Group=kingdom
+WorkingDirectory=/opt/kingdomengine
+EnvironmentFile=/etc/kingdomengine.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning --import tsx apps/server/src/main.ts
+Restart=always
+RestartSec=5
+# Laisse le temps d'enregistrer l'état et de quitter les salons vocaux.
+TimeoutStopSec=20
+KillSignal=SIGTERM
+
+# Durcissement : le service ne peut écrire que dans son dossier de données.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/kingdomengine
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

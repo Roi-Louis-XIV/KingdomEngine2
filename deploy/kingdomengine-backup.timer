@@ -1,0 +1,10 @@
+[Unit]
+Description=Sauvegarde quotidienne de KingdomEngine (4 h du matin)
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

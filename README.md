@@ -10,7 +10,7 @@ Un monde est **un document de données**. Le moteur ne contient aucun contenu pr
 
 ## Démarrage
 
-Prérequis : **Node.js 22.12 ou plus récent** (`node -v`).
+Prérequis : **Node.js 22.16 ou plus récent** (`node -v`).
 
 ```sh
 npm install
@@ -42,5 +42,7 @@ Sans configuration Discord, le Studio fonctionne déjà entièrement. L’onglet
 | `docs/` | Architecture, feuille de route, inventaire KE2 → KE4 |
 
 Les données vivent dans `var/` : la base `kingdom.db` (SQLite, WAL) et les sons. Pour sauvegarder, copie ce dossier serveur arrêté.
+
+**Installer sur un serveur Debian** : voir [`docs/DEPLOIEMENT.md`](docs/DEPLOIEMENT.md). Un script installe tout, crée le service et les sauvegardes quotidiennes.
 
 Pour aller plus loin, lis [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) et [`docs/KE2_INVENTAIRE.md`](docs/KE2_INVENTAIRE.md).
