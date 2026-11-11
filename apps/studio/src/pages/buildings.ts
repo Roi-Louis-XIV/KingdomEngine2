@@ -564,6 +564,7 @@ function moduleEditor(w: WorldDef, b: BuildingDef, m: ModuleDef, changed: () => 
                 field(a, 'description', { label: 'Description' }, changed),
                 h('h3', null, 'Accessible si'),
                 conditionEditor(w, b, a.when, (c) => (c ? (a.when = c) : delete a.when, changed())),
+                h('div', { class: 'row-fields' }, field(a, 'lockedText', { label: 'Message si indisponible', placeholder: 'Explication automatique' }, changed), field(a, 'maxConcurrent', { label: 'Joueurs en même temps (max)', type: 'number', min: 0, placeholder: 'Illimité' }, changed)),
                 h('h3', null, 'Coûts au lancement'),
                 effectsEditor(w, a.costs, changed, sounds),
                 h(

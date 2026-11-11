@@ -22,8 +22,11 @@ Moteur générique et atomique, Taverne d’Edgar V11 en pur contenu, émulateur
 - Contenu : la Forêt (bûcheron, hache) et le chantier de l’Église dans « Le Royaume ».
 - Studio : éditeur visuel de conditions (récursif), de règles de boutons, de textes variables, réglages des widgets ; assistants boutique, atelier, activités, objectif, personnage ; outils et activités dans la fiche joueur ; objectifs dans la vue d’ensemble.
 
-## Phase 2 bis — Discord avancé (après validation sur un vrai serveur)
-- Rôles d’accès aux bâtiments (entrée/sortie du vocal), parcours d’arrivée (serment, dotation), nettoyage et désinstallation des salons.
+## Phase 2 bis — Discord avancé
+- ✅ Serment d’arrivée (rôle des habitants, dotation unique), une catégorie par bâtiment, nettoyage des salons des bâtiments.
+- ✅ Métiers à expérience (bûcheron, mineur, forgeron, fermier, pêcheur, cuisinier) : gestes réservés aux niveaux 2 et 3, fiche du joueur.
+- ✅ Échoppes : vente d’objets (outils, vivres) et rachat de ressources dans chaque lieu de la bêta.
+- ⏳ Désinstallation des salons ; rôles d’accès par bâtiment (bâtiments réservés).
 
 ## 🟡 Phase 3 — Monde vivant
 - ✅ Météo automatique : temps pondérés, durées aléatoires, annonces, forçage et suspension depuis le Studio ; elle pilote une variable dont dépendent textes, activités, ambiances.

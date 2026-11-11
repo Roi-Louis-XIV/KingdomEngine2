@@ -180,7 +180,30 @@ export interface WorldDef {
   newPlayer?: { items?: Record<Id, number> };
   /** Quêtes personnelles (panneau des quêtes). */
   quests?: QuestSystem;
+  /** Arrivée dans le monde : serment à prêter avant d'accéder aux bâtiments. */
+  onboarding?: Onboarding;
   buildings: BuildingDef[];
+}
+
+// ---------------------------------------------------------------------------
+// Arrivée (serment)
+// ---------------------------------------------------------------------------
+
+export interface Onboarding {
+  enabled: boolean;
+  /** Nom du salon d'arrivée sur Discord. */
+  channelName: string;
+  title: string;
+  /** Texte du serment (règles du monde). */
+  text: Text;
+  button: string;
+  buttonEmoji?: string;
+  /** Nom du rôle Discord donné à ceux qui ont prêté serment. */
+  roleName: string;
+  /** Message affiché au joueur après le serment. */
+  confirmation: Text;
+  /** Dotation donnée une seule fois (écus, objets…). */
+  actions: Action[];
 }
 
 // ---------------------------------------------------------------------------
@@ -486,6 +509,8 @@ export interface ActivityDef {
   multipliers?: { when: Condition; factor: number; label?: string }[];
   /** Nombre maximal de joueurs menant cette activité en même temps. */
   maxConcurrent?: number;
+  /** Message affiché quand la condition d'accès n'est pas remplie (sinon : l'explication automatique). */
+  lockedText?: Text;
 }
 
 export interface ActivityModule {
@@ -563,7 +588,7 @@ export type WidgetDef =
   /** Panneau des quêtes : propositions, choix, abandon, nouveau tirage. */
   | { kind: 'quest.board'; title?: string; accent?: number }
   /** Fiche du joueur : statistiques, XP et niveau, quête en cours (bouton Livrer si besoin). */
-  | { kind: 'player.sheet'; stats: Id[]; accent?: number }
+  | { kind: 'player.sheet'; stats: Id[]; /** Affiche les métiers (niveau et expérience). */ jobs?: boolean; accent?: number }
   /** Classement des joueurs selon une statistique. */
   | { kind: 'ranking'; stat: Id; title?: string; limit?: number; accent?: number };
 

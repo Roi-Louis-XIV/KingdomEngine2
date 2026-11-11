@@ -162,6 +162,16 @@ export function validateWorld(w: WorldDef): Issue[] {
 
   for (const it of w.items) it.consumable?.effects.forEach((a) => checkAction(`Objet ${it.id}`, a));
 
+  if (w.onboarding) {
+    const ob = w.onboarding;
+    if (!ob.title?.trim()) err('Serment', 'titre manquant');
+    if (!ob.button?.trim()) err('Serment', 'texte du bouton manquant');
+    if (!ob.roleName?.trim()) err('Serment', 'nom du rôle manquant');
+    checkText('Serment', ob.text);
+    checkText('Serment', ob.confirmation);
+    ob.actions.forEach((a) => checkAction('Serment › dotation', a));
+  }
+
   if (w.quests) {
     const qs = w.quests;
     if (!stats.has(qs.xpStat)) err('Quêtes', `statistique d’XP inconnue : ${qs.xpStat}`);

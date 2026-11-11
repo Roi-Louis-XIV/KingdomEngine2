@@ -87,3 +87,22 @@ test('quitter le bâtiment ferme les interfaces du joueur : au retour, on repart
   assert.ok(engine.session(other));
   assert.equal(engine.interact('louis', `${a}|b|home|0`).ok, false);
 });
+
+test('serment : panneau dans les limites Discord, bouton sans état, salons réservés aux habitants', async () => {
+  const { OATH_ID, OATH_MARKER, isOath, oathPanel, voiceOverwrites, oathChannelOverwrites, categoryName } = await import('../src/discord/access.ts');
+  const { readFileSync } = await import('node:fs');
+  const w = JSON.parse(readFileSync(new URL('../../../content/sainte-pelle/world.json', import.meta.url), 'utf8'));
+  const panel = oathPanel(w.onboarding);
+  assert.deepEqual(validateRendered(panel), []);
+  const json = JSON.stringify(toDiscord(panel));
+  assert.ok(json.includes(OATH_ID) && json.includes(OATH_MARKER) && json.includes('Je le jure'));
+  assert.ok(isOath(OATH_ID) && !isOath(enterCustomId('place')));
+  // Sans rôle d'habitant (pas de serment) : aucune restriction.
+  assert.deepEqual(voiceOverwrites('guild', null, 'bot'), []);
+  const [everyone, role] = voiceOverwrites('guild', 'habitant', 'bot');
+  assert.ok(everyone!.deny & P.ViewChannel && everyone!.deny & P.Connect);
+  assert.ok(role!.allow & P.ViewChannel && role!.allow & P.Connect && role!.allow & P.Speak);
+  const [all] = oathChannelOverwrites('guild', 'bot');
+  assert.ok(all!.allow & P.ViewChannel && all!.deny & P.SendMessages);
+  assert.equal(categoryName({ name: 'Mine de Roland', emoji: '⛏️' }), '⛏️ Mine de Roland');
+});

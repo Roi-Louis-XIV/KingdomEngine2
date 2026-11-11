@@ -150,7 +150,10 @@ export function evaluate(ctx: Ctx, c: Condition | undefined): Verdict {
     case 'jobLevel': {
       const level = jobProgress(p, c.job).level;
       const ok = OPS[c.op](level, c.value);
-      return { ok, reason: `niveau ${findJob(w, c.job)?.name ?? c.job} = ${level} (attendu ${OP_LABEL[c.op]} ${c.value})` };
+      const job = findJob(w, c.job);
+      const name = `${job?.emoji ? job.emoji + ' ' : ''}${job?.name ?? c.job}`;
+      if (c.op === 'gte') return { ok, reason: ok ? `${name} niveau ${level}` : `il faut être ${name} niveau ${c.value} (tu es niveau ${level})` };
+      return { ok, reason: `niveau ${name} = ${level} (attendu ${OP_LABEL[c.op]} ${c.value})` };
     }
     case 'variable': {
       const value = ctx.state.variables[c.variable];

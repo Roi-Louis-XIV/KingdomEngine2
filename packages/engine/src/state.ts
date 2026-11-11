@@ -23,6 +23,8 @@ export interface PlayerState {
   questDraws?: number;
   /** Instant du dernier nouveau tirage demandé. */
   questRerollAt?: number;
+  /** Instant où le joueur a prêté serment (dotation versée une seule fois). */
+  oathAt?: number;
 }
 
 export interface ObjectiveState {

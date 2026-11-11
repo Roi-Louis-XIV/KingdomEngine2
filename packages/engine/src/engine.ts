@@ -195,6 +195,30 @@ export class Engine {
     });
   }
 
+  /**
+   * Serment d'arrivée : marque le joueur et verse la dotation une seule fois.
+   * Renvoie le message de confirmation et si c'était la première fois.
+   */
+  acceptOath(playerId: Id): { first: boolean; message: string; gains: string } {
+    const ob = this.world.onboarding;
+    return this.transact((draft) => {
+      const p = (draft.players[playerId] ??= newPlayer(this.world));
+      const ctx = this.ctx(draft, { id: '', player: playerId, building: this.world.buildings[0]?.id ?? '', screen: '', ui: {}, createdAt: 0 });
+      const message = pickText(ctx, ob?.confirmation) || 'Bienvenue !';
+      if (p.oathAt) return { first: false, message, gains: '' };
+      p.oathAt = this.now();
+      for (const a of ob?.actions ?? []) applyAction(ctx, a);
+      // Les écus ne sont pas listés par describeChanges (dépenses annoncées à part) : on les ajoute ici.
+      const money = ctx.changes
+        .filter((c) => c.kind === 'stat' && c.after > c.before && this.world.stats.find((x) => x.id === c.stat)?.kind === 'currency')
+        .map((c) => {
+          const def = c.kind === 'stat' ? this.world.stats.find((x) => x.id === c.stat) : undefined;
+          return c.kind === 'stat' ? `${def?.emoji ?? ''} +${c.after - c.before} ${def?.unit ?? def?.name ?? ''}`.trim() : '';
+        });
+      return { first: true, message, gains: [...money, describeChanges(ctx)].filter(Boolean).join(' · ') };
+    });
+  }
+
   // -------------------------------------------------------------------------
   // Horloge du monde : météo et événements
   // -------------------------------------------------------------------------

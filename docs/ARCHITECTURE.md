@@ -71,6 +71,8 @@ Mécanique reprise de KingdomEngine2. **Aucune commande slash : tout se fait au 
 3. « Entrer » ouvre l’**interface personnelle** du joueur (message éphémère, visible de lui seul) sur l’écran d’accueil. Chaque clic **modifie ce message sur place**. Une seule interface par joueur et par bâtiment.
 4. Quitter le salon vocal **efface** ses interfaces, ferme ses sessions et retire l’accès au salon texte. Au retour, il ne voit que l’entrée.
 
+**Arrivée et catégories.** Si le monde demande un serment (`world.onboarding`, Studio › Objets & règles › Serment d’arrivée), « Créer les salons manquants » crée une catégorie d’accueil avec le salon du serment (lisible par tous, personne n’y écrit) et le rôle des habitants. Le bouton « Je le jure » (`ke:oath`) donne ce rôle et verse la dotation une seule fois (`Engine.acceptOath`). Chaque bâtiment a **sa propre catégorie** (salon texte + salon vocal côte à côte) ; avec un serment, catégories et salons vocaux ne sont visibles que des habitants. Les salons existants sont déplacés dans la catégorie de leur bâtiment. Le rôle du bot doit être placé au-dessus du rôle des habitants.
+
 Détails techniques :
 - `discord/access.ts` : règles pures et testées (permissions, déplacements vocaux, réconciliation, nettoyage). `packages/engine/src/entrance.ts` : le panneau, partagé avec l’émulateur du Studio (« Tester » commence devant l’entrée, avec un bouton pour quitter le salon vocal).
 - Le bouton d’entrée a un identifiant sans état (`ke:enter|<bâtiment>`) : il fonctionne après un redémarrage.

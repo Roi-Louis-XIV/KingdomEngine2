@@ -1050,7 +1050,7 @@
       "name": "Bourse",
       "emoji": "💰",
       "min": 0,
-      "initial": 100,
+      "initial": 0,
       "kind": "currency",
       "unit": "écus"
     },
@@ -1442,6 +1442,42 @@
       "description": "Souvenir de la nuit de la Sainte Pelle."
     },
     {
+      "id": "cierge",
+      "name": "Cierge béni",
+      "emoji": "🕯️",
+      "category": "À emporter",
+      "consumable": {
+        "effects": [
+          {
+            "type": "stat.add",
+            "stat": "energie",
+            "amount": 10
+          },
+          {
+            "type": "stat.add",
+            "stat": "alcool",
+            "amount": -20
+          }
+        ]
+      },
+      "description": "Remet les idées en place."
+    },
+    {
+      "id": "eau_benite",
+      "name": "Eau bénite",
+      "emoji": "💧",
+      "category": "À emporter",
+      "consumable": {
+        "effects": [
+          {
+            "type": "stat.add",
+            "stat": "energie",
+            "amount": 20
+          }
+        ]
+      }
+    },
+    {
       "id": "panier_agathe",
       "name": "Panier d’Agathe",
       "emoji": "🧺",
@@ -1578,8 +1614,70 @@
       "name": "Cuisinier",
       "emoji": "👨‍🍳",
       "xpPerLevel": 100
+    },
+    {
+      "id": "bucheron",
+      "name": "Bûcheron",
+      "emoji": "🪓",
+      "xpPerLevel": 40,
+      "maxLevel": 5
+    },
+    {
+      "id": "mineur",
+      "name": "Mineur",
+      "emoji": "⛏️",
+      "xpPerLevel": 40,
+      "maxLevel": 5
+    },
+    {
+      "id": "forgeron",
+      "name": "Forgeron",
+      "emoji": "🔨",
+      "xpPerLevel": 40,
+      "maxLevel": 5
+    },
+    {
+      "id": "fermier",
+      "name": "Fermier",
+      "emoji": "🌾",
+      "xpPerLevel": 40,
+      "maxLevel": 5
+    },
+    {
+      "id": "pecheur",
+      "name": "Pêcheur",
+      "emoji": "🎣",
+      "xpPerLevel": 40,
+      "maxLevel": 5
     }
   ],
+  "onboarding": {
+    "enabled": true,
+    "channelName": "📜・serment",
+    "title": "📜 Le serment de Valbrume",
+    "text": "Voyageur, avant de franchir les portes de Valbrume, jure sur la mémoire de la Sainte Pelle :\n\n• de respecter les habitants, leurs biens et leurs créations ;\n• de ne pas tricher ni profiter des failles du Royaume ;\n• de suivre les indications de l’intendance et du Roi ;\n• de prêter la main quand le village en a besoin.\n\nEn cliquant ci-dessous, tu prêtes serment et deviens habitant de Valbrume.",
+    "button": "Je le jure",
+    "buttonEmoji": "✋",
+    "roleName": "🛡️ Habitant de Valbrume",
+    "confirmation": "✋ **Serment prêté !** Bienvenue à Valbrume, habitant. Les lieux du village te sont ouverts : rejoins le salon vocal d’un bâtiment pour y entrer. Commence par la **Place du village**, où Maëlis t’attend.",
+    "actions": [
+      {
+        "type": "stat.add",
+        "stat": "ecus",
+        "amount": 100
+      },
+      {
+        "type": "item.give",
+        "item": "pain_emballe",
+        "qty": 2
+      },
+      {
+        "type": "item.give",
+        "item": "gourde_eau",
+        "qty": 2
+      }
+    ]
+  },
   "variables": [
     {
       "id": "t",
@@ -2119,6 +2217,7 @@
             "kind": "count",
             "label": "Abattre un arbre en forêt",
             "tags": [
+              "activity:foret/jeune",
               "activity:foret/abattre"
             ],
             "target": 1
@@ -2453,7 +2552,7 @@
           {
             "id": "chablis",
             "kind": "count",
-            "label": "Débiter le chablis 2 fois",
+            "label": "Débiter le chablis 2 fois (Bûcheron niv. 2)",
             "tags": [
               "activity:foret/chablis"
             ],
@@ -2514,6 +2613,7 @@
             "kind": "count",
             "label": "Travailler en forêt ou à la mine",
             "tags": [
+              "activity:foret/jeune",
               "activity:foret/abattre",
               "activity:foret/chablis",
               "activity:mine/pierres",
@@ -2549,7 +2649,7 @@
           {
             "id": "minerai",
             "kind": "deliver",
-            "label": "Livrer 4 minerais à la forge",
+            "label": "Livrer 4 minerais à la forge (Mineur niv. 2, ou l’étal de Wagner)",
             "item": "minerai",
             "qty": 4,
             "building": "forge"
@@ -2665,7 +2765,7 @@
           {
             "id": "galerie",
             "kind": "count",
-            "label": "Creuser 2 fois dans la galerie profonde",
+            "label": "Creuser 2 fois dans la galerie profonde (Mineur niv. 3)",
             "tags": [
               "activity:mine/galerie"
             ],
@@ -2948,7 +3048,7 @@
           {
             "id": "forger",
             "kind": "count",
-            "label": "Forger 2 ferrures",
+            "label": "Forger 2 ferrures (Forgeron niv. 3)",
             "tags": [
               "activity:forge/ferrure"
             ],
@@ -3606,6 +3706,109 @@
               "choices": []
             }
           ]
+        },
+        {
+          "type": "inventory",
+          "id": "etal",
+          "name": "Le chariot du colporteur",
+          "emoji": "🛒",
+          "initial": {
+            "gourde_eau": 30,
+            "pain_emballe": 20,
+            "epices": 20,
+            "hache": 4,
+            "pioche": 4,
+            "canne": 4
+          },
+          "targets": {}
+        },
+        {
+          "type": "shop",
+          "id": "echoppe",
+          "name": "Le chariot du colporteur",
+          "emoji": "🛒",
+          "inventory": "etal",
+          "currency": "ecus",
+          "offers": [
+            {
+              "id": "gourde_eau",
+              "name": "Gourde d’eau",
+              "emoji": "💧",
+              "category": "Vivres",
+              "stockItem": "gourde_eau",
+              "price": 3,
+              "effects": [],
+              "takeaway": {
+                "item": "gourde_eau",
+                "surcharge": 0
+              }
+            },
+            {
+              "id": "pain_emballe",
+              "name": "Pain emballé",
+              "emoji": "🍞",
+              "category": "Vivres",
+              "stockItem": "pain_emballe",
+              "price": 9,
+              "effects": [],
+              "takeaway": {
+                "item": "pain_emballe",
+                "surcharge": 0
+              }
+            },
+            {
+              "id": "epices",
+              "name": "Épices",
+              "emoji": "🌶️",
+              "category": "Vivres",
+              "stockItem": "epices",
+              "price": 9,
+              "effects": [],
+              "takeaway": {
+                "item": "epices",
+                "surcharge": 0
+              }
+            },
+            {
+              "id": "hache",
+              "name": "Hache de bûcheron",
+              "emoji": "🪓",
+              "category": "Outils",
+              "stockItem": "hache",
+              "price": 30,
+              "effects": [],
+              "takeaway": {
+                "item": "hache",
+                "surcharge": 0
+              }
+            },
+            {
+              "id": "pioche",
+              "name": "Pioche",
+              "emoji": "⛏️",
+              "category": "Outils",
+              "stockItem": "pioche",
+              "price": 30,
+              "effects": [],
+              "takeaway": {
+                "item": "pioche",
+                "surcharge": 0
+              }
+            },
+            {
+              "id": "canne",
+              "name": "Canne à pêche",
+              "emoji": "🎣",
+              "category": "Outils",
+              "stockItem": "canne",
+              "price": 25,
+              "effects": [],
+              "takeaway": {
+                "item": "canne",
+                "surcharge": 0
+              }
+            }
+          ]
         }
       ],
       "screens": [
@@ -3758,6 +3961,15 @@
                     }
                   },
                   "style": "primary"
+                },
+                {
+                  "label": "🛒 Échoppe",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  },
+                  "style": "success"
                 },
                 {
                   "label": "🎒 Mon inventaire",
@@ -4283,6 +4495,7 @@
                   "energie",
                   "alcool"
                 ],
+                "jobs": true,
                 "accent": 682821
               }
             },
@@ -4318,6 +4531,82 @@
                   }
                 }
               ]
+            }
+          ]
+        },
+        {
+          "id": "echoppe",
+          "name": "Le chariot du colporteur",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🛒 Le chariot du colporteur\n*Un colporteur a garé son chariot près du puits : un peu de tout, un peu plus cher qu’ailleurs.*\n💰 **Bourse :** {player.stat.ecus} écus"
+                }
+              ],
+              "accent": 682821
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.catalog",
+                "shop": "echoppe",
+                "checkoutScreen": "echoppe-achat",
+                "accent": 682821,
+                "filters": false
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "↩️ Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "🎒 Mon inventaire",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "echoppe-achat",
+          "name": "Achat",
+          "blocks": [
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.checkout",
+                "backScreen": "echoppe",
+                "prompt": "« Bonne affaire, l’ami ! »",
+                "accent": 682821
+              }
+            },
+            {
+              "type": "notice"
             }
           ]
         }
@@ -4361,16 +4650,16 @@
           "name": "Réserve de la taverne",
           "emoji": "📦",
           "initial": {
-            "legumes": 12,
-            "eau": 8,
-            "viande": 7,
-            "farine": 2,
-            "epices": 0,
-            "biere": 6,
-            "hydromel": 3,
-            "eau_potable": 10,
-            "jus_pomme": 5,
-            "vin": 4
+            "legumes": 25,
+            "eau": 20,
+            "viande": 15,
+            "farine": 15,
+            "epices": 8,
+            "biere": 15,
+            "hydromel": 10,
+            "eau_potable": 20,
+            "jus_pomme": 10,
+            "vin": 8
           },
           "targets": {
             "legumes": 30,
@@ -4390,7 +4679,11 @@
           "id": "plats",
           "name": "Plats préparés",
           "emoji": "🍗",
-          "initial": {},
+          "initial": {
+            "plat_soupe": 6,
+            "plat_pain": 6,
+            "plat_ragout": 4
+          },
           "targets": {
             "plat_soupe": 12,
             "plat_ragout": 10,
@@ -5289,7 +5582,8 @@
                     }
                   ]
                 }
-              ]
+              ],
+              "lockedText": "Pendant la tournée d’ouverture (T+10 à T+20)"
             },
             {
               "id": "soupe",
@@ -5340,7 +5634,69 @@
                     }
                   ]
                 }
-              ]
+              ],
+              "lockedText": "Pendant la tempête, si la récolte a été rentrée"
+            }
+          ]
+        },
+        {
+          "type": "inventory",
+          "id": "etal",
+          "name": "Les petits trésors d’Edgar",
+          "emoji": "🛒",
+          "initial": {
+            "flasque_hydromel": 10,
+            "bouteille_biere": 15,
+            "gamelle_soupe": 8
+          },
+          "targets": {}
+        },
+        {
+          "type": "shop",
+          "id": "echoppe",
+          "name": "Les petits trésors d’Edgar",
+          "emoji": "🛒",
+          "inventory": "etal",
+          "currency": "ecus",
+          "offers": [
+            {
+              "id": "flasque_hydromel",
+              "name": "Flasque d’hydromel",
+              "emoji": "🍯",
+              "category": "À emporter",
+              "stockItem": "flasque_hydromel",
+              "price": 16,
+              "effects": [],
+              "takeaway": {
+                "item": "flasque_hydromel",
+                "surcharge": 0
+              }
+            },
+            {
+              "id": "bouteille_biere",
+              "name": "Bouteille de bière",
+              "emoji": "🍺",
+              "category": "À emporter",
+              "stockItem": "bouteille_biere",
+              "price": 10,
+              "effects": [],
+              "takeaway": {
+                "item": "bouteille_biere",
+                "surcharge": 0
+              }
+            },
+            {
+              "id": "gamelle_soupe",
+              "name": "Soupe en gamelle",
+              "emoji": "🥣",
+              "category": "À emporter",
+              "stockItem": "gamelle_soupe",
+              "price": 13,
+              "effects": [],
+              "takeaway": {
+                "item": "gamelle_soupe",
+                "surcharge": 0
+              }
             }
           ]
         }
@@ -5637,6 +5993,15 @@
             {
               "type": "buttons",
               "buttons": [
+                {
+                  "label": "🛒 Échoppe",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  },
+                  "style": "success"
+                },
                 {
                   "label": "📜 Démissionner",
                   "rule": {
@@ -6063,6 +6428,7 @@
                   "energie",
                   "alcool"
                 ],
+                "jobs": true,
                 "accent": 8936500
               }
             },
@@ -6276,6 +6642,81 @@
               ]
             }
           ]
+        },
+        {
+          "id": "echoppe",
+          "name": "Les petits trésors d’Edgar",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🛒 Les petits trésors d’Edgar\n*« Tout ce qui se boit, se mange… ou se raconte. »*\n💰 **Bourse :** {player.stat.ecus} écus"
+                }
+              ],
+              "accent": 8936500
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.catalog",
+                "shop": "echoppe",
+                "checkoutScreen": "echoppe-achat",
+                "accent": 8936500,
+                "filters": false
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "↩️ Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "🎒 Mon inventaire",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "echoppe-achat",
+          "name": "Achat",
+          "blocks": [
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.checkout",
+                "backScreen": "echoppe",
+                "accent": 8936500
+              }
+            },
+            {
+              "type": "notice"
+            }
+          ]
         }
       ],
       "entrance": {
@@ -6350,6 +6791,13 @@
                   "amount": -6
                 }
               ],
+              "job": {
+                "id": "mineur",
+                "xp": 6
+              },
+              "boostedBy": [
+                "mine"
+              ],
               "tool": {
                 "item": "pioche",
                 "wear": 1
@@ -6390,7 +6838,8 @@
                   "factor": 0.5,
                   "label": "galerie endommagée : rendement 50 %"
                 }
-              ]
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
             },
             {
               "id": "minerai",
@@ -6402,30 +6851,41 @@
                 "type": "all",
                 "conditions": [
                   {
-                    "type": "variable",
-                    "variable": "t",
-                    "op": "gte",
-                    "value": 0
+                    "type": "all",
+                    "conditions": [
+                      {
+                        "type": "variable",
+                        "variable": "t",
+                        "op": "gte",
+                        "value": 0
+                      },
+                      {
+                        "type": "not",
+                        "condition": {
+                          "type": "all",
+                          "conditions": [
+                            {
+                              "type": "variable",
+                              "variable": "t",
+                              "op": "gte",
+                              "value": 85
+                            },
+                            {
+                              "type": "variable",
+                              "variable": "t",
+                              "op": "lt",
+                              "value": 110
+                            }
+                          ]
+                        }
+                      }
+                    ]
                   },
                   {
-                    "type": "not",
-                    "condition": {
-                      "type": "all",
-                      "conditions": [
-                        {
-                          "type": "variable",
-                          "variable": "t",
-                          "op": "gte",
-                          "value": 85
-                        },
-                        {
-                          "type": "variable",
-                          "variable": "t",
-                          "op": "lt",
-                          "value": 110
-                        }
-                      ]
-                    }
+                    "type": "jobLevel",
+                    "job": "mineur",
+                    "op": "gte",
+                    "value": 2
                   }
                 ]
               },
@@ -6435,6 +6895,13 @@
                   "stat": "energie",
                   "amount": -7
                 }
+              ],
+              "job": {
+                "id": "mineur",
+                "xp": 8
+              },
+              "boostedBy": [
+                "mine"
               ],
               "tool": {
                 "item": "pioche",
@@ -6476,7 +6943,8 @@
                   "factor": 0.5,
                   "label": "galerie endommagée : rendement 50 %"
                 }
-              ]
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
             },
             {
               "id": "galerie",
@@ -6489,16 +6957,27 @@
                 "type": "all",
                 "conditions": [
                   {
-                    "type": "variable",
-                    "variable": "t",
-                    "op": "gte",
-                    "value": 25
+                    "type": "all",
+                    "conditions": [
+                      {
+                        "type": "variable",
+                        "variable": "t",
+                        "op": "gte",
+                        "value": 25
+                      },
+                      {
+                        "type": "variable",
+                        "variable": "t",
+                        "op": "lt",
+                        "value": 85
+                      }
+                    ]
                   },
                   {
-                    "type": "variable",
-                    "variable": "t",
-                    "op": "lt",
-                    "value": 85
+                    "type": "jobLevel",
+                    "job": "mineur",
+                    "op": "gte",
+                    "value": 3
                   }
                 ]
               },
@@ -6508,6 +6987,13 @@
                   "stat": "energie",
                   "amount": -10
                 }
+              ],
+              "job": {
+                "id": "mineur",
+                "xp": 12
+              },
+              "boostedBy": [
+                "mine"
               ],
               "tool": {
                 "item": "pioche",
@@ -6547,7 +7033,8 @@
                   "label": "Éboulis : rien du tout",
                   "actions": []
                 }
-              ]
+              ],
+              "lockedText": "Ouverte après la trouvaille de Roland (T+25), jusqu’à la tempête"
             }
           ]
         },
@@ -6606,7 +7093,8 @@
                     }
                   ]
                 }
-              ]
+              ],
+              "lockedText": "Seulement pendant l’éboulement"
             }
           ]
         },
@@ -6789,6 +7277,76 @@
               ],
               "choices": []
             }
+          ]
+        },
+        {
+          "type": "inventory",
+          "id": "etal",
+          "name": "Le comptoir de Roland",
+          "emoji": "🛒",
+          "initial": {
+            "pioche": 6,
+            "pierre": 10,
+            "minerai": 4
+          },
+          "targets": {
+            "pierre": 60,
+            "minerai": 40
+          }
+        },
+        {
+          "type": "shop",
+          "id": "echoppe",
+          "name": "Le comptoir de Roland",
+          "emoji": "🛒",
+          "inventory": "etal",
+          "currency": "ecus",
+          "offers": [
+            {
+              "id": "pioche",
+              "name": "Pioche",
+              "emoji": "⛏️",
+              "category": "Outils",
+              "stockItem": "pioche",
+              "price": 24,
+              "effects": [],
+              "takeaway": {
+                "item": "pioche",
+                "surcharge": 0
+              }
+            }
+          ]
+        },
+        {
+          "type": "buyback",
+          "id": "rachat",
+          "name": "Rachat (Roland)",
+          "inventory": "etal",
+          "currency": "ecus",
+          "prices": {
+            "pierre": 2,
+            "minerai": 4
+          },
+          "emptyFactor": 1.5,
+          "tiers": [
+            {
+              "maxRatio": 0.25,
+              "factor": 1.3
+            },
+            {
+              "maxRatio": 0.5,
+              "factor": 1.15
+            },
+            {
+              "maxRatio": 0.8,
+              "factor": 1
+            }
+          ],
+          "aboveFactor": 0.8,
+          "quantities": [
+            1,
+            5,
+            10
           ]
         }
       ],
@@ -6993,6 +7551,15 @@
                   "style": "primary"
                 },
                 {
+                  "label": "🛒 Échoppe",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  },
+                  "style": "success"
+                },
+                {
                   "label": "🎒 Mon inventaire",
                   "rule": {
                     "onSuccess": {
@@ -7042,6 +7609,7 @@
                   "energie",
                   "alcool"
                 ],
+                "jobs": true,
                 "accent": 5989488
               }
             },
@@ -7073,6 +7641,138 @@
                   "rule": {
                     "onSuccess": {
                       "goto": "inventaire"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "echoppe",
+          "name": "Le comptoir de Roland",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🛒 Le comptoir de Roland\n*« Je rachète tout ce qui sort de la montagne. Et je vends de quoi y redescendre. »*\n💰 **Bourse :** {player.stat.ecus} écus"
+                }
+              ],
+              "accent": 5989488
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.catalog",
+                "shop": "echoppe",
+                "checkoutScreen": "echoppe-achat",
+                "accent": 5989488,
+                "filters": false
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "💰 Vendre mes ressources",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe-vente"
+                    }
+                  },
+                  "style": "success"
+                },
+                {
+                  "label": "↩️ Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "🎒 Mon inventaire",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "echoppe-achat",
+          "name": "Achat",
+          "blocks": [
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.checkout",
+                "backScreen": "echoppe",
+                "accent": 5989488
+              }
+            },
+            {
+              "type": "notice"
+            }
+          ]
+        },
+        {
+          "id": "echoppe-vente",
+          "name": "Vendre",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 💰 Vendre à Roland\n*Plus une ressource manque, mieux elle est payée.*\n💰 **Bourse :** {player.stat.ecus} écus"
+                }
+              ],
+              "accent": 5989488
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "buyback.sell",
+                "buyback": "rachat",
+                "accent": 5989488
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "↩️ Retour à l’échoppe",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe-vente"
                     }
                   }
                 }
@@ -7163,6 +7863,10 @@
                   "qty": 2
                 }
               ],
+              "job": {
+                "id": "forgeron",
+                "xp": 6
+              },
               "rolls": 1,
               "results": [
                 {
@@ -7176,7 +7880,8 @@
                     }
                   ]
                 }
-              ]
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
             },
             {
               "id": "ferrure",
@@ -7189,39 +7894,50 @@
                 "type": "all",
                 "conditions": [
                   {
-                    "type": "variable",
-                    "variable": "t",
-                    "op": "gte",
-                    "value": 0
-                  },
-                  {
-                    "type": "not",
-                    "condition": {
-                      "type": "all",
-                      "conditions": [
-                        {
-                          "type": "variable",
-                          "variable": "t",
-                          "op": "gte",
-                          "value": 85
-                        },
-                        {
-                          "type": "variable",
-                          "variable": "t",
-                          "op": "lt",
-                          "value": 110
+                    "type": "all",
+                    "conditions": [
+                      {
+                        "type": "variable",
+                        "variable": "t",
+                        "op": "gte",
+                        "value": 0
+                      },
+                      {
+                        "type": "not",
+                        "condition": {
+                          "type": "all",
+                          "conditions": [
+                            {
+                              "type": "variable",
+                              "variable": "t",
+                              "op": "gte",
+                              "value": 85
+                            },
+                            {
+                              "type": "variable",
+                              "variable": "t",
+                              "op": "lt",
+                              "value": 110
+                            }
+                          ]
                         }
-                      ]
-                    }
+                      },
+                      {
+                        "type": "not",
+                        "condition": {
+                          "type": "variable",
+                          "variable": "forge_etat",
+                          "op": "eq",
+                          "value": "endommagee"
+                        }
+                      }
+                    ]
                   },
                   {
-                    "type": "not",
-                    "condition": {
-                      "type": "variable",
-                      "variable": "forge_etat",
-                      "op": "eq",
-                      "value": "endommagee"
-                    }
+                    "type": "jobLevel",
+                    "job": "forgeron",
+                    "op": "gte",
+                    "value": 3
                   }
                 ]
               },
@@ -7237,6 +7953,10 @@
                   "qty": 2
                 }
               ],
+              "job": {
+                "id": "forgeron",
+                "xp": 12
+              },
               "rolls": 1,
               "results": [
                 {
@@ -7250,52 +7970,64 @@
                     }
                   ]
                 }
-              ]
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
             },
             {
-              "id": "pioche",
-              "name": "Forger une pioche",
-              "emoji": "⛏️",
-              "description": "1 lingot + 1 bûche → 1 pioche",
+              "id": "hache",
+              "name": "Forger une hache",
+              "emoji": "🪓",
+              "description": "1 lingot + 1 bûche → 1 hache",
               "durationSec": 60,
               "cooldownSec": 0,
               "when": {
                 "type": "all",
                 "conditions": [
                   {
-                    "type": "variable",
-                    "variable": "t",
-                    "op": "gte",
-                    "value": 0
-                  },
-                  {
-                    "type": "not",
-                    "condition": {
-                      "type": "all",
-                      "conditions": [
-                        {
-                          "type": "variable",
-                          "variable": "t",
-                          "op": "gte",
-                          "value": 85
-                        },
-                        {
-                          "type": "variable",
-                          "variable": "t",
-                          "op": "lt",
-                          "value": 110
+                    "type": "all",
+                    "conditions": [
+                      {
+                        "type": "variable",
+                        "variable": "t",
+                        "op": "gte",
+                        "value": 0
+                      },
+                      {
+                        "type": "not",
+                        "condition": {
+                          "type": "all",
+                          "conditions": [
+                            {
+                              "type": "variable",
+                              "variable": "t",
+                              "op": "gte",
+                              "value": 85
+                            },
+                            {
+                              "type": "variable",
+                              "variable": "t",
+                              "op": "lt",
+                              "value": 110
+                            }
+                          ]
                         }
-                      ]
-                    }
+                      },
+                      {
+                        "type": "not",
+                        "condition": {
+                          "type": "variable",
+                          "variable": "forge_etat",
+                          "op": "eq",
+                          "value": "endommagee"
+                        }
+                      }
+                    ]
                   },
                   {
-                    "type": "not",
-                    "condition": {
-                      "type": "variable",
-                      "variable": "forge_etat",
-                      "op": "eq",
-                      "value": "endommagee"
-                    }
+                    "type": "jobLevel",
+                    "job": "forgeron",
+                    "op": "gte",
+                    "value": 2
                   }
                 ]
               },
@@ -7316,6 +8048,105 @@
                   "qty": 1
                 }
               ],
+              "job": {
+                "id": "forgeron",
+                "xp": 8
+              },
+              "rolls": 1,
+              "results": [
+                {
+                  "weight": 1,
+                  "label": "Hache neuve",
+                  "actions": [
+                    {
+                      "type": "item.give",
+                      "item": "hache",
+                      "qty": 1
+                    }
+                  ]
+                }
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
+            },
+            {
+              "id": "pioche",
+              "name": "Forger une pioche",
+              "emoji": "⛏️",
+              "description": "1 lingot + 1 bûche → 1 pioche",
+              "durationSec": 60,
+              "cooldownSec": 0,
+              "when": {
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "all",
+                    "conditions": [
+                      {
+                        "type": "variable",
+                        "variable": "t",
+                        "op": "gte",
+                        "value": 0
+                      },
+                      {
+                        "type": "not",
+                        "condition": {
+                          "type": "all",
+                          "conditions": [
+                            {
+                              "type": "variable",
+                              "variable": "t",
+                              "op": "gte",
+                              "value": 85
+                            },
+                            {
+                              "type": "variable",
+                              "variable": "t",
+                              "op": "lt",
+                              "value": 110
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "type": "not",
+                        "condition": {
+                          "type": "variable",
+                          "variable": "forge_etat",
+                          "op": "eq",
+                          "value": "endommagee"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "jobLevel",
+                    "job": "forgeron",
+                    "op": "gte",
+                    "value": 2
+                  }
+                ]
+              },
+              "costs": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": -4
+                },
+                {
+                  "type": "item.take",
+                  "item": "lingot",
+                  "qty": 1
+                },
+                {
+                  "type": "item.take",
+                  "item": "buche",
+                  "qty": 1
+                }
+              ],
+              "job": {
+                "id": "forgeron",
+                "xp": 8
+              },
               "rolls": 1,
               "results": [
                 {
@@ -7329,7 +8160,8 @@
                     }
                   ]
                 }
-              ]
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
             }
           ]
         },
@@ -7384,7 +8216,8 @@
                     }
                   ]
                 }
-              ]
+              ],
+              "lockedText": "Seulement pendant l’incendie"
             }
           ]
         },
@@ -7586,6 +8419,120 @@
               ],
               "choices": []
             }
+          ]
+        },
+        {
+          "type": "inventory",
+          "id": "etal",
+          "name": "L’étal de Wagner",
+          "emoji": "🛒",
+          "initial": {
+            "hache": 5,
+            "pioche": 5,
+            "ferrure": 1,
+            "lingot": 2
+          },
+          "targets": {
+            "minerai": 40,
+            "lingot": 20,
+            "ferrure": 10,
+            "buche": 30
+          }
+        },
+        {
+          "type": "shop",
+          "id": "echoppe",
+          "name": "L’étal de Wagner",
+          "emoji": "🛒",
+          "inventory": "etal",
+          "currency": "ecus",
+          "offers": [
+            {
+              "id": "hache",
+              "name": "Hache de bûcheron",
+              "emoji": "🪓",
+              "category": "Outils",
+              "stockItem": "hache",
+              "price": 22,
+              "effects": [],
+              "takeaway": {
+                "item": "hache",
+                "surcharge": 0
+              }
+            },
+            {
+              "id": "pioche",
+              "name": "Pioche",
+              "emoji": "⛏️",
+              "category": "Outils",
+              "stockItem": "pioche",
+              "price": 22,
+              "effects": [],
+              "takeaway": {
+                "item": "pioche",
+                "surcharge": 0
+              }
+            },
+            {
+              "id": "lingot",
+              "name": "Lingot de fer",
+              "emoji": "🔩",
+              "category": "Métal",
+              "stockItem": "lingot",
+              "price": 14,
+              "effects": [],
+              "takeaway": {
+                "item": "lingot",
+                "surcharge": 0
+              }
+            },
+            {
+              "id": "ferrure",
+              "name": "Ferrure",
+              "emoji": "🔗",
+              "category": "Métal",
+              "stockItem": "ferrure",
+              "price": 30,
+              "effects": [],
+              "takeaway": {
+                "item": "ferrure",
+                "surcharge": 0
+              }
+            }
+          ]
+        },
+        {
+          "type": "buyback",
+          "id": "rachat",
+          "name": "Rachat (Wagner)",
+          "inventory": "etal",
+          "currency": "ecus",
+          "prices": {
+            "minerai": 4,
+            "lingot": 10,
+            "ferrure": 24,
+            "buche": 2
+          },
+          "emptyFactor": 1.5,
+          "tiers": [
+            {
+              "maxRatio": 0.25,
+              "factor": 1.3
+            },
+            {
+              "maxRatio": 0.5,
+              "factor": 1.15
+            },
+            {
+              "maxRatio": 0.8,
+              "factor": 1
+            }
+          ],
+          "aboveFactor": 0.8,
+          "quantities": [
+            1,
+            5,
+            10
           ]
         }
       ],
@@ -7849,6 +8796,15 @@
                   "style": "primary"
                 },
                 {
+                  "label": "🛒 Échoppe",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  },
+                  "style": "success"
+                },
+                {
                   "label": "🎒 Mon inventaire",
                   "rule": {
                     "onSuccess": {
@@ -7898,6 +8854,7 @@
                   "energie",
                   "alcool"
                 ],
+                "jobs": true,
                 "accent": 10107677
               }
             },
@@ -7929,6 +8886,138 @@
                   "rule": {
                     "onSuccess": {
                       "goto": "inventaire"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "echoppe",
+          "name": "L’étal de Wagner",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🛒 L’étal de Wagner\n*« De l’acier honnête, forgé ici même. »*\n💰 **Bourse :** {player.stat.ecus} écus"
+                }
+              ],
+              "accent": 10107677
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.catalog",
+                "shop": "echoppe",
+                "checkoutScreen": "echoppe-achat",
+                "accent": 10107677,
+                "filters": false
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "💰 Vendre mes ressources",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe-vente"
+                    }
+                  },
+                  "style": "success"
+                },
+                {
+                  "label": "↩️ Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "🎒 Mon inventaire",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "echoppe-achat",
+          "name": "Achat",
+          "blocks": [
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.checkout",
+                "backScreen": "echoppe",
+                "accent": 10107677
+              }
+            },
+            {
+              "type": "notice"
+            }
+          ]
+        },
+        {
+          "id": "echoppe-vente",
+          "name": "Vendre",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 💰 Vendre à Wagner\n*Plus une ressource manque, mieux elle est payée.*\n💰 **Bourse :** {player.stat.ecus} écus"
+                }
+              ],
+              "accent": 10107677
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "buyback.sell",
+                "buyback": "rachat",
+                "accent": 10107677
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "↩️ Retour à l’échoppe",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe-vente"
                     }
                   }
                 }
@@ -7980,10 +9069,11 @@
           "name": "🌲 Travaux de la forêt",
           "activities": [
             {
-              "id": "abattre",
-              "name": "Abattre un arbre",
-              "emoji": "🪓",
-              "durationSec": 75,
+              "id": "jeune",
+              "name": "Abattre un jeune arbre",
+              "emoji": "🌱",
+              "description": "Le geste de base du bûcheron.",
+              "durationSec": 60,
               "cooldownSec": 0,
               "when": {
                 "type": "all",
@@ -8020,8 +9110,97 @@
                 {
                   "type": "stat.add",
                   "stat": "energie",
+                  "amount": -5
+                }
+              ],
+              "job": {
+                "id": "bucheron",
+                "xp": 6
+              },
+              "boostedBy": [
+                "bois"
+              ],
+              "tool": {
+                "item": "hache",
+                "wear": 1
+              },
+              "rolls": 1,
+              "results": [
+                {
+                  "weight": 1,
+                  "label": "Petit bois",
+                  "actions": [
+                    {
+                      "type": "item.give",
+                      "item": "buche",
+                      "qty": 2
+                    }
+                  ]
+                }
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
+            },
+            {
+              "id": "abattre",
+              "name": "Abattre un chêne",
+              "emoji": "🪓",
+              "durationSec": 75,
+              "cooldownSec": 0,
+              "when": {
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "all",
+                    "conditions": [
+                      {
+                        "type": "variable",
+                        "variable": "t",
+                        "op": "gte",
+                        "value": 0
+                      },
+                      {
+                        "type": "not",
+                        "condition": {
+                          "type": "all",
+                          "conditions": [
+                            {
+                              "type": "variable",
+                              "variable": "t",
+                              "op": "gte",
+                              "value": 85
+                            },
+                            {
+                              "type": "variable",
+                              "variable": "t",
+                              "op": "lt",
+                              "value": 110
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "jobLevel",
+                    "job": "bucheron",
+                    "op": "gte",
+                    "value": 2
+                  }
+                ]
+              },
+              "costs": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
                   "amount": -6
                 }
+              ],
+              "job": {
+                "id": "bucheron",
+                "xp": 8
+              },
+              "boostedBy": [
+                "bois"
               ],
               "tool": {
                 "item": "hache",
@@ -8079,7 +9258,99 @@
                   "factor": 0.75,
                   "label": "vent : −25 %"
                 }
-              ]
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
+            },
+            {
+              "id": "chasse",
+              "name": "Chasser le sanglier",
+              "emoji": "🐗",
+              "description": "La viande se revend à Edgar pour son ragoût.",
+              "durationSec": 120,
+              "cooldownSec": 0,
+              "when": {
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "all",
+                    "conditions": [
+                      {
+                        "type": "variable",
+                        "variable": "t",
+                        "op": "gte",
+                        "value": 0
+                      },
+                      {
+                        "type": "not",
+                        "condition": {
+                          "type": "all",
+                          "conditions": [
+                            {
+                              "type": "variable",
+                              "variable": "t",
+                              "op": "gte",
+                              "value": 85
+                            },
+                            {
+                              "type": "variable",
+                              "variable": "t",
+                              "op": "lt",
+                              "value": 110
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "jobLevel",
+                    "job": "bucheron",
+                    "op": "gte",
+                    "value": 3
+                  }
+                ]
+              },
+              "costs": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": -10
+                }
+              ],
+              "job": {
+                "id": "bucheron",
+                "xp": 14
+              },
+              "tool": {
+                "item": "hache",
+                "wear": 2
+              },
+              "rolls": 1,
+              "results": [
+                {
+                  "weight": 70,
+                  "label": "Un beau sanglier",
+                  "actions": [
+                    {
+                      "type": "item.give",
+                      "item": "viande",
+                      "qty": 3
+                    }
+                  ]
+                },
+                {
+                  "weight": 30,
+                  "label": "Il t’a échappé",
+                  "actions": [
+                    {
+                      "type": "item.give",
+                      "item": "viande",
+                      "qty": 1
+                    }
+                  ]
+                }
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
             },
             {
               "id": "chablis",
@@ -8089,10 +9360,21 @@
               "durationSec": 60,
               "cooldownSec": 0,
               "when": {
-                "type": "variable",
-                "variable": "t",
-                "op": "gte",
-                "value": 110
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "gte",
+                    "value": 110
+                  },
+                  {
+                    "type": "jobLevel",
+                    "job": "bucheron",
+                    "op": "gte",
+                    "value": 2
+                  }
+                ]
               },
               "costs": [
                 {
@@ -8100,6 +9382,13 @@
                   "stat": "energie",
                   "amount": -5
                 }
+              ],
+              "job": {
+                "id": "bucheron",
+                "xp": 8
+              },
+              "boostedBy": [
+                "bois"
               ],
               "tool": {
                 "item": "hache",
@@ -8118,7 +9407,8 @@
                     }
                   ]
                 }
-              ]
+              ],
+              "lockedText": "Après la tempête (T+110)"
             },
             {
               "id": "ramasser",
@@ -8165,6 +9455,10 @@
                   "amount": -2
                 }
               ],
+              "job": {
+                "id": "bucheron",
+                "xp": 2
+              },
               "rolls": 1,
               "results": [
                 {
@@ -8178,7 +9472,8 @@
                     }
                   ]
                 }
-              ]
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
             },
             {
               "id": "champignons",
@@ -8224,6 +9519,10 @@
                   "amount": -3
                 }
               ],
+              "job": {
+                "id": "bucheron",
+                "xp": 3
+              },
               "rolls": 1,
               "results": [
                 {
@@ -8248,7 +9547,8 @@
                     }
                   ]
                 }
-              ]
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
             },
             {
               "id": "ciel",
@@ -8294,7 +9594,8 @@
                     }
                   ]
                 }
-              ]
+              ],
+              "lockedText": "Quand le ciel se couvre (T+35 à T+85)"
             }
           ]
         },
@@ -8372,6 +9673,78 @@
               ],
               "choices": []
             }
+          ]
+        },
+        {
+          "type": "inventory",
+          "id": "etal",
+          "name": "La cabane de Sylvain",
+          "emoji": "🛒",
+          "initial": {
+            "hache": 5,
+            "buche": 10,
+            "champignon": 4
+          },
+          "targets": {
+            "buche": 60,
+            "champignon": 20,
+            "viande": 15
+          }
+        },
+        {
+          "type": "shop",
+          "id": "echoppe",
+          "name": "La cabane de Sylvain",
+          "emoji": "🛒",
+          "inventory": "etal",
+          "currency": "ecus",
+          "offers": [
+            {
+              "id": "hache",
+              "name": "Hache de bûcheron",
+              "emoji": "🪓",
+              "category": "Outils",
+              "stockItem": "hache",
+              "price": 24,
+              "effects": [],
+              "takeaway": {
+                "item": "hache",
+                "surcharge": 0
+              }
+            }
+          ]
+        },
+        {
+          "type": "buyback",
+          "id": "rachat",
+          "name": "Rachat (Sylvain)",
+          "inventory": "etal",
+          "currency": "ecus",
+          "prices": {
+            "buche": 2,
+            "champignon": 3,
+            "viande": 6
+          },
+          "emptyFactor": 1.5,
+          "tiers": [
+            {
+              "maxRatio": 0.25,
+              "factor": 1.3
+            },
+            {
+              "maxRatio": 0.5,
+              "factor": 1.15
+            },
+            {
+              "maxRatio": 0.8,
+              "factor": 1
+            }
+          ],
+          "aboveFactor": 0.8,
+          "quantities": [
+            1,
+            5,
+            10
           ]
         }
       ],
@@ -8548,6 +9921,15 @@
                   "style": "primary"
                 },
                 {
+                  "label": "🛒 Échoppe",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  },
+                  "style": "success"
+                },
+                {
                   "label": "🎒 Mon inventaire",
                   "rule": {
                     "onSuccess": {
@@ -8637,6 +10019,7 @@
                   "energie",
                   "alcool"
                 ],
+                "jobs": true,
                 "accent": 4156229
               }
             },
@@ -8668,6 +10051,138 @@
                   "rule": {
                     "onSuccess": {
                       "goto": "inventaire"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "echoppe",
+          "name": "La cabane de Sylvain",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🛒 La cabane de Sylvain\n*« Le bois, c’est la vie. Et un peu d’argent, aussi. »*\n💰 **Bourse :** {player.stat.ecus} écus"
+                }
+              ],
+              "accent": 4156229
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.catalog",
+                "shop": "echoppe",
+                "checkoutScreen": "echoppe-achat",
+                "accent": 4156229,
+                "filters": false
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "💰 Vendre mes ressources",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe-vente"
+                    }
+                  },
+                  "style": "success"
+                },
+                {
+                  "label": "↩️ Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "🎒 Mon inventaire",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "echoppe-achat",
+          "name": "Achat",
+          "blocks": [
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.checkout",
+                "backScreen": "echoppe",
+                "accent": 4156229
+              }
+            },
+            {
+              "type": "notice"
+            }
+          ]
+        },
+        {
+          "id": "echoppe-vente",
+          "name": "Vendre",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 💰 Vendre à Sylvain\n*Plus une ressource manque, mieux elle est payée.*\n💰 **Bourse :** {player.stat.ecus} écus"
+                }
+              ],
+              "accent": 4156229
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "buyback.sell",
+                "buyback": "rachat",
+                "accent": 4156229
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "↩️ Retour à l’échoppe",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe-vente"
                     }
                   }
                 }
@@ -8743,6 +10258,10 @@
                   "amount": -3
                 }
               ],
+              "job": {
+                "id": "fermier",
+                "xp": 4
+              },
               "rolls": 1,
               "results": [
                 {
@@ -8756,7 +10275,8 @@
                     }
                   ]
                 }
-              ]
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
             },
             {
               "id": "legumes",
@@ -8803,6 +10323,10 @@
                   "amount": -4
                 }
               ],
+              "job": {
+                "id": "fermier",
+                "xp": 5
+              },
               "rolls": 1,
               "results": [
                 {
@@ -8816,7 +10340,8 @@
                     }
                   ]
                 }
-              ]
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
             },
             {
               "id": "moisson",
@@ -8862,6 +10387,10 @@
                   "amount": -5
                 }
               ],
+              "job": {
+                "id": "fermier",
+                "xp": 5
+              },
               "rolls": 1,
               "results": [
                 {
@@ -8898,7 +10427,84 @@
                   "factor": 2,
                   "label": "dernière récolte : ×2"
                 }
-              ]
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
+            },
+            {
+              "id": "pommes",
+              "name": "Presser des pommes",
+              "emoji": "🍎",
+              "description": "Edgar rachète le jus pour son comptoir.",
+              "durationSec": 90,
+              "cooldownSec": 0,
+              "when": {
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "all",
+                    "conditions": [
+                      {
+                        "type": "variable",
+                        "variable": "t",
+                        "op": "gte",
+                        "value": 0
+                      },
+                      {
+                        "type": "not",
+                        "condition": {
+                          "type": "all",
+                          "conditions": [
+                            {
+                              "type": "variable",
+                              "variable": "t",
+                              "op": "gte",
+                              "value": 85
+                            },
+                            {
+                              "type": "variable",
+                              "variable": "t",
+                              "op": "lt",
+                              "value": 110
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "jobLevel",
+                    "job": "fermier",
+                    "op": "gte",
+                    "value": 2
+                  }
+                ]
+              },
+              "costs": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": -5
+                }
+              ],
+              "job": {
+                "id": "fermier",
+                "xp": 8
+              },
+              "rolls": 1,
+              "results": [
+                {
+                  "weight": 1,
+                  "label": "Jus de pomme",
+                  "actions": [
+                    {
+                      "type": "item.give",
+                      "item": "jus_pomme",
+                      "qty": 2
+                    }
+                  ]
+                }
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
             },
             {
               "id": "moudre",
@@ -8950,6 +10556,10 @@
                   "qty": 2
                 }
               ],
+              "job": {
+                "id": "fermier",
+                "xp": 2
+              },
               "rolls": 1,
               "results": [
                 {
@@ -8963,7 +10573,8 @@
                     }
                   ]
                 }
-              ]
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
             }
           ]
         },
@@ -9097,6 +10708,122 @@
               ],
               "choices": []
             }
+          ]
+        },
+        {
+          "type": "inventory",
+          "id": "etal",
+          "name": "L’étal d’Agathe",
+          "emoji": "🛒",
+          "initial": {
+            "oeuf": 12,
+            "legumes": 15,
+            "panier_agathe": 8,
+            "gourde_eau": 10
+          },
+          "targets": {
+            "gerbe": 40,
+            "oeuf": 30,
+            "legumes": 30,
+            "farine": 20,
+            "jus_pomme": 15
+          }
+        },
+        {
+          "type": "shop",
+          "id": "echoppe",
+          "name": "L’étal d’Agathe",
+          "emoji": "🛒",
+          "inventory": "etal",
+          "currency": "ecus",
+          "offers": [
+            {
+              "id": "panier_agathe",
+              "name": "Panier d’Agathe",
+              "emoji": "🧺",
+              "category": "Vivres",
+              "stockItem": "panier_agathe",
+              "price": 28,
+              "effects": [],
+              "takeaway": {
+                "item": "panier_agathe",
+                "surcharge": 0
+              }
+            },
+            {
+              "id": "oeuf",
+              "name": "Œuf frais",
+              "emoji": "🥚",
+              "category": "Vivres",
+              "stockItem": "oeuf",
+              "price": 2,
+              "effects": [],
+              "takeaway": {
+                "item": "oeuf",
+                "surcharge": 0
+              }
+            },
+            {
+              "id": "legumes",
+              "name": "Légumes",
+              "emoji": "🥕",
+              "category": "Vivres",
+              "stockItem": "legumes",
+              "price": 5,
+              "effects": [],
+              "takeaway": {
+                "item": "legumes",
+                "surcharge": 0
+              }
+            },
+            {
+              "id": "gourde_eau",
+              "name": "Gourde d’eau",
+              "emoji": "💧",
+              "category": "Vivres",
+              "stockItem": "gourde_eau",
+              "price": 3,
+              "effects": [],
+              "takeaway": {
+                "item": "gourde_eau",
+                "surcharge": 0
+              }
+            }
+          ]
+        },
+        {
+          "type": "buyback",
+          "id": "rachat",
+          "name": "Rachat (Agathe)",
+          "inventory": "etal",
+          "currency": "ecus",
+          "prices": {
+            "gerbe": 1,
+            "oeuf": 1,
+            "legumes": 3,
+            "farine": 2,
+            "jus_pomme": 4
+          },
+          "emptyFactor": 1.5,
+          "tiers": [
+            {
+              "maxRatio": 0.25,
+              "factor": 1.3
+            },
+            {
+              "maxRatio": 0.5,
+              "factor": 1.15
+            },
+            {
+              "maxRatio": 0.8,
+              "factor": 1
+            }
+          ],
+          "aboveFactor": 0.8,
+          "quantities": [
+            1,
+            5,
+            10
           ]
         }
       ],
@@ -9287,6 +11014,15 @@
                   "style": "primary"
                 },
                 {
+                  "label": "🛒 Échoppe",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  },
+                  "style": "success"
+                },
+                {
                   "label": "🎒 Mon inventaire",
                   "rule": {
                     "onSuccess": {
@@ -9376,6 +11112,7 @@
                   "energie",
                   "alcool"
                 ],
+                "jobs": true,
                 "accent": 11570479
               }
             },
@@ -9413,6 +11150,138 @@
               ]
             }
           ]
+        },
+        {
+          "id": "echoppe",
+          "name": "L’étal d’Agathe",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🛒 L’étal d’Agathe\n*« Des produits frais, du poulailler à ta besace ! »*\n💰 **Bourse :** {player.stat.ecus} écus"
+                }
+              ],
+              "accent": 11570479
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.catalog",
+                "shop": "echoppe",
+                "checkoutScreen": "echoppe-achat",
+                "accent": 11570479,
+                "filters": false
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "💰 Vendre mes ressources",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe-vente"
+                    }
+                  },
+                  "style": "success"
+                },
+                {
+                  "label": "↩️ Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "🎒 Mon inventaire",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "echoppe-achat",
+          "name": "Achat",
+          "blocks": [
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.checkout",
+                "backScreen": "echoppe",
+                "accent": 11570479
+              }
+            },
+            {
+              "type": "notice"
+            }
+          ]
+        },
+        {
+          "id": "echoppe-vente",
+          "name": "Vendre",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 💰 Vendre à Agathe\n*Plus une ressource manque, mieux elle est payée.*\n💰 **Bourse :** {player.stat.ecus} écus"
+                }
+              ],
+              "accent": 11570479
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "buyback.sell",
+                "buyback": "rachat",
+                "accent": 11570479
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "↩️ Retour à l’échoppe",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe-vente"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
         }
       ]
     },
@@ -9434,6 +11303,94 @@
           "name": "🎣 La rivière",
           "activities": [
             {
+              "id": "filet",
+              "name": "Pêcher au filet",
+              "emoji": "🕸️",
+              "durationSec": 120,
+              "cooldownSec": 0,
+              "when": {
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "gte",
+                    "value": 0
+                  },
+                  {
+                    "type": "jobLevel",
+                    "job": "pecheur",
+                    "op": "gte",
+                    "value": 2
+                  }
+                ]
+              },
+              "costs": [
+                {
+                  "type": "stat.add",
+                  "stat": "energie",
+                  "amount": -6
+                }
+              ],
+              "job": {
+                "id": "pecheur",
+                "xp": 10
+              },
+              "tool": {
+                "item": "canne",
+                "wear": 2
+              },
+              "rolls": 1,
+              "results": [
+                {
+                  "weight": 70,
+                  "label": "Filet garni",
+                  "actions": [
+                    {
+                      "type": "item.give",
+                      "item": "poisson",
+                      "qty": 3
+                    }
+                  ]
+                },
+                {
+                  "weight": 30,
+                  "label": "Filet plein !",
+                  "actions": [
+                    {
+                      "type": "item.give",
+                      "item": "poisson",
+                      "qty": 5
+                    }
+                  ]
+                }
+              ],
+              "multipliers": [
+                {
+                  "when": {
+                    "type": "all",
+                    "conditions": [
+                      {
+                        "type": "variable",
+                        "variable": "t",
+                        "op": "gte",
+                        "value": 70
+                      },
+                      {
+                        "type": "variable",
+                        "variable": "t",
+                        "op": "lt",
+                        "value": 85
+                      }
+                    ]
+                  },
+                  "factor": 2,
+                  "label": "rivière gonflée : ×2"
+                }
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
+            },
+            {
               "id": "peche",
               "name": "Pêcher",
               "emoji": "🎣",
@@ -9452,6 +11409,10 @@
                   "amount": -3
                 }
               ],
+              "job": {
+                "id": "pecheur",
+                "xp": 5
+              },
               "tool": {
                 "item": "canne",
                 "wear": 1
@@ -9503,8 +11464,89 @@
                   "factor": 2,
                   "label": "rivière gonflée : ×2"
                 }
-              ]
+              ],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
             }
+          ]
+        },
+        {
+          "type": "inventory",
+          "id": "etal",
+          "name": "L’étal du vieux pêcheur",
+          "emoji": "🛒",
+          "initial": {
+            "canne": 6,
+            "poisson": 6
+          },
+          "targets": {
+            "poisson": 40
+          }
+        },
+        {
+          "type": "shop",
+          "id": "echoppe",
+          "name": "L’étal du vieux pêcheur",
+          "emoji": "🛒",
+          "inventory": "etal",
+          "currency": "ecus",
+          "offers": [
+            {
+              "id": "canne",
+              "name": "Canne à pêche",
+              "emoji": "🎣",
+              "category": "Outils",
+              "stockItem": "canne",
+              "price": 18,
+              "effects": [],
+              "takeaway": {
+                "item": "canne",
+                "surcharge": 0
+              }
+            },
+            {
+              "id": "poisson",
+              "name": "Poisson de rivière",
+              "emoji": "🐟",
+              "category": "Vivres",
+              "stockItem": "poisson",
+              "price": 6,
+              "effects": [],
+              "takeaway": {
+                "item": "poisson",
+                "surcharge": 0
+              }
+            }
+          ]
+        },
+        {
+          "type": "buyback",
+          "id": "rachat",
+          "name": "Rachat (le vieux pêcheur)",
+          "inventory": "etal",
+          "currency": "ecus",
+          "prices": {
+            "poisson": 4
+          },
+          "emptyFactor": 1.5,
+          "tiers": [
+            {
+              "maxRatio": 0.25,
+              "factor": 1.3
+            },
+            {
+              "maxRatio": 0.5,
+              "factor": 1.15
+            },
+            {
+              "maxRatio": 0.8,
+              "factor": 1
+            }
+          ],
+          "aboveFactor": 0.8,
+          "quantities": [
+            1,
+            5,
+            10
           ]
         }
       ],
@@ -9672,6 +11714,15 @@
               "type": "buttons",
               "buttons": [
                 {
+                  "label": "🛒 Échoppe",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  },
+                  "style": "success"
+                },
+                {
                   "label": "🎒 Mon inventaire",
                   "rule": {
                     "onSuccess": {
@@ -9743,6 +11794,7 @@
                   "energie",
                   "alcool"
                 ],
+                "jobs": true,
                 "accent": 3894927
               }
             },
@@ -9774,6 +11826,138 @@
                   "rule": {
                     "onSuccess": {
                       "goto": "inventaire"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "echoppe",
+          "name": "L’étal du vieux pêcheur",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🛒 L’étal du vieux pêcheur\n*Un vieux pêcheur somnole près de sa caisse, une canne sur les genoux.*\n💰 **Bourse :** {player.stat.ecus} écus"
+                }
+              ],
+              "accent": 3894927
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.catalog",
+                "shop": "echoppe",
+                "checkoutScreen": "echoppe-achat",
+                "accent": 3894927,
+                "filters": false
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "💰 Vendre mes ressources",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe-vente"
+                    }
+                  },
+                  "style": "success"
+                },
+                {
+                  "label": "↩️ Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "🎒 Mon inventaire",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "echoppe-achat",
+          "name": "Achat",
+          "blocks": [
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.checkout",
+                "backScreen": "echoppe",
+                "accent": 3894927
+              }
+            },
+            {
+              "type": "notice"
+            }
+          ]
+        },
+        {
+          "id": "echoppe-vente",
+          "name": "Vendre",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 💰 Vendre à le vieux pêcheur\n*Plus une ressource manque, mieux elle est payée.*\n💰 **Bourse :** {player.stat.ecus} écus"
+                }
+              ],
+              "accent": 3894927
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "buyback.sell",
+                "buyback": "rachat",
+                "accent": 3894927
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "↩️ Retour à l’échoppe",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe-vente"
                     }
                   }
                 }
@@ -9844,7 +12028,8 @@
                   ]
                 }
               ],
-              "multipliers": []
+              "multipliers": [],
+              "lockedText": "Pas avant le début de la fête, ni pendant la tempête"
             }
           ]
         },
@@ -9909,7 +12094,8 @@
                   ]
                 }
               ],
-              "maxConcurrent": 4
+              "maxConcurrent": 4,
+              "lockedText": "Pendant le chantier (T+110 à T+170)"
             },
             {
               "id": "assembler",
@@ -9982,7 +12168,8 @@
                   ]
                 }
               ],
-              "maxConcurrent": 3
+              "maxConcurrent": 3,
+              "lockedText": "Quand l’arbre est dégagé et 70 % des matériaux livrés"
             }
           ]
         },
@@ -10214,6 +12401,53 @@
               "choices": []
             }
           ]
+        },
+        {
+          "type": "inventory",
+          "id": "etal",
+          "name": "Le tronc des offrandes",
+          "emoji": "🛒",
+          "initial": {
+            "cierge": 30,
+            "eau_benite": 30
+          },
+          "targets": {}
+        },
+        {
+          "type": "shop",
+          "id": "echoppe",
+          "name": "Le tronc des offrandes",
+          "emoji": "🛒",
+          "inventory": "etal",
+          "currency": "ecus",
+          "offers": [
+            {
+              "id": "cierge",
+              "name": "Cierge béni",
+              "emoji": "🕯️",
+              "category": "Bénédictions",
+              "stockItem": "cierge",
+              "price": 8,
+              "effects": [],
+              "takeaway": {
+                "item": "cierge",
+                "surcharge": 0
+              }
+            },
+            {
+              "id": "eau_benite",
+              "name": "Eau bénite",
+              "emoji": "💧",
+              "category": "Bénédictions",
+              "stockItem": "eau_benite",
+              "price": 6,
+              "effects": [],
+              "takeaway": {
+                "item": "eau_benite",
+                "surcharge": 0
+              }
+            }
+          ]
         }
       ],
       "screens": [
@@ -10404,6 +12638,15 @@
                   "style": "primary"
                 },
                 {
+                  "label": "🛒 Échoppe",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  },
+                  "style": "success"
+                },
+                {
                   "label": "🎒 Mon inventaire",
                   "rule": {
                     "onSuccess": {
@@ -10563,6 +12806,7 @@
                   "energie",
                   "alcool"
                 ],
+                "jobs": true,
                 "accent": 7232154
               }
             },
@@ -10598,6 +12842,81 @@
                   }
                 }
               ]
+            }
+          ]
+        },
+        {
+          "id": "echoppe",
+          "name": "Le tronc des offrandes",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🛒 Le tronc des offrandes\n*« Une obole pour l’église, une bénédiction pour toi. »*\n💰 **Bourse :** {player.stat.ecus} écus"
+                }
+              ],
+              "accent": 7232154
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.catalog",
+                "shop": "echoppe",
+                "checkoutScreen": "echoppe-achat",
+                "accent": 7232154,
+                "filters": false
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "↩️ Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "🎒 Mon inventaire",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "echoppe"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "echoppe-achat",
+          "name": "Achat",
+          "blocks": [
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "shop.checkout",
+                "backScreen": "echoppe",
+                "accent": 7232154
+              }
+            },
+            {
+              "type": "notice"
             }
           ]
         }

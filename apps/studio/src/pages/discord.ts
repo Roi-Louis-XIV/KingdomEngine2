@@ -42,7 +42,7 @@ export async function discordPage(main: HTMLElement) {
           h(
             'div',
             null,
-            h('p', null, 'Chaque bâtiment reçoit un salon vocal (la porte d’entrée, avec son ambiance) et un salon texte en lecture seule, visible seulement par les joueurs présents dans le salon vocal. Le bot y place le panneau d’entrée ; tout se fait au clic, sans commande.'),
+            h('p', null, 'Chaque bâtiment reçoit sa catégorie, avec un salon vocal (la porte d’entrée, avec son ambiance) et un salon texte en lecture seule, visible seulement par les joueurs présents dans le salon vocal. Le bot y place le panneau d’entrée ; tout se fait au clic, sans commande. Si le monde demande un serment (Objets & règles › Serment), un salon d’arrivée est créé : les bâtiments n’apparaissent qu’après le serment. Place le rôle du bot au-dessus du rôle des habitants dans Discord.'),
             manager && d.guild.inGuild
               ? h(
                   'button',

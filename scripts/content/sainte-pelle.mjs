@@ -26,6 +26,8 @@ const between = (a, b) => all(T('gte', a), T('lt', b));
 const from = (a) => T('gte', a);
 const STORM = between(85, 110);
 const notStorm = not(STORM);
+/** Niveau de métier minimal. */
+const lvl = (job, value) => ({ type: 'jobLevel', job, op: 'gte', value });
 const obj = (building, objective, op, value) => ({ type: 'objective', building, objective, op, value });
 
 const set = (variable, value) => ({ type: 'variable.set', variable, value });
@@ -59,13 +61,16 @@ const activity = (id, name, emoji, o) => ({
   description: o.description,
   durationSec: o.duration ?? 60,
   cooldownSec: o.cooldown ?? 0,
-  ...(o.when ? { when: o.when } : {}),
+  ...(o.when || o.level ? { when: o.level ? (o.when ? all(o.when, lvl(o.job[0], o.level)) : lvl(o.job[0], o.level)) : o.when } : {}),
   costs: o.costs ?? [stat('energie', -(o.energy ?? 5))],
+  ...(o.job ? { job: { id: o.job[0], xp: o.job[1] } } : {}),
+  ...(o.boost ? { boostedBy: o.boost } : {}),
   ...(o.tool ? { tool: { item: o.tool, wear: o.wear ?? 1 } } : {}),
   rolls: 1,
   results: o.results ?? [{ weight: 1, label: o.label ?? 'Terminé', actions: o.actions ?? [] }],
   ...(o.multipliers ? { multipliers: o.multipliers } : {}),
   ...(o.maxConcurrent ? { maxConcurrent: o.maxConcurrent } : {}),
+  ...(o.locked || o.when ? { lockedText: o.locked ?? 'Pas avant le début de la fête, ni pendant la tempête' } : {}),
 });
 
 const objective = (id, name, goals, o = {}) => ({
@@ -86,7 +91,7 @@ const inventoryScreen = (accent) => ({
   id: 'inventaire',
   name: 'Mon inventaire',
   blocks: [
-    widget({ kind: 'player.sheet', stats: ['energie', 'alcool'], accent }),
+    widget({ kind: 'player.sheet', stats: ['energie', 'alcool'], jobs: true, accent }),
     notice(),
     widget({ kind: 'player.consumables', title: '🎒 Mon inventaire', all: true, accent }),
     buttons([go('↩️ Retour', 'accueil'), go('🔄 Actualiser', 'inventaire')]),
@@ -125,7 +130,7 @@ const shard = (n, label, found, when) =>
 // ---------------------------------------------------------------------------
 
 const stats = [
-  { id: 'ecus', name: 'Bourse', emoji: '💰', min: 0, initial: 100, kind: 'currency', unit: 'écus' },
+  { id: 'ecus', name: 'Bourse', emoji: '💰', min: 0, initial: 0, kind: 'currency', unit: 'écus' },
   { id: 'energie', name: 'Endurance', emoji: '⚡', min: 0, max: 100, initial: 80, kind: 'gauge' },
   { id: 'alcool', name: 'Ivresse', emoji: '🍺', min: 0, max: 100, initial: 0, kind: 'gauge' },
   { id: 'xp', name: 'XP', emoji: '⭐', min: 0, initial: 0, kind: 'value', unit: 'XP' },
@@ -145,6 +150,8 @@ const items = [
   { id: 'seau', name: 'Seau d’eau', emoji: '🪣', category: 'Matériaux', baseValue: 1 },
   { id: 'eclat', name: 'Éclat de pierre-tonnerre', emoji: '✨', category: 'Curiosités', description: 'Il grésille au creux de la main.' },
   { id: 'eclat_poli', name: 'Éclat poli', emoji: '💎', category: 'Souvenirs', description: 'Souvenir de la nuit de la Sainte Pelle.' },
+  { id: 'cierge', name: 'Cierge béni', emoji: '🕯️', category: 'À emporter', consumable: { effects: [stat('energie', 10), stat('alcool', -20)] }, description: 'Remet les idées en place.' },
+  { id: 'eau_benite', name: 'Eau bénite', emoji: '💧', category: 'À emporter', consumable: { effects: [stat('energie', 20)] } },
   { id: 'panier_agathe', name: 'Panier d’Agathe', emoji: '🧺', category: 'À emporter', consumable: { effects: [stat('energie', 40)] } },
   { id: 'pioche', name: 'Pioche', emoji: '⛏️', category: 'Outils', tool: { maxDurability: 25 } },
   { id: 'canne', name: 'Canne à pêche', emoji: '🎣', category: 'Outils', tool: { maxDurability: 30 } },
@@ -187,6 +194,51 @@ const variables = [
   { id: 'eglise_ok', name: 'Église relevée', initial: 'non', options: [opt('non', 'Non'), opt('oui', 'Oui')] },
   { id: 'fin', name: 'Fin de la séance', initial: 'aucune', options: [opt('aucune', '—'), opt('triomphe', '🔔 Valbrume triomphante'), opt('sans_ame', '⚡ La pierre gronde encore'), opt('parvis', '🙏 La messe sur le parvis'), opt('report', '🌧️ La messe reportée')] },
 ];
+
+// ---------------------------------------------------------------------------
+// Échoppes : vente d'objets et rachat de ressources, dans chaque lieu
+// ---------------------------------------------------------------------------
+
+/** Article vendu comme objet (outil, vivres à emporter…). */
+const ware = (item, price, category = 'Objets') => {
+  const def = items.find((i) => i.id === item);
+  return { id: item, name: def?.name ?? item, emoji: def?.emoji, category, stockItem: item, price, effects: [], takeaway: { item, surcharge: 0 } };
+};
+
+/** Ajoute à un lieu son échoppe : réserve garnie, vente, rachat, écrans, bouton d'accès. */
+function addStall(b, o) {
+  const accent = b.accentColor;
+  const stock = Object.fromEntries(Object.entries(o.stock ?? {}));
+  b.modules.push({ type: 'inventory', id: 'etal', name: o.name, emoji: '🛒', initial: stock, targets: o.targets ?? Object.fromEntries(Object.entries(o.buy ?? {}).map(([k]) => [k, 30])) });
+  if (o.offers?.length) b.modules.push({ type: 'shop', id: 'echoppe', name: o.name, emoji: '🛒', inventory: 'etal', currency: 'ecus', offers: o.offers });
+  if (o.buy) b.modules.push({ type: 'buyback', id: 'rachat', name: `Rachat (${b.npc?.name ?? o.who ?? b.name})`, inventory: 'etal', currency: 'ecus', prices: o.buy, emptyFactor: 1.5, tiers: [{ maxRatio: 0.25, factor: 1.3 }, { maxRatio: 0.5, factor: 1.15 }, { maxRatio: 0.8, factor: 1 }], aboveFactor: 0.8, quantities: [1, 5, 10] });
+  b.screens.push({
+    id: 'echoppe',
+    name: o.name,
+    blocks: [
+      box([text(`## 🛒 ${o.name}\n*${o.intro}*\n💰 **Bourse :** {player.stat.ecus} écus`)], accent),
+      notice(),
+      ...(o.offers?.length ? [widget({ kind: 'shop.catalog', shop: 'echoppe', checkoutScreen: 'echoppe-achat', accent, filters: false })] : []),
+      buttons([...(o.buy ? [go('💰 Vendre mes ressources', 'echoppe-vente', { style: 'success' })] : []), go('↩️ Retour', 'accueil'), go('🎒 Mon inventaire', 'inventaire'), go('🔄 Actualiser', 'echoppe')]),
+    ],
+  });
+  if (o.offers?.length) b.screens.push({ id: 'echoppe-achat', name: 'Achat', blocks: [widget({ kind: 'shop.checkout', backScreen: 'echoppe', prompt: o.prompt, accent }), notice()] });
+  if (o.buy)
+    b.screens.push({
+      id: 'echoppe-vente',
+      name: 'Vendre',
+      blocks: [
+        box([text(`## 💰 Vendre à ${b.npc?.name ?? o.who ?? 'l’étal'}\n*Plus une ressource manque, mieux elle est payée.*\n💰 **Bourse :** {player.stat.ecus} écus`)], accent),
+        notice(),
+        widget({ kind: 'buyback.sell', buyback: 'rachat', accent }),
+        buttons([go('↩️ Retour à l’échoppe', 'echoppe'), go('🔄 Actualiser', 'echoppe-vente')]),
+      ],
+    });
+  // Bouton d'accès depuis l'accueil, à côté de « Parler à… ».
+  const home = b.screens.find((x) => x.id === b.homeScreen);
+  const nav = [...home.blocks].reverse().find((x) => x.type === 'buttons');
+  nav.buttons.splice(nav.buttons[0]?.rule?.onSuccess?.goto === 'dialogue' ? 1 : 0, 0, go('🛒 Échoppe', 'echoppe', { style: 'success' }));
+}
 
 // ---------------------------------------------------------------------------
 // Place du village — Maëlis : panneau des quêtes, fête, vote, trésor, enquête
@@ -323,6 +375,11 @@ const place = {
 // ---------------------------------------------------------------------------
 
 const taverne = structuredClone(royaume.buildings.find((b) => b.id === 'taverne'));
+// Réserves garnies pour une séance de 3 h à 8 joueurs.
+for (const m of taverne.modules) {
+  if (m.type === 'inventory' && m.id === 'reserve') Object.assign(m.initial, { legumes: 25, eau: 20, viande: 15, farine: 15, epices: 8, biere: 15, hydromel: 10, eau_potable: 20, jus_pomme: 10, vin: 8 });
+  if (m.type === 'inventory' && m.id === 'plats') Object.assign(m.initial, { plat_soupe: 6, plat_pain: 6, plat_ragout: 4 });
+}
 taverne.entrance = { text: 'La chaleur du foyer, l’odeur du ragoût et la voix d’Edgar qui couvre tout le reste.', button: 'Pousser la porte', buttonEmoji: '🍺' };
 {
   const acc = taverne.screens.find((s) => s.id === 'accueil');
@@ -337,8 +394,8 @@ taverne.entrance = { text: 'La chaleur du foyer, l’odeur du ragoût et la voix
     id: 'scenario',
     name: '🎉 Offert par la maison',
     activities: [
-      activity('tournee', 'Tournée d’ouverture', '🍻', { duration: 0, cooldown: 3600, costs: [], when: between(10, 20), label: 'À la tienne !', actions: [stat('alcool', 5), stat('energie', 10)], description: 'Edgar offre la première chope. Une seule par personne !' }),
-      activity('soupe', 'Bol de soupe chaude', '🥣', { duration: 0, cooldown: 1800, costs: [], when: all(STORM, v('recolte', 'reussie')), label: 'Ça réchauffe', actions: [stat('energie', 25)], description: 'Agathe a tout rentré à temps : la soupe est offerte pendant la tempête.' }),
+      activity('tournee', 'Tournée d’ouverture', '🍻', { locked: 'Pendant la tournée d’ouverture (T+10 à T+20)', duration: 0, cooldown: 3600, costs: [], when: between(10, 20), label: 'À la tienne !', actions: [stat('alcool', 5), stat('energie', 10)], description: 'Edgar offre la première chope. Une seule par personne !' }),
+      activity('soupe', 'Bol de soupe chaude', '🥣', { locked: 'Pendant la tempête, si la récolte a été rentrée', duration: 0, cooldown: 1800, costs: [], when: all(STORM, v('recolte', 'reussie')), label: 'Ça réchauffe', actions: [stat('energie', 25)], description: 'Agathe a tout rentré à temps : la soupe est offerte pendant la tempête.' }),
     ],
   });
   // Inventaire : la fiche du joueur (endurance, ivresse, XP, quête) au-dessus du sac.
@@ -377,16 +434,16 @@ const mine = {
       id: 'travaux',
       name: '⛏️ Travaux de la mine',
       activities: [
-        activity('pierres', 'Extraire des pierres', '🪨', { duration: 75, cooldown: 0, energy: 6, tool: 'pioche', when: all(from(0), notStorm), results: [{ weight: 85, label: 'Bon filon', actions: [give('pierre', 4)] }, { weight: 15, label: 'Roche tendre', actions: [give('pierre', 6)] }], multipliers: half }),
-        activity('minerai', 'Extraire du minerai', '⛏️', { duration: 90, cooldown: 0, energy: 7, tool: 'pioche', when: all(from(0), notStorm), results: [{ weight: 80, label: 'Veine de fer', actions: [give('minerai', 2)] }, { weight: 20, label: 'Belle veine', actions: [give('minerai', 3)] }], multipliers: half }),
-        activity('galerie', 'Creuser la galerie profonde', '🕳️', { duration: 120, cooldown: 0, energy: 10, tool: 'pioche', wear: 2, when: between(25, 85), description: 'Ouverte depuis la trouvaille de Roland. On y trouve parfois des éclats…', results: [{ weight: 75, label: 'Du fer en quantité', actions: [give('minerai', 4)] }, { weight: 15, label: 'Un éclat de pierre-tonnerre !', actions: [give('minerai', 2), give('eclat', 1)] }, { weight: 10, label: 'Éboulis : rien du tout', actions: [] }] }),
+        activity('pierres', 'Extraire des pierres', '🪨', { job: ['mineur', 6], boost: ['mine'], duration: 75, cooldown: 0, energy: 6, tool: 'pioche', when: all(from(0), notStorm), results: [{ weight: 85, label: 'Bon filon', actions: [give('pierre', 4)] }, { weight: 15, label: 'Roche tendre', actions: [give('pierre', 6)] }], multipliers: half }),
+        activity('minerai', 'Extraire du minerai', '⛏️', { job: ['mineur', 8], level: 2, boost: ['mine'], duration: 90, cooldown: 0, energy: 7, tool: 'pioche', when: all(from(0), notStorm), results: [{ weight: 80, label: 'Veine de fer', actions: [give('minerai', 2)] }, { weight: 20, label: 'Belle veine', actions: [give('minerai', 3)] }], multipliers: half }),
+        activity('galerie', 'Creuser la galerie profonde', '🕳️', { locked: 'Ouverte après la trouvaille de Roland (T+25), jusqu’à la tempête', job: ['mineur', 12], level: 3, boost: ['mine'], duration: 120, cooldown: 0, energy: 10, tool: 'pioche', wear: 2, when: between(25, 85), description: 'Ouverte depuis la trouvaille de Roland. On y trouve parfois des éclats…', results: [{ weight: 75, label: 'Du fer en quantité', actions: [give('minerai', 4)] }, { weight: 15, label: 'Un éclat de pierre-tonnerre !', actions: [give('minerai', 2), give('eclat', 1)] }, { weight: 10, label: 'Éboulis : rien du tout', actions: [] }] }),
       ],
     },
     {
       type: 'activity',
       id: 'secours',
       name: '🚨 Dégager Roland',
-      activities: [activity('deblayer', 'Déblayer la galerie', '🪨', { duration: 0, cooldown: 8, energy: 3, tool: 'pioche', when: all(v('urgence', 'eboulement'), T('lt', 100)), label: 'Un bloc de moins', actions: [contribute('mine', 'eboulement', 'deblai', 1)], description: 'Chaque coup de pioche compte : Roland est coincé derrière !' })],
+      activities: [activity('deblayer', 'Déblayer la galerie', '🪨', { locked: 'Seulement pendant l’éboulement', duration: 0, cooldown: 8, energy: 3, tool: 'pioche', when: all(v('urgence', 'eboulement'), T('lt', 100)), label: 'Un bloc de moins', actions: [contribute('mine', 'eboulement', 'deblai', 1)], description: 'Chaque coup de pioche compte : Roland est coincé derrière !' })],
     },
     objective('eboulement', '🚨 Éboulement : dégager Roland', { deblai: 30 }, { description: 'L’eau monte. Il faut 30 coups de pioche avant **T+100** !', when: all(v('urgence', 'eboulement'), T('lt', 100)), closed: 'Le temps est écoulé.', xp: 3, onComplete: { actions: [voice('roland-sauve', 'mine')], announce: '🎉 **Roland est sauvé !** « De l’air ! Je vous dois une fière chandelle. »' } }),
     objective('reparation', '🛠️ Réparer la galerie', { buche: 20, pierre: 20 }, { description: 'Tant que la galerie n’est pas étayée, la mine ne rend que la moitié.', when: all(mineDamaged, from(110)), closed: 'Rien à réparer.', xp: 2, onComplete: { actions: [set('mine_etat', 'ok')], announce: '🛠️ **La galerie est étayée !** La mine retrouve son plein rendement.' } }),
@@ -449,16 +506,17 @@ const forge = {
       id: 'atelier',
       name: '🔨 Atelier',
       activities: [
-        activity('fondre', 'Fondre un lingot', '🔩', { duration: 60, cooldown: 0, costs: [stat('energie', -5), take('minerai', 2)], when: forgeOpen, label: 'Lingot coulé', actions: [give('lingot', 1)], description: '2 minerais → 1 lingot' }),
-        activity('ferrure', 'Forger une ferrure', '🔗', { duration: 90, cooldown: 0, costs: [stat('energie', -6), take('lingot', 2)], when: forgeOpen, label: 'Ferrure forgée', actions: [give('ferrure', 1)], description: '2 lingots → 1 ferrure pour la charpente de l’église' }),
-        activity('pioche', 'Forger une pioche', '⛏️', { duration: 60, cooldown: 0, costs: [stat('energie', -4), take('lingot', 1), take('buche', 1)], when: forgeOpen, label: 'Pioche neuve', actions: [give('pioche', 1)], description: '1 lingot + 1 bûche → 1 pioche' }),
+        activity('fondre', 'Fondre un lingot', '🔩', { job: ['forgeron', 6], duration: 60, cooldown: 0, costs: [stat('energie', -5), take('minerai', 2)], when: forgeOpen, label: 'Lingot coulé', actions: [give('lingot', 1)], description: '2 minerais → 1 lingot' }),
+        activity('ferrure', 'Forger une ferrure', '🔗', { job: ['forgeron', 12], level: 3, duration: 90, cooldown: 0, costs: [stat('energie', -6), take('lingot', 2)], when: forgeOpen, label: 'Ferrure forgée', actions: [give('ferrure', 1)], description: '2 lingots → 1 ferrure pour la charpente de l’église' }),
+        activity('hache', 'Forger une hache', '🪓', { job: ['forgeron', 8], level: 2, duration: 60, cooldown: 0, costs: [stat('energie', -4), take('lingot', 1), take('buche', 1)], when: forgeOpen, label: 'Hache neuve', actions: [give('hache', 1)], description: '1 lingot + 1 bûche → 1 hache' }),
+        activity('pioche', 'Forger une pioche', '⛏️', { job: ['forgeron', 8], level: 2, duration: 60, cooldown: 0, costs: [stat('energie', -4), take('lingot', 1), take('buche', 1)], when: forgeOpen, label: 'Pioche neuve', actions: [give('pioche', 1)], description: '1 lingot + 1 bûche → 1 pioche' }),
       ],
     },
     {
       type: 'activity',
       id: 'pompiers',
       name: '🚒 Chaîne de seaux',
-      activities: [activity('vider', 'Jeter un seau sur le feu', '🪣', { duration: 0, cooldown: 3, costs: [take('seau', 1)], when: all(v('urgence', 'incendie'), T('lt', 100)), label: 'Pschhh !', actions: [contribute('forge', 'incendie', 'seau', 1)], description: 'Les seaux se remplissent au puits de la Place.' })],
+      activities: [activity('vider', 'Jeter un seau sur le feu', '🪣', { locked: 'Seulement pendant l’incendie', duration: 0, cooldown: 3, costs: [take('seau', 1)], when: all(v('urgence', 'incendie'), T('lt', 100)), label: 'Pschhh !', actions: [contribute('forge', 'incendie', 'seau', 1)], description: 'Les seaux se remplissent au puits de la Place.' })],
     },
     objective('incendie', '🔥 Incendie : sauver la forge', { seau: 30 }, { description: 'La foudre a frappé la pierre ! 30 seaux d’eau avant **T+100** (puits de la Place).', when: all(v('urgence', 'incendie'), T('lt', 100)), closed: 'Le temps est écoulé.', xp: 3, onComplete: { actions: [voice('wagner-sauve', 'forge')], announce: '🎉 **Le feu est éteint !** Wagner : « Roland avait raison, et je ne le lui dirai jamais. »' } }),
     objective('reparation', '🛠️ Rebâtir la forge', { buche: 20, pierre: 20 }, { description: 'Le toit a brûlé : plus rien ne se forge tant qu’il n’est pas refait.', when: all(forgeDamaged, from(100)), closed: 'Rien à rebâtir.', xp: 2, onComplete: { actions: [set('forge_etat', 'ok')], announce: '🛠️ **La forge est rebâtie !** Wagner rallume le foyer.' } }),
@@ -522,11 +580,13 @@ const foret = {
       id: 'bois',
       name: '🌲 Travaux de la forêt',
       activities: [
-        activity('abattre', 'Abattre un arbre', '🪓', { duration: 75, cooldown: 0, energy: 6, tool: 'hache', when: all(from(0), notStorm), results: [{ weight: 80, label: 'Belle coupe', actions: [give('buche', 4)] }, { weight: 20, label: 'Chêne noueux', actions: [give('buche', 3), give('champignon', 1)] }], multipliers: [{ when: between(70, 85), factor: 0.75, label: 'vent : −25 %' }] }),
-        activity('chablis', 'Débiter le chablis', '🌳', { duration: 60, cooldown: 0, energy: 5, tool: 'hache', when: from(110), description: 'La tempête a couché des arbres : du bois en abondance.', results: [{ weight: 1, label: 'Bois tombé', actions: [give('buche', 6)] }] }),
-        activity('ramasser', 'Ramasser du bois mort', '🍂', { duration: 0, cooldown: 45, energy: 2, when: all(from(0), notStorm), label: 'Quelques branches', actions: [give('buche', 1)], description: 'Sans outil.' }),
-        activity('champignons', 'Cueillir des champignons', '🍄', { duration: 30, cooldown: 30, energy: 3, when: all(from(0), notStorm), results: [{ weight: 60, label: 'Panier modeste', actions: [give('champignon', 1)] }, { weight: 40, label: 'Bonne cueillette', actions: [give('champignon', 2)] }] }),
-        activity('ciel', 'Lire le ciel', '🔭', { duration: 0, cooldown: 60, energy: 1, when: between(35, 85), label: 'Le vent tourne…', actions: [xp(2)], description: 'Sylvain t’apprend à lire les signes de la tempête.' }),
+        activity('jeune', 'Abattre un jeune arbre', '🌱', { job: ['bucheron', 6], boost: ['bois'], duration: 60, cooldown: 0, energy: 5, tool: 'hache', when: all(from(0), notStorm), results: [{ weight: 1, label: 'Petit bois', actions: [give('buche', 2)] }], description: 'Le geste de base du bûcheron.' }),
+        activity('abattre', 'Abattre un chêne', '🪓', { job: ['bucheron', 8], level: 2, boost: ['bois'], duration: 75, cooldown: 0, energy: 6, tool: 'hache', when: all(from(0), notStorm), results: [{ weight: 80, label: 'Belle coupe', actions: [give('buche', 4)] }, { weight: 20, label: 'Chêne noueux', actions: [give('buche', 3), give('champignon', 1)] }], multipliers: [{ when: between(70, 85), factor: 0.75, label: 'vent : −25 %' }] }),
+        activity('chasse', 'Chasser le sanglier', '🐗', { job: ['bucheron', 14], level: 3, duration: 120, cooldown: 0, energy: 10, tool: 'hache', wear: 2, when: all(from(0), notStorm), results: [{ weight: 70, label: 'Un beau sanglier', actions: [give('viande', 3)] }, { weight: 30, label: 'Il t’a échappé', actions: [give('viande', 1)] }], description: 'La viande se revend à Edgar pour son ragoût.' }),
+        activity('chablis', 'Débiter le chablis', '🌳', { locked: 'Après la tempête (T+110)', job: ['bucheron', 8], level: 2, boost: ['bois'], duration: 60, cooldown: 0, energy: 5, tool: 'hache', when: from(110), description: 'La tempête a couché des arbres : du bois en abondance.', results: [{ weight: 1, label: 'Bois tombé', actions: [give('buche', 6)] }] }),
+        activity('ramasser', 'Ramasser du bois mort', '🍂', { job: ['bucheron', 2], duration: 0, cooldown: 45, energy: 2, when: all(from(0), notStorm), label: 'Quelques branches', actions: [give('buche', 1)], description: 'Sans outil.' }),
+        activity('champignons', 'Cueillir des champignons', '🍄', { job: ['bucheron', 3], duration: 30, cooldown: 30, energy: 3, when: all(from(0), notStorm), results: [{ weight: 60, label: 'Panier modeste', actions: [give('champignon', 1)] }, { weight: 40, label: 'Bonne cueillette', actions: [give('champignon', 2)] }] }),
+        activity('ciel', 'Lire le ciel', '🔭', { locked: 'Quand le ciel se couvre (T+35 à T+85)', duration: 0, cooldown: 60, energy: 1, when: between(35, 85), label: 'Le vent tourne…', actions: [xp(2)], description: 'Sylvain t’apprend à lire les signes de la tempête.' }),
       ],
     },
     {
@@ -584,10 +644,11 @@ const ferme = {
       id: 'travaux',
       name: '🌾 Travaux de la ferme',
       activities: [
-        activity('oeufs', 'Ramasser les œufs', '🥚', { duration: 45, cooldown: 0, energy: 3, when: all(from(0), notStorm), results: [{ weight: 1, label: 'Panier d’œufs', actions: [give('oeuf', 3)] }] }),
-        activity('legumes', 'Cueillir des légumes', '🥕', { duration: 60, cooldown: 0, energy: 4, when: all(from(0), notStorm), results: [{ weight: 1, label: 'Légumes du potager', actions: [give('legumes', 3)] }], description: 'Edgar les rachète pour sa cuisine.' }),
-        activity('moisson', 'Moissonner', '🌾', { duration: 60, cooldown: 0, energy: 5, when: all(from(0), notStorm), results: [{ weight: 1, label: 'Gerbes de blé', actions: [give('gerbe', 2)] }], multipliers: [{ when: between(55, 85), factor: 2, label: 'dernière récolte : ×2' }] }),
-        activity('moudre', 'Moudre du grain', '⚙️', { duration: 0, cooldown: 20, costs: [stat('energie', -2), take('gerbe', 2)], when: all(from(0), notStorm), label: 'Farine fraîche', actions: [give('farine', 3)], description: '2 gerbes → 3 farines (pour le pain d’Edgar)' }),
+        activity('oeufs', 'Ramasser les œufs', '🥚', { job: ['fermier', 4], duration: 45, cooldown: 0, energy: 3, when: all(from(0), notStorm), results: [{ weight: 1, label: 'Panier d’œufs', actions: [give('oeuf', 3)] }] }),
+        activity('legumes', 'Cueillir des légumes', '🥕', { job: ['fermier', 5], duration: 60, cooldown: 0, energy: 4, when: all(from(0), notStorm), results: [{ weight: 1, label: 'Légumes du potager', actions: [give('legumes', 3)] }], description: 'Edgar les rachète pour sa cuisine.' }),
+        activity('moisson', 'Moissonner', '🌾', { job: ['fermier', 5], duration: 60, cooldown: 0, energy: 5, when: all(from(0), notStorm), results: [{ weight: 1, label: 'Gerbes de blé', actions: [give('gerbe', 2)] }], multipliers: [{ when: between(55, 85), factor: 2, label: 'dernière récolte : ×2' }] }),
+        activity('pommes', 'Presser des pommes', '🍎', { job: ['fermier', 8], level: 2, duration: 90, cooldown: 0, energy: 5, when: all(from(0), notStorm), results: [{ weight: 1, label: 'Jus de pomme', actions: [give('jus_pomme', 2)] }], description: 'Edgar rachète le jus pour son comptoir.' }),
+        activity('moudre', 'Moudre du grain', '⚙️', { job: ['fermier', 2], duration: 0, cooldown: 20, costs: [stat('energie', -2), take('gerbe', 2)], when: all(from(0), notStorm), label: 'Farine fraîche', actions: [give('farine', 3)], description: '2 gerbes → 3 farines (pour le pain d’Edgar)' }),
       ],
     },
     objective('recolte', '🌾 La dernière récolte', { gerbe: 60 }, { description: 'Rentrer 60 gerbes avant l’orage (**T+85**). Sinon, pas de soupe pour personne pendant la tempête !', when: between(55, 85), closed: cases([T('lt', 55), 'Agathe sonnera l’heure de la dernière récolte à T+55.'], [null, 'La récolte est terminée.']), xp: 1, quantities: [2, 10], onComplete: { actions: [set('recolte', 'reussie'), voice('agathe-reussi', 'ferme')], announce: '🌾 **La récolte est rentrée !** Le grenier d’Agathe est plein à craquer.' } }),
@@ -642,7 +703,7 @@ const pont = {
       type: 'activity',
       id: 'riviere',
       name: '🎣 La rivière',
-      activities: [activity('peche', 'Pêcher', '🎣', { duration: 60, cooldown: 0, energy: 3, tool: 'canne', when: from(0), results: [{ weight: 75, label: 'Une truite', actions: [give('poisson', 1)] }, { weight: 25, label: 'Deux poissons !', actions: [give('poisson', 2)] }], multipliers: [{ when: between(70, 85), factor: 2, label: 'rivière gonflée : ×2' }] })],
+      activities: [activity('filet', 'Pêcher au filet', '🕸️', { job: ['pecheur', 10], level: 2, duration: 120, cooldown: 0, energy: 6, tool: 'canne', wear: 2, when: from(0), results: [{ weight: 70, label: 'Filet garni', actions: [give('poisson', 3)] }, { weight: 30, label: 'Filet plein !', actions: [give('poisson', 5)] }], multipliers: [{ when: between(70, 85), factor: 2, label: 'rivière gonflée : ×2' }] }), activity('peche', 'Pêcher', '🎣', { job: ['pecheur', 5], duration: 60, cooldown: 0, energy: 3, tool: 'canne', when: from(0), results: [{ weight: 75, label: 'Une truite', actions: [give('poisson', 1)] }, { weight: 25, label: 'Deux poissons !', actions: [give('poisson', 2)] }], multipliers: [{ when: between(70, 85), factor: 2, label: 'rivière gonflée : ×2' }] })],
     },
   ],
   screens: [
@@ -689,8 +750,8 @@ const eglise = {
       id: 'travaux',
       name: '🪚 Travaux du chantier',
       activities: [
-        activity('arbre', 'Dégager l’arbre', '🌿', { duration: 90, cooldown: 0, energy: 6, tool: 'hache', when: between(110, 170), maxConcurrent: 4, label: 'Branches dégagées', actions: [contribute('eglise', 'arbre', 'branche', 1), xp(5)], description: '4 personnes au maximum en même temps.' }),
-        activity('assembler', 'Assembler la charpente', '🪚', { duration: 120, cooldown: 0, energy: 8, when: all(between(110, 170), obj('eglise', 'arbre', 'gte', 100), obj('eglise', 'chantier', 'gte', 70)), maxConcurrent: 3, label: 'Poutres en place', actions: [contribute('eglise', 'assemblage', 'assemblage', 1), xp(10)], description: 'Possible quand l’arbre est dégagé et 70 % des matériaux livrés.' }),
+        activity('arbre', 'Dégager l’arbre', '🌿', { locked: 'Pendant le chantier (T+110 à T+170)', duration: 90, cooldown: 0, energy: 6, tool: 'hache', when: between(110, 170), maxConcurrent: 4, label: 'Branches dégagées', actions: [contribute('eglise', 'arbre', 'branche', 1), xp(5)], description: '4 personnes au maximum en même temps.' }),
+        activity('assembler', 'Assembler la charpente', '🪚', { locked: 'Quand l’arbre est dégagé et 70 % des matériaux livrés', duration: 120, cooldown: 0, energy: 8, when: all(between(110, 170), obj('eglise', 'arbre', 'gte', 100), obj('eglise', 'chantier', 'gte', 70)), maxConcurrent: 3, label: 'Poutres en place', actions: [contribute('eglise', 'assemblage', 'assemblage', 1), xp(10)], description: 'Possible quand l’arbre est dégagé et 70 % des matériaux livrés.' }),
       ],
     },
     objective('arbre', '🌿 Dégager l’arbre', { branche: 12 }, { description: 'Le grand chêne bloque la nef.', when: between(110, 170), closed: 'Hors des heures du chantier.', onComplete: { actions: [], announce: '🌿 **L’arbre est dégagé !** La nef de la Sainte Pelle est accessible.' } }),
@@ -746,6 +807,15 @@ const eglise = {
   ],
 };
 
+addStall(place, { name: 'Le chariot du colporteur', who: 'le colporteur', intro: 'Un colporteur a garé son chariot près du puits : un peu de tout, un peu plus cher qu’ailleurs.', prompt: '« Bonne affaire, l’ami ! »', stock: { gourde_eau: 30, pain_emballe: 20, epices: 20, hache: 4, pioche: 4, canne: 4 }, offers: [ware('gourde_eau', 3, 'Vivres'), ware('pain_emballe', 9, 'Vivres'), ware('epices', 9, 'Vivres'), ware('hache', 30, 'Outils'), ware('pioche', 30, 'Outils'), ware('canne', 25, 'Outils')] });
+addStall(taverne, { name: 'Les petits trésors d’Edgar', who: 'Edgar', intro: '« Tout ce qui se boit, se mange… ou se raconte. »', stock: { flasque_hydromel: 10, bouteille_biere: 15, gamelle_soupe: 8 }, offers: [ware('flasque_hydromel', 16, 'À emporter'), ware('bouteille_biere', 10, 'À emporter'), ware('gamelle_soupe', 13, 'À emporter')] });
+addStall(mine, { name: 'Le comptoir de Roland', intro: '« Je rachète tout ce qui sort de la montagne. Et je vends de quoi y redescendre. »', stock: { pioche: 6, pierre: 10, minerai: 4 }, offers: [ware('pioche', 24, 'Outils')], buy: { pierre: 2, minerai: 4 }, targets: { pierre: 60, minerai: 40 } });
+addStall(forge, { name: 'L’étal de Wagner', intro: '« De l’acier honnête, forgé ici même. »', stock: { hache: 5, pioche: 5, ferrure: 1, lingot: 2 }, offers: [ware('hache', 22, 'Outils'), ware('pioche', 22, 'Outils'), ware('lingot', 14, 'Métal'), ware('ferrure', 30, 'Métal')], buy: { minerai: 4, lingot: 10, ferrure: 24, buche: 2 }, targets: { minerai: 40, lingot: 20, ferrure: 10, buche: 30 } });
+addStall(foret, { name: 'La cabane de Sylvain', intro: '« Le bois, c’est la vie. Et un peu d’argent, aussi. »', stock: { hache: 5, buche: 10, champignon: 4 }, offers: [ware('hache', 24, 'Outils')], buy: { buche: 2, champignon: 3, viande: 6 }, targets: { buche: 60, champignon: 20, viande: 15 } });
+addStall(ferme, { name: 'L’étal d’Agathe', intro: '« Des produits frais, du poulailler à ta besace ! »', stock: { oeuf: 12, legumes: 15, panier_agathe: 8, gourde_eau: 10 }, offers: [ware('panier_agathe', 28, 'Vivres'), ware('oeuf', 2, 'Vivres'), ware('legumes', 5, 'Vivres'), ware('gourde_eau', 3, 'Vivres')], buy: { gerbe: 1, oeuf: 1, legumes: 3, farine: 2, jus_pomme: 4 }, targets: { gerbe: 40, oeuf: 30, legumes: 30, farine: 20, jus_pomme: 15 } });
+addStall(pont, { name: 'L’étal du vieux pêcheur', who: 'le vieux pêcheur', intro: 'Un vieux pêcheur somnole près de sa caisse, une canne sur les genoux.', stock: { canne: 6, poisson: 6 }, offers: [ware('canne', 18, 'Outils'), ware('poisson', 6, 'Vivres')], buy: { poisson: 4 }, targets: { poisson: 40 } });
+addStall(eglise, { name: 'Le tronc des offrandes', who: 'le Père Anselme', intro: '« Une obole pour l’église, une bénédiction pour toi. »', stock: { cierge: 30, eau_benite: 30 }, offers: [ware('cierge', 8, 'Bénédictions'), ware('eau_benite', 6, 'Bénédictions')] });
+
 // ---------------------------------------------------------------------------
 // Quêtes personnelles
 // ---------------------------------------------------------------------------
@@ -759,7 +829,7 @@ const revealShard = (n, found) => ifThen(v(`eclat${n}`, 'non'), [set(`eclat${n}`
 const quests = [
   q('q01', 'Premiers pas', 'Maëlis', 1, from(0), [{ id: 'lieux', kind: 'visit', label: 'Visiter 4 lieux différents', count: 4 }], { featured: true, description: 'Fais le tour du village : chaque lieu a son salon vocal.' }),
   q('q02', 'Une chope pour la route', 'Edgar', 1, between(0, 85), [count('boire', 'Commander une boisson au comptoir de la taverne', 'shop:taverne/comptoir')]),
-  q('q03', 'Le bois du bûcher', 'Sylvain', 1, between(0, 60), [count('abattre', 'Abattre un arbre en forêt', 'activity:foret/abattre'), count('bucher', 'Apporter 4 bûches à la fête (Place)', 'objective:place/fete:buche', 4)], { ordered: true }),
+  q('q03', 'Le bois du bûcher', 'Sylvain', 1, between(0, 60), [count('abattre', 'Abattre un arbre en forêt', ['activity:foret/jeune', 'activity:foret/abattre']), count('bucher', 'Apporter 4 bûches à la fête (Place)', 'objective:place/fete:buche', 4)], { ordered: true }),
   q('q04', 'Œufs frais', 'Agathe', 1, between(0, 85), [deliver('oeufs', 'Livrer 4 œufs à Edgar (Taverne)', 'oeuf', 4, 'taverne')]),
   q('q05', 'Premier coup de pioche', 'Roland', 1, between(0, 85), [count('pierres', 'Extraire des pierres à la mine', 'activity:mine/pierres')]),
   q('q06', 'Le poisson du soir', 'Maëlis', 1, between(0, 85), [count('peche', 'Pêcher 2 fois au vieux pont', 'activity:pont/peche', 2)]),
@@ -769,21 +839,21 @@ const quests = [
   q('q10', 'L’eau du puits', 'Agathe', 1, between(0, 85), [deliver('seaux', 'Livrer 3 seaux d’eau à la taverne', 'seau', 3, 'taverne')]),
   q('q11', 'Rumeurs de comptoir', 'Edgar', 1, between(25, 85), [count('rumeurs', 'Écouter Edgar parler de la pierre (2 rumeurs)', ['dialogue:taverne/pierre1', 'dialogue:taverne/pierre2'], 2)]),
   q('q12', 'Lanternes de fête', 'Maëlis', 1, between(0, 60), [count('fete', 'Contribuer à « Préparer la fête »', 'objective:place/fete')]),
-  q('q13', 'Ramasser les branches', 'Sylvain', 1, from(110), [count('chablis', 'Débiter le chablis 2 fois', 'activity:foret/chablis', 2)]),
+  q('q13', 'Ramasser les branches', 'Sylvain', 1, from(110), [count('chablis', 'Débiter le chablis 2 fois (Bûcheron niv. 2)', 'activity:foret/chablis', 2)]),
   q('q14', 'Soupe pour les sinistrés', 'Edgar', 1, between(110, 170), [count('soupe', 'Apporter 2 soupes en gamelle au chantier', 'objective:eglise/chantier:gamelle_soupe', 2)]),
-  q('q15', 'Le repas du travailleur', 'Edgar', 2, from(0), [count('travail', 'Travailler en forêt ou à la mine', ['activity:foret/abattre', 'activity:foret/chablis', 'activity:mine/pierres', 'activity:mine/minerai']), count('ragout', 'Manger un ragoût de sanglier', ['consume:plat_ragout', 'consume:gamelle_ragout'])]),
-  q('q16', 'Fer pour Wagner', 'Wagner', 2, from(0), [deliver('minerai', 'Livrer 4 minerais à la forge', 'minerai', 4, 'forge')]),
+  q('q15', 'Le repas du travailleur', 'Edgar', 2, from(0), [count('travail', 'Travailler en forêt ou à la mine', ['activity:foret/jeune', 'activity:foret/abattre', 'activity:foret/chablis', 'activity:mine/pierres', 'activity:mine/minerai']), count('ragout', 'Manger un ragoût de sanglier', ['consume:plat_ragout', 'consume:gamelle_ragout'])]),
+  q('q16', 'Fer pour Wagner', 'Wagner', 2, from(0), [deliver('minerai', 'Livrer 4 minerais à la forge (Mineur niv. 2, ou l’étal de Wagner)', 'minerai', 4, 'forge')]),
   q('q17', 'Métal utile', 'Wagner', 2, from(0), [count('fondre', 'Fondre 2 lingots', 'activity:forge/fondre', 2)]),
   q('q18', 'Outil fatigué', 'Wagner', 2, from(0), [count('reparer', 'Faire réparer un outil à la forge', 'repair')]),
   q('q19', 'Les poissons d’Edgar', 'Edgar', 2, between(0, 85), [deliver('poissons', 'Livrer 4 poissons à Edgar', 'poisson', 4, 'taverne')]),
-  q('q20', 'La galerie profonde', 'Roland', 2, between(25, 85), [count('galerie', 'Creuser 2 fois dans la galerie profonde', 'activity:mine/galerie', 2)]),
+  q('q20', 'La galerie profonde', 'Roland', 2, between(25, 85), [count('galerie', 'Creuser 2 fois dans la galerie profonde (Mineur niv. 3)', 'activity:mine/galerie', 2)]),
   q('q21', 'Lire le ciel', 'Sylvain', 2, between(35, 85), [count('ciel', 'Lire le ciel 3 fois en forêt', 'activity:foret/ciel', 3)]),
   q('q22', 'Sacs de grain', 'Agathe', 2, between(55, 85), [count('gerbes', 'Rentrer 8 gerbes pour la dernière récolte', 'objective:ferme/recolte', 8)]),
   q('q23', 'Ma voix compte', 'Maëlis', 2, between(45, 65), [count('roland', 'Écouter l’avis de Roland (mine)', 'dialogue:mine/avis'), count('wagner', 'Écouter l’avis de Wagner (forge)', 'dialogue:forge/avis'), count('vote', 'Voter au conseil de la pierre (Place)', 'vote')], { ordered: true }),
   q('q24', 'Bâcher les toits', 'Maëlis', 2, between(70, 85), [deliver('bois', 'Livrer 4 bûches sur la Place', 'buche', 4, 'place')]),
   q('q25', 'Pierres pour les murs', 'Père Anselme', 2, between(110, 170), [count('pierres', 'Apporter 8 pierres au chantier', 'objective:eglise/chantier:pierre', 8)]),
   q('q26', 'Où sont tombés les éclats ?', 'Maëlis', 2, from(110), [count('temoins', 'Interroger 2 habitants sur la nuit de la tempête', ['dialogue:place/nuit', 'dialogue:mine/nuit', 'dialogue:forge/nuit', 'dialogue:foret/nuit', 'dialogue:ferme/nuit', 'dialogue:taverne/eclat'], 2)], { rewards: [revealShard(4, 'dans une botte de foin de la ferme d’Agathe.')] }),
-  q('q27', 'La ferrure sacrée', 'Wagner', 3, between(110, 170), [count('forger', 'Forger 2 ferrures', 'activity:forge/ferrure', 2), count('livrer', 'Apporter 2 ferrures au chantier', 'objective:eglise/chantier:ferrure', 2)], { ordered: true, rewards: [give('titre_forgeron')] }),
+  q('q27', 'La ferrure sacrée', 'Wagner', 3, between(110, 170), [count('forger', 'Forger 2 ferrures (Forgeron niv. 3)', 'activity:forge/ferrure', 2), count('livrer', 'Apporter 2 ferrures au chantier', 'objective:eglise/chantier:ferrure', 2)], { ordered: true, rewards: [give('titre_forgeron')] }),
   q('q28', 'Le banquet royal', 'Edgar', 3, from(0), [count('banquet', 'Cuisiner ou commander un Banquet royal', ['cook:taverne/royal', 'buy:taverne/royal'])], { rewards: [give('flasque_hydromel')] }),
   q('q29', 'Le cœur de la montagne', 'Roland', 3, from(25), [deliver('eclat', 'Trouver un éclat de pierre-tonnerre (galerie profonde) et le porter à Wagner', 'eclat', 1, 'forge')], { rewards: [give('eclat_poli')] }),
   q('q30', 'Maître des dés', 'Edgar', 3, between(0, 85), [count('des', 'Gagner 3 parties de dés contre Edgar', 'dice:taverne/des:win', 3)], { rewards: [give('titre_fine_gueule')] }),
@@ -854,7 +924,25 @@ const world = {
   stats,
   items,
   modifiers: royaume.modifiers,
-  jobs: royaume.jobs.filter((j) => j.id === 'cuisinier'),
+  jobs: [
+    ...royaume.jobs.filter((j) => j.id === 'cuisinier'),
+    { id: 'bucheron', name: 'Bûcheron', emoji: '🪓', xpPerLevel: 40, maxLevel: 5 },
+    { id: 'mineur', name: 'Mineur', emoji: '⛏️', xpPerLevel: 40, maxLevel: 5 },
+    { id: 'forgeron', name: 'Forgeron', emoji: '🔨', xpPerLevel: 40, maxLevel: 5 },
+    { id: 'fermier', name: 'Fermier', emoji: '🌾', xpPerLevel: 40, maxLevel: 5 },
+    { id: 'pecheur', name: 'Pêcheur', emoji: '🎣', xpPerLevel: 40, maxLevel: 5 },
+  ],
+  onboarding: {
+    enabled: true,
+    channelName: '📜・serment',
+    title: '📜 Le serment de Valbrume',
+    text: 'Voyageur, avant de franchir les portes de Valbrume, jure sur la mémoire de la Sainte Pelle :\n\n• de respecter les habitants, leurs biens et leurs créations ;\n• de ne pas tricher ni profiter des failles du Royaume ;\n• de suivre les indications de l’intendance et du Roi ;\n• de prêter la main quand le village en a besoin.\n\nEn cliquant ci-dessous, tu prêtes serment et deviens habitant de Valbrume.',
+    button: 'Je le jure',
+    buttonEmoji: '✋',
+    roleName: '🛡️ Habitant de Valbrume',
+    confirmation: '✋ **Serment prêté !** Bienvenue à Valbrume, habitant. Les lieux du village te sont ouverts : rejoins le salon vocal d’un bâtiment pour y entrer. Commence par la **Place du village**, où Maëlis t’attend.',
+    actions: [stat('ecus', 100), give('pain_emballe', 2), give('gourde_eau', 2)],
+  },
   variables,
   newPlayer: { items: { hache: 1, pioche: 1, canne: 1 } },
   quests: {

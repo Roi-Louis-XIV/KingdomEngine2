@@ -11,6 +11,8 @@ import {
   GatewayIntentBits,
   PermissionFlagsBits,
   type ButtonInteraction,
+  type CategoryChannel,
+  type VoiceChannel,
   type Guild,
   type Interaction,
   type Message,
@@ -25,7 +27,23 @@ import type { Runtimes } from '../runtime.ts';
 import type { DiscordBridge, GuildChannel } from '../bridges.ts';
 import type { BuildingChannels } from '../voice/planner.ts';
 import { COMPONENTS_V2_FLAG, toDiscord } from './render.ts';
-import { PLAYER_ACCESS, entrancePanel, panelCleanup, parseEnter, reconcileAccess, textChannelBase, voiceMove } from './access.ts';
+import {
+  OATH_MARKER,
+  PLAYER_ACCESS,
+  categoryName,
+  entrancePanel,
+  isOath,
+  oathChannelOverwrites,
+  oathPanel,
+  oathRequired,
+  panelCleanup,
+  parseEnter,
+  reconcileAccess,
+  textChannelBase,
+  voiceMove,
+  voiceOverwrites,
+  type Overwrite,
+} from './access.ts';
 
 const EPHEMERAL = 64;
 /** Un jeton d'interaction Discord vit 15 minutes : au-delà, on ne peut plus modifier ni effacer l'interface. */
@@ -169,24 +187,56 @@ export class CoreBot implements DiscordBridge {
     return out;
   }
 
+  /**
+   * Crée ce qui manque : rôle des habitants et salon du serment (si le monde demande un serment),
+   * puis, pour chaque bâtiment, sa propre catégorie avec son salon texte et son salon vocal.
+   * Les salons existants sont déplacés dans la catégorie de leur bâtiment.
+   */
   async provision(serverId: string, buildingIds?: string[]): Promise<Record<string, BuildingChannels>> {
     const s = this.platform.server(serverId);
     if (!s?.guildId) throw new Error('Aucun serveur Discord associé.');
     const g = this.client.guilds.cache.get(s.guildId);
     if (!g) throw new Error('Le bot principal n’est pas encore sur ce serveur Discord : utilise le lien d’invitation.');
     const engine = this.runtimes.require(serverId);
+    const world = engine.world;
     const known = this.channelsOf(serverId);
-    const category = await this.ensureCategory(g, serverId, engine.world.name);
+    const categories = this.platform.setting<Record<string, string>>(serverId, 'discord.categories', {});
+    const role = oathRequired(world.onboarding) ? await this.ensurePlayerRole(g, serverId, world.onboarding.roleName) : null;
+    const gated = this.resolve(g, voiceOverwrites(g.roles.everyone.id, role?.id ?? null, this.client.user!.id));
+    if (oathRequired(world.onboarding)) {
+      // Catégorie d'accueil du monde, avec le salon du serment, visible de tous.
+      const welcome = await this.ensureCategory(g, serverId, 'discord.category', `🏰 ${world.name}`, []);
+      const oath = await this.ensureChannel(g, this.platform.setting<string | null>(serverId, 'discord.oathChannel', null) ?? undefined, world.onboarding.channelName || 'serment', ChannelType.GuildText, welcome, this.resolve(g, oathChannelOverwrites(g.roles.everyone.id, this.client.user!.id)));
+      this.platform.setSetting(serverId, 'discord.oathChannel', oath);
+    }
     const out: Record<string, BuildingChannels> = {};
-    for (const b of engine.world.buildings) {
+    for (const b of world.buildings) {
       if (buildingIds?.length && !buildingIds.includes(b.id)) continue;
+      // Chaque bâtiment a sa catégorie : son salon texte et son salon vocal se suivent.
+      const cat = await this.ensureCategory(g, serverId, null, categoryName(b), gated, categories[b.id]);
+      categories[b.id] = cat;
       const label = `${b.emoji ? b.emoji + '・' : ''}${b.name}`.slice(0, 90);
       // Le salon texte naît caché et en lecture seule : seul le salon vocal y donne accès.
-      const text = await this.ensureChannel(g, known[b.id]?.text, label, ChannelType.GuildText, category, this.baseOverwrites(g));
-      const voice = await this.ensureChannel(g, known[b.id]?.voice, label, ChannelType.GuildVoice, category);
+      const text = await this.ensureChannel(g, known[b.id]?.text, label, ChannelType.GuildText, cat, this.baseOverwrites(g));
+      const voice = await this.ensureChannel(g, known[b.id]?.voice, label, ChannelType.GuildVoice, cat, gated);
       out[b.id] = { text, voice };
     }
+    this.platform.setSetting(serverId, 'discord.categories', categories);
     return out;
+  }
+
+  private resolve(_g: Guild, list: Overwrite[]): OverwriteResolvable[] {
+    return list.map((o) => ({ id: o.id, type: o.type === 'role' ? 0 : 1, allow: o.allow, deny: o.deny }));
+  }
+
+  /** Rôle donné par le serment (retrouvé par son identifiant, sinon par son nom, sinon créé). */
+  private async ensurePlayerRole(g: Guild, serverId: string, name: string) {
+    const known = this.platform.setting<string | null>(serverId, 'discord.playerRole', null);
+    let role = (known && (await g.roles.fetch(known).catch(() => null))) || g.roles.cache.find((r) => r.name === name) || null;
+    if (!role) role = await g.roles.create({ name: name.slice(0, 100), permissions: [], mentionable: false, reason: 'KingdomEngine : rôle des habitants (serment)' });
+    else if (role.name !== name) await role.setName(name.slice(0, 100)).catch(() => {});
+    this.platform.setSetting(serverId, 'discord.playerRole', role.id);
+    return role;
   }
 
   /**
@@ -215,6 +265,35 @@ export class CoreBot implements DiscordBridge {
     const channels = this.channelsOf(serverId);
     const panelIds = this.platform.setting<Record<string, string>>(serverId, 'discord.panels', {});
     let changed = false;
+    // Serment : panneau dans le salon d'arrivée.
+    const ob = engine.world.onboarding;
+    const oathId = this.platform.setting<string | null>(serverId, 'discord.oathChannel', null);
+    if (oathRequired(ob) && oathId) {
+      const ch = await g.channels.fetch(oathId).catch(() => null);
+      if (ch?.type === ChannelType.GuildText) {
+        const components = toDiscord(oathPanel(ob));
+        const json = JSON.stringify(components);
+        if (force || this.panels.get(oathId) !== json) {
+          const id = await this.placePanel(ch, '__serment__', components, panelIds.__serment__, OATH_MARKER);
+          if (id && panelIds.__serment__ !== id) {
+            panelIds.__serment__ = id;
+            changed = true;
+          }
+          this.panels.set(oathId, json);
+        }
+      }
+    }
+    // Catégories et salons vocaux : réservés aux habitants si le monde demande un serment.
+    if (force) {
+      const roleId = oathRequired(ob) ? this.platform.setting<string | null>(serverId, 'discord.playerRole', null) : null;
+      const gated = this.resolve(g, voiceOverwrites(g.roles.everyone.id, roleId, this.client.user!.id));
+      const categories = this.platform.setting<Record<string, string>>(serverId, 'discord.categories', {});
+      for (const b of engine.world.buildings)
+        for (const id of [categories[b.id], channels[b.id]?.voice]) {
+          const ch = id ? await g.channels.fetch(id).catch(() => null) : null;
+          if (ch && (ch.type === ChannelType.GuildCategory || ch.type === ChannelType.GuildVoice)) await this.gate(g, ch, gated, roleId).catch((e) => console.warn(`Permissions de ${b.id} :`, e.message));
+        }
+    }
     for (const b of engine.world.buildings) {
       const textId = channels[b.id]?.text;
       if (!textId) continue;
@@ -260,12 +339,12 @@ export class CoreBot implements DiscordBridge {
   }
 
   /** Garde un seul message dans le salon : le panneau d'entrée. */
-  private async placePanel(ch: TextChannel, buildingId: string, components: unknown[], knownId?: string): Promise<string | null> {
+  private async placePanel(ch: TextChannel, buildingId: string, components: unknown[], knownId?: string, marker?: string): Promise<string | null> {
     const fetched = await ch.messages.fetch({ limit: 50 }).catch(() => null);
     const messages = fetched ? [...fetched.values()] : [];
     const plan = panelCleanup(
       messages.map((m) => ({ id: m.id, authorId: m.author.id, text: JSON.stringify(m.components.map((c) => c.toJSON())) })),
-      { botId: this.client.user!.id, buildingId, knownPanelId: knownId },
+      { botId: this.client.user!.id, buildingId, knownPanelId: knownId, marker },
     );
     let id = plan.keep;
     if (id) {
@@ -284,13 +363,31 @@ export class CoreBot implements DiscordBridge {
     return id;
   }
 
-  private async ensureCategory(g: Guild, serverId: string, name: string): Promise<string> {
-    const id = this.platform.setting<string | null>(serverId, 'discord.category', null);
-    if (id && g.channels.cache.has(id)) return id;
-    const cat = await g.channels.create({ name: name.slice(0, 90), type: ChannelType.GuildCategory, reason: 'KingdomEngine : catégorie du monde' });
-    this.platform.setSetting(serverId, 'discord.category', cat.id);
+  /** Catégorie retrouvée (réglage `key` ou identifiant connu), sinon créée ; renommée si besoin. */
+  private async ensureCategory(g: Guild, serverId: string, key: string | null, name: string, permissionOverwrites: OverwriteResolvable[], knownId?: string): Promise<string> {
+    const id = knownId ?? (key ? this.platform.setting<string | null>(serverId, key, null) : null);
+    const existing = id ? g.channels.cache.get(id) : undefined;
+    if (existing && existing.type === ChannelType.GuildCategory) {
+      if (existing.name !== name) await existing.setName(name).catch(() => {});
+      return existing.id;
+    }
+    const cat = await g.channels.create({ name: name.slice(0, 100), type: ChannelType.GuildCategory, permissionOverwrites, reason: 'KingdomEngine : catégorie' });
+    if (key) this.platform.setSetting(serverId, key, cat.id);
     return cat.id;
   }
+
+  /** Applique les permissions « habitants seulement » (ou les retire) à une catégorie ou un salon vocal. */
+  private async gate(g: Guild, ch: CategoryChannel | VoiceChannel, gated: OverwriteResolvable[], roleId: string | null) {
+    const cur = ch.permissionOverwrites.cache;
+    const everyoneHidden = !!cur.get(g.roles.everyone.id)?.deny.has(PermissionFlagsBits.ViewChannel);
+    if (roleId ? everyoneHidden && cur.has(roleId) : !everyoneHidden) return;
+    // Les autres permissions (rôles d'administration…) sont conservées.
+    const keep: OverwriteResolvable[] = [...cur.values()]
+      .filter((o) => o.id !== g.roles.everyone.id && o.id !== roleId && o.id !== this.client.user!.id)
+      .map((o) => ({ id: o.id, type: o.type, allow: o.allow.bitfield, deny: o.deny.bitfield }));
+    await ch.permissionOverwrites.set([...gated, ...keep], 'KingdomEngine : accès réservé aux habitants');
+  }
+
 
   private async ensureChannel(
     g: Guild,
@@ -300,7 +397,12 @@ export class CoreBot implements DiscordBridge {
     parent: string,
     permissionOverwrites?: OverwriteResolvable[],
   ): Promise<string> {
-    if (existing && g.channels.cache.has(existing)) return existing;
+    const found = existing ? g.channels.cache.get(existing) : undefined;
+    if (found && 'setParent' in found) {
+      // Salon existant : rangé dans la catégorie de son bâtiment (sans toucher à ses permissions).
+      if (found.parentId !== parent) await found.setParent(parent, { lockPermissions: false, reason: 'KingdomEngine : une catégorie par bâtiment' }).catch(() => {});
+      return found.id;
+    }
     const ch = await g.channels.create({ name, type, parent, permissionOverwrites, reason: 'KingdomEngine : salon de bâtiment' });
     return ch.id;
   }
@@ -380,12 +482,36 @@ export class CoreBot implements DiscordBridge {
     };
     try {
       const enter = parseEnter(i.customId);
-      if (enter && i.isButton()) await this.enter(i, server.id, enter, player);
+      if (isOath(i.customId) && i.isButton()) await this.swear(i, server.id, player);
+      else if (enter && i.isButton()) await this.enter(i, server.id, enter, player);
       else if (i.customId.includes('|')) await this.onComponent(i, server.id, player);
     } catch (e) {
       console.error('Interaction en échec :', e);
       if (!i.replied && !i.deferred) await i.reply({ content: `⚠️ ${(e as Error).message}`, flags: EPHEMERAL }).catch(() => {});
     }
+  }
+
+  /** Serment : donne le rôle des habitants (accès aux bâtiments) et la dotation, une seule fois. */
+  private async swear(i: ButtonInteraction, serverId: string, player: Player) {
+    const engine = this.runtimes.require(serverId);
+    const ob = engine.world.onboarding;
+    if (!oathRequired(ob) || !i.guild) {
+      await i.reply({ content: 'Aucun serment n’est demandé dans ce monde.', flags: EPHEMERAL });
+      return;
+    }
+    await i.deferReply({ flags: EPHEMERAL });
+    const role = await this.ensurePlayerRole(i.guild, serverId, ob.roleName);
+    const member = await i.guild.members.fetch(i.user.id);
+    const me = i.guild.members.me;
+    if (me && role.position >= me.roles.highest.position) {
+      await i.editReply(`⚠️ Je ne peux pas te donner le rôle **${role.name}** : dans les paramètres Discord, place le rôle du bot au-dessus de ce rôle, puis réessaie.`);
+      return;
+    }
+    if (!member.roles.cache.has(role.id)) await member.roles.add(role, 'KingdomEngine : serment prêté');
+    this.platform.touchPlayer(serverId, player.id, player.name, player.avatarUrl);
+    const r = engine.acceptOath(player.id);
+    this.runtimes.persist(serverId);
+    await i.editReply(r.first ? `${r.message}${r.gains ? `\n\n🎁 ${r.gains}` : ''}` : `${r.message}\n\n*Tu as déjà prêté serment : les bâtiments te sont ouverts.*`);
   }
 
   /** Clic sur « Entrer » : ouvre l'interface personnelle du bâtiment (visible du seul joueur). */
@@ -394,6 +520,12 @@ export class CoreBot implements DiscordBridge {
     const b = engine.world.buildings.find((x) => x.id === buildingId);
     if (!b) {
       await i.reply({ content: 'Ce bâtiment n’existe plus.', flags: EPHEMERAL });
+      return;
+    }
+    const ob = engine.world.onboarding;
+    const roleId = this.platform.setting<string | null>(serverId, 'discord.playerRole', null);
+    if (oathRequired(ob) && roleId && i.guild && !(await i.guild.members.fetch(i.user.id)).roles.cache.has(roleId)) {
+      await i.reply({ content: '📜 Prête d’abord serment dans le salon d’arrivée.', flags: EPHEMERAL });
       return;
     }
     const voice = this.channelsOf(serverId)[b.id]?.voice;

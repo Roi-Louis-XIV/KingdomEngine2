@@ -250,10 +250,11 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
         const mod = offerModifier(o);
         if (f.bonus !== 'Tous' && (mod ?? 'aucun') !== f.bonus) continue;
         const qty = inv[o.stockItem] ?? 0;
-        const carry = o.takeaway ? ` · 🎒 +${money(ctx, shop.currency, o.takeaway.surcharge)}` : ' · sur place uniquement';
-        lines.push(
-          `**${o.emoji ?? ''} ${o.name}** — ${money(ctx, shop.currency, o.price)}${carry}\n${effectsLine(ctx, o.effects)}\n${qty ? '✅' : '❌'} Disponible : ${qty}`,
-        );
+        const objectOnly = !o.effects.length && !!o.takeaway;
+        const carry = objectOnly ? '' : o.takeaway ? ` · 🎒 +${money(ctx, shop.currency, o.takeaway.surcharge)}` : ' · sur place uniquement';
+        const def = objectOnly ? findItem(ctx.world, o.takeaway!.item) : undefined;
+        const what = !objectOnly ? effectsLine(ctx, o.effects) : def?.tool ? `🛠️ Outil · ${def.tool.maxDurability} utilisations` : def?.consumable ? `🎒 À emporter · ${effectsLine(ctx, def.consumable.effects)}` : `📦 ${def?.category ?? 'Objet'}`;
+        lines.push(`**${o.emoji ?? ''} ${o.name}** — ${money(ctx, shop.currency, o.price + (objectOnly ? o.takeaway!.surcharge : 0))}${carry}\n${what}\n${qty ? '✅' : '❌'} Disponible : ${qty}`);
         if (qty) options.push({ label: o.name, value: o.id, emoji: o.emoji, description: `${money(ctx, shop.currency, o.price)} · ${qty} disponible(s)` });
       }
       out.push(box(lines.length ? lines.join('\n\n') : '*Aucun article pour ces filtres.*', w.accent));
@@ -273,7 +274,7 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
           [
             `## 🧾 ${offer.emoji ?? ''} ${offer.name}`,
             `**Prix de base :** ${money(ctx, cur, offer.price)}`,
-            `**Effets :** ${effectsLine(ctx, offer.effects)}`,
+            offer.effects.length || !offer.takeaway ? `**Effets :** ${effectsLine(ctx, offer.effects)}` : `**Objet :** ${itemName(ctx.world, offer.takeaway.item)}`,
             `**Bourse :** ${money(ctx, cur, p.stats[cur] ?? 0)}`,
             w.prompt ? `*${pickText(ctx, w.prompt)}*` : '',
           ]
@@ -282,7 +283,9 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
           w.accent,
         ),
       ];
-      if (!c.mode) {
+      if (!c.mode && !offer.effects.length && offer.takeaway) {
+        out.push(...rowOf([button(env.id('mode', 'takeaway'), `Acheter · ${money(ctx, cur, offer.price + offer.takeaway.surcharge)}`, 'success', '🛒')]));
+      } else if (!c.mode) {
         const b = [button(env.id('mode', 'place'), `🍽️ Sur place · ${money(ctx, cur, offer.price)}`, 'success')];
         if (offer.takeaway) b.push(button(env.id('mode', 'takeaway'), `🎒 À emporter · +${money(ctx, cur, offer.takeaway.surcharge)}`, 'primary'));
         out.push(...rowOf(b));
@@ -291,8 +294,8 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
         const result =
           c.mode === 'place'
             ? '⚡ Effets appliqués immédiatement'
-            : `🎒 Objet reçu : **${itemName(ctx.world, offer.takeaway!.item)}** · consommable plus tard`;
-        out.push(box(`### ${c.mode === 'place' ? '🍽️ Sur place' : '🎒 À emporter'}\n${result}\n**Total : ${money(ctx, cur, total)}**`, 0x37774c));
+            : `🎒 Objet reçu : **${itemName(ctx.world, offer.takeaway!.item)}**${offer.effects.length ? ' · consommable plus tard' : ''}`;
+        out.push(box(`### ${c.mode === 'place' ? '🍽️ Sur place' : offer.effects.length ? '🎒 À emporter' : '🛒 Achat'}\n${result}\n**Total : ${money(ctx, cur, total)}**`, 0x37774c));
         out.push(...rowOf([button(env.id('confirm'), 'Confirmer l’achat', 'success', '💰'), button(env.id('mode', ''), 'Changer de service')]));
       }
       out.push(...rowOf([button(env.id('cancel'), 'Annuler')]));
@@ -694,6 +697,15 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
         const next = nextLevel(ctx);
         lines.push(`${xpDef?.emoji ?? '⭐'} **${xpDef?.name ?? 'XP'} :** ${xp}${level ? ` · ${level.emoji ? level.emoji + ' ' : ''}**${level.name}**` : ''}${next ? ` (prochain : ${next.name} à ${next.minXp})` : ''}`);
       }
+      if (w.jobs && ctx.world.jobs.length) {
+        lines.push('', '**🛠️ Métiers**');
+        for (const j of ctx.world.jobs) {
+          const prog = p.jobs[j.id] ?? { xp: 0, level: 1 };
+          const max = j.maxLevel && prog.level >= j.maxLevel;
+          const next = prog.level * j.xpPerLevel;
+          lines.push(`${j.emoji ?? '•'} ${j.name} · **niv. ${prog.level}**${max ? ' (maximum)' : ` · ${prog.xp}/${next} XP`}`);
+        }
+      }
       const q = findQuest(ctx, p.quest?.id);
       lines.push('', q ? questCard(env, q, true) : '📜 *Aucune quête en cours : passe au panneau des quêtes de la Place.*');
       const out: RTopLevel[] = [box(lines.join('\n'), w.accent)];
@@ -782,7 +794,12 @@ export function activityLock(ctx: Ctx, mod: ActivityModule, a: ActivityDef): { t
   const until = p.cooldowns[activityKey(ctx, mod, a)];
   if (until && until > ctx.now) return { text: `Disponible dans ${mmss(until - ctx.now)}`, until };
   const v = evaluate(ctx, a.when);
-  if (!v.ok) return { text: v.reason.charAt(0).toUpperCase() + v.reason.slice(1) };
+  if (!v.ok) {
+    // Un métier trop bas s'explique toujours ; sinon le message choisi par l'auteur.
+    const custom = pickText(ctx, a.lockedText);
+    const reason = custom && !v.reason.startsWith('il faut être') ? custom : v.reason;
+    return { text: reason.charAt(0).toUpperCase() + reason.slice(1) };
+  }
   if (a.maxConcurrent) {
     const key = activityKey(ctx, mod, a);
     const busy = Object.values(ctx.state.players).filter((o) => o.activities?.[key] && ctx.now < o.activities[key]!.endsAt).length;
@@ -935,7 +952,7 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
       const offer = shop.offers.find((o) => o.id === c.offer);
       if (!offer) throw new RuleError('Commande introuvable.', back);
       if (verb === 'mode') {
-        c.mode = arg === 'takeaway' && !offer.takeaway ? '' : arg;
+        c.mode = (arg === 'takeaway' && !offer.takeaway) || (arg === 'place' && !offer.effects.length && offer.takeaway) ? '' : arg;
         return {};
       }
       if (verb === 'confirm') {

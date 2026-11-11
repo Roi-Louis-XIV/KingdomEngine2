@@ -1,7 +1,7 @@
 import type { WorldDef } from '../../../../packages/engine/src/index.ts';
 import { h, clear, field, selectField, toast, uniqueId } from '../ui.ts';
 import { can, draft, touch } from '../store.ts';
-import { effectsEditor } from '../editors.ts';
+import { effectsEditor, textEditor } from '../editors.ts';
 
 const TABS = [
   ['objets', 'Objets'],
@@ -9,6 +9,7 @@ const TABS = [
   ['bonus', 'Bonus'],
   ['metiers', 'Métiers'],
   ['variables', 'Variables du monde'],
+  ['serment', 'Serment d’arrivée'],
   ['regles', 'Règles générales'],
 ] as const;
 
@@ -101,6 +102,54 @@ export async function catalogPage(main: HTMLElement, params: string[]) {
           changed, redraw),
       );
       break;
+    case 'serment': {
+      const ob = w.onboarding;
+      if (!ob) {
+        body.append(
+          h(
+            'div',
+            { class: 'block' },
+            h('p', null, 'Sans serment, tout le monde voit les bâtiments du monde sur Discord. Avec un serment, un salon d’arrivée affiche tes règles et un bouton : le joueur qui le jure reçoit le rôle des habitants (qui ouvre les bâtiments) et sa dotation de départ, une seule fois.'),
+            can('editor')
+              ? h('button', {
+                  class: 'btn primary',
+                  onclick: () => {
+                    const money = w.stats.find((x) => x.kind === 'currency')?.id;
+                    w.onboarding = {
+                      enabled: true,
+                      channelName: 'serment',
+                      title: '📜 Le serment de ' + w.name,
+                      text: 'Avant d’entrer, jure de respecter les autres habitants et leurs créations, de ne pas tricher, et de suivre les indications de l’équipe.',
+                      button: 'Je le jure',
+                      buttonEmoji: '✋',
+                      roleName: '🛡️ Habitant',
+                      confirmation: 'Bienvenue ! Les bâtiments du monde te sont maintenant ouverts.',
+                      actions: money ? [{ type: 'stat.add', stat: money, amount: 100 }] : [],
+                    };
+                    changed();
+                    redraw();
+                  },
+                }, 'Demander un serment')
+              : null,
+          ),
+        );
+        break;
+      }
+      body.append(
+        h(
+          'div',
+          { class: 'form' },
+          h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: ob.enabled, onchange: (e: Event) => ((ob.enabled = (e.target as HTMLInputElement).checked), changed()) }), 'Serment obligatoire pour accéder aux bâtiments'),
+          h('div', { class: 'row-fields' }, field(ob, 'title', { label: 'Titre' }, changed), field(ob, 'channelName', { label: 'Salon d’arrivée', hint: 'Nom du salon Discord' }, changed)),
+          h('label', null, 'Texte du serment (tes règles)', textEditor(w, undefined, () => ob.text, (t) => ((ob.text = t), changed()), 6)),
+          h('div', { class: 'row-fields' }, field(ob, 'button', { label: 'Bouton' }, changed), field(ob, 'buttonEmoji', { label: 'Symbole du bouton' }, changed), field(ob, 'roleName', { label: 'Rôle donné', hint: 'Créé par le bot s’il n’existe pas' }, changed)),
+          h('label', null, 'Message de bienvenue', textEditor(w, undefined, () => ob.confirmation, (t) => ((ob.confirmation = t), changed()), 2)),
+          h('div', null, h('b', null, 'Dotation de départ'), h('p', { class: 'muted small' }, 'Donnée une seule fois, au premier serment.'), effectsEditor(w, ob.actions, changed)),
+          h('p', { class: 'muted' }, 'Après publication, utilise « Créer les salons manquants » puis « Remettre les salons en ordre » dans Discord & voix.'),
+        ),
+      );
+      break;
+    }
     case 'regles':
       body.append(
         h(

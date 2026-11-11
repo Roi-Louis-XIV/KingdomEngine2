@@ -88,7 +88,7 @@ test('quête réussie : récompenses, message, retour obligatoire au panneau', (
   const last = new Player(engine, 'louis', 'forge');
   assert.match(last.text, /Quête réussie : Premiers pas/);
   assert.match(last.text, /Retourne au panneau des quêtes/);
-  assert.equal(last.state.stats.ecus, 115);
+  assert.equal(last.state.stats.ecus, 15);
   assert.equal(last.state.stats.xp, 10);
   assert.deepEqual(last.state.questsDone, ['q01']);
   // Au panneau : nouvelles propositions, jamais la quête déjà faite.
@@ -121,6 +121,8 @@ test('compter : activités, recharge, quête ordonnée', () => {
   s.clock.advance(80);
   f.refresh().click('Récupérer');
   assert.equal(f.state.quest?.progress.abattre, 1);
+  assert.match(f.text, /Bûcheron/);
+  engine.adminApply('louis', undefined, [{ type: 'item.give', item: 'buche', qty: 2 }]);
   // 4 bûches apportées à la fête.
   const pl = new Player(engine, 'louis', 'place');
   pl.click('🎉 Fête & Trésor');
@@ -217,4 +219,45 @@ test('tous les écrans de tous les lieux respectent les limites Discord, à chaq
         assert.deepEqual(validateRendered(msg), [], `T+${t} ${b.id}/${s.id}`);
       }
   }
+});
+
+test('métiers : les gestes avancés demandent un niveau, l’expérience s’affiche dans la fiche', () => {
+  const { engine, clock } = started();
+  const f = new Player(engine, 'louis', 'foret');
+  assert.match(f.text, /🔒 Il faut être 🪓 Bûcheron niveau 2 \(tu es niveau 1\)/);
+  for (let i = 0; i < 7; i++) {
+    f.refresh().click('Lancer');
+    clock.advance(61);
+    f.refresh().click('Récupérer');
+    engine.adminApply('louis', undefined, [{ type: 'stat.set', stat: 'energie', value: 100 }]);
+  }
+  assert.equal(f.state.jobs.bucheron?.level, 2);
+  f.refresh().click('🎒 Mon inventaire');
+  assert.match(f.text, /🪓 Bûcheron · \*\*niv\. 2\*\* · 42\/80 XP/);
+});
+
+test('échoppes : acheter un outil, revendre ses ressources', () => {
+  const { engine } = started();
+  engine.adminApply('louis', undefined, [{ type: 'stat.add', stat: 'ecus', amount: 50 }, { type: 'item.give', item: 'poisson', qty: 3 }]);
+  const p = new Player(engine, 'louis', 'forge');
+  p.click('🛒 Échoppe');
+  assert.match(p.text, /L’étal de Wagner/);
+  p.choose(/Choisir un article/, 'pioche');
+  p.click(/Acheter · 22 écus/);
+  p.click('Confirmer l’achat');
+  assert.match(p.text, /Pioche ajouté à ton inventaire/);
+  assert.equal(p.state.items.pioche, 2);
+  const pont = new Player(engine, 'louis', 'pont');
+  pont.click('🛒 Échoppe').click('💰 Vendre mes ressources');
+  assert.match(pont.text, /Vendre à le vieux pêcheur|Vendre/);
+});
+
+test('serment : dotation une seule fois', () => {
+  const { engine } = started();
+  const first = engine.acceptOath('louis');
+  assert.equal(first.first, true);
+  assert.match(first.gains, /\+100 écus/);
+  const again = engine.acceptOath('louis');
+  assert.equal(again.first, false);
+  assert.equal(engine.snapshot().players.louis!.stats.ecus, 100);
 });
