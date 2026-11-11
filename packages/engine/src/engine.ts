@@ -12,6 +12,7 @@ import { createInitialState, newPlayer, syncStructure, type SessionState, type W
 import { type Ctx, type EngineEvent, RuleError, applyAction, describeChanges, evaluate, pickText } from './rules.ts';
 import { handleWidget, renderWidget, text, type WidgetEnv } from './widgets.ts';
 import { DEFAULT_TZ, describeSchedule, nextRun, rollWeather } from './clock.ts';
+import { dropExpiredQuest, questVisit } from './quests.ts';
 import type { EventDef } from './model.ts';
 import type { EventRunState } from './state.ts';
 
@@ -135,6 +136,8 @@ export class Engine {
       now: this.now(),
       changes: [],
       events: [],
+      notes: [],
+      random: this.random,
     };
   }
 
@@ -148,7 +151,13 @@ export class Engine {
     const sessionId = this.transact((draft) => {
       draft.players[playerId] ??= newPlayer(this.world);
       const id = this.newId();
-      draft.sessions[id] = { id, player: playerId, building: b.id, screen: b.homeScreen, ui: {}, createdAt: this.now() };
+      const session: SessionState = { id, player: playerId, building: b.id, screen: b.homeScreen, ui: {}, createdAt: this.now() };
+      draft.sessions[id] = session;
+      // Entrer dans un lieu fait avancer les quêtes « visiter ».
+      const ctx = this.ctx(draft, session);
+      dropExpiredQuest(ctx);
+      questVisit(ctx, b.id);
+      if (ctx.notes?.length) session.notice = ctx.notes.join('\n\n');
       return id;
     });
     return { sessionId, view: this.view(sessionId) };
@@ -269,7 +278,7 @@ export class Engine {
   tick(): EngineEvent[] {
     const draft = structuredClone(this.state);
     const ctx = this.worldCtx(draft);
-    const before = JSON.stringify([draft.weather, draft.events, draft.variables]);
+    const before = JSON.stringify(draft);
     const wdef = this.world.weather;
     if (wdef && wdef.states.length) {
       const cur = draft.weather;
@@ -292,7 +301,7 @@ export class Engine {
       if (st.nextRunAt === null) st.nextRunAt = nextRun(ev.schedule, ctx.now - 1, this.tz, st.startedAt);
       if (st.nextRunAt !== null && ctx.now >= st.nextRunAt) this.startEvent(ctx, ev, st);
     }
-    const changed = before !== JSON.stringify([draft.weather, draft.events, draft.variables]);
+    const changed = before !== JSON.stringify(draft);
     if (changed || ctx.events.length) {
       draft.revision += 1;
       this.state = draft;
@@ -572,6 +581,7 @@ export class Engine {
         const s = draft.sessions[sessionId!]!;
         const ctx = this.ctx(draft, s);
         s.notice = undefined;
+        dropExpiredQuest(ctx);
         if (kind === 'b') this.runButton(ctx, s, screen, path);
         else if (kind === 'w') {
           const block = locate(screen.blocks, path);
@@ -581,6 +591,7 @@ export class Engine {
           if (r.goto) this.enter(s, r.goto);
           if (r.notice) s.notice = r.notice;
         } else throw new RuleError('Interaction inconnue.');
+        if (ctx.notes?.length) s.notice = [s.notice, ...ctx.notes].filter(Boolean).join('\n\n');
         return ctx.events;
       });
     } catch (e) {

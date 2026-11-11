@@ -41,7 +41,13 @@ export type Condition =
   | { type: 'item'; item: Id; op: CompareOp; value: number; inventory?: Id }
   | { type: 'modifierActive'; modifier?: Id }
   /** Le joueur possède cet outil, en état de servir (durabilité ≥ minDurability, 1 par défaut). */
-  | { type: 'tool'; item: Id; minDurability?: number };
+  | { type: 'tool'; item: Id; minDurability?: number }
+  /** Compare deux variables du monde (ex. votes pour / votes contre). */
+  | { type: 'compare'; left: Id; op: CompareOp; right: Id }
+  /** Avancement d'un objectif commun, en pourcentage (100 = atteint). */
+  | { type: 'objective'; building: Id; objective: Id; op: CompareOp; value: number }
+  /** État d'une quête pour le joueur. */
+  | { type: 'quest'; quest: Id; status: 'done' | 'active' | 'none' };
 
 // ---------------------------------------------------------------------------
 // Actions : exécutées dans une transaction atomique (tout ou rien)
@@ -58,8 +64,20 @@ export type Action =
   | { type: 'job.setLevel'; job: Id; level: number }
   | { type: 'modifier.apply'; modifier: Id; durationSec: number }
   | { type: 'variable.set'; variable: Id; value: string | number }
-  /** Joue un son de la médiathèque dans le vocal du bâtiment (si une présence vocale est active). */
-  | { type: 'audio.play'; sound: Id }
+  /** Joue un son de la médiathèque dans le vocal du bâtiment (celui de l'action, ou `building`). */
+  | { type: 'audio.play'; sound: Id; building?: Id }
+  /** Ajoute (ou retire) une valeur numérique à une variable du monde. */
+  | { type: 'variable.add'; variable: Id; amount: number }
+  /** Si / sinon : actions selon une condition (branches du scénario). */
+  | { type: 'if'; when: Condition; then: Action[]; else?: Action[] }
+  /** Applique des actions à chaque joueur connu (récompense collective). */
+  | { type: 'players.each'; actions: Action[] }
+  /** Fait avancer les quêtes du joueur qui comptent ce repère. */
+  | { type: 'quest.tag'; tag: string; amount?: number }
+  /** Annonce publique dans le salon d'annonces. */
+  | { type: 'announce'; text: Text }
+  /** Contribue directement à un objectif commun (sans objet à livrer). */
+  | { type: 'objective.add'; building: Id; objective: Id; item: Id; qty: number }
   /** Use un outil du joueur. Échoue si l'outil est absent ou cassé. */
   | { type: 'tool.wear'; item: Id; amount: number }
   /** Répare un outil (entièrement si amount est omis). */
@@ -160,7 +178,65 @@ export interface WorldDef {
   variables: VariableDef[];
   /** Ce que reçoit un nouveau joueur. */
   newPlayer?: { items?: Record<Id, number> };
+  /** Quêtes personnelles (panneau des quêtes). */
+  quests?: QuestSystem;
   buildings: BuildingDef[];
+}
+
+// ---------------------------------------------------------------------------
+// Quêtes personnelles
+// ---------------------------------------------------------------------------
+
+export interface QuestLevel {
+  name: string;
+  emoji?: string;
+  /** XP minimale pour atteindre ce niveau. */
+  minXp: number;
+  /** Chances relatives de proposer une quête ★, ★★, ★★★. */
+  weights: [number, number, number];
+}
+
+export interface QuestSystem {
+  /** Statistique servant d'XP (gagnée par les quêtes, fixe le niveau). */
+  xpStat: Id;
+  levels: QuestLevel[];
+  /** Nombre de quêtes proposées sur le panneau. */
+  offers: number;
+  /** Délai entre deux nouveaux tirages demandés par le joueur. */
+  rerollMinutes: number;
+  /** Récompenses par difficulté, ajoutées à celles de la quête. */
+  rewards?: Partial<Record<'1' | '2' | '3', Action[]>>;
+  quests: QuestDef[];
+}
+
+export type QuestStep =
+  /** Visiter un bâtiment ; sans bâtiment : visiter `count` lieux différents. */
+  | { id: Id; kind: 'visit'; label: string; building?: Id; count?: number }
+  /** Livrer des objets (bouton « Livrer » dans l'inventaire, dans le bâtiment indiqué). */
+  | { id: Id; kind: 'deliver'; label: string; item: Id; qty: number; building: Id }
+  /** Compter des repères (activité récupérée, achat, dialogue, action quest.tag…). */
+  | { id: Id; kind: 'count'; label: string; tags: string[]; target: number };
+
+export interface QuestDef {
+  id: Id;
+  name: string;
+  emoji?: string;
+  /** Personnage qui confie la quête. */
+  giver?: string;
+  difficulty: 1 | 2 | 3;
+  description?: Text;
+  /** Fenêtre de disponibilité (phase du scénario…). */
+  when?: Condition;
+  /** Toujours proposée en premier tant qu'elle est disponible et non faite (tutoriel). */
+  featured?: boolean;
+  /** Une seule personne à la fois peut la mener. */
+  unique?: boolean;
+  /** Étapes à faire dans l'ordre. */
+  ordered?: boolean;
+  steps: QuestStep[];
+  rewards: Action[];
+  /** Texte affiché à la réussite. */
+  success?: Text;
 }
 
 // ---------------------------------------------------------------------------
@@ -406,6 +482,10 @@ export interface ActivityDef {
   results: ActivityResult[];
   /** Bonus qui augmentent les objets obtenus (valeur du bonus : 0.10 = +10 %). */
   boostedBy?: Id[];
+  /** Rendement selon l'état du monde : le premier facteur dont la condition est vraie s'applique aux objets reçus. */
+  multipliers?: { when: Condition; factor: number; label?: string }[];
+  /** Nombre maximal de joueurs menant cette activité en même temps. */
+  maxConcurrent?: number;
 }
 
 export interface ActivityModule {
@@ -426,6 +506,12 @@ export interface ObjectiveModule {
   currency?: Id;
   unitRewards?: Record<Id, number>;
   quantities: number[];
+  /** L'objectif n'accepte de contributions que si… (fenêtre du scénario). */
+  when?: Condition;
+  /** Message affiché quand il est fermé. */
+  closedText?: Text;
+  /** XP (ou autre statistique) gagnée par unité apportée. */
+  xpPerUnit?: { stat: Id; amount: number };
   /** Quand l'objectif est atteint : actions sur le monde (variable.set…) et annonce. */
   onComplete?: { actions: Action[]; announce?: Text };
 }
@@ -458,7 +544,7 @@ export type Block =
 
 export type WidgetDef =
   | { kind: 'player.status'; title?: string; stats: Id[]; showModifier?: boolean; accent?: number }
-  | { kind: 'player.consumables'; title?: string; accent?: number }
+  | { kind: 'player.consumables'; title?: string; accent?: number; /** Montre aussi les objets non consommables. */ all?: boolean }
   | { kind: 'shop.catalog'; shop: Id; checkoutScreen: Id; accent?: number; filters?: boolean }
   | { kind: 'shop.checkout'; backScreen: Id; prompt?: Text; accent?: number }
   | { kind: 'production.stations'; production: Id; recipeScreen: Id }
@@ -473,7 +559,13 @@ export type WidgetDef =
   | { kind: 'dice'; dice: Id; accent?: number }
   | { kind: 'activity.board'; activity: Id; accent?: number }
   | { kind: 'objective.board'; objective: Id; accent?: number }
-  | { kind: 'player.tools'; title?: string; repair?: { currency: Id; costPerPoint: number }; accent?: number };
+  | { kind: 'player.tools'; title?: string; repair?: { currency: Id; costPerPoint: number }; accent?: number }
+  /** Panneau des quêtes : propositions, choix, abandon, nouveau tirage. */
+  | { kind: 'quest.board'; title?: string; accent?: number }
+  /** Fiche du joueur : statistiques, XP et niveau, quête en cours (bouton Livrer si besoin). */
+  | { kind: 'player.sheet'; stats: Id[]; accent?: number }
+  /** Classement des joueurs selon une statistique. */
+  | { kind: 'ranking'; stat: Id; title?: string; limit?: number; accent?: number };
 
 export interface ScreenDef {
   id: Id;

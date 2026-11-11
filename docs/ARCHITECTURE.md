@@ -78,6 +78,12 @@ Détails techniques :
 - Un jeton d’interaction Discord vit 15 minutes : passé ce délai sans clic, l’interface n’est plus rafraîchie automatiquement (le prochain clic la remet à jour).
 - Permissions du bot : Voir les salons, Envoyer des messages, Lire l’historique, Gérer les messages, Gérer les salons, Gérer les rôles (pour les permissions de salon), Se connecter. Intents : Guilds, GuildVoiceStates, GuildMessages (aucun intent privilégié).
 
+## Quêtes personnelles
+
+- `world.quests` : statistique d’XP, niveaux (chances ★ / ★★ / ★★★), nombre de propositions, délai de nouveau tirage, récompenses par difficulté, liste des quêtes (fenêtre de disponibilité, étapes, récompenses propres).
+- Le widget `quest.board` affiche les propositions (tirage reproductible : stables d’un affichage à l’autre, renouvelées après une quête, un abandon ou un nouveau tirage). Le joueur en choisit **une**. Le widget `player.sheet` montre endurance, ivresse, XP, niveau et la quête en cours, avec un bouton « Livrer » dans le bon bâtiment.
+- L’avancement passe par des **repères** émis par le moteur (activité récupérée, apport à un objectif, achat, dialogue, dés gagnés, objet consommé, réparation) ou par l’action `quest.tag`. Entrer dans un lieu compte pour les étapes « visiter ». Une quête dont la fenêtre se ferme est rendue sans pénalité.
+
 ## Voix
 
 - `voice/planner.ts` : un bâtiment dont le salon vocal contient au moins un joueur, et qui a une configuration audio, demande une **présence** (identité du personnage, ambiance selon les variables du monde).

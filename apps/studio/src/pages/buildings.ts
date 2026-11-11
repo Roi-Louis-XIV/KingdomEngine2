@@ -751,6 +751,9 @@ const WIDGETS: { kind: WidgetDef['kind']; label: string; needs?: ModuleDef['type
   { kind: 'activity.board', label: 'Tableau des activités', needs: 'activity' },
   { kind: 'objective.board', label: 'Objectif collectif', needs: 'objective' },
   { kind: 'player.tools', label: 'Outils du joueur (et réparation)' },
+  { kind: 'quest.board', label: 'Panneau des quêtes' },
+  { kind: 'player.sheet', label: 'Fiche du joueur (XP, quête en cours)' },
+  { kind: 'ranking', label: 'Tableau d’honneur' },
 ];
 
 function newWidget(kind: WidgetDef['kind'], b: BuildingDef, w: WorldDef, screen: ScreenDef): WidgetDef {
@@ -785,6 +788,12 @@ function newWidget(kind: WidgetDef['kind'], b: BuildingDef, w: WorldDef, screen:
       return { kind, objective: mod('objective') };
     case 'player.tools':
       return { kind, repair: w.stats.find((s) => s.kind === 'currency') ? { currency: w.stats.find((s) => s.kind === 'currency')!.id, costPerPoint: 1 } : undefined };
+    case 'quest.board':
+      return { kind };
+    case 'player.sheet':
+      return { kind, stats: w.stats.filter((s) => s.kind === 'gauge').map((s) => s.id) };
+    case 'ranking':
+      return { kind, stat: w.quests?.xpStat ?? w.stats[0]?.id ?? '' };
   }
 }
 

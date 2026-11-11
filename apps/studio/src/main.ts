@@ -7,6 +7,7 @@ import { overviewPage } from './pages/overview.ts';
 import { playersPage, playerPage } from './pages/players.ts';
 import { buildingsPage, buildingPage } from './pages/buildings.ts';
 import { catalogPage } from './pages/catalog.ts';
+import { questsPage } from './pages/quests.ts';
 import { testPage, publishPage } from './pages/publish.ts';
 import { discordPage } from './pages/discord.ts';
 import { mediaPage } from './pages/media.ts';
@@ -32,6 +33,7 @@ const NAV: NavItem[] = [
   { route: 'joueurs', label: 'Joueurs', icon: '☺', page: playersPage, group: 'Superviser' },
   { route: 'journal', label: 'Journal', icon: '☰', page: journalPage, group: 'Superviser' },
   { route: 'batiments', label: 'Bâtiments', icon: '⌂', page: buildingsPage, group: 'Créer' },
+  { route: 'quetes', label: 'Quêtes', icon: '❖', page: questsPage, group: 'Créer' },
   { route: 'catalogue', label: 'Objets & règles', icon: '◇', page: catalogPage, group: 'Créer' },
   { route: 'evenements', label: 'Météo & événements', icon: '☁', page: eventsPage, group: 'Créer' },
   { route: 'tester', label: 'Tester', icon: '▷', page: testPage, group: 'Créer' },

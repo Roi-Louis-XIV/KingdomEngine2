@@ -29,7 +29,10 @@ Moteur générique et atomique, Taverne d’Edgar V11 en pur contenu, émulateur
 - ✅ Météo automatique : temps pondérés, durées aléatoires, annonces, forçage et suspension depuis le Studio ; elle pilote une variable dont dépendent textes, activités, ambiances.
 - ✅ Événements : manuels, quotidiens (jours au choix), à intervalle, à date unique ; étapes chronologiques ; actions et annonces de début et de fin ; démarrer / pause / reprendre / arrêter / redémarrer ; programmation activable ; reprise après redémarrage du serveur.
 - ✅ Page « En direct » (supervision et pilotage), éditeur « Météo & événements », salon d’annonces Discord.
-- ⏳ Quêtes ; saisons et cycle jour/nuit ; lieux, voyages, carte ; groupes d’ambiance multicouches ; réactions vocales des personnages.
+- ✅ Quêtes personnelles : panneau (propositions tirées selon le niveau d’XP, une quête à la fois, nouveau tirage), étapes visiter / livrer / compter, récompenses par difficulté, fiche du joueur dans « Mon inventaire », page Studio « Quêtes ».
+- ✅ Primitives de scénario : conditions sur objectif (%) / quête / comparaison de variables, actions si/sinon, compteur, pour chaque joueur, annonce, contribution directe ; objectifs à fenêtre, XP par unité ; rendements selon l’état du monde ; actions collectives limitées ; tableau d’honneur. L’essai du Studio lance les événements et fait avancer le temps.
+- ✅ Bêta « La Nuit de la Sainte Pelle » (`content/sainte-pelle`, généré par `scripts/content/sainte-pelle.mjs`) : 3 h, 8 lieux, 36 quêtes, 7 objectifs, 4 fins.
+- ⏳ Saisons et cycle jour/nuit ; lieux, voyages, carte ; groupes d’ambiance multicouches ; réactions vocales des personnages.
 
 ## Phase 4 — Produit
 Bibliothèque de modèles (officiels et communautaires), Académie et tutoriels, journaux plateforme, Support Mode, modèles « Royaume médiéval » et « Station spatiale ».

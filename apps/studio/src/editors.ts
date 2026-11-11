@@ -23,7 +23,16 @@ const EFFECT_TYPES: { value: Action['type']; label: string }[] = [
   { value: 'tool.wear', label: 'User un outil' },
   { value: 'tool.repair', label: 'Réparer un outil' },
   { value: 'stat.set', label: 'Fixer une statistique' },
+  { value: 'variable.add', label: 'Ajouter à une variable (compteur)' },
+  { value: 'objective.add', label: 'Contribuer à un objectif commun' },
+  { value: 'quest.tag', label: 'Faire avancer les quêtes (repère)' },
+  { value: 'announce', label: 'Publier une annonce' },
+  { value: 'if', label: 'Si… sinon… (branche)' },
+  { value: 'players.each', label: 'Pour chaque joueur…' },
 ];
+
+const objectiveOptions = (w: WorldDef) =>
+  w.buildings.flatMap((b) => b.modules.filter((m) => m.type === 'objective').map((m) => ({ value: `${b.id}/${m.id}`, label: `${b.emoji ?? ''} ${b.name} › ${m.name}`.trim() })));
 
 function defaultAction(type: Action['type'], w: WorldDef): Action {
   switch (type) {
@@ -50,6 +59,21 @@ function defaultAction(type: Action['type'], w: WorldDef): Action {
       return { type, item: w.items.find((i) => i.tool)?.id ?? '' };
     case 'stat.set':
       return { type, stat: w.stats[0]?.id ?? '', value: 0 };
+    case 'variable.add':
+      return { type, variable: w.variables.find((v) => !v.options)?.id ?? w.variables[0]?.id ?? '', amount: 1 };
+    case 'objective.add': {
+      const [b, m] = (objectiveOptions(w)[0]?.value ?? '/').split('/');
+      const goals = w.buildings.find((x) => x.id === b)?.modules.find((x) => x.id === m);
+      return { type, building: b ?? '', objective: m ?? '', item: goals?.type === 'objective' ? (Object.keys(goals.goals)[0] ?? '') : '', qty: 1 };
+    }
+    case 'quest.tag':
+      return { type, tag: 'mon-repere' };
+    case 'announce':
+      return { type, text: '📣 Nouvelle !' };
+    case 'if':
+      return { type, when: { type: 'variable', variable: w.variables[0]?.id ?? '', op: 'eq', value: w.variables[0]?.options?.[0]?.value ?? '' }, then: [], else: [] };
+    case 'players.each':
+      return { type, actions: [] };
     default:
       return { type: 'stat.add', stat: w.stats[0]?.id ?? '', amount: 10 };
   }
@@ -114,6 +138,47 @@ export function effectsEditor(w: WorldDef, list: Action[], onChange: () => void,
                 ? selectField(null, a.sound, sounds.map((s) => ({ value: s, label: s })), (v) => set({ sound: v }), { allowEmpty: 'Choisir un son…' })
                 : h('input', { value: a.sound, placeholder: 'clé du son', oninput: (e: Event) => set({ sound: (e.target as HTMLInputElement).value }) }),
             ];
+            break;
+          case 'variable.add':
+            fields = [selectField(null, a.variable, opts.variables(w), (v) => set({ variable: v })), num(a.amount, (n) => set({ amount: n }), { 'aria-label': 'Montant' })];
+            break;
+          case 'quest.tag':
+            fields = [h('input', { value: a.tag, placeholder: 'repère', 'aria-label': 'Repère de quête', oninput: (e: Event) => set({ tag: (e.target as HTMLInputElement).value }) }), num(a.amount ?? 1, (n) => set({ amount: Math.max(1, n) }), { min: 1, 'aria-label': 'Quantité' })];
+            break;
+          case 'announce':
+            fields = [h('input', { value: typeof a.text === 'string' ? a.text : '', placeholder: 'Texte de l’annonce', class: 'wide', oninput: (e: Event) => set({ text: (e.target as HTMLInputElement).value }) })];
+            break;
+          case 'objective.add': {
+            const goals = w.buildings.find((x) => x.id === a.building)?.modules.find((x) => x.id === a.objective);
+            const items = goals?.type === 'objective' ? Object.keys(goals.goals).map((id) => opts.items(w).find((o) => o.value === id) ?? { value: id, label: id }) : [];
+            fields = [
+              selectField(null, `${a.building}/${a.objective}`, objectiveOptions(w), (v) => {
+                const [b, m] = v.split('/');
+                const g = w.buildings.find((x) => x.id === b)?.modules.find((x) => x.id === m);
+                set({ building: b, objective: m, item: g?.type === 'objective' ? (Object.keys(g.goals)[0] ?? '') : '' });
+                draw();
+              }),
+              items.length ? selectField(null, a.item, items, (v) => set({ item: v })) : h('span', { class: 'muted' }, 'objectif vide'),
+              num(a.qty, (n) => set({ qty: Math.max(1, n) }), { min: 1, 'aria-label': 'Quantité' }),
+            ];
+            break;
+          }
+          case 'if':
+            fields = [
+              h(
+                'div',
+                { class: 'effect-branch' },
+                h('span', { class: 'muted' }, 'Si'),
+                conditionEditor(w, undefined, a.when, (c) => set({ when: c ?? { type: 'all', conditions: [] } })),
+                h('span', { class: 'muted' }, 'alors'),
+                effectsEditor(w, a.then, onChange, sounds),
+                h('span', { class: 'muted' }, 'sinon'),
+                effectsEditor(w, (a.else ??= []), onChange, sounds),
+              ),
+            ];
+            break;
+          case 'players.each':
+            fields = [h('div', { class: 'effect-branch' }, effectsEditor(w, a.actions, onChange, sounds))];
             break;
           default:
             fields = [h('code', null, JSON.stringify(a))];
@@ -214,6 +279,9 @@ const COND_TYPES: { value: string; label: string }[] = [
   { value: 'tool', label: 'Possède un outil en état' },
   { value: 'variable', label: 'Variable du monde' },
   { value: 'modifierActive', label: 'Bonus actif' },
+  { value: 'objective', label: 'Avancement d’un objectif commun' },
+  { value: 'quest', label: 'État d’une quête' },
+  { value: 'compare', label: 'Comparer deux variables' },
   { value: 'all', label: 'Toutes ces conditions' },
   { value: 'any', label: 'Au moins une de ces conditions' },
 ];
@@ -246,6 +314,14 @@ function newCondition(type: string, w: WorldDef): Condition {
       return { type: 'modifierActive' };
     case 'any':
       return { type: 'any', conditions: [] };
+    case 'objective': {
+      const [b, m] = (objectiveOptions(w)[0]?.value ?? '/').split('/');
+      return { type: 'objective', building: b ?? '', objective: m ?? '', op: 'gte', value: 100 };
+    }
+    case 'quest':
+      return { type: 'quest', quest: w.quests?.quests[0]?.id ?? '', status: 'done' };
+    case 'compare':
+      return { type: 'compare', left: w.variables[0]?.id ?? '', op: 'gt', right: w.variables[1]?.id ?? w.variables[0]?.id ?? '' };
     default:
       return { type: 'all', conditions: [] };
   }
@@ -302,13 +378,46 @@ export function conditionEditor(w: WorldDef, b: BuildingDef | undefined, value: 
         const v = w.variables.find((x) => x.id === inner.variable);
         fields.push(
           selectField(null, inner.variable, opts.variables(w), (x) => setInner({ type: 'variable', variable: x, op: 'eq', value: w.variables.find((y) => y.id === x)?.options?.[0]?.value ?? '' })),
-          selectField(null, inner.op === 'neq' ? 'neq' : 'eq', [{ value: 'eq', label: '=' }, { value: 'neq', label: '≠' }], (x) => setInner({ ...inner, op: x as CompareOp })),
+          v?.options
+            ? selectField(null, inner.op === 'neq' ? 'neq' : 'eq', [{ value: 'eq', label: '=' }, { value: 'neq', label: '≠' }], (x) => setInner({ ...inner, op: x as CompareOp }))
+            : selectField(null, inner.op, OPS, (x) => setInner({ ...inner, op: x as CompareOp })),
           v?.options
             ? selectField(null, String(inner.value), v.options.map((o) => ({ value: o.value, label: o.label })), (x) => setInner({ ...inner, value: x }))
-            : h('input', { value: String(inner.value), oninput: (e: Event) => setInner({ ...inner, value: (e.target as HTMLInputElement).value }) }),
+            : h('input', {
+                value: String(inner.value),
+                class: 'num',
+                oninput: (e: Event) => {
+                  const raw = (e.target as HTMLInputElement).value;
+                  setInner({ ...inner, value: raw.trim() !== '' && !Number.isNaN(Number(raw)) ? Number(raw) : raw });
+                },
+              }),
         );
         break;
       }
+      case 'objective':
+        fields.push(
+          selectField(null, `${inner.building}/${inner.objective}`, objectiveOptions(w), (x) => {
+            const [bb, m] = x.split('/');
+            setInner({ ...inner, building: bb ?? '', objective: m ?? '' });
+          }),
+          selectField(null, inner.op, OPS, (x) => setInner({ ...inner, op: x as CompareOp })),
+          num(inner.value, (n) => setInner({ ...inner, value: n })),
+          h('span', { class: 'unit' }, '%'),
+        );
+        break;
+      case 'quest':
+        fields.push(
+          selectField(null, inner.quest, (w.quests?.quests ?? []).map((q) => ({ value: q.id, label: q.name })), (x) => setInner({ ...inner, quest: x })),
+          selectField(null, inner.status, [{ value: 'done', label: 'réussie' }, { value: 'active', label: 'en cours' }, { value: 'none', label: 'pas commencée' }], (x) => setInner({ ...inner, status: x as 'done' })),
+        );
+        break;
+      case 'compare':
+        fields.push(
+          selectField(null, inner.left, opts.variables(w), (x) => setInner({ ...inner, left: x })),
+          selectField(null, inner.op, OPS, (x) => setInner({ ...inner, op: x as CompareOp })),
+          selectField(null, inner.right, opts.variables(w), (x) => setInner({ ...inner, right: x })),
+        );
+        break;
       case 'modifierActive':
         fields.push(selectField(null, inner.modifier ?? '', opts.modifiers(w), (v) => setInner({ type: 'modifierActive', modifier: v || undefined }), { allowEmpty: 'n’importe lequel' }));
         break;

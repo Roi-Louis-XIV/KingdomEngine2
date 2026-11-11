@@ -23,7 +23,10 @@ import {
   itemName,
   jobProgress,
   pickText,
+  contributeObjective,
 } from './rules.ts';
+import { STARS, abandonQuest, acceptQuest, currentOffers, findQuest, nextLevel, questDeliver, questLevel, questTag, rerollOffers, stepDone, stepTarget } from './quests.ts';
+import type { QuestDef } from './model.ts';
 
 export interface WidgetEnv {
   ctx: Ctx;
@@ -95,7 +98,7 @@ export function effectsLine(ctx: Ctx, effects: Action[]): string {
   for (const e of effects) {
     if (e.type === 'stat.add') {
       const def = findStat(ctx.world, e.stat);
-      parts.push(`${def?.emoji ?? ''} ${e.amount >= 0 ? '+' : ''}${e.amount} ${(def?.name ?? e.stat).toLowerCase()}`.trim());
+      parts.push(`${def?.emoji ?? ''} ${e.amount >= 0 ? '+' : ''}${e.amount} ${def?.unit ?? (def?.name ?? e.stat).toLowerCase()}`.trim());
     } else if (e.type === 'modifier.apply') {
       const m = findModifier(ctx.world, e.modifier);
       parts.push(`${m?.emoji ?? '✨'} ${m?.name ?? e.modifier} (${Math.round(e.durationSec / 60)} min)`);
@@ -182,8 +185,9 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
             .concat(
               owned.length
                 ? owned.map(([id, q]) => `**${itemName(ctx.world, id)}** ×${q}\n${effectsLine(ctx, findItem(ctx.world, id)!.consumable!.effects)}`)
-                : ['*Ton inventaire est vide.*'],
+                : [w.all ? '*Rien à consommer.*' : '*Ton inventaire est vide.*'],
             )
+            .concat(w.all ? [inventoryLines(ctx)] : [])
             .join('\n\n'),
           w.accent,
         ),
@@ -573,6 +577,10 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
       if (top.length) lines.push(`🏅 ${top.map(([id, n]) => `<@${id}> (${n})`).join(' · ')}`);
       const out: RTopLevel[] = [box(lines.join('\n'), w.accent ?? 0x526d52)];
       if (st.completedAt) return out;
+      if (mod.when && !evaluate(ctx, mod.when).ok) {
+        out.push(text(`*${pickText(ctx, mod.closedText) || 'Les contributions sont fermées pour l’instant.'}*`));
+        return out;
+      }
       const sel = env.ui(`objective:${mod.id}`, () => ({ item: '', qty: 1 }));
       const usable = goals.filter(([it, g]) => (p.items[it] ?? 0) > 0 && (st.progress[it] ?? 0) < g);
       if (!usable.length) {
@@ -638,6 +646,81 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
       return out;
     }
 
+    case 'quest.board': {
+      const sys = ctx.world.quests;
+      if (!sys) return [box('⚠️ Aucune quête n’est configurée dans ce monde.')];
+      const current = findQuest(ctx, p.quest?.id);
+      if (current) {
+        return [
+          box(`### ${w.title ?? '📜 Panneau des quêtes'}\nTu mènes déjà une quête. Termine-la avant d’en choisir une autre.\n\n${questCard(env, current, true)}`, w.accent),
+          { type: 'row', items: [button(env.id('abandon'), 'Abandonner cette quête', 'danger', '✖️')] },
+        ];
+      }
+      const offers = currentOffers(ctx);
+      const level = questLevel(ctx);
+      const children: RContainer['children'] = [
+        text(`### ${w.title ?? '📜 Panneau des quêtes'}\n${level ? `Ton niveau : **${level.emoji ? level.emoji + ' ' : ''}${level.name}**. ` : ''}Choisis **une** quête. Quand elle sera réussie, reviens ici pour en prendre une autre.`),
+      ];
+      if (!offers.length) children.push(text('*Aucune quête disponible pour l’instant. Repasse plus tard !*'));
+      offers.forEach((q) => {
+        children.push({ type: 'separator' });
+        children.push({ type: 'section', texts: [text(questCard(env, q, false))], accessory: button(env.id('accept', q.id), 'Choisir', 'success', '✅') });
+      });
+      const out: RTopLevel[] = [{ type: 'container', accent: w.accent, children }];
+      const until = (p.questRerollAt ?? 0) + sys.rerollMinutes * 60_000;
+      if (p.questRerollAt && ctx.now < until) {
+        env.wake(Math.min(until, ctx.now + 60_000));
+        out.push({ type: 'row', items: [{ ...button(env.id('reroll'), `Autres quêtes dans ${Math.ceil((until - ctx.now) / 60_000)} min`, 'secondary', '🎲'), disabled: true }] });
+      } else if (offers.length) out.push({ type: 'row', items: [button(env.id('reroll'), 'Autres quêtes', 'secondary', '🎲')] });
+      return out;
+    }
+
+    case 'player.sheet': {
+      const lines = ['### 🧾 Ta fiche'];
+      for (const id of w.stats) {
+        const def = findStat(ctx.world, id);
+        if (!def) continue;
+        const v = p.stats[id] ?? def.initial;
+        let line = `${def.emoji ?? ''} **${def.name} :** ${def.kind === 'currency' ? money(ctx, id, v) : v}`.trim();
+        if (def.max !== undefined) line += `/${def.max}`;
+        if (def.kind === 'gauge' && def.max) line += `  \`${gauge(v, def.max)}\``;
+        lines.push(line);
+      }
+      const sys = ctx.world.quests;
+      if (sys) {
+        const xp = p.stats[sys.xpStat] ?? 0;
+        const xpDef = findStat(ctx.world, sys.xpStat);
+        const level = questLevel(ctx);
+        const next = nextLevel(ctx);
+        lines.push(`${xpDef?.emoji ?? '⭐'} **${xpDef?.name ?? 'XP'} :** ${xp}${level ? ` · ${level.emoji ? level.emoji + ' ' : ''}**${level.name}**` : ''}${next ? ` (prochain : ${next.name} à ${next.minXp})` : ''}`);
+      }
+      const q = findQuest(ctx, p.quest?.id);
+      lines.push('', q ? questCard(env, q, true) : '📜 *Aucune quête en cours : passe au panneau des quêtes de la Place.*');
+      const out: RTopLevel[] = [box(lines.join('\n'), w.accent)];
+      if (q) {
+        const btns = q.steps
+          .filter((st) => st.kind === 'deliver' && st.building === ctx.building.id && !stepDone(ctx, st) && (p.items[st.item] ?? 0) > 0)
+          .filter((st, i, all) => !q.ordered || q.steps.find((x) => !stepDone(ctx, x)) === st || all.length === 0)
+          .map((st) => button(env.id('deliver', st.id), `Livrer : ${st.label}`.slice(0, 80), 'success', '📦'));
+        out.push(...rowOf(btns));
+      }
+      return out;
+    }
+
+    case 'ranking': {
+      const def = findStat(ctx.world, w.stat);
+      const rows = Object.entries(ctx.state.players)
+        .map(([id, pl]) => ({ id, v: pl.stats[w.stat] ?? 0 }))
+        .filter((r) => r.v > 0)
+        .sort((a, b) => b.v - a.v)
+        .slice(0, w.limit ?? 10);
+      const medals = ['🥇', '🥈', '🥉'];
+      const lines = [`### ${w.title ?? '🏅 Classement'}`];
+      rows.forEach((r, i) => lines.push(`${medals[i] ?? `**${i + 1}.**`} <@${r.id}> — ${r.v} ${def?.unit ?? def?.name ?? ''}`.trim()));
+      if (!rows.length) lines.push('*Personne pour l’instant.*');
+      return [box(lines.join('\n'), w.accent)];
+    }
+
     case 'dice': {
       const dice = findModule(ctx.building, w.dice, 'dice');
       const st = env.local(() => ({ me: [] as number[], them: [] as number[], rounds: 0 }));
@@ -659,6 +742,36 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
   }
 }
 
+/** Objets non consommables du joueur, regroupés par catégorie. */
+function inventoryLines(ctx: Ctx): string {
+  const groups = new Map<string, string[]>();
+  for (const [id, q] of Object.entries(ctx.player.items)) {
+    const def = findItem(ctx.world, id);
+    if (!def || q <= 0 || def.consumable) continue;
+    const cat = def.category ?? 'Objets';
+    const dur = def.tool ? ` (${ctx.player.tools[id] ?? def.tool.maxDurability}/${def.tool.maxDurability})` : '';
+    (groups.get(cat) ?? groups.set(cat, []).get(cat)!).push(`${itemName(ctx.world, id)} ×${q}${dur}`);
+  }
+  if (!groups.size) return '**🧺 Sac :** *vide*';
+  return [...groups].map(([cat, list]) => `**${cat} :** ${list.join(' · ')}`).join('\n');
+}
+
+/** Carte d'une quête : titre, donneur, difficulté, étapes (avec avancement si en cours), récompense. */
+function questCard(env: WidgetEnv, q: QuestDef, active: boolean): string {
+  const { ctx } = env;
+  const sys = ctx.world.quests!;
+  const head = `**${q.emoji ?? '📜'} ${q.name}** ${STARS[q.difficulty]}${q.giver ? ` · ${q.giver}` : ''}`;
+  const desc = pickText(ctx, q.description);
+  const steps = q.steps.map((s) => {
+    const target = stepTarget(s);
+    const done = active ? Math.min(target, ctx.player.quest?.progress[s.id] ?? 0) : 0;
+    const count = target > 1 ? ` (${done}/${target})` : '';
+    return active ? `${done >= target ? '✅' : '▫️'} ${s.label}${count}` : `• ${s.label}${target > 1 ? ` (${target})` : ''}`;
+  });
+  const reward = effectsLine(ctx, [...(sys.rewards?.[String(q.difficulty) as '1' | '2' | '3'] ?? []), ...q.rewards]);
+  return [head, desc ? `*${desc}*` : '', ...steps, `🎁 ${reward}`].filter(Boolean).join('\n');
+}
+
 const duration = (sec: number) => (sec < 60 ? `${sec} s` : sec % 60 ? `${Math.floor(sec / 60)} min ${sec % 60} s` : `${sec / 60} min`);
 
 export const activityKey = (ctx: Ctx, mod: ActivityModule, a: ActivityDef) => `${ctx.building.id}/${mod.id}/${a.id}`;
@@ -670,6 +783,11 @@ export function activityLock(ctx: Ctx, mod: ActivityModule, a: ActivityDef): { t
   if (until && until > ctx.now) return { text: `Disponible dans ${mmss(until - ctx.now)}`, until };
   const v = evaluate(ctx, a.when);
   if (!v.ok) return { text: v.reason.charAt(0).toUpperCase() + v.reason.slice(1) };
+  if (a.maxConcurrent) {
+    const key = activityKey(ctx, mod, a);
+    const busy = Object.values(ctx.state.players).filter((o) => o.activities?.[key] && ctx.now < o.activities[key]!.endsAt).length;
+    if (busy >= a.maxConcurrent) return { text: `Déjà ${busy} personnes à l’ouvrage : attends qu’une place se libère`, until: ctx.now + 15_000 };
+  }
   if (a.tool) {
     const t = evaluate(ctx, { type: 'tool', item: a.tool.item });
     if (!t.ok) return { text: t.reason.charAt(0).toUpperCase() + t.reason.slice(1) };
@@ -694,6 +812,8 @@ function claimActivity(ctx: Ctx, mod: ActivityModule, a: ActivityDef, results: n
   const p = ctx.player;
   const active = activeModifiers(p, ctx.now).filter((m) => a.boostedBy?.includes(m.id));
   const boost = active.reduce((s, m) => s + (findModifier(ctx.world, m.id)?.value ?? 0), 0);
+  const mult = a.multipliers?.find((x) => evaluate(ctx, x.when).ok);
+  const factor = (1 + boost) * (mult?.factor ?? 1);
   const labels: string[] = [];
   const before = ctx.changes.length;
   for (const i of results) {
@@ -701,15 +821,19 @@ function claimActivity(ctx: Ctx, mod: ActivityModule, a: ActivityDef, results: n
     if (!r) continue;
     labels.push(r.label);
     for (const act of r.actions) {
-      if (act.type === 'item.give' && !act.inventory && boost > 0) applyAction(ctx, { ...act, qty: Math.max(act.qty, Math.round(act.qty * (1 + boost))) });
-      else applyAction(ctx, act);
+      if (act.type === 'item.give' && !act.inventory && factor !== 1) {
+        const qty = factor > 1 ? Math.max(act.qty, Math.round(act.qty * factor)) : Math.max(0, Math.round(act.qty * factor));
+        if (qty > 0) applyAction(ctx, { ...act, qty });
+      } else applyAction(ctx, act);
     }
   }
   if (a.job?.xp) applyAction(ctx, { type: 'job.xp', job: a.job.id, amount: a.job.xp });
   delete p.activities[activityKey(ctx, mod, a)];
   if (a.cooldownSec) p.cooldowns[activityKey(ctx, mod, a)] = ctx.now + a.cooldownSec * 1000;
   const fx = describeChanges(ctx, ctx.changes.slice(before));
-  const bonus = active.length ? ` (${active.map((m) => findModifier(ctx.world, m.id)?.emoji ?? '✨').join('')} bonus +${Math.round(boost * 100)} %)` : '';
+  questTag(ctx, `activity:${ctx.building.id}/${a.id}`);
+  let bonus = active.length ? ` (${active.map((m) => findModifier(ctx.world, m.id)?.emoji ?? '✨').join('')} bonus +${Math.round(boost * 100)} %)` : '';
+  if (mult) bonus += ` (${mult.label ?? `rendement ×${mult.factor}`})`;
   return `✅ **${a.emoji ?? ''} ${a.name}** : ${labels.join(', ') || 'terminé'}${fx ? ` · ${fx}` : ''}${bonus}`;
 }
 
@@ -778,6 +902,7 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
         applyAction(ctx, { type: 'item.take', item: item.id, qty: 1 });
         const before = ctx.changes.length;
         for (const e of item.consumable.effects) applyAction(ctx, e);
+        questTag(ctx, `consume:${item.id}`);
         st.selected = '';
         const fx = describeChanges(ctx, ctx.changes.slice(before));
         return { notice: `✅ ${itemName(ctx.world, item.id)} consommé !${fx ? ' ' + fx : ''}` };
@@ -832,6 +957,9 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
           msg = `🍽️ ${offer.name} consommé !${fx ? ' ' + fx + '.' : ''}`;
         }
         Object.assign(c, { shop: '', offer: '', mode: '' });
+        questTag(ctx, `buy:${ctx.building.id}/${offer.id}`);
+        questTag(ctx, `shop:${ctx.building.id}/${shop.id}`);
+        if (c.mode === 'place') questTag(ctx, `consume:${offer.stockItem}`);
         return {
           goto: back,
           notice: `✅ ${msg} −${money(ctx, shop.currency, price)} · Solde : ${money(ctx, shop.currency, p.stats[shop.currency] ?? 0)}.`,
@@ -866,6 +994,7 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
         for (const [it, q] of Object.entries(recipe.outputs)) applyAction(ctx, { type: 'item.give', item: it, qty: q, inventory: prod.outputInventory });
         const xp = (recipe.xp ?? prod.xp).collect;
         if (prod.job && xp) applyAction(ctx, { type: 'job.xp', job: prod.job, amount: xp });
+        questTag(ctx, `production:${ctx.building.id}/${recipe.id}`);
       }
       const job = prod.job ? findJob(ctx.world, prod.job)?.name : '';
       const xp = recipe ? (recipe.xp ?? prod.xp).collect : 0;
@@ -893,6 +1022,7 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
           throw new RuleError('⚠️ Recette devenue indisponible : stocks ou niveau insuffisants.');
         for (const [it, q] of Object.entries(recipe.inputs)) applyAction(ctx, { type: 'item.take', item: it, qty: q, inventory: prod.inputInventory });
         stations[pick.station] = { recipe: recipe.id, by: ctx.playerId, startedAt: ctx.now, endsAt: ctx.now + recipe.durationSec * 1000 };
+        questTag(ctx, `cook:${ctx.building.id}/${recipe.id}`);
         const xp = (recipe.xp ?? prod.xp).start;
         if (prod.job && xp) applyAction(ctx, { type: 'job.xp', job: prod.job, amount: xp });
         pick.station = -1;
@@ -945,6 +1075,7 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
       const goNode = (id: Id) => {
         st.node = id;
         st.visits[id] = (st.visits[id] ?? 0) + 1;
+        questTag(ctx, `dialogue:${ctx.building.id}/${id}`);
       };
       if (verb === 'exit') return { goto: w.exitScreen };
       if (verb === 'topics') {
@@ -1010,21 +1141,14 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
         const qty = Math.min(sel.qty, remaining, p.items[sel.item] ?? 0);
         if (qty <= 0) throw new RuleError(remaining <= 0 ? 'Cette ressource est déjà complète.' : 'Tu n’en as plus.');
         applyAction(ctx, { type: 'item.take', item: sel.item, qty });
-        st.progress[sel.item] = (st.progress[sel.item] ?? 0) + qty;
-        st.contributors[ctx.playerId] = (st.contributors[ctx.playerId] ?? 0) + qty;
+        const r = contributeObjective(ctx, ctx.building.id, mod.id, sel.item, qty);
         let notice = `🤝 Merci ! ${qty} ${itemName(ctx.world, sel.item)} apporté(s).`;
         const unit = mod.unitRewards?.[sel.item];
-        if (mod.currency && unit) {
-          applyAction(ctx, { type: 'stat.add', stat: mod.currency, amount: unit * qty });
-          notice += ` +${money(ctx, mod.currency, unit * qty)}.`;
-        }
+        if (mod.currency && unit) notice += ` +${money(ctx, mod.currency, unit * qty)}.`;
+        if (mod.xpPerUnit) notice += ` +${mod.xpPerUnit.amount * qty} ${findStat(ctx.world, mod.xpPerUnit.stat)?.name ?? ''}.`;
         sel.item = '';
         sel.qty = 1;
-        if (Object.entries(mod.goals).every(([it, g]) => (st.progress[it] ?? 0) >= g)) {
-          st.completedAt = ctx.now;
-          for (const act of mod.onComplete?.actions ?? []) applyAction(ctx, act);
-          notice += `\n🎉 **Objectif atteint !** ${pickText(ctx, mod.onComplete?.announce)}`;
-        }
+        if (r.completed) notice += `\n🎉 **Objectif atteint !** ${pickText(ctx, mod.onComplete?.announce)}`;
         return { notice };
       }
       return {};
@@ -1037,6 +1161,8 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
         const cost = (def.tool.maxDurability - (p.tools[value] ?? 0)) * w.repair.costPerPoint;
         if (cost > 0) applyAction(ctx, { type: 'stat.add', stat: w.repair.currency, amount: -cost });
         applyAction(ctx, { type: 'tool.repair', item: value });
+        questTag(ctx, `repair:${value}`);
+        questTag(ctx, 'repair');
         return { notice: `🔧 ${itemName(ctx.world, value)} réparé(e) comme neuf·ve. −${money(ctx, w.repair.currency, cost)}.` };
       }
       return {};
@@ -1051,7 +1177,31 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
         st.me = roll();
         st.them = roll();
         st.rounds += 1;
+        const sum = (x: number[]) => x.reduce((a, b) => a + b, 0);
+        if (sum(st.me) > sum(st.them)) questTag(ctx, `dice:${ctx.building.id}/${dice.id}:win`);
       }
+      return {};
+    }
+
+    case 'quest.board': {
+      if (verb === 'accept') {
+        const q = acceptQuest(ctx, arg);
+        return { notice: `📜 Quête acceptée : **${q.name}** ${STARS[q.difficulty]}. Tu la retrouves dans « Mon inventaire », dans chaque bâtiment.` };
+      }
+      if (verb === 'abandon') {
+        const q = abandonQuest(ctx);
+        return { notice: q ? `Quête **${q.name}** abandonnée. Choisis-en une autre.` : 'Aucune quête en cours.' };
+      }
+      if (verb === 'reroll') {
+        if (p.quest) throw new RuleError('Termine ou abandonne d’abord ta quête en cours.');
+        rerollOffers(ctx);
+        return { notice: '🎲 De nouvelles quêtes sont affichées.' };
+      }
+      return {};
+    }
+
+    case 'player.sheet': {
+      if (verb === 'deliver') return { notice: questDeliver(ctx, arg) };
       return {};
     }
 

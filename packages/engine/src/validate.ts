@@ -6,7 +6,8 @@ import type { Action, Block, BuildingDef, Condition, Id, Text, WidgetDef, WorldD
 import { parseHHMM, parseLocalIso } from './clock.ts';
 
 /** Actions qui ont un sens sans joueur (météo, événements). */
-const WORLD_ACTIONS = new Set(['variable.set', 'weather.set']);
+const WORLD_ACTIONS = new Set(['variable.set', 'variable.add', 'weather.set', 'players.each', 'objective.add', 'audio.play', 'announce']);
+const worldAction = (a: Action): boolean => (a.type === 'if' ? [...a.then, ...(a.else ?? [])].every(worldAction) : WORLD_ACTIONS.has(a.type));
 
 export interface Issue {
   level: 'error' | 'warning';
@@ -73,8 +74,24 @@ export function validateWorld(w: WorldDef): Issue[] {
       case 'tool':
         if (!w.items.find((i) => i.id === c.item)?.tool) err(where, `${c.item} n’est pas un outil`);
         break;
+      case 'compare':
+        if (!vars.has(c.left)) err(where, `variable inconnue : ${c.left}`);
+        if (!vars.has(c.right)) err(where, `variable inconnue : ${c.right}`);
+        break;
+      case 'objective':
+        checkObjective(where, c.building, c.objective);
+        break;
+      case 'quest':
+        if (!w.quests?.quests.some((q) => q.id === c.quest)) err(where, `quête inconnue : ${c.quest}`);
+        break;
     }
   };
+
+  function checkObjective(where: string, building: Id, objective: Id) {
+    const bb = w.buildings.find((x) => x.id === building);
+    if (!bb) err(where, `bâtiment inconnu : ${building}`);
+    else if (!bb.modules.some((m) => m.id === objective && m.type === 'objective')) err(where, `objectif inconnu : ${building}/${objective}`);
+  }
 
   const checkText = (where: string, t: Text | undefined, b?: BuildingDef) => {
     if (t && typeof t !== 'string') t.cases.forEach((c) => checkCondition(where, c.when, b));
@@ -117,10 +134,60 @@ export function validateWorld(w: WorldDef): Issue[] {
         if (!w.weather) err(where, 'aucune météo configurée dans ce monde');
         else if (!w.weather.states.some((s) => s.value === a.value)) err(where, `météo inconnue : ${a.value}`);
         break;
+      case 'variable.add':
+        if (!vars.has(a.variable)) err(where, `variable inconnue : ${a.variable}`);
+        break;
+      case 'if':
+        checkCondition(where, a.when, b);
+        a.then.forEach((x) => checkAction(where, x, b));
+        a.else?.forEach((x) => checkAction(where, x, b));
+        break;
+      case 'players.each':
+        a.actions.forEach((x) => checkAction(where, x, b));
+        break;
+      case 'quest.tag':
+        if (!a.tag) err(where, 'repère de quête vide');
+        break;
+      case 'announce':
+        checkText(where, a.text, b);
+        break;
+      case 'objective.add': {
+        checkObjective(where, a.building, a.objective);
+        const m = w.buildings.find((x) => x.id === a.building)?.modules.find((x) => x.id === a.objective);
+        if (m?.type === 'objective' && !(a.item in m.goals)) err(where, `${a.item} ne fait pas partie de l’objectif ${a.objective}`);
+        break;
+      }
     }
   };
 
   for (const it of w.items) it.consumable?.effects.forEach((a) => checkAction(`Objet ${it.id}`, a));
+
+  if (w.quests) {
+    const qs = w.quests;
+    if (!stats.has(qs.xpStat)) err('Quêtes', `statistique d’XP inconnue : ${qs.xpStat}`);
+    if (!qs.levels.length) err('Quêtes', 'au moins un niveau est nécessaire');
+    if (qs.offers < 1 || qs.offers > 5) err('Quêtes', 'le panneau propose de 1 à 5 quêtes');
+    Object.values(qs.rewards ?? {}).forEach((list) => list?.forEach((a) => checkAction('Quêtes › récompenses', a)));
+    ids(qs.quests, 'Quêtes');
+    for (const q of qs.quests) {
+      const where = `Quête ${q.id}`;
+      if (![1, 2, 3].includes(q.difficulty)) err(where, 'difficulté de 1 à 3');
+      if (!q.steps.length) err(where, 'au moins une étape');
+      ids(q.steps, `${where} › étapes`);
+      checkCondition(where, q.when);
+      checkText(where, q.description);
+      q.rewards.forEach((a) => checkAction(where, a));
+      for (const st of q.steps) {
+        if (st.kind === 'visit' && st.building && !w.buildings.some((x) => x.id === st.building)) err(where, `bâtiment inconnu : ${st.building}`);
+        if (st.kind === 'deliver') {
+          checkItem(where, st.item);
+          if (!w.buildings.some((x) => x.id === st.building)) err(where, `bâtiment inconnu : ${st.building}`);
+          if (st.qty < 1) err(where, 'quantité à livrer invalide');
+        }
+        if (st.kind === 'count' && (!st.tags.length || st.target < 1)) err(where, `étape ${st.id} : repère ou cible manquant`);
+      }
+    }
+  }
 
   if (w.weather) {
     const where = 'Météo';
@@ -148,7 +215,7 @@ export function validateWorld(w: WorldDef): Issue[] {
     if (ev.durationMinutes < 0) err(where, 'durée négative');
     const all = [...ev.onStart, ...ev.onEnd, ...ev.steps.flatMap((s) => s.actions)];
     all.forEach((a) => checkAction(where, a));
-    if (all.some((a) => !WORLD_ACTIONS.has(a.type))) warn(where, 'certaines actions visent un joueur : sans joueur, elles seront ignorées');
+    if (all.some((a) => !worldAction(a))) warn(where, 'certaines actions visent un joueur : sans joueur, elles seront ignorées');
     for (const s of ev.steps) {
       if (s.afterMinutes < 0) err(where, 'étape avec un délai négatif');
       if (ev.durationMinutes > 0 && s.afterMinutes >= ev.durationMinutes) warn(where, `l’étape à ${s.afterMinutes} min arrive après la fin de l’événement`);
@@ -239,6 +306,10 @@ export function validateWorld(w: WorldDef): Issue[] {
             if (!a.results.length || a.results.every((r) => r.weight <= 0)) err(here, 'au moins un résultat avec un poids positif');
             a.results.forEach((r) => r.actions.forEach((x) => checkAction(here, x, b)));
             a.boostedBy?.forEach((x) => mods.has(x) || err(here, `bonus inconnu : ${x}`));
+            a.multipliers?.forEach((x) => {
+              checkCondition(here, x.when, b);
+              if (!(x.factor >= 0)) err(here, 'facteur de rendement invalide');
+            });
             if (a.durationSec < 0 || a.cooldownSec < 0) err(here, 'durées négatives');
           }
           break;
@@ -249,6 +320,8 @@ export function validateWorld(w: WorldDef): Issue[] {
           if (m.currency && !stats.has(m.currency)) err(where, `monnaie inconnue : ${m.currency}`);
           checkText(where, m.description, b);
           m.onComplete?.actions.forEach((x) => checkAction(where, x, b));
+          checkCondition(where, m.when, b);
+          if (m.xpPerUnit && !stats.has(m.xpPerUnit.stat)) err(where, `statistique inconnue : ${m.xpPerUnit.stat}`);
           break;
       }
     }
@@ -302,6 +375,15 @@ export function validateWorld(w: WorldDef): Issue[] {
           break;
         case 'player.tools':
           if (wd.repair && !stats.has(wd.repair.currency)) err(where, `monnaie inconnue : ${wd.repair.currency}`);
+          break;
+        case 'quest.board':
+          if (!w.quests) err(where, 'aucune quête configurée dans ce monde');
+          break;
+        case 'player.sheet':
+          wd.stats.forEach((s) => stats.has(s) || err(where, `statistique inconnue : ${s}`));
+          break;
+        case 'ranking':
+          if (!stats.has(wd.stat)) err(where, `statistique inconnue : ${wd.stat}`);
           break;
       }
     };

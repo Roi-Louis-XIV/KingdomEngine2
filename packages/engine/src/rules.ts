@@ -1,7 +1,8 @@
 /** Conditions expliquées, textes conditionnels, actions transactionnelles. */
 import type { Action, CompareOp, Condition, Id, Text, WorldDef, ModuleDef, BuildingDef } from './model.ts';
 import type { PlayerState, WorldState } from './state.ts';
-import { scopeKey } from './state.ts';
+import { normalizePlayer, scopeKey } from './state.ts';
+import { compare, questTag } from './quests.ts';
 
 /** Tout ce dont une règle a besoin : monde, état (brouillon en transaction), joueur, bâtiment, horloge. */
 export interface Ctx {
@@ -17,6 +18,8 @@ export interface Ctx {
   events: EngineEvent[];
   /** Hasard (tirage de la météo par weather.set sans durée). */
   random?: () => number;
+  /** Messages supplémentaires pour le joueur (quête réussie…), ajoutés au message de retour. */
+  notes?: string[];
 }
 
 export type EngineEvent =
@@ -172,6 +175,24 @@ export function evaluate(ctx: Ctx, c: Condition | undefined): Verdict {
       const min = c.minDurability ?? 1;
       return dur >= min ? { ok: true, reason: `${name} : ${dur} de durabilité` } : { ok: false, reason: dur <= 0 ? `${name} cassé(e) : fais-le réparer` : `${name} trop usé(e) (${dur}/${min})` };
     }
+    case 'compare': {
+      const a = Number(ctx.state.variables[c.left] ?? 0);
+      const b = Number(ctx.state.variables[c.right] ?? 0);
+      const ok = compare(c.op, a, b);
+      return { ok, reason: `${findVariable(w, c.left)?.name ?? c.left} = ${a}, ${findVariable(w, c.right)?.name ?? c.right} = ${b} (attendu ${OP_LABEL[c.op]})` };
+    }
+    case 'objective': {
+      const pct = objectivePercent(ctx, c.building, c.objective);
+      const ok = compare(c.op, pct, c.value);
+      return { ok, reason: `objectif ${c.objective} à ${pct} % (attendu ${OP_LABEL[c.op]} ${c.value} %)` };
+    }
+    case 'quest': {
+      const done = p.questsDone?.includes(c.quest) ?? false;
+      const active = p.quest?.id === c.quest;
+      const status = done ? 'done' : active ? 'active' : 'none';
+      const name = w.quests?.quests.find((q) => q.id === c.quest)?.name ?? c.quest;
+      return { ok: status === c.status, reason: `quête ${name} : ${status === 'done' ? 'réussie' : status === 'active' ? 'en cours' : 'non commencée'}` };
+    }
   }
 }
 
@@ -190,7 +211,7 @@ export function pickText(ctx: Ctx, t: Text | undefined): string {
  * Variables disponibles dans les textes :
  * {player} {player.stat.<id>} {player.job} {player.level.<job>} {player.xp.<job>}
  * {var.<id>} {var.<id>.label} {building.name} {npc.name}
- * {stock.<inventaire>.<objet>} {production.<module>.free|cooking|ready}
+ * {stock.<inventaire>.<objet>} {production.<module>.free|cooking|ready} {objective.<bâtiment>.<objectif>} (en %)
  */
 export function interpolate(ctx: Ctx, s: string): string {
   return s.replace(/\{([a-zA-Z0-9_.\-]+)\}/g, (whole, path: string) => {
@@ -229,6 +250,13 @@ function resolvePath(ctx: Ctx, parts: string[]): string | number | undefined {
       const counts = stationCounts(ctx, a);
       return counts[b as keyof typeof counts];
     }
+    case 'objective':
+      if (!a || !b) return undefined;
+      try {
+        return objectivePercent(ctx, a, b);
+      } catch {
+        return undefined;
+      }
   }
   return undefined;
 }
@@ -393,7 +421,38 @@ export function applyAction(ctx: Ctx, a: Action): void {
     }
     case 'audio.play': {
       if (!a.sound) throw new RuleError('Son non défini.');
-      ctx.events.push({ type: 'audio.play', building: ctx.building.id, sound: a.sound, player: ctx.playerId });
+      ctx.events.push({ type: 'audio.play', building: a.building ?? ctx.building.id, sound: a.sound, player: ctx.playerId });
+      return;
+    }
+    case 'variable.add': {
+      if (!findVariable(w, a.variable)) throw new RuleError(`Variable inconnue : ${a.variable}`);
+      const value = Number(ctx.state.variables[a.variable] ?? 0) + a.amount;
+      ctx.state.variables[a.variable] = value;
+      ctx.changes.push({ kind: 'variable', variable: a.variable, value });
+      return;
+    }
+    case 'if': {
+      for (const sub of evaluate(ctx, a.when).ok ? a.then : (a.else ?? [])) applyAction(ctx, sub);
+      return;
+    }
+    case 'players.each': {
+      for (const [id, pl] of Object.entries(ctx.state.players)) {
+        const sub: Ctx = { ...ctx, playerId: id, player: normalizePlayer(pl), changes: [] };
+        for (const act of a.actions) applyAction(sub, act);
+      }
+      return;
+    }
+    case 'quest.tag': {
+      questTag(ctx, a.tag, a.amount ?? 1);
+      return;
+    }
+    case 'announce': {
+      const msg = pickText(ctx, a.text);
+      if (msg) ctx.events.push({ type: 'announce', text: msg, source: ctx.building.name || 'Royaume' });
+      return;
+    }
+    case 'objective.add': {
+      contributeObjective(ctx, a.building, a.objective, a.item, a.qty);
       return;
     }
     case 'variable.set': {
@@ -403,6 +462,60 @@ export function applyAction(ctx: Ctx, a: Action): void {
       return;
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Objectifs communs
+// ---------------------------------------------------------------------------
+
+export function objectiveDef(w: WorldDef, building: Id, objective: Id) {
+  const b = w.buildings.find((x) => x.id === building);
+  const m = b?.modules.find((x) => x.id === objective);
+  if (!b || !m || m.type !== 'objective') throw new RuleError(`Objectif inconnu : ${building}/${objective}`);
+  return { b, m };
+}
+
+export function objectivePercent(ctx: Ctx, building: Id, objective: Id): number {
+  const { m } = objectiveDef(ctx.world, building, objective);
+  const st = ctx.state.objectives[scopeKey(building, objective)];
+  if (st?.completedAt) return 100;
+  const goals = Object.entries(m.goals);
+  const total = goals.reduce((s, [, g]) => s + g, 0);
+  const done = goals.reduce((s, [it, g]) => s + Math.min(g, st?.progress[it] ?? 0), 0);
+  return Math.floor((done / Math.max(1, total)) * 100);
+}
+
+/**
+ * Contribution à un objectif commun (objets déjà retirés par l'appelant, ou contribution directe).
+ * Crédite le joueur, donne l'XP par unité, déclenche la réussite. Renvoie la quantité retenue.
+ */
+export function contributeObjective(ctx: Ctx, building: Id, objective: Id, item: Id, qty: number): { qty: number; completed: boolean } {
+  const { b, m } = objectiveDef(ctx.world, building, objective);
+  const sub: Ctx = b.id === ctx.building.id ? ctx : { ...ctx, building: b };
+  if (m.when && !evaluate(sub, m.when).ok) throw new RuleError(pickText(sub, m.closedText) || `${m.name} n’accepte pas de contribution pour l’instant.`);
+  const st = (ctx.state.objectives[scopeKey(b.id, m.id)] ??= { progress: {}, contributors: {} });
+  if (st.completedAt) throw new RuleError(`${m.name} : objectif déjà atteint.`);
+  const goal = m.goals[item];
+  if (!goal) throw new RuleError(`${itemName(ctx.world, item)} ne sert pas à cet objectif.`);
+  const kept = Math.min(qty, goal - (st.progress[item] ?? 0));
+  if (kept <= 0) throw new RuleError('Cette ressource est déjà complète.');
+  st.progress[item] = (st.progress[item] ?? 0) + kept;
+  if (ctx.playerId !== '__monde__') {
+    st.contributors[ctx.playerId] = (st.contributors[ctx.playerId] ?? 0) + kept;
+    if (m.currency && m.unitRewards?.[item]) applyAction(ctx, { type: 'stat.add', stat: m.currency, amount: m.unitRewards[item]! * kept });
+    if (m.xpPerUnit) applyAction(ctx, { type: 'stat.add', stat: m.xpPerUnit.stat, amount: m.xpPerUnit.amount * kept });
+    questTag(ctx, `objective:${b.id}/${m.id}`, kept);
+    questTag(ctx, `objective:${b.id}/${m.id}:${item}`, kept);
+  }
+  let completed = false;
+  if (Object.entries(m.goals).every(([it, g]) => (st.progress[it] ?? 0) >= g)) {
+    st.completedAt = ctx.now;
+    completed = true;
+    for (const act of m.onComplete?.actions ?? []) applyAction(sub, act);
+    const msg = pickText(sub, m.onComplete?.announce);
+    if (msg) ctx.events.push({ type: 'announce', text: msg, source: m.name });
+  }
+  return { qty: kept, completed };
 }
 
 /** Résumé lisible des changements (« ⚡ Énergie 70 → 100 · ✨ … activé 10 min »). */

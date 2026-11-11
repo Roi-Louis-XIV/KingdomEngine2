@@ -101,7 +101,7 @@ export class Emulator {
 
   mount(into: HTMLElement) {
     into.append(this.el);
-    this.timer = window.setInterval(() => this.render(true), 1000);
+    this.timer = window.setInterval(() => (this.engine.tick(), this.render(true)), 1000);
     return this;
   }
 
@@ -144,7 +144,7 @@ export class Emulator {
     const view = sid ? this.engine.view(sid) : null;
     const b = this.world.buildings.find((x) => x.id === this.building);
     const shown = view?.message ?? (b ? entrancePanel(b) : null);
-    const json = JSON.stringify(shown) + this.notice + this.current + this.building;
+    const json = JSON.stringify(shown) + this.notice + this.current + this.building + this.engine.revision;
     if (tick && json === this.lastJson) return;
     this.lastJson = json;
     const issues = shown ? validateRendered(shown) : [];
@@ -174,8 +174,9 @@ export class Emulator {
         h(
           'div',
           { class: 'emu-time' },
-          h('button', { class: 'chip', onclick: () => ((this.offset += 60_000), this.render()), title: 'Avancer le temps d’une minute' }, '+1 min'),
-          h('button', { class: 'chip', onclick: () => ((this.offset += 600_000), this.render()), title: 'Avancer le temps de dix minutes' }, '+10 min'),
+          h('button', { class: 'chip', onclick: () => this.advance(1), title: 'Avancer le temps d’une minute' }, '+1 min'),
+          h('button', { class: 'chip', onclick: () => this.advance(10), title: 'Avancer le temps de dix minutes' }, '+10 min'),
+          this.eventControls(),
           h('button', { class: 'chip', onclick: () => this.reset(), title: 'Repartir de zéro' }, 'Réinitialiser'),
         ),
       ),
@@ -199,6 +200,44 @@ export class Emulator {
           )
         : null,
     );
+  }
+
+  /** Avance l'horloge simulée minute par minute en faisant tourner le monde (météo, événements). */
+  private advance(minutes: number) {
+    for (let i = 0; i < minutes; i++) {
+      this.offset += 60_000;
+      this.engine.tick();
+    }
+    this.render();
+  }
+
+  /** Lancer / arrêter un événement manuel (scénario) directement dans l'essai. */
+  private eventControls() {
+    const manual = (this.world.events ?? []).filter((e) => e.schedule.type === 'manual');
+    if (!manual.length) return null;
+    const live = this.engine.live().events;
+    return manual.map((ev) => {
+      const st = live.find((x) => x.id === ev.id);
+      const running = st?.status === 'running' || st?.status === 'paused';
+      const mins = st ? Math.floor(st.elapsedMs / 60_000) : 0;
+      return h(
+        'button',
+        {
+          class: `chip${running ? ' on' : ''}`,
+          title: running ? 'Arrêter cet événement' : 'Lancer cet événement dans l’essai',
+          onclick: () => {
+            try {
+              this.engine.eventControl(ev.id, running ? 'stop' : 'start');
+              this.engine.tick();
+            } catch (e) {
+              this.notice = (e as Error).message;
+            }
+            this.render();
+          },
+        },
+        running ? `■ ${ev.emoji ?? ''} T+${mins}` : `▶ ${ev.emoji ?? ''} ${ev.name}`,
+      );
+    });
   }
 
   private act(customId: string, values: string[]) {

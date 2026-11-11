@@ -15,6 +15,14 @@ export interface PlayerState {
   cooldowns: Record<string, number>;
   /** Activités en cours, par la même clé. Le hasard est tiré au lancement. */
   activities: Record<string, { startedAt: number; endsAt: number; results: number[] }>;
+  /** Quête en cours (une seule à la fois). */
+  quest?: { id: Id; since: number; progress: Record<Id, number>; seen?: Record<Id, Id[]> };
+  /** Quêtes réussies (jamais reproposées). */
+  questsDone: Id[];
+  /** Compteur de tirages : les propositions du panneau en dépendent (stables d'un affichage à l'autre). */
+  questDraws?: number;
+  /** Instant du dernier nouveau tirage demandé. */
+  questRerollAt?: number;
 }
 
 export interface ObjectiveState {
@@ -130,12 +138,13 @@ export function newPlayer(world: WorldDef): PlayerState {
     const t = world.items.find((i) => i.id === id)?.tool;
     if (t) tools[id] = t.maxDurability;
   }
-  return { stats, items, activeJobs: [], jobs, modifiers: [], tools, cooldowns: {}, activities: {} };
+  return { stats, items, activeJobs: [], jobs, modifiers: [], tools, cooldowns: {}, activities: {}, questsDone: [] };
 }
 
 export function normalizePlayer(p: PlayerState): PlayerState {
   p.tools ??= {};
   p.cooldowns ??= {};
   p.activities ??= {};
+  p.questsDone ??= [];
   return p;
 }

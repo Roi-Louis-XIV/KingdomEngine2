@@ -55,7 +55,7 @@ Légende : ✅ fait · 🟡 partiel · ⏳ planifié (phase indiquée)
 | Activités temporisées, résultats aléatoires pondérés, cooldowns | Module `activity` : durée, recharge, coûts, outil, XP, tirages pondérés figés au lancement, bonus de récolte | ✅ P2 |
 | Objectifs collectifs et contributions | Module `objective` : contributions, récompense par unité, meilleurs contributeurs, actions à l’achèvement | ✅ P2 |
 | Livraisons rémunérées | ✅ via `buyback` | ✅ |
-| Quêtes | Module `quest` | ⏳ P3 |
+| Quêtes | `world.quests` + widgets `quest.board` / `player.sheet`, page Studio « Quêtes » | ✅ P3 |
 | Événements, Live Ops (démarrer/pause/reprendre/arrêter), timeline | Événements manuels, quotidiens, à intervalle ou datés ; étapes chronologiques ; démarrer / pause / reprendre / arrêter / redémarrer ; programmation activable ; annonces Discord | ✅ P3 |
 | Calendrier, saisons, météo, jour/nuit | Météo automatique pondérée (durées, annonces, forçage, suspension), fuseau horaire du monde | ✅ P3 (saisons, jour/nuit ⏳) |
 | Lieux, connexions, voyages, exploration | Géographie | ⏳ P3 |
