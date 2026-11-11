@@ -376,13 +376,13 @@ textarea.code { font-family: var(--mono); font-size: .82rem; line-height: 1.45; 
 .fatal { padding: 40px; }
 
 /* ---------- Fenêtres et notifications ---------- */
-.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.78); display: grid; place-items: center; z-index: 50; padding: 20px; }
-.modal { width: min(520px, 100%); max-height: 90vh; overflow: auto; background: var(--ink-2); border: 1px solid var(--line-2); border-radius: 14px; padding: 24px; animation: pop .15s ease-out; }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.78); display: grid; place-items: center; z-index: 50; padding: 20px; animation: fade-in .16s ease-out; }
+.modal { width: min(520px, 100%); max-height: 90vh; overflow: auto; background: var(--ink-2); border: 1px solid var(--line-2); border-radius: 14px; padding: 24px; animation: pop .2s cubic-bezier(.2,.8,.3,1); }
 .modal-body { margin: 14px 0 20px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
-@keyframes pop { from { transform: scale(.97); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes pop { from { transform: translateY(6px) scale(.98); opacity: 0; } to { transform: none; opacity: 1; } }
 #toasts { position: fixed; right: 20px; bottom: 80px; display: flex; flex-direction: column; gap: 8px; z-index: 60; }
-.toast { background: var(--ink-3); border: 1px solid var(--line-2); border-left: 3px solid var(--verdigris); padding: 10px 14px; border-radius: var(--r); max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,.8); transition: opacity .4s, transform .4s; }
+.toast { background: var(--ink-3); border: 1px solid var(--line-2); border-left: 3px solid var(--verdigris); padding: 10px 14px; border-radius: var(--r); max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,.8); transition: opacity .4s, transform .4s; animation: toast-in .25s cubic-bezier(.2,.8,.3,1); }
 .toast.error { border-left-color: var(--brick); }
 .toast.info { border-left-color: var(--brass); }
 .toast.out { opacity: 0; transform: translateY(6px); }
@@ -442,3 +442,34 @@ input.wide { min-width: 260px; flex: 1; }
 .copy-box pre { flex: 1; margin: 0; padding: 10px 12px; background: var(--ink); border: 1px solid var(--line-2); border-radius: var(--r); font-family: var(--mono); font-size: .8rem; white-space: pre-wrap; word-break: break-all; max-height: 220px; overflow: auto; user-select: all; }
 @media (max-width: 760px) { .profile-head .btn { width: 100%; } .copy-box { flex-direction: column; } .copy-box .btn { align-self: flex-end; } }
 .card.login-card:hover { border-color: var(--line); background: var(--ink-2); }
+
+/* ─── Animations légères ─────────────────────────────────────────────
+   Courtes (≤ 0,3 s), sans rebond, désactivées par « réduire les animations » (règle en tête de fichier).
+   Les entrées ne jouent qu'au changement de page (.main.entering), jamais lors des rafraîchissements automatiques. */
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes fade-up { from { opacity: 0; transform: translateY(8px); } }
+@keyframes drop { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes toast-in { from { opacity: 0; transform: translateX(16px); } }
+
+.main.entering > * { animation: fade-up .26s cubic-bezier(.2,.8,.3,1) both; }
+.main.entering :is(.cards, .template-grid, .alerts) > * { animation: fade-up .3s cubic-bezier(.2,.8,.3,1) both; }
+.main.entering :is(.cards, .template-grid, .alerts) > :nth-child(2) { animation-delay: .03s; }
+.main.entering :is(.cards, .template-grid, .alerts) > :nth-child(3) { animation-delay: .06s; }
+.main.entering :is(.cards, .template-grid, .alerts) > :nth-child(4) { animation-delay: .09s; }
+.main.entering :is(.cards, .template-grid, .alerts) > :nth-child(5) { animation-delay: .12s; }
+.main.entering :is(.cards, .template-grid, .alerts) > :nth-child(n+6) { animation-delay: .15s; }
+.auth-card { animation: fade-up .35s cubic-bezier(.2,.8,.3,1) both; }
+.switcher.open .switcher-menu { animation: drop .14s ease-out; }
+@keyframes fade-out { to { opacity: 0; } }
+.overlay.closing { animation: fade-out .14s ease-in forwards; }
+.overlay.closing .modal { transition: transform .14s ease-in; transform: translateY(4px) scale(.985); }
+
+/* Survols et états : transitions douces */
+.btn, .chip, .icon-btn, .nav-link, .switcher-item, .alert, .tabs a, .me, .link, input, select, textarea, .card, .template, .grid td {
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease, opacity .15s ease;
+}
+.btn:active:not(:disabled), .chip:active, .icon-btn:active { transform: scale(.97); }
+a.card:hover, button.card:hover, .template:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.55); }
+.nav-link:hover .nav-icon { color: var(--paper); }
+.nav-icon { transition: color .15s ease, transform .15s ease; }
+.nav-link:hover .nav-icon { transform: translateX(1px); }

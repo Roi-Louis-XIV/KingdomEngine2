@@ -74,7 +74,9 @@ function crest(name: string) {
 
 function shell(active: string | null, mount: (main: HTMLElement) => void): HTMLElement {
   const s = server();
-  const main = h('main', { class: 'main', id: 'main', tabindex: '-1' });
+  const main = h('main', { class: 'main entering', id: 'main', tabindex: '-1' });
+  // L'animation d'entrée ne joue qu'au changement de page, pas lors des rafraîchissements automatiques.
+  setTimeout(() => main.classList.remove('entering'), 900);
   const groups = [...new Set(NAV.map((n) => n.group))];
   const switcher = h(
     'div',

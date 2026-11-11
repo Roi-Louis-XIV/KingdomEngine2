@@ -52,10 +52,16 @@ export function toast(text: string, kind: 'ok' | 'error' | 'info' = 'ok') {
 /** Fenêtre modale. Retourne une fonction de fermeture. */
 export function modal(title: string, body: Child, actions: { label: string; kind?: string; onclick: (close: () => void) => void | Promise<void> }[] = []) {
   const prev = document.activeElement as HTMLElement | null;
+  let closed = false;
   const close = () => {
-    overlay.remove();
+    if (closed) return;
+    closed = true;
     document.removeEventListener('keydown', onKey);
     prev?.focus?.();
+    // Courte sortie en fondu (aucune si l'utilisateur a réduit les animations).
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return overlay.remove();
+    overlay.classList.add('closing');
+    setTimeout(() => overlay.remove(), 140);
   };
   const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
   const dialog = h(
