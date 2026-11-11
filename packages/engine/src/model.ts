@@ -127,6 +127,17 @@ export interface ItemDef {
   consumable?: { effects: Action[] };
   /** Si présent : l'objet est un outil qui s'use (une durabilité par joueur et par outil). */
   tool?: { maxDurability: number };
+  /** Équipement : emplacement, caractéristiques (pour un futur combat) et aide au travail. */
+  equipment?: Equipment;
+}
+
+export interface Equipment {
+  /** Emplacement : on compte le meilleur objet de chaque emplacement (arme, armure, tête…). */
+  slot: string;
+  attack?: number;
+  defense?: number;
+  /** Réduit d'autant le coût de cette statistique pour chaque activité (ex. endurance). */
+  saving?: { stat: Id; amount: number };
 }
 
 export interface ModifierDef {
@@ -480,6 +491,10 @@ export interface ActivityResult {
   /** Libellé affiché au joueur (« Belle récolte ! »). */
   label: string;
   actions: Action[];
+  /** Résultat possible seulement si… (niveau de métier, outil…). */
+  when?: Condition;
+  /** Poids ajouté quand la condition est vraie (meilleur outil, meilleur niveau…). */
+  bonus?: { when: Condition; weight: number }[];
 }
 
 /** Activité personnelle temporisée : récolte, expédition, entraînement… */
@@ -496,8 +511,8 @@ export interface ActivityDef {
   when?: Condition;
   /** Coûts payés au lancement (énergie…). */
   costs: Action[];
-  /** Outil nécessaire, usé au lancement. */
-  tool?: { item: Id; wear: number };
+  /** Outil nécessaire, usé au lancement. `anyOf` : outils acceptés à la place, du meilleur au moins bon. */
+  tool?: { item: Id; wear: number; anyOf?: Id[] };
   /** Expérience de métier gagnée à la récupération. */
   job?: { id: Id; xp: number };
   /** Nombre de tirages dans la table des résultats. */

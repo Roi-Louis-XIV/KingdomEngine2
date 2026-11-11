@@ -807,13 +807,568 @@ const eglise = {
   ],
 };
 
+// ---------------------------------------------------------------------------
+// Métiers, lieux de récolte, forge, brasserie et menu de la taverne
+// (demandes de Louis du 11 novembre : menu de la Gueuse Cocue, catalogue de la Forge du Dragon Noir)
+// ---------------------------------------------------------------------------
+
+const has = (item) => ({ type: 'tool', item });
+const anyTool = (...ids) => any(...ids.map(has));
+const item = (id, name, emoji, category, extra = {}) => ({ id, name, emoji, category, ...extra });
+const equip = (slot, o) => ({ equipment: { slot, ...o } });
+const saving = (n) => ({ saving: { stat: 'energie', amount: n } });
+
+// Le Royaume V11 servait « bière » et « vin » génériques : remplacés par la carte de la Gueuse Cocue.
+for (const id of ['biere', 'vin']) items.splice(items.findIndex((i) => i.id === id), 1);
+items.find((i) => i.id === 'pioche').name = 'Pioche usée';
+items.find((i) => i.id === 'minerai').name = 'Minerai de fer';
+items.find((i) => i.id === 'lingot').name = 'Lingot de fer';
+items.push(
+  // Mine
+  item('minerai_cuivre', 'Minerai de cuivre', '🟠', 'Minerais', { baseValue: 3 }),
+  item('minerai_etain', 'Minerai d’étain', '⚪', 'Minerais', { baseValue: 3 }),
+  item('minerai_argent', 'Minerai d’argent', '🩶', 'Minerais', { baseValue: 8 }),
+  item('minerai_or', 'Pépite d’or', '🟡', 'Minerais', { baseValue: 15 }),
+  item('diamant', 'Diamant brut', '💠', 'Minerais', { baseValue: 60, description: 'Rarissime : seulement au fond de la mine, et avec un bon outil.' }),
+  item('lingot_bronze', 'Lingot de bronze', '🟫', 'Lingots', { baseValue: 8 }),
+  item('lingot_argent', 'Lingot d’argent', '🥈', 'Lingots', { baseValue: 18 }),
+  item('lingot_or', 'Lingot d’or', '🥇', 'Lingots', { baseValue: 35 }),
+  // Forêt
+  item('miel', 'Miel sauvage', '🍯', 'Récoltes', { baseValue: 4 }),
+  item('baies', 'Baies sauvages', '🫐', 'Récoltes', { baseValue: 3 }),
+  item('herbes', 'Herbes aromatiques', '🌿', 'Récoltes', { baseValue: 3 }),
+  item('armoise', 'Grande armoise', '🌱', 'Récoltes', { baseValue: 6, description: 'La plante de la Fée Verte.' }),
+  item('volaille', 'Volaille', '🐓', 'Récoltes', { baseValue: 5 }),
+  // Rivière
+  item('ecrevisses', 'Écrevisses', '🦞', 'Poissons', { baseValue: 3 }),
+  item('truite', 'Truite', '🐟', 'Poissons', { baseValue: 7 }),
+  item('anguille', 'Anguille', '🐍', 'Poissons', { baseValue: 8 }),
+  item('brochet', 'Brochet', '🐊', 'Poissons', { baseValue: 12 }),
+  item('carpe_doree', 'Carpe dorée', '✨', 'Poissons', { baseValue: 40, description: 'La légende de la rivière.' }),
+  // Ferme
+  item('orge', 'Orge', '🌾', 'Récoltes', { baseValue: 2 }),
+  item('houblon', 'Houblon', '🌿', 'Récoltes', { baseValue: 3 }),
+  item('cerises', 'Cerises', '🍒', 'Récoltes', { baseValue: 3 }),
+  item('raisin', 'Raisin', '🍇', 'Récoltes', { baseValue: 3 }),
+  item('oignon', 'Oignons', '🧅', 'Récoltes', { baseValue: 2 }),
+  item('fromage', 'Fromage', '🧀', 'Récoltes', { baseValue: 4 }),
+  // Outils
+  item('pioche_bronze', 'Pioche de bronze', '⛏️', 'Outils', { tool: { maxDurability: 45 } }),
+  item('pioche_fer', 'Pioche de fer', '⛏️', 'Outils', { tool: { maxDurability: 70 } }),
+  item('pioche_maitre', 'Pioche de maître', '⛏️', 'Outils', { tool: { maxDurability: 120 }, description: 'Fer et or : la seule qui fait parler les diamants.' }),
+  item('hache_fer', 'Hache de fer', '🪓', 'Outils', { tool: { maxDurability: 70 } }),
+  item('canne_renforcee', 'Canne renforcée', '🎣', 'Outils', { tool: { maxDurability: 50 } }),
+  item('canne_argent', 'Canne à moulinet d’argent', '🎣', 'Outils', { tool: { maxDurability: 80 } }),
+  // Armes (catalogue de Wagner) : prestige, travail, et plus tard le combat.
+  item('epee_courte', 'Épée courte du Novice', '🗡️', 'Armes', equip('arme', { attack: 3 })),
+  item('epee_longue', 'Épée longue du Chevalier', '⚔️', 'Armes', equip('arme', { attack: 6 })),
+  item('hache_guerre', 'Hache de guerre des Montagnes', '🪓', 'Armes', { ...equip('arme', { attack: 7 }), tool: { maxDurability: 90 }, description: 'Fait tomber les têtes… et les arbres (sert de hache en forêt).' }),
+  item('marteau_guerre', 'Marteau de guerre du Colosse', '🔨', 'Armes', { ...equip('arme', { attack: 8 }), tool: { maxDurability: 90 }, description: 'Brise la roche du carreau de la mine comme une pioche.' }),
+  item('dague', 'Dague d’assassin', '🔪', 'Armes', equip('arme', { attack: 5 })),
+  item('lame_dragon', 'Lame du Dragon', '🐉', 'Armes', { ...equip('arme', { attack: 15 }), description: 'Brille même dans le noir.' }),
+  item('arc_court', 'Arc court du Chasseur', '🏹', 'Armes de tir', { ...equip('tir', { attack: 3 }), tool: { maxDurability: 40 }, description: 'Permet de chasser dans le bois sombre (avec des flèches).' }),
+  item('arc_long', 'Arc long des Elfes', '🏹', 'Armes de tir', { ...equip('tir', { attack: 6 }), tool: { maxDurability: 70 } }),
+  item('arbalete_guerre', 'Arbalète de guerre', '🎯', 'Armes de tir', { ...equip('tir', { attack: 7 }), tool: { maxDurability: 60 }, description: 'Chasse au gros gibier (avec des carreaux).' }),
+  item('arbalete_precision', 'Arbalète de précision', '🎯', 'Armes de tir', { ...equip('tir', { attack: 9 }), tool: { maxDurability: 90 } }),
+  item('fleche', 'Flèche en fer', '➶', 'Munitions'),
+  item('fleche_large', 'Flèche à tête large', '➶', 'Munitions'),
+  item('carreau', 'Carreau d’arbalète', '➵', 'Munitions'),
+  item('carreau_perforant', 'Carreau perforant', '➵', 'Munitions'),
+  item('cuirasse_cuir', 'Cuirasse de cuir renforcé', '🦺', 'Armures', equip('armure', { defense: 2, ...saving(1) })),
+  item('cotte_mailles', 'Cotte de mailles du Soldat', '⛓️', 'Armures', equip('armure', { defense: 4, ...saving(1) })),
+  item('armure_plates', 'Armure de plates du Chevalier', '🛡️', 'Armures', equip('armure', { defense: 7, ...saving(2) })),
+  item('heaume', 'Heaume à visage fermé', '⛑️', 'Armures', equip('tete', { defense: 2 })),
+  item('armure_royale', 'Armure royale du Roi-Dragon', '👑', 'Armures', equip('armure', { defense: 10, ...saving(3) })),
+  item('bouclier_rond', 'Bouclier rond', '🛡️', 'Accessoires', equip('bouclier', { defense: 2 })),
+  item('bouclier_heraldique', 'Bouclier héraldique gravé', '🛡️', 'Accessoires', equip('bouclier', { defense: 3 })),
+  item('gantelets', 'Gantelets de combat', '🧤', 'Accessoires', equip('mains', { defense: 1, ...saving(1) })),
+  item('eperons', 'Éperons de chevalier', '✴️', 'Accessoires', equip('pieds', { defense: 1 })),
+  item('carquois', 'Carquois en cuir', '🎒', 'Accessoires', equip('dos', {})),
+  item('gravure', 'Gravure personnalisée', '✒️', 'Souvenirs', { description: 'Ton nom, gravé par Wagner.' }),
+  // Taverne : la carte de la Gueuse Cocue (fabriquée par les brasseurs et les cuisiniers).
+  ...[
+    ['b86', 'La 8.6 Original'], ['guinness', 'Guinness Stout'], ['chouffe', 'La Chouffe'], ['pelican', 'Pelican'],
+    ['grimbergen_blonde', 'Grimbergen Blonde'], ['grimbergen_ambree', 'Grimbergen Ambrée'], ['kriek', 'Mort Subite Kriek'],
+    ['blanche', 'Blanche de Bruges'], ['tripel', 'Tripel Karmeliet'], ['duvel', 'Duvel'], ['cervoise', 'Cervoise médiévale'],
+    ['hydromel_baies', 'Hydromel aux baies sauvages'], ['whisky', 'Whisky des Highlands'], ['vin_epice', 'Vin épicé chaud'],
+    ['absinthe', 'Absinthe de la Fée Verte'], ['vin_rouge', 'Vin rouge de Bordeaux'], ['vin_blanc', 'Vin blanc de Loire'], ['porto', 'Porto vieilli'],
+  ].map(([id, name]) => item(id, name, '🍺', 'Boissons (réserve)')),
+  ...[
+    ['pate_sanglier', 'Pâté de sanglier'], ['saucisses', 'Saucisses fumées'], ['fromage_moines', 'Fromage de moines'],
+    ['soupe_oignon', 'Soupe d’oignon à la bière'], ['poulet_miel', 'Cuisses de poulet au miel'], ['assiette_bourreau', 'Assiette du Bourreau'],
+  ].map(([id, name]) => item(id, name, '🍽️', 'Plats préparés')),
+);
+for (const i of items) if (i.category === 'Boissons (réserve)') i.emoji = { b86: '🍺', guinness: '🖤', chouffe: '🍺', pelican: '🍺', grimbergen_blonde: '🍺', grimbergen_ambree: '🍺', kriek: '🍒', blanche: '🍺', tripel: '🍺', duvel: '🍺', cervoise: '🍺', hydromel_baies: '🫐', whisky: '🥃', vin_epice: '🔥', absinthe: '🧚', vin_rouge: '🍷', vin_blanc: '🥂', porto: '🍷' }[i.id] ?? '🍺';
+for (const i of items) if (i.category === 'Plats préparés' && !i.emoji?.trim()) i.emoji = '🍽️';
+Object.assign(items.find((i) => i.id === 'pate_sanglier'), { emoji: '🥧' });
+Object.assign(items.find((i) => i.id === 'saucisses'), { emoji: '🌭' });
+Object.assign(items.find((i) => i.id === 'fromage_moines'), { emoji: '🧀' });
+Object.assign(items.find((i) => i.id === 'soupe_oignon'), { emoji: '🧅' });
+Object.assign(items.find((i) => i.id === 'poulet_miel'), { emoji: '🍗' });
+Object.assign(items.find((i) => i.id === 'assiette_bourreau'), { emoji: '🍖' });
+
+// Bonus de forge (services de Wagner).
+const forgeBoosts = [
+  { id: 'aiguisage', name: 'Aiguisage ultime : récoltes +15 %', emoji: '🔪', shortName: 'Aiguisage', exclusiveGroup: 'forge', value: 0.15 },
+  { id: 'enchantement', name: 'Enchantement mineur : récoltes +25 %', emoji: '✨', shortName: 'Enchantement', exclusiveGroup: 'forge', value: 0.25 },
+];
+
+// ---------------------------------------------------------------------------
+// Lieux de récolte : chaque lieu a ses tirages, selon le niveau de métier et l'outil
+// ---------------------------------------------------------------------------
+
+/** Résultat pondéré. `bonus` : [condition, poids ajouté]. */
+const res = (weight, label, actions, o = {}) => ({ weight, label, actions, ...(o.when ? { when: o.when } : {}), ...(o.bonus ? { bonus: o.bonus.map(([when, w]) => ({ when, weight: w })) } : {}) });
+
+/**
+ * Transforme un bâtiment de récolte en « carte » : l'accueil propose des lieux, chaque lieu a son écran et ses activités.
+ * Les anciennes activités du bâtiment (module `remove`) sont retirées.
+ */
+function addPlaces(b, o) {
+  b.modules = b.modules.filter((m) => !(o.remove ?? []).includes(m.id));
+  const home = b.screens.find((x) => x.id === b.homeScreen);
+  home.blocks = home.blocks.filter((x) => !(x.type === 'widget' && x.widget.kind === 'activity.board' && (o.remove ?? []).includes(x.widget.activity)));
+  const nav = buttons(
+    o.places.map((pl) =>
+      btn(`${pl.name}${pl.level > 1 ? ` · niv. ${pl.level}` : ''}`, { ...(pl.level > 1 || pl.when ? { when: pl.level > 1 ? (pl.when ? all(pl.when, lvl(o.job, pl.level)) : lvl(o.job, pl.level)) : pl.when } : {}), onSuccess: { goto: `lieu-${pl.id}` }, onFailure: { notice: pl.locked ?? `🔒 Il faut être ${o.jobLabel} niveau ${pl.level} pour aller là.` } }, { emoji: pl.emoji, style: 'primary' }),
+    ),
+    o.visibleIf,
+  );
+  const at = home.blocks.findIndex((x) => x.type === 'notice') + 1;
+  home.blocks.splice(at, 0, box([text(o.intro)], b.accentColor, o.visibleIf), nav);
+  for (const pl of o.places) {
+    b.modules.push({ type: 'activity', id: pl.id, name: `${pl.emoji} ${pl.name}`, activities: pl.activities });
+    b.screens.push({
+      id: `lieu-${pl.id}`,
+      name: pl.name,
+      guard: { when: all(...[pl.level > 1 ? lvl(o.job, pl.level) : null, pl.when, o.visibleIf].filter(Boolean)), redirect: b.homeScreen, notice: pl.locked ?? `🔒 Il faut être ${o.jobLabel} niveau ${pl.level}.` },
+      blocks: [
+        box([text(`## ${pl.emoji} ${pl.name}\n*${pl.description}*`), text(statusLine)], b.accentColor),
+        notice(),
+        widget({ kind: 'activity.board', activity: pl.id, accent: b.accentColor }),
+        buttons([go('↩️ Retour à l’entrée', b.homeScreen), go('🎒 Mon inventaire', 'inventaire'), go('🔄 Actualiser', `lieu-${pl.id}`)]),
+      ],
+    });
+  }
+}
+
+const PIOCHES = ['pioche_maitre', 'pioche_fer', 'pioche_bronze'];
+const HACHES = ['hache_guerre', 'hache_maitre', 'hache_fer'];
+const CANNES = ['canne_argent', 'canne_renforcee'];
+const mineHalf = [{ when: mineDamaged, factor: 0.5, label: 'galerie endommagée : rendement 50 %' }];
+const mineWork = all(from(0), notStorm);
+const M = (n) => lvl('mineur', n);
+const B = (n) => lvl('bucheron', n);
+const P = (n) => lvl('pecheur', n);
+const ironPick = anyTool('pioche_fer', 'pioche_maitre');
+
+addPlaces(mine, {
+  job: 'mineur',
+  jobLabel: '⛏️ Mineur',
+  remove: ['travaux'],
+  visibleIf: notStorm,
+  intro: '**Où veux-tu descendre ?** Plus on va loin, plus la roche est riche, et plus il faut d’expérience et un bon outil.\n*Pioches : usée → bronze → fer → maître. Une meilleure pioche dure plus longtemps et améliore les trouvailles.*',
+  places: [
+    {
+      id: 'carreau', name: 'Le carreau', emoji: '⛰️', level: 1,
+      description: 'L’entrée de la mine, à ciel ouvert. De la pierre à perte de vue, et quelques reflets de cuivre.',
+      activities: [
+        activity('pierres', 'Tailler la roche', '🪨', { job: ['mineur', 6], boost: ['mine', 'aiguisage', 'enchantement'], duration: 75, energy: 6, tool: 'pioche', when: mineWork, multipliers: mineHalf, results: [res(70, '4 pierres', [give('pierre', 4)]), res(15, '6 pierres', [give('pierre', 6)], { bonus: [[ironPick, 15]] }), res(15, 'Un peu de cuivre', [give('pierre', 2), give('minerai_cuivre', 1)], { bonus: [[M(2), 10]] })] }),
+        activity('deblais', 'Fouiller les déblais', '🔍', { job: ['mineur', 2], duration: 0, cooldown: 60, energy: 2, when: mineWork, results: [res(60, 'Une pierre', [give('pierre', 1)]), res(30, 'Un éclat de cuivre', [give('minerai_cuivre', 1)]), res(10, 'De l’étain', [give('minerai_etain', 1)])], description: 'Sans outil.' }),
+      ],
+    },
+    {
+      id: 'cuivre', name: 'La galerie du cuivre', emoji: '🟠', level: 1,
+      description: 'Une galerie basse aux veines orangées. Le cuivre et l’étain font le bronze de Wagner.',
+      activities: [
+        activity('cuivre', 'Piocher le filon de cuivre', '🟠', { job: ['mineur', 7], boost: ['mine', 'aiguisage', 'enchantement'], duration: 90, energy: 7, tool: 'pioche', when: mineWork, multipliers: mineHalf, results: [res(55, '2 cuivres', [give('minerai_cuivre', 2)]), res(30, 'Cuivre et étain', [give('minerai_cuivre', 1), give('minerai_etain', 1)]), res(10, '3 cuivres', [give('minerai_cuivre', 3)], { bonus: [[anyTool(...PIOCHES), 15]] }), res(0, 'Une veine de fer', [give('minerai', 1)], { bonus: [[M(2), 10]] })] }),
+        activity('etain', 'Gratter l’étain', '⚪', { job: ['mineur', 7], boost: ['mine', 'aiguisage', 'enchantement'], duration: 90, energy: 7, tool: 'pioche', when: mineWork, multipliers: mineHalf, results: [res(60, '2 étains', [give('minerai_etain', 2)]), res(30, 'Étain et cuivre', [give('minerai_etain', 1), give('minerai_cuivre', 1)]), res(10, '3 étains', [give('minerai_etain', 3)], { bonus: [[anyTool(...PIOCHES), 15]] })] }),
+      ],
+    },
+    {
+      id: 'fer', name: 'La galerie du fer', emoji: '⛓️', level: 2,
+      description: 'Des parois sombres et lourdes. Le fer fait les outils, les armes et les ferrures de l’église.',
+      activities: [
+        activity('minerai', 'Extraire du fer', '⛏️', { job: ['mineur', 9], boost: ['mine', 'aiguisage', 'enchantement'], duration: 100, energy: 8, tool: 'pioche', when: mineWork, multipliers: mineHalf, results: [res(60, '2 fers', [give('minerai', 2)]), res(15, '3 fers', [give('minerai', 3)], { bonus: [[ironPick, 15], [anyTool('pioche_bronze'), 5]] }), res(5, 'Un éclat d’argent', [give('minerai', 1), give('minerai_argent', 1)], { bonus: [[M(3), 10], [ironPick, 10]] })] }),
+      ],
+    },
+    {
+      id: 'profonde', name: 'La galerie profonde', emoji: '🕳️', level: 3, when: from(25),
+      locked: '🔒 La galerie profonde n’est ouverte que depuis la trouvaille de Roland (T+25), et il faut être ⛏️ Mineur niveau 3.',
+      description: 'Ouverte depuis la trouvaille de Roland. Il fait chaud, ça grésille, et l’argent affleure.',
+      activities: [
+        activity('galerie', 'Creuser la galerie profonde', '🕳️', { job: ['mineur', 14], boost: ['mine', 'aiguisage', 'enchantement'], duration: 120, energy: 10, tool: 'pioche', wear: 2, when: all(from(25), notStorm), multipliers: mineHalf, results: [res(45, 'Du fer en quantité', [give('minerai', 4)]), res(25, 'De l’argent !', [give('minerai_argent', 2)]), res(5, 'Une pépite d’or', [give('minerai_or', 1)], { bonus: [[ironPick, 10], [M(4), 10]] }), res(12, 'Un éclat de pierre-tonnerre !', [give('minerai', 2), give('eclat', 1)], { when: T('lt', 100) }), res(0, 'UN DIAMANT !', [give('diamant', 1)], { bonus: [[has('pioche_maitre'), 2], [M(5), 2]] }), res(10, 'Éboulis : rien du tout', [])] }),
+      ],
+    },
+    {
+      id: 'gouffre', name: 'Le gouffre', emoji: '💎', level: 4,
+      description: 'Une faille sans fond, éclairée par des cristaux. L’or y dort, et parfois un diamant.',
+      activities: [
+        activity('gouffre', 'Descendre dans le gouffre', '💎', { job: ['mineur', 18], boost: ['mine', 'aiguisage', 'enchantement'], duration: 150, energy: 12, tool: 'pioche_fer', wear: 3, when: mineWork, multipliers: mineHalf, locked: 'Pas pendant la tempête', results: [res(40, 'Une pépite d’or', [give('minerai_or', 1)]), res(35, '2 argents', [give('minerai_argent', 2)]), res(5, 'UN DIAMANT !', [give('diamant', 1)], { bonus: [[has('pioche_maitre'), 5], [M(5), 5]] }), res(20, 'Le vide, rien que le vide', [])], description: 'Pioche de fer ou de maître obligatoire.' }),
+      ],
+    },
+  ],
+});
+// Une pioche de fer ou de maître pour le gouffre ; toutes les pioches ailleurs ; le marteau du Colosse au carreau.
+for (const m of mine.modules) if (m.type === 'activity') for (const a of m.activities) if (a.tool) a.tool.anyOf = a.tool.item === 'pioche_fer' ? ['pioche_maitre'] : a.id === 'pierres' ? ['marteau_guerre', ...PIOCHES] : PIOCHES;
+
+const forestWork = all(from(0), notStorm);
+addPlaces(foret, {
+  job: 'bucheron',
+  jobLabel: '🪓 Bûcheron',
+  remove: ['bois'],
+  intro: '**Où veux-tu aller ?** La lisière est pour tout le monde ; la futaie et le bois sombre se méritent.\n*Haches : bûcheron → fer → maître ou hache de guerre. La chasse demande un arc ou une arbalète.*',
+  places: [
+    {
+      id: 'lisiere', name: 'La lisière', emoji: '🌿', level: 1,
+      description: 'Des jeunes arbres, des fourrés de baies, des champignons au pied des souches.',
+      activities: [
+        activity('jeune', 'Abattre un jeune arbre', '🌱', { job: ['bucheron', 6], boost: ['bois', 'aiguisage', 'enchantement'], duration: 60, energy: 5, tool: 'hache', when: forestWork, multipliers: [{ when: between(70, 85), factor: 0.75, label: 'vent : −25 %' }], results: [res(80, '2 bûches', [give('buche', 2)]), res(20, '3 bûches', [give('buche', 3)], { bonus: [[anyTool(...HACHES), 20]] })] }),
+        activity('ramasser', 'Ramasser du bois mort', '🍂', { job: ['bucheron', 2], duration: 0, cooldown: 45, energy: 2, when: forestWork, results: [res(1, 'Quelques branches', [give('buche', 1)])], description: 'Sans outil.' }),
+        activity('champignons', 'Cueillir des champignons', '🍄', { job: ['bucheron', 3], duration: 30, cooldown: 30, energy: 3, when: forestWork, results: [res(60, 'Un champignon', [give('champignon', 1)]), res(40, 'Bonne cueillette', [give('champignon', 2)], { bonus: [[v('meteo', 'pluie'), 30]] })] }),
+        activity('cueillir', 'Cueillir baies et herbes', '🫐', { job: ['bucheron', 3], duration: 45, cooldown: 0, energy: 3, when: forestWork, results: [res(50, 'Des baies', [give('baies', 2)]), res(40, 'Des herbes', [give('herbes', 2)]), res(0, 'De la grande armoise', [give('armoise', 1)], { bonus: [[B(3), 15]] })], description: 'Pour la brasserie et la cuisine d’Edgar.' }),
+        activity('ciel', 'Lire le ciel', '🔭', { locked: 'Quand le ciel se couvre (T+35 à T+85)', duration: 0, cooldown: 60, energy: 1, when: between(35, 85), label: 'Le vent tourne…', actions: [xp(2)], description: 'Sylvain t’apprend à lire les signes de la tempête.' }),
+      ],
+    },
+    {
+      id: 'futaie', name: 'La futaie de chênes', emoji: '🌳', level: 2,
+      description: 'De grands chênes centenaires, des ruches sauvages dans les creux. Après la tempête, du bois couché partout.',
+      activities: [
+        activity('abattre', 'Abattre un chêne', '🪓', { job: ['bucheron', 9], boost: ['bois', 'aiguisage', 'enchantement'], duration: 75, energy: 6, tool: 'hache', when: forestWork, multipliers: [{ when: between(70, 85), factor: 0.75, label: 'vent : −25 %' }], results: [res(70, '4 bûches', [give('buche', 4)]), res(15, '6 bûches', [give('buche', 6)], { bonus: [[anyTool(...HACHES), 15]] }), res(15, 'Bûches et champignon', [give('buche', 3), give('champignon', 1)])] }),
+        activity('miel', 'Récolter du miel sauvage', '🍯', { job: ['bucheron', 8], duration: 60, energy: 5, when: forestWork, results: [res(65, '2 miels', [give('miel', 2)]), res(20, '3 miels', [give('miel', 3)], { bonus: [[B(3), 10]] }), res(15, 'Piqué ! Rien', [])], description: 'Gare aux abeilles.' }),
+        activity('chablis', 'Débiter le chablis', '🌳', { locked: 'Après la tempête (T+110)', job: ['bucheron', 8], boost: ['bois', 'aiguisage', 'enchantement'], duration: 60, energy: 5, tool: 'hache', when: from(110), results: [res(1, '6 bûches', [give('buche', 6)])], description: 'La tempête a couché des arbres : du bois en abondance.' }),
+      ],
+    },
+    {
+      id: 'sombre', name: 'Le bois sombre', emoji: '🌲', level: 3,
+      description: 'Les sangliers y ont leurs bauges, les faisans leurs couverts. Et la grande armoise pousse à l’ombre.',
+      activities: [
+        activity('chasse', 'Chasser à l’arc', '🏹', { job: ['bucheron', 14], duration: 120, energy: 9, tool: 'arc_court', costs: [stat('energie', -9), take('fleche', 1)], when: forestWork, results: [res(45, 'Un sanglier', [give('viande', 3)]), res(30, 'Un faisan', [give('volaille', 2)]), res(25, 'Raté…', [], { bonus: [] })], description: 'Arc + 1 flèche par sortie.' }),
+        activity('arbalete', 'Chasser à l’arbalète', '🎯', { job: ['bucheron', 16], duration: 120, energy: 9, tool: 'arbalete_guerre', costs: [stat('energie', -9), take('carreau', 1)], when: forestWork, results: [res(60, 'Un gros sanglier', [give('viande', 4)]), res(30, 'Deux faisans', [give('volaille', 3)]), res(10, 'Raté…', [])], description: 'Arbalète + 1 carreau par sortie. Plus sûr qu’à l’arc.' }),
+        activity('armoise', 'Cueillir l’armoise', '🌱', { job: ['bucheron', 8], duration: 60, energy: 4, when: forestWork, results: [res(60, 'De l’armoise', [give('armoise', 2)]), res(40, 'Des herbes rares', [give('herbes', 3)])] }),
+      ],
+    },
+  ],
+});
+for (const m of foret.modules) if (m.type === 'activity') for (const a of m.activities) {
+  if (a.tool?.item === 'hache') a.tool.anyOf = HACHES;
+  if (a.tool?.item === 'arc_court') a.tool.anyOf = ['arc_long'];
+  if (a.tool?.item === 'arbalete_guerre') a.tool.anyOf = ['arbalete_precision'];
+}
+
+const riverUp = [{ when: between(70, 85), factor: 2, label: 'rivière gonflée : ×2' }];
+addPlaces(pont, {
+  job: 'pecheur',
+  jobLabel: '🎣 Pêcheur',
+  remove: ['riviere'],
+  intro: '**Où veux-tu pêcher ?** Les gros poissons vivent loin de la berge.\n*Cannes : simple → renforcée → moulinet d’argent. La carpe dorée ne mord qu’aux meilleurs.*',
+  places: [
+    {
+      id: 'berge', name: 'La berge', emoji: '🏞️', level: 1,
+      description: 'Des roseaux, des gardons, des écrevisses sous les pierres.',
+      activities: [
+        activity('peche', 'Pêcher à la canne', '🎣', { job: ['pecheur', 5], duration: 60, energy: 3, tool: 'canne', when: from(0), multipliers: riverUp, results: [res(60, 'Un poisson', [give('poisson', 1)]), res(25, 'Deux poissons', [give('poisson', 2)], { bonus: [[anyTool(...CANNES), 15]] }), res(15, 'Des écrevisses', [give('ecrevisses', 2)])] }),
+        activity('filet', 'Pêcher au filet', '🕸️', { job: ['pecheur', 10], level: 2, duration: 120, energy: 6, tool: 'canne', wear: 2, when: from(0), multipliers: riverUp, results: [res(70, 'Filet garni', [give('poisson', 3)]), res(30, 'Filet plein !', [give('poisson', 4), give('ecrevisses', 2)])] }),
+      ],
+    },
+    {
+      id: 'arche', name: 'Sous l’arche', emoji: '🌉', level: 2,
+      description: 'L’ombre du vieux pont. Les truites s’y reposent, les anguilles s’y cachent.',
+      activities: [
+        activity('arche', 'Pêcher sous l’arche', '🐟', { job: ['pecheur', 9], duration: 90, energy: 5, tool: 'canne', when: from(0), multipliers: riverUp, results: [res(45, 'Une truite', [give('truite', 1)], { bonus: [[anyTool(...CANNES), 15]] }), res(30, 'Une anguille', [give('anguille', 1)]), res(25, 'Du menu fretin', [give('poisson', 2)])] }),
+      ],
+    },
+    {
+      id: 'profond', name: 'Les eaux profondes', emoji: '🌊', level: 3,
+      description: 'Le trou d’eau sous la cascade. On y parle d’une carpe dorée vieille de cent ans.',
+      activities: [
+        activity('profond', 'Pêcher en eaux profondes', '🌊', { job: ['pecheur', 14], duration: 120, energy: 7, tool: 'canne_renforcee', wear: 2, when: from(0), multipliers: riverUp, results: [res(45, 'Un brochet', [give('brochet', 1)]), res(35, 'Deux truites', [give('truite', 2)]), res(2, 'LA CARPE DORÉE !', [give('carpe_doree', 1)], { bonus: [[has('canne_argent'), 5], [P(4), 4]] }), res(18, 'Rien ne mord', [])], description: 'Canne renforcée ou moulinet d’argent obligatoire.' }),
+      ],
+    },
+  ],
+});
+for (const m of pont.modules) if (m.type === 'activity') for (const a of m.activities) if (a.tool) a.tool.anyOf = a.tool.item === 'canne_renforcee' ? ['canne_argent'] : CANNES;
+
+// Ferme : les champs et la basse-cour (avec les ingrédients de la brasserie et de la cuisine).
+const farmWork = all(from(0), notStorm);
+const F = (n) => lvl('fermier', n);
+const oldFarm = ferme.modules.find((m) => m.id === 'travaux').activities;
+const keepFarm = (id) => oldFarm.find((a) => a.id === id);
+addPlaces(ferme, {
+  job: 'fermier',
+  jobLabel: '🌾 Fermier',
+  remove: ['travaux'],
+  intro: '**Où veux-tu travailler ?** Les champs donnent les céréales de la brasserie, la basse-cour et le verger tout le reste.',
+  places: [
+    {
+      id: 'champs', name: 'Les champs', emoji: '🌾', level: 1,
+      description: 'Blé, orge et houblon jusqu’à l’horizon. Au fond, la vigne d’Agathe.',
+      activities: [
+        keepFarm('moisson'),
+        activity('orge', 'Moissonner l’orge', '🌾', { job: ['fermier', 5], duration: 60, energy: 5, when: farmWork, results: [res(80, '3 orges', [give('orge', 3)]), res(20, '4 orges', [give('orge', 4)], { bonus: [[F(3), 15]] })], description: 'La base de toutes les bières.' }),
+        activity('houblon', 'Cueillir le houblon', '🌿', { job: ['fermier', 7], level: 2, duration: 75, energy: 5, when: farmWork, results: [res(1, '2 houblons', [give('houblon', 2)])] }),
+        activity('vendange', 'Vendanger', '🍇', { job: ['fermier', 10], level: 3, duration: 90, energy: 6, when: farmWork, results: [res(80, '4 raisins', [give('raisin', 4)]), res(20, '6 raisins', [give('raisin', 6)])], description: 'Pour les grands crus du Royaume.' }),
+        keepFarm('moudre'),
+      ],
+    },
+    {
+      id: 'basse-cour', name: 'La basse-cour et le verger', emoji: '🐔', level: 1,
+      description: 'Les poules, la vache Marguerite, les cerisiers et les pommiers.',
+      activities: [
+        keepFarm('oeufs'),
+        activity('volaille', 'Attraper une volaille', '🐓', { job: ['fermier', 5], duration: 45, energy: 4, when: farmWork, results: [res(70, 'Une volaille', [give('volaille', 1)]), res(30, 'Elle t’a échappé', [])] }),
+        keepFarm('legumes'),
+        activity('fromage', 'Traire et faire le fromage', '🧀', { job: ['fermier', 8], level: 2, duration: 90, energy: 5, when: farmWork, results: [res(1, '2 fromages', [give('fromage', 2)])] }),
+        activity('cerises', 'Cueillir des cerises', '🍒', { job: ['fermier', 6], level: 2, duration: 60, energy: 4, when: farmWork, results: [res(1, '3 cerises', [give('cerises', 3)])], description: 'Pour la Kriek.' }),
+        keepFarm('pommes'),
+      ],
+    },
+  ],
+});
+// Les légumes donnent aussi des oignons (soupe d'oignon de la Gueuse Cocue).
+keepFarm('legumes').results = [res(60, 'Légumes du potager', [give('legumes', 3)]), res(40, 'Des oignons', [give('oignon', 3)])];
+
+// ---------------------------------------------------------------------------
+// Forge du Dragon Noir : fonderie, outils, et le catalogue officiel de Wagner
+// ---------------------------------------------------------------------------
+
+const W = (n) => lvl('forgeron', n);
+/** Fabrication à la forge : coût en lingots, niveau de forgeron, durée. */
+const craft = (id, name, emoji, level, cost, out, o = {}) =>
+  activity(id, name, emoji, {
+    job: ['forgeron', o.xp ?? 6 + level * 3],
+    ...(level > 1 ? { level } : {}),
+    duration: o.duration ?? 45 + level * 15,
+    costs: [stat('energie', -(o.energy ?? 4 + level)), ...Object.entries(cost).map(([it, q]) => take(it, q))],
+    when: forgeOpen,
+    locked: 'La forge est fermée (tempête ou incendie)',
+    label: o.label ?? 'C’est forgé !',
+    actions: Array.isArray(out) ? out : Object.entries(out).map(([it, q]) => give(it, q)),
+    description: o.description ?? `${Object.entries(cost).map(([it, q]) => `${q} ${items.find((i) => i.id === it)?.name ?? it}`).join(' + ')}`,
+  });
+const ateliers = [
+  ['fonderie', '🔥 La fonderie', 'Le minerai devient lingot. Bronze = cuivre + étain.', [
+    craft('fondre_bronze', 'Fondre du bronze', '🟫', 1, { minerai_cuivre: 1, minerai_etain: 1 }, { lingot_bronze: 1 }, { duration: 45 }),
+    craft('fondre', 'Fondre un lingot de fer', '🔩', 1, { minerai: 2 }, { lingot: 1 }, { duration: 60 }),
+    craft('fondre_argent', 'Fondre un lingot d’argent', '🥈', 2, { minerai_argent: 2 }, { lingot_argent: 1 }),
+    craft('fondre_or', 'Fondre un lingot d’or', '🥇', 3, { minerai_or: 2 }, { lingot_or: 1 }),
+    craft('ferrure', 'Forger une ferrure', '🔗', 3, { lingot: 2 }, { ferrure: 1 }, { duration: 90, description: '2 lingots de fer → 1 ferrure pour la charpente de l’église' }),
+  ]],
+  ['outils', '🛠️ Les outils', 'De quoi travailler mieux et plus longtemps.', [
+    craft('pioche_bronze', 'Pioche de bronze', '⛏️', 1, { lingot_bronze: 2, buche: 1 }, { pioche_bronze: 1 }),
+    craft('canne_renforcee', 'Canne renforcée', '🎣', 1, { lingot: 1, buche: 1 }, { canne_renforcee: 1 }),
+    craft('hache_fer', 'Hache de fer', '🪓', 2, { lingot: 3, buche: 1 }, { hache_fer: 1 }),
+    craft('pioche_fer', 'Pioche de fer', '⛏️', 2, { lingot: 3, buche: 1 }, { pioche_fer: 1 }),
+    craft('canne_argent', 'Canne à moulinet d’argent', '🎣', 3, { lingot_argent: 2, buche: 1 }, { canne_argent: 1 }),
+    craft('pioche_maitre', 'Pioche de maître', '⛏️', 4, { lingot: 3, lingot_or: 1 }, { pioche_maitre: 1 }),
+  ]],
+  ['armes', '⚔️ Les armes du champ de bataille', 'Tranchantes comme la langue d’un courtisan.', [
+    craft('epee_courte', 'Épée courte du Novice', '🗡️', 1, { lingot_bronze: 4 }, { epee_courte: 1 }),
+    craft('epee_longue', 'Épée longue du Chevalier', '⚔️', 2, { lingot: 6 }, { epee_longue: 1 }),
+    craft('hache_guerre', 'Hache de guerre des Montagnes', '🪓', 3, { lingot: 5, lingot_argent: 2 }, { hache_guerre: 1 }),
+    craft('marteau_guerre', 'Marteau de guerre du Colosse', '🔨', 3, { lingot: 7 }, { marteau_guerre: 1 }),
+    craft('dague', 'Dague d’assassin', '🔪', 3, { lingot_argent: 4 }, { dague: 1 }),
+    craft('lame_dragon', 'Lame du Dragon', '🐉', 5, { lingot_or: 3, diamant: 1 }, { lame_dragon: 1 }, { duration: 240 }),
+  ]],
+  ['tir', '🏹 Arcs, arbalètes et projectiles', 'Pour la chasse dans le bois sombre… ou un soldat.', [
+    craft('arc_court', 'Arc court du Chasseur', '🏹', 1, { lingot_bronze: 5 }, { arc_court: 1 }),
+    craft('fleches', 'Flèches en fer (×20)', '➶', 1, { lingot: 2 }, { fleche: 20 }),
+    craft('fleches_large', 'Flèches à tête large (×12)', '➶', 2, { lingot: 3 }, { fleche_large: 12 }),
+    craft('carreaux', 'Carreaux d’arbalète (×15)', '➵', 2, { lingot: 3 }, { carreau: 15 }),
+    craft('arc_long', 'Arc long des Elfes', '🏹', 3, { lingot: 6, lingot_argent: 2 }, { arc_long: 1 }),
+    craft('arbalete_guerre', 'Arbalète de guerre', '🎯', 3, { lingot: 8 }, { arbalete_guerre: 1 }),
+    craft('carreaux_perforants', 'Carreaux perforants (×10)', '➵', 3, { lingot_argent: 2 }, { carreau_perforant: 10 }),
+    craft('arbalete_precision', 'Arbalète de précision', '🎯', 4, { lingot_argent: 4, lingot_or: 1 }, { arbalete_precision: 1 }),
+  ]],
+  ['armures', '🛡️ Les armures qui sauvent la vie', 'Une armure fait aussi moins peiner au travail.', [
+    craft('cuirasse_cuir', 'Cuirasse de cuir renforcé', '🦺', 1, { lingot_bronze: 5 }, { cuirasse_cuir: 1 }),
+    craft('heaume', 'Heaume à visage fermé', '⛑️', 2, { lingot: 4 }, { heaume: 1 }),
+    craft('cotte_mailles', 'Cotte de mailles du Soldat', '⛓️', 2, { lingot: 8 }, { cotte_mailles: 1 }),
+    craft('armure_plates', 'Armure de plates du Chevalier', '🛡️', 4, { lingot: 10, lingot_argent: 3 }, { armure_plates: 1 }, { duration: 180 }),
+    craft('armure_royale', 'Armure royale du Roi-Dragon', '👑', 5, { lingot_or: 5, diamant: 2 }, { armure_royale: 1 }, { duration: 300 }),
+  ]],
+  ['accessoires', '✴️ Accessoires et services', 'Les petits plus du maître forgeron.', [
+    craft('bouclier_rond', 'Bouclier rond en bois et fer', '🛡️', 1, { lingot: 3, buche: 1 }, { bouclier_rond: 1 }),
+    craft('carquois', 'Carquois en cuir', '🎒', 1, { lingot_bronze: 2 }, { carquois: 1 }),
+    craft('gantelets', 'Gantelets de combat', '🧤', 2, { lingot: 3 }, { gantelets: 1 }),
+    craft('eperons', 'Éperons de chevalier', '✴️', 2, { lingot_argent: 1 }, { eperons: 1 }),
+    craft('bouclier_heraldique', 'Bouclier héraldique gravé', '🛡️', 3, { lingot_argent: 2 }, { bouclier_heraldique: 1 }),
+    craft('aiguisage', 'Aiguisage ultime', '🔪', 1, { lingot: 1 }, [{ type: 'modifier.apply', modifier: 'aiguisage', durationSec: 1800 }], { label: 'Tes outils coupent comme jamais', description: '1 lingot de fer → récoltes +15 % pendant 30 min' }),
+    craft('gravure', 'Gravure personnalisée', '✒️', 2, { lingot_argent: 1 }, { gravure: 1 }, { description: '1 lingot d’argent → ton nom gravé (souvenir)' }),
+    craft('enchantement', 'Enchantement mineur', '✨', 3, { lingot_or: 1 }, [{ type: 'modifier.apply', modifier: 'enchantement', durationSec: 1800 }], { label: 'Ta lame brille un peu plus', description: '1 lingot d’or → récoltes +25 % pendant 30 min' }),
+  ]],
+];
+forge.modules = forge.modules.filter((m) => m.id !== 'atelier');
+{
+  const home = forge.screens.find((x) => x.id === 'accueil');
+  home.blocks = home.blocks.filter((x) => !(x.type === 'widget' && x.widget.activity === 'atelier'));
+  const at = home.blocks.findIndex((x) => x.type === 'widget' && x.widget.kind === 'player.tools');
+  home.blocks.splice(
+    at,
+    0,
+    box([text('**🔨 Le catalogue du maître forgeron.** *Ici, le feu ne s’éteint jamais. Pas d’écus : on paie en lingots.* Chaque objet demande un niveau de forgeron.')], FORGE, all(notStorm, not(forgeDamaged))),
+    buttons(ateliers.map(([id, name]) => go(name, `atelier-${id}`, { style: 'primary' })), all(notStorm, not(forgeDamaged))),
+  );
+  for (const [id, name, intro, acts] of ateliers) {
+    forge.modules.push({ type: 'activity', id: `atelier-${id}`, name, activities: acts });
+    forge.screens.push({
+      id: `atelier-${id}`,
+      name,
+      guard: { when: all(notStorm, not(forgeDamaged)), redirect: 'accueil', notice: 'La forge est fermée.' },
+      blocks: [box([text(`## ${name}\n*${intro}*`), text(statusLine)], FORGE), notice(), widget({ kind: 'activity.board', activity: `atelier-${id}`, accent: FORGE }), buttons([go('↩️ Retour à la forge', 'accueil'), go('🎒 Mon inventaire', 'inventaire'), go('🔄 Actualiser', `atelier-${id}`)])],
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Taverne : la brasserie (nouveau métier) et la carte de la Gueuse Cocue
+// ---------------------------------------------------------------------------
+
+const drink = (id, name, emoji, category, price, energy, alcohol, o = {}) => ({ id, name, emoji, category, stockItem: o.stock ?? id, price, effects: [stat('energie', energy), stat('alcool', alcohol)], ...(o.takeaway ? { takeaway: o.takeaway } : {}) });
+const BIERES = 'Bières d’or et d’ambre';
+const SPIRITUEUX = 'Hydromel et spiritueux';
+const CRUS = 'Grands crus du Royaume';
+{
+  const comptoir = taverne.modules.find((m) => m.id === 'comptoir');
+  comptoir.offers = [
+    drink('b86', 'La 8.6 Original', '🍺', BIERES, 5, 5, 14),
+    drink('guinness', 'Guinness Stout', '🖤', BIERES, 6, 8, 8),
+    drink('chouffe', 'La Chouffe', '🍺', BIERES, 7, 5, 12),
+    drink('pelican', 'Pelican', '🍺', BIERES, 6, 10, 7),
+    drink('grimbergen_blonde', 'Grimbergen Blonde', '🍺', BIERES, 6, 6, 9),
+    drink('grimbergen_ambree', 'Grimbergen Ambrée', '🍺', BIERES, 6, 6, 9),
+    drink('kriek', 'Mort Subite Kriek', '🍒', BIERES, 6, 6, 7),
+    drink('blanche', 'Blanche de Bruges', '🍺', BIERES, 5, 7, 7),
+    drink('tripel', 'Tripel Karmeliet', '🍺', BIERES, 7, 5, 12),
+    drink('duvel', 'Duvel', '🍺', BIERES, 7, 5, 12),
+    drink('hydromel', 'Hydromel traditionnel', '🍯', SPIRITUEUX, 7, 10, 10, { takeaway: { item: 'flasque_hydromel', surcharge: 2 } }),
+    drink('hydromel_baies', 'Hydromel aux baies sauvages', '🫐', SPIRITUEUX, 8, 12, 10),
+    drink('whisky', 'Whisky des Highlands', '🥃', SPIRITUEUX, 8, 5, 18),
+    drink('cervoise', 'Cervoise médiévale', '🍺', SPIRITUEUX, 4, 8, 5),
+    drink('vin_epice', 'Vin épicé chaud (Sang du Dragon)', '🔥', SPIRITUEUX, 6, 15, 8),
+    drink('absinthe', 'Absinthe de la Fée Verte', '🧚', SPIRITUEUX, 9, 0, 25),
+    drink('vin_rouge', 'Vin rouge de Bordeaux (Sang du Lion)', '🍷', CRUS, 8, 6, 10),
+    drink('vin_blanc', 'Vin blanc de Loire (Larme de la Princesse)', '🥂', CRUS, 7, 6, 9),
+    drink('porto', 'Porto vieilli (Doux Poison des Seigneurs)', '🍷', CRUS, 9, 5, 12),
+    { id: 'eau', name: 'Eau fraîche', emoji: '💧', category: 'Sans alcool', stockItem: 'eau_potable', price: 2, effects: [stat('energie', 5)], takeaway: { item: 'gourde_eau', surcharge: 1 } },
+    { id: 'jus', name: 'Jus de pomme', emoji: '🍎', category: 'Sans alcool', stockItem: 'jus_pomme', price: 3, effects: [stat('energie', 8)] },
+  ];
+  const carte = taverne.modules.find((m) => m.id === 'carte');
+  const snack = (id, name, emoji, price, energy) => ({ id, name, emoji, category: 'À grignoter avec ta bière', stockItem: id, price, effects: [stat('energie', energy)] });
+  carte.offers.push(
+    snack('pate_sanglier', 'Pâté de sanglier aux herbes & cornichons du Donjon', '🥧', 8, 25),
+    snack('saucisses', 'Saucisses fumées du boucher & moutarde forte', '🌭', 9, 30),
+    snack('fromage_moines', 'Fromage de moines (comté & bleu) et pain noir', '🧀', 7, 20),
+    snack('soupe_oignon', 'Soupe d’oignon à la bière (recette secrète)', '🧅', 6, 20),
+    snack('poulet_miel', 'Cuisses de poulet rôties au miel & épices', '🍗', 10, 40),
+    snack('assiette_bourreau', 'Assiette du Bourreau (charcuterie & fromages)', '🍖', 12, 50),
+  );
+  const reserve = taverne.modules.find((m) => m.id === 'reserve');
+  delete reserve.initial.biere;
+  delete reserve.initial.vin;
+  delete reserve.targets.biere;
+  delete reserve.targets.vin;
+  Object.assign(reserve.initial, { orge: 10, houblon: 4, miel: 4, b86: 10, cervoise: 10, pelican: 6, blanche: 6, guinness: 4, hydromel: 6, vin_rouge: 4 });
+  for (const id of ['orge', 'houblon', 'miel', 'cerises', 'raisin', 'baies', 'herbes', 'armoise', 'oignon', 'fromage', 'volaille', 'gerbe']) reserve.targets[id] = 20;
+  for (const o of comptoir.offers) reserve.targets[o.stockItem] ??= 12;
+  const plats = taverne.modules.find((m) => m.id === 'plats');
+  for (const s of ['pate_sanglier', 'saucisses', 'fromage_moines', 'soupe_oignon', 'poulet_miel', 'assiette_bourreau']) plats.targets[s] = 8;
+  Object.assign(plats.initial, { soupe_oignon: 4, fromage_moines: 4 });
+  const rachat = taverne.modules.find((m) => m.id === 'rachat');
+  delete rachat.prices.biere;
+  delete rachat.prices.vin;
+  Object.assign(rachat.prices, { orge: 2, houblon: 3, miel: 4, cerises: 3, raisin: 3, baies: 3, herbes: 3, armoise: 6, oignon: 2, fromage: 4, volaille: 5, gerbe: 1 });
+  // Cuisine : les plats « À grignoter » (cuisinier).
+  const cuisine = taverne.modules.find((m) => m.id === 'cuisine');
+  cuisine.recipes.push(
+    { id: 'soupe_oignon', name: 'Soupe d’oignon à la bière', emoji: '🧅', level: 1, durationSec: 90, inputs: { oignon: 3, cervoise: 1, eau: 1 }, outputs: { soupe_oignon: 4 } },
+    { id: 'fromage_moines', name: 'Fromage de moines et pain noir', emoji: '🧀', level: 1, durationSec: 60, inputs: { fromage: 2, farine: 1 }, outputs: { fromage_moines: 4 } },
+    { id: 'pate_sanglier', name: 'Pâté de sanglier aux herbes', emoji: '🥧', level: 2, durationSec: 120, inputs: { viande: 2, herbes: 1, legumes: 1 }, outputs: { pate_sanglier: 4 } },
+    { id: 'saucisses', name: 'Saucisses fumées & moutarde', emoji: '🌭', level: 2, durationSec: 120, inputs: { viande: 2, epices: 1 }, outputs: { saucisses: 4 } },
+    { id: 'poulet_miel', name: 'Cuisses de poulet au miel', emoji: '🍗', level: 3, durationSec: 150, inputs: { volaille: 2, miel: 1, epices: 1 }, outputs: { poulet_miel: 4 } },
+    { id: 'assiette_bourreau', name: 'Assiette du Bourreau', emoji: '🍖', level: 4, durationSec: 180, inputs: { viande: 1, fromage: 2, farine: 1, herbes: 1 }, outputs: { assiette_bourreau: 3 } },
+  );
+  // Brasserie : nouveau métier de la taverne (un métier actif à la fois, comme les cuisiniers).
+  const brew = (id, name, emoji, level, durationSec, inputs, qty) => ({ id, name, emoji, level, durationSec, inputs, outputs: { [id]: qty } });
+  taverne.modules.push({
+    type: 'production',
+    id: 'brasserie',
+    name: 'Brasserie',
+    stationName: '🛢️ Cuve',
+    stationCount: 3,
+    job: 'brasseur',
+    inputInventory: 'reserve',
+    outputInventory: 'reserve',
+    xp: { start: 60, collect: 20 },
+    labels: { start: 'Brasser' },
+    recipes: [
+      brew('cervoise', 'Cervoise médiévale', '🍺', 1, 120, { orge: 2, eau: 2 }, 8),
+      brew('b86', 'La 8.6 Original', '🍺', 1, 150, { orge: 3, houblon: 1, eau: 2 }, 8),
+      brew('pelican', 'Pelican', '🍺', 1, 150, { orge: 2, houblon: 1, eau: 2 }, 8),
+      brew('blanche', 'Blanche de Bruges', '🍺', 1, 150, { gerbe: 2, houblon: 1, eau: 2 }, 8),
+      brew('hydromel', 'Hydromel traditionnel', '🍯', 2, 180, { miel: 3, eau: 2 }, 6),
+      brew('grimbergen_blonde', 'Grimbergen Blonde', '🍺', 2, 180, { orge: 3, houblon: 1, miel: 1, eau: 2 }, 8),
+      brew('grimbergen_ambree', 'Grimbergen Ambrée', '🍺', 2, 180, { orge: 3, houblon: 1, epices: 1, eau: 2 }, 8),
+      brew('guinness', 'Guinness Stout', '🖤', 2, 180, { orge: 4, houblon: 1, eau: 2 }, 8),
+      brew('kriek', 'Mort Subite Kriek', '🍒', 2, 180, { orge: 2, cerises: 3, eau: 2 }, 8),
+      brew('vin_epice', 'Vin épicé chaud', '🔥', 2, 120, { vin_rouge: 2, miel: 1, epices: 1 }, 6),
+      brew('chouffe', 'La Chouffe', '🍺', 3, 210, { orge: 3, houblon: 2, epices: 1, eau: 2 }, 8),
+      brew('tripel', 'Tripel Karmeliet', '🍺', 3, 210, { orge: 3, gerbe: 1, houblon: 2, eau: 2 }, 8),
+      brew('duvel', 'Duvel', '🍺', 3, 210, { orge: 4, houblon: 2, eau: 2 }, 8),
+      brew('hydromel_baies', 'Hydromel aux baies sauvages', '🫐', 3, 210, { miel: 3, baies: 2, eau: 2 }, 6),
+      brew('vin_rouge', 'Vin rouge de Bordeaux', '🍷', 3, 240, { raisin: 4 }, 6),
+      brew('vin_blanc', 'Vin blanc de Loire', '🥂', 3, 240, { raisin: 4 }, 6),
+      brew('porto', 'Porto vieilli', '🍷', 4, 300, { raisin: 4, miel: 1 }, 5),
+      brew('whisky', 'Whisky des Highlands', '🥃', 4, 300, { orge: 5, eau: 2 }, 5),
+      brew('absinthe', 'Absinthe de la Fée Verte', '🧚', 5, 300, { armoise: 2, herbes: 2, eau: 1 }, 4),
+    ],
+  });
+  const guardBrew = { when: { type: 'hasJob', job: 'brasseur' }, redirect: 'accueil', notice: '⛔ Seuls les brasseurs actifs peuvent toucher aux cuves.' };
+  taverne.screens.push(
+    {
+      id: 'metier-brasseur',
+      name: 'Devenir brasseur',
+      blocks: [
+        box([text('## 🍻 Devenir brasseur\n*« La bière, c’est sacré. Tu brasses, je vends, tout le monde boit ! » — Edgar*\n\n**Niveau retrouvé :** {player.level.brasseur} · **XP conservée :** {player.xp.brasseur}\nLes ingrédients (orge, houblon, miel, cerises, raisin, baies, armoise…) se revendent à Edgar ; tu les brasses dans ses cuves.\n**Un seul métier actif à la fois à la taverne** (cuisinier ou brasseur).')], 0x885c34),
+        notice(),
+        buttons([
+          btn('Devenir brasseur', { actions: [{ type: 'job.join', job: 'brasseur' }], onSuccess: { goto: 'brasserie', notice: '🍻 Bienvenue aux cuves !' }, onFailure: { goto: 'accueil' } }, { style: 'success', visibleIf: not({ type: 'hasJob' }) }),
+          go('Retour', 'accueil'),
+        ]),
+      ],
+    },
+    {
+      id: 'brasserie',
+      name: 'Brasserie',
+      guard: guardBrew,
+      blocks: [
+        box([text('## 🛢️ Les cuves d’Edgar\n🟢 {production.brasserie.free} libre(s)　🟠 {production.brasserie.cooking} en cours　✅ {production.brasserie.ready} prête(s)\n🍻 **Brasseur niveau {player.level.brasseur}** · {player.xp.brasseur} XP')], 0x885c34),
+        notice(),
+        widget({ kind: 'production.priorities', production: 'brasserie', limit: 4, title: '📋 Boissons à brasser en priorité' }),
+        widget({ kind: 'production.stations', production: 'brasserie', recipeScreen: 'brasserie-recettes' }),
+        buttons([go('Retour', 'accueil'), go('Actualiser', 'brasserie')]),
+      ],
+    },
+    {
+      id: 'brasserie-recettes',
+      name: 'Livre du brasseur',
+      guard: guardBrew,
+      blocks: [box([text('## 📖 Livre du brasseur\n*Seules les recettes débloquées et réalisables apparaissent.*')], 0x885c34), notice(), widget({ kind: 'production.recipes', production: 'brasserie', backScreen: 'brasserie' }), buttons([go('Retour aux cuves', 'brasserie')])],
+    },
+  );
+  const home = taverne.screens.find((s) => s.id === 'accueil');
+  const nav = [...home.blocks].reverse().find((x) => x.type === 'buttons');
+  const at = home.blocks.indexOf(nav);
+  home.blocks.splice(at, 0, buttons([go('🛢️ Brasserie', 'brasserie', { style: 'primary', visibleIf: { type: 'hasJob', job: 'brasseur' } }), go('🍻 Devenir brasseur', 'metier-brasseur', { visibleIf: not({ type: 'hasJob' }) })]));
+}
+
 addStall(place, { name: 'Le chariot du colporteur', who: 'le colporteur', intro: 'Un colporteur a garé son chariot près du puits : un peu de tout, un peu plus cher qu’ailleurs.', prompt: '« Bonne affaire, l’ami ! »', stock: { gourde_eau: 30, pain_emballe: 20, epices: 20, hache: 4, pioche: 4, canne: 4 }, offers: [ware('gourde_eau', 3, 'Vivres'), ware('pain_emballe', 9, 'Vivres'), ware('epices', 9, 'Vivres'), ware('hache', 30, 'Outils'), ware('pioche', 30, 'Outils'), ware('canne', 25, 'Outils')] });
 addStall(taverne, { name: 'Les petits trésors d’Edgar', who: 'Edgar', intro: '« Tout ce qui se boit, se mange… ou se raconte. »', stock: { flasque_hydromel: 10, bouteille_biere: 15, gamelle_soupe: 8 }, offers: [ware('flasque_hydromel', 16, 'À emporter'), ware('bouteille_biere', 10, 'À emporter'), ware('gamelle_soupe', 13, 'À emporter')] });
-addStall(mine, { name: 'Le comptoir de Roland', intro: '« Je rachète tout ce qui sort de la montagne. Et je vends de quoi y redescendre. »', stock: { pioche: 6, pierre: 10, minerai: 4 }, offers: [ware('pioche', 24, 'Outils')], buy: { pierre: 2, minerai: 4 }, targets: { pierre: 60, minerai: 40 } });
-addStall(forge, { name: 'L’étal de Wagner', intro: '« De l’acier honnête, forgé ici même. »', stock: { hache: 5, pioche: 5, ferrure: 1, lingot: 2 }, offers: [ware('hache', 22, 'Outils'), ware('pioche', 22, 'Outils'), ware('lingot', 14, 'Métal'), ware('ferrure', 30, 'Métal')], buy: { minerai: 4, lingot: 10, ferrure: 24, buche: 2 }, targets: { minerai: 40, lingot: 20, ferrure: 10, buche: 30 } });
-addStall(foret, { name: 'La cabane de Sylvain', intro: '« Le bois, c’est la vie. Et un peu d’argent, aussi. »', stock: { hache: 5, buche: 10, champignon: 4 }, offers: [ware('hache', 24, 'Outils')], buy: { buche: 2, champignon: 3, viande: 6 }, targets: { buche: 60, champignon: 20, viande: 15 } });
-addStall(ferme, { name: 'L’étal d’Agathe', intro: '« Des produits frais, du poulailler à ta besace ! »', stock: { oeuf: 12, legumes: 15, panier_agathe: 8, gourde_eau: 10 }, offers: [ware('panier_agathe', 28, 'Vivres'), ware('oeuf', 2, 'Vivres'), ware('legumes', 5, 'Vivres'), ware('gourde_eau', 3, 'Vivres')], buy: { gerbe: 1, oeuf: 1, legumes: 3, farine: 2, jus_pomme: 4 }, targets: { gerbe: 40, oeuf: 30, legumes: 30, farine: 20, jus_pomme: 15 } });
-addStall(pont, { name: 'L’étal du vieux pêcheur', who: 'le vieux pêcheur', intro: 'Un vieux pêcheur somnole près de sa caisse, une canne sur les genoux.', stock: { canne: 6, poisson: 6 }, offers: [ware('canne', 18, 'Outils'), ware('poisson', 6, 'Vivres')], buy: { poisson: 4 }, targets: { poisson: 40 } });
+addStall(mine, { name: 'Le comptoir de Roland', intro: '« Je rachète tout ce qui sort de la montagne. Et je vends de quoi y redescendre. »', stock: { pioche: 6, pierre: 10, minerai: 4 }, offers: [ware('pioche', 24, 'Outils')], buy: { pierre: 2, minerai: 4, minerai_cuivre: 3, minerai_etain: 3, minerai_argent: 8, minerai_or: 15, diamant: 60 }, targets: { pierre: 60, minerai: 40, minerai_cuivre: 40, minerai_etain: 40, minerai_argent: 20, minerai_or: 10, diamant: 3 } });
+addStall(forge, { name: 'L’étal de Wagner', intro: '« De l’acier honnête, forgé ici même. »', stock: { hache: 5, pioche_bronze: 4, ferrure: 1, lingot: 2, lingot_bronze: 4, fleche: 40, carreau: 30 }, offers: [ware('hache', 22, 'Outils'), ware('pioche_bronze', 30, 'Outils'), ware('lingot_bronze', 10, 'Métal'), ware('lingot', 14, 'Métal'), ware('ferrure', 30, 'Métal'), ware('fleche', 2, 'Munitions'), ware('carreau', 3, 'Munitions')], buy: { minerai: 4, minerai_cuivre: 3, minerai_etain: 3, lingot: 10, lingot_bronze: 7, lingot_argent: 15, lingot_or: 30, ferrure: 24, buche: 2 }, targets: { minerai: 40, minerai_cuivre: 30, minerai_etain: 30, lingot: 20, lingot_bronze: 20, lingot_argent: 10, lingot_or: 5, ferrure: 10, buche: 30 } });
+addStall(foret, { name: 'La cabane de Sylvain', intro: '« Le bois, c’est la vie. Et un peu d’argent, aussi. »', stock: { hache: 5, buche: 10, champignon: 4 }, offers: [ware('hache', 24, 'Outils')], buy: { buche: 2, champignon: 3, viande: 6, volaille: 5, miel: 4, baies: 3, herbes: 3, armoise: 6 }, targets: { buche: 60, champignon: 20, viande: 15, volaille: 15, miel: 20, baies: 20, herbes: 20, armoise: 10 } });
+addStall(ferme, { name: 'L’étal d’Agathe', intro: '« Des produits frais, du poulailler à ta besace ! »', stock: { oeuf: 12, legumes: 15, panier_agathe: 8, gourde_eau: 10 }, offers: [ware('panier_agathe', 28, 'Vivres'), ware('oeuf', 2, 'Vivres'), ware('legumes', 5, 'Vivres'), ware('gourde_eau', 3, 'Vivres')], buy: { gerbe: 1, oeuf: 1, legumes: 3, farine: 2, jus_pomme: 4, orge: 2, houblon: 3, raisin: 3, cerises: 3, oignon: 2, fromage: 4 }, targets: { gerbe: 40, oeuf: 30, legumes: 30, farine: 20, jus_pomme: 15, orge: 30, houblon: 20, raisin: 20, cerises: 20, oignon: 20, fromage: 15 } });
+addStall(pont, { name: 'L’étal du vieux pêcheur', who: 'le vieux pêcheur', intro: 'Un vieux pêcheur somnole près de sa caisse, une canne sur les genoux.', stock: { canne: 6, poisson: 6 }, offers: [ware('canne', 18, 'Outils'), ware('poisson', 6, 'Vivres')], buy: { poisson: 4, ecrevisses: 3, truite: 7, anguille: 8, brochet: 12, carpe_doree: 40 }, targets: { poisson: 40, ecrevisses: 20, truite: 20, anguille: 15, brochet: 10, carpe_doree: 2 } });
 addStall(eglise, { name: 'Le tronc des offrandes', who: 'le Père Anselme', intro: '« Une obole pour l’église, une bénédiction pour toi. »', stock: { cierge: 30, eau_benite: 30 }, offers: [ware('cierge', 8, 'Bénédictions'), ware('eau_benite', 6, 'Bénédictions')] });
 
 // ---------------------------------------------------------------------------
@@ -923,7 +1478,7 @@ const world = {
   events: [scenario],
   stats,
   items,
-  modifiers: royaume.modifiers,
+  modifiers: [...royaume.modifiers, ...forgeBoosts],
   jobs: [
     ...royaume.jobs.filter((j) => j.id === 'cuisinier'),
     { id: 'bucheron', name: 'Bûcheron', emoji: '🪓', xpPerLevel: 40, maxLevel: 5 },
@@ -931,16 +1486,17 @@ const world = {
     { id: 'forgeron', name: 'Forgeron', emoji: '🔨', xpPerLevel: 40, maxLevel: 5 },
     { id: 'fermier', name: 'Fermier', emoji: '🌾', xpPerLevel: 40, maxLevel: 5 },
     { id: 'pecheur', name: 'Pêcheur', emoji: '🎣', xpPerLevel: 40, maxLevel: 5 },
+    { id: 'brasseur', name: 'Brasseur', emoji: '🍻', xpPerLevel: 100 },
   ],
   onboarding: {
     enabled: true,
     channelName: '📜・serment',
     title: '📜 Le serment de Valbrume',
-    text: 'Voyageur, avant de franchir les portes de Valbrume, jure sur la mémoire de la Sainte Pelle :\n\n• de respecter les habitants, leurs biens et leurs créations ;\n• de ne pas tricher ni profiter des failles du Royaume ;\n• de suivre les indications de l’intendance et du Roi ;\n• de prêter la main quand le village en a besoin.\n\nEn cliquant ci-dessous, tu prêtes serment et deviens habitant de Valbrume.',
+    text: 'Voyageur, avant de franchir les portes de Valbrume, jure sur la mémoire de la Sainte Pelle :\n\n• de respecter les habitants, leurs biens et leurs créations ;\n• de ne pas tricher ni profiter des failles du Royaume ;\n• de suivre les indications de l’intendance et du Roi ;\n• de prêter la main quand le village en a besoin.\n\nEn cliquant ci-dessous, tu prêtes serment et deviens habitant du Royaume.',
     button: 'Je le jure',
     buttonEmoji: '✋',
-    roleName: '🛡️ Habitant de Valbrume',
-    confirmation: '✋ **Serment prêté !** Bienvenue à Valbrume, habitant. Les lieux du village te sont ouverts : rejoins le salon vocal d’un bâtiment pour y entrer. Commence par la **Place du village**, où Maëlis t’attend.',
+    roleName: '🛡️ Habitant du Royaume',
+    confirmation: '✋ **Serment prêté !** Bienvenue dans le Royaume, habitant. Les lieux du village te sont ouverts : rejoins le salon vocal d’un bâtiment pour y entrer. Commence par la **Place du village**, où Maëlis t’attend.',
     actions: [stat('ecus', 100), give('pain_emballe', 2), give('gourde_eau', 2)],
   },
   variables,

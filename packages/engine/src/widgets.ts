@@ -525,11 +525,12 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
         const key = activityKey(ctx, mod, a);
         const pending = p.activities[key];
         const reqs: string[] = [];
-        if (a.costs.length) reqs.push(effectsLine(ctx, a.costs));
+        if (a.costs.length) reqs.push(effectsLine(ctx, activityCosts(ctx, a)));
         if (a.tool) {
-          const def = findItem(ctx.world, a.tool.item);
-          const dur = p.tools[a.tool.item];
-          reqs.push(`${itemName(ctx.world, a.tool.item)} (−${a.tool.wear} durabilité${(p.items[a.tool.item] ?? 0) > 0 ? ` · état ${dur ?? def?.tool?.maxDurability}/${def?.tool?.maxDurability}` : ''})`);
+          const used = pickTool(ctx, a) ?? a.tool.item;
+          const def = findItem(ctx.world, used);
+          const dur = p.tools[used];
+          reqs.push(`${itemName(ctx.world, used)}${pickTool(ctx, a) ? '' : a.tool.anyOf?.length ? ' ou mieux' : ''} (−${a.tool.wear} durabilité${(p.items[used] ?? 0) > 0 ? ` · état ${dur ?? def?.tool?.maxDurability}/${def?.tool?.maxDurability}` : ''})`);
         }
         reqs.push(a.durationSec ? `⏱️ ${duration(a.durationSec)}` : '⚡ immédiat');
         let status: string;
@@ -552,9 +553,17 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
             btn = button(env.id('start', a.id), 'Lancer', 'success');
           }
         }
+        // Chances de chaque résultat, pour ce joueur (lieu, niveau, outil).
+        let odds = '';
+        if (a.results.length > 1) {
+          const ws = resultWeights(ctx, a);
+          const total = ws.reduce((s, x) => s + x, 0);
+          if (total > 0)
+            odds = '\n🎲 ' + a.results.map((r, i) => (ws[i]! > 0 ? `${r.label} ${Math.max(1, Math.round((ws[i]! / total) * 100))} %` : '')).filter(Boolean).join(' · ');
+        }
         children.push({
           type: 'section',
-          texts: [text(`**${a.emoji ?? ''} ${a.name}**${a.description ? `\n${a.description}` : ''}\n${reqs.join(' · ')}\n${status}`)],
+          texts: [text(`**${a.emoji ?? ''} ${a.name}**${a.description ? `\n${a.description}` : ''}\n${reqs.join(' · ')}${odds}\n${status}`)],
           accessory: btn,
         });
       });
@@ -697,6 +706,8 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
         const next = nextLevel(ctx);
         lines.push(`${xpDef?.emoji ?? '⭐'} **${xpDef?.name ?? 'XP'} :** ${xp}${level ? ` · ${level.emoji ? level.emoji + ' ' : ''}**${level.name}**` : ''}${next ? ` (prochain : ${next.name} à ${next.minXp})` : ''}`);
       }
+      const eqt = equipmentTotals(ctx);
+      if (eqt.attack || eqt.defense) lines.push(`⚔️ **Attaque :** ${eqt.attack} · 🛡️ **Défense :** ${eqt.defense}`);
       if (w.jobs && ctx.world.jobs.length) {
         lines.push('', '**🛠️ Métiers**');
         for (const j of ctx.world.jobs) {
@@ -762,7 +773,9 @@ function inventoryLines(ctx: Ctx): string {
     if (!def || q <= 0 || def.consumable) continue;
     const cat = def.category ?? 'Objets';
     const dur = def.tool ? ` (${ctx.player.tools[id] ?? def.tool.maxDurability}/${def.tool.maxDurability})` : '';
-    (groups.get(cat) ?? groups.set(cat, []).get(cat)!).push(`${itemName(ctx.world, id)} ×${q}${dur}`);
+    const eq = def.equipment;
+    const stats = eq ? [eq.attack ? `⚔️${eq.attack}` : '', eq.defense ? `🛡️${eq.defense}` : ''].filter(Boolean).join(' ') : '';
+    (groups.get(cat) ?? groups.set(cat, []).get(cat)!).push(`${itemName(ctx.world, id)} ×${q}${dur}${stats ? ` [${stats}]` : ''}`);
   }
   if (!groups.size) return '**🧺 Sac :** *vide*';
   return [...groups].map(([cat, list]) => `**${cat} :** ${list.join(' · ')}`).join('\n');
@@ -805,11 +818,12 @@ export function activityLock(ctx: Ctx, mod: ActivityModule, a: ActivityDef): { t
     const busy = Object.values(ctx.state.players).filter((o) => o.activities?.[key] && ctx.now < o.activities[key]!.endsAt).length;
     if (busy >= a.maxConcurrent) return { text: `Déjà ${busy} personnes à l’ouvrage : attends qu’une place se libère`, until: ctx.now + 15_000 };
   }
-  if (a.tool) {
+  if (a.tool && !pickTool(ctx, a)) {
     const t = evaluate(ctx, { type: 'tool', item: a.tool.item });
-    if (!t.ok) return { text: t.reason.charAt(0).toUpperCase() + t.reason.slice(1) };
+    const alt = a.tool.anyOf?.length ? ' (ou un meilleur outil)' : '';
+    return { text: (t.ok ? `${itemName(ctx.world, a.tool.item)} requis(e)` : t.reason.charAt(0).toUpperCase() + t.reason.slice(1)) + alt };
   }
-  for (const c of a.costs) {
+  for (const c of activityCosts(ctx, a)) {
     if (c.type === 'stat.add' && c.amount < 0) {
       const def = findStat(ctx.world, c.stat);
       const have = p.stats[c.stat] ?? def?.initial ?? 0;
@@ -854,14 +868,64 @@ function claimActivity(ctx: Ctx, mod: ActivityModule, a: ActivityDef, results: n
   return `✅ **${a.emoji ?? ''} ${a.name}** : ${labels.join(', ') || 'terminé'}${fx ? ` · ${fx}` : ''}${bonus}`;
 }
 
-function rollResults(a: ActivityDef, random: () => number): number[] {
-  const total = a.results.reduce((s, r) => s + Math.max(0, r.weight), 0);
+/** Poids de chaque résultat pour ce joueur (lieu, niveau de métier, outil…). */
+export function resultWeights(ctx: Ctx, a: ActivityDef): number[] {
+  return a.results.map((r) => {
+    if (r.when && !evaluate(ctx, r.when).ok) return 0;
+    return Math.max(0, r.weight + (r.bonus ?? []).reduce((s, b) => s + (evaluate(ctx, b.when).ok ? b.weight : 0), 0));
+  });
+}
+
+/** Outil utilisé : le meilleur possédé et en état parmi ceux acceptés. */
+export function pickTool(ctx: Ctx, a: ActivityDef): Id | null {
+  if (!a.tool) return null;
+  for (const id of [...(a.tool.anyOf ?? []), a.tool.item]) {
+    const def = findItem(ctx.world, id);
+    if (!def?.tool || (ctx.player.items[id] ?? 0) < 1) continue;
+    if ((ctx.player.tools[id] ?? def.tool.maxDurability) > 0) return id;
+  }
+  return null;
+}
+
+/** Économie d'effort procurée par l'équipement (meilleur objet de chaque emplacement). */
+export function equipmentSaving(ctx: Ctx, stat: Id): number {
+  const best = new Map<string, number>();
+  for (const [id, q] of Object.entries(ctx.player.items)) {
+    const eq = q > 0 ? findItem(ctx.world, id)?.equipment : undefined;
+    if (eq?.saving?.stat === stat) best.set(eq.slot, Math.max(best.get(eq.slot) ?? 0, eq.saving.amount));
+  }
+  return [...best.values()].reduce((s, n) => s + n, 0);
+}
+
+/** Coûts d'une activité, allégés par l'équipement (jamais en dessous de 1). */
+export function activityCosts(ctx: Ctx, a: ActivityDef): Action[] {
+  return a.costs.map((c) => {
+    if (c.type !== 'stat.add' || c.amount >= 0) return c;
+    const saving = equipmentSaving(ctx, c.stat);
+    return saving ? { ...c, amount: Math.min(-1, c.amount + saving) } : c;
+  });
+}
+
+/** Attaque et défense totales (meilleur objet de chaque emplacement). */
+export function equipmentTotals(ctx: Ctx): { attack: number; defense: number } {
+  const best = new Map<string, { attack: number; defense: number }>();
+  for (const [id, q] of Object.entries(ctx.player.items)) {
+    const eq = q > 0 ? findItem(ctx.world, id)?.equipment : undefined;
+    if (!eq) continue;
+    const cur = best.get(eq.slot) ?? { attack: 0, defense: 0 };
+    best.set(eq.slot, { attack: Math.max(cur.attack, eq.attack ?? 0), defense: Math.max(cur.defense, eq.defense ?? 0) });
+  }
+  return [...best.values()].reduce((s, v) => ({ attack: s.attack + v.attack, defense: s.defense + v.defense }), { attack: 0, defense: 0 });
+}
+
+function rollResults(a: ActivityDef, random: () => number, weights: number[] = a.results.map((r) => r.weight)): number[] {
+  const total = weights.reduce((s, x) => s + Math.max(0, x), 0);
   const out: number[] = [];
   for (let n = 0; n < Math.max(1, a.rolls); n++) {
     let x = random() * total;
     let idx = a.results.length - 1;
     for (let i = 0; i < a.results.length; i++) {
-      x -= Math.max(0, a.results[i]!.weight);
+      x -= Math.max(0, weights[i]!);
       if (x < 0) {
         idx = i;
         break;
@@ -1120,10 +1184,11 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
         if (p.activities[key]) throw new RuleError('⏳ Cette activité est déjà en cours.');
         const lock = activityLock(ctx, mod, a);
         if (lock) throw new RuleError(`🔒 ${lock.text}`);
-        if (a.tool) applyAction(ctx, { type: 'tool.wear', item: a.tool.item, amount: a.tool.wear });
-        for (const c of a.costs) applyAction(ctx, c);
-        // Le hasard est tiré au lancement : relancer l'interface ne change pas le résultat.
-        const results = rollResults(a, env.random);
+        const tool = pickTool(ctx, a);
+        if (a.tool && tool) applyAction(ctx, { type: 'tool.wear', item: tool, amount: a.tool.wear });
+        for (const c of activityCosts(ctx, a)) applyAction(ctx, c);
+        // Le hasard est tiré au lancement (selon le lieu, le niveau et l'outil) : relancer l'interface ne change pas le résultat.
+        const results = rollResults(a, env.random, resultWeights(ctx, a));
         if (!a.durationSec) return { notice: claimActivity(ctx, mod, a, results) };
         p.activities[key] = { startedAt: ctx.now, endsAt: ctx.now + a.durationSec * 1000, results };
         return { notice: `${a.emoji ?? '⏳'} **${a.name}** lancé(e) : retour dans ${duration(a.durationSec)}.` };

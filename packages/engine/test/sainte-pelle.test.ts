@@ -117,6 +117,7 @@ test('compter : activités, recharge, quête ordonnée', () => {
   new Player(s.engine, 'louis', 'place');
   const engine = withQuest(s.engine, s.clock, 'louis', 'q03');
   const f = new Player(engine, 'louis', 'foret');
+  f.click(/La lisière/);
   f.click('Lancer');
   s.clock.advance(80);
   f.refresh().click('Récupérer');
@@ -224,7 +225,9 @@ test('tous les écrans de tous les lieux respectent les limites Discord, à chaq
 test('métiers : les gestes avancés demandent un niveau, l’expérience s’affiche dans la fiche', () => {
   const { engine, clock } = started();
   const f = new Player(engine, 'louis', 'foret');
-  assert.match(f.text, /🔒 Il faut être 🪓 Bûcheron niveau 2 \(tu es niveau 1\)/);
+  f.click(/La futaie de chênes/);
+  assert.match(f.text, /🔒 Il faut être 🪓 Bûcheron niveau 2 pour aller là/);
+  f.click(/La lisière/);
   for (let i = 0; i < 7; i++) {
     f.refresh().click('Lancer');
     clock.advance(61);
@@ -232,6 +235,8 @@ test('métiers : les gestes avancés demandent un niveau, l’expérience s’af
     engine.adminApply('louis', undefined, [{ type: 'stat.set', stat: 'energie', value: 100 }]);
   }
   assert.equal(f.state.jobs.bucheron?.level, 2);
+  f.refresh().click('↩️ Retour à l’entrée').click(/La futaie de chênes/);
+  assert.match(f.text, /Abattre un chêne/);
   f.refresh().click('🎒 Mon inventaire');
   assert.match(f.text, /🪓 Bûcheron · \*\*niv\. 2\*\* · 42\/80 XP/);
 });
@@ -242,11 +247,11 @@ test('échoppes : acheter un outil, revendre ses ressources', () => {
   const p = new Player(engine, 'louis', 'forge');
   p.click('🛒 Échoppe');
   assert.match(p.text, /L’étal de Wagner/);
-  p.choose(/Choisir un article/, 'pioche');
-  p.click(/Acheter · 22 écus/);
+  p.choose(/Choisir un article/, 'pioche_bronze');
+  p.click(/Acheter · 30 écus/);
   p.click('Confirmer l’achat');
-  assert.match(p.text, /Pioche ajouté à ton inventaire/);
-  assert.equal(p.state.items.pioche, 2);
+  assert.match(p.text, /Pioche de bronze ajouté à ton inventaire/);
+  assert.equal(p.state.items.pioche_bronze, 1);
   const pont = new Player(engine, 'louis', 'pont');
   pont.click('🛒 Échoppe').click('💰 Vendre mes ressources');
   assert.match(pont.text, /Vendre à le vieux pêcheur|Vendre/);
@@ -260,4 +265,53 @@ test('serment : dotation une seule fois', () => {
   const again = engine.acceptOath('louis');
   assert.equal(again.first, false);
   assert.equal(engine.snapshot().players.louis!.stats.ecus, 100);
+});
+
+test('lieux de récolte : chances selon le lieu, le niveau et l’outil ; meilleur outil utilisé', () => {
+  const { engine } = started();
+  const p = new Player(engine, 'louis', 'mine');
+  p.click(/Le carreau/);
+  const before = p.text.match(/🎲 (.*)/)![1]!;
+  assert.match(before, /4 pierres 70 % · 6 pierres 15 % · Un peu de cuivre 15 %/);
+  engine.adminApply('louis', undefined, [{ type: 'item.give', item: 'pioche_fer', qty: 1 }]);
+  const after = p.refresh().text;
+  assert.match(after, /Pioche de fer \(−1 durabilité · état 70\/70\)/);
+  assert.match(after, /6 pierres 26 %/);
+  // Le gouffre exige une pioche de fer, et Mineur niveau 4.
+  p.click('↩️ Retour à l’entrée').click(/Le gouffre/);
+  assert.match(p.text, /Il faut être ⛏️ Mineur niveau 4/);
+});
+
+test('forge : on paie en lingots, l’arme rejoint l’inventaire, l’armure allège l’effort', () => {
+  const { engine, clock } = started();
+  engine.adminApply('louis', undefined, [{ type: 'item.give', item: 'lingot_bronze', qty: 9 }]);
+  const f = new Player(engine, 'louis', 'forge');
+  f.click(/Les armes du champ de bataille/);
+  assert.match(f.text, /Épée longue du Chevalier[\s\S]*Il faut être 🔨 Forgeron niveau 2/);
+  f.click('Lancer');
+  clock.advance(70);
+  f.refresh().click('Récupérer');
+  assert.equal(f.state.items.epee_courte, 1);
+  f.click('↩️ Retour à la forge').click(/Les armures/);
+  f.click('Lancer');
+  clock.advance(70);
+  f.refresh().click('Récupérer');
+  assert.equal(f.state.items.cuirasse_cuir, 1);
+  f.click('🎒 Mon inventaire');
+  assert.match(f.text, /⚔️ \*\*Attaque :\*\* 3 · 🛡️ \*\*Défense :\*\* 2/);
+  assert.match(f.text, /Armes :\*\* 🗡️ Épée courte du Novice ×1 \[⚔️3\]/);
+  // La cuirasse fait économiser 1 d'endurance par activité.
+  const bois = new Player(engine, 'louis', 'foret');
+  bois.click(/La lisière/);
+  assert.match(bois.text, /Abattre un jeune arbre[\s\S]*?⚡ -4 endurance/);
+});
+
+test('taverne : la carte de la Gueuse Cocue et la brasserie', () => {
+  const { engine } = started();
+  engine.adminApply('louis', undefined, [{ type: 'stat.add', stat: 'ecus', amount: 30 }]);
+  const t = new Player(engine, 'louis', 'taverne');
+  t.click(/Devenir brasseur/);
+  t.click('Devenir brasseur');
+  assert.match(t.text, /Les cuves d’Edgar/);
+  assert.match(t.text, /Brasseur niveau 1/);
 });

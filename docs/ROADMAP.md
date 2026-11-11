@@ -26,6 +26,9 @@ Moteur générique et atomique, Taverne d’Edgar V11 en pur contenu, émulateur
 - ✅ Serment d’arrivée (rôle des habitants, dotation unique), une catégorie par bâtiment, nettoyage des salons des bâtiments.
 - ✅ Métiers à expérience (bûcheron, mineur, forgeron, fermier, pêcheur, cuisinier) : gestes réservés aux niveaux 2 et 3, fiche du joueur.
 - ✅ Échoppes : vente d’objets (outils, vivres) et rachat de ressources dans chaque lieu de la bêta.
+- ✅ Lieux de récolte (mine, forêt, rivière, ferme) : sous-lieux réservés par niveau, tirages pondérés selon le lieu, le niveau et l’outil (`ActivityResult.when/bonus`), outils de qualités interchangeables (`tool.anyOf`), chances affichées au joueur.
+- ✅ Équipement (`ItemDef.equipment`) : armes, armes de tir, armures, accessoires avec attaque/défense (futur combat) et économie d’endurance au travail.
+- ✅ Forge du Dragon Noir (fonderie, outils, catalogue complet payé en lingots, services) et Gueuse Cocue (carte complète, brasserie et métier de brasseur, plats « à grignoter »).
 - ⏳ Désinstallation des salons ; rôles d’accès par bâtiment (bâtiments réservés).
 
 ## 🟡 Phase 3 — Monde vivant

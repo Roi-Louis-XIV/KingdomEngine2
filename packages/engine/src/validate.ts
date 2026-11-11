@@ -161,6 +161,7 @@ export function validateWorld(w: WorldDef): Issue[] {
   };
 
   for (const it of w.items) it.consumable?.effects.forEach((a) => checkAction(`Objet ${it.id}`, a));
+  for (const it of w.items) if (it.equipment?.saving && !stats.has(it.equipment.saving.stat)) err(`Objet ${it.id}`, `statistique inconnue : ${it.equipment.saving.stat}`);
 
   if (w.onboarding) {
     const ob = w.onboarding;
@@ -314,7 +315,12 @@ export function validateWorld(w: WorldDef): Issue[] {
             if (a.tool && !w.items.find((i) => i.id === a.tool!.item)?.tool) err(here, `${a.tool.item} n’est pas un outil`);
             if (a.job && !jobs.has(a.job.id)) err(here, `métier inconnu : ${a.job.id}`);
             if (!a.results.length || a.results.every((r) => r.weight <= 0)) err(here, 'au moins un résultat avec un poids positif');
-            a.results.forEach((r) => r.actions.forEach((x) => checkAction(here, x, b)));
+            a.results.forEach((r) => {
+              r.actions.forEach((x) => checkAction(here, x, b));
+              checkCondition(here, r.when, b);
+              r.bonus?.forEach((x) => checkCondition(here, x.when, b));
+            });
+            a.tool?.anyOf?.forEach((t) => w.items.find((i) => i.id === t)?.tool || err(here, `${t} n’est pas un outil`));
             a.boostedBy?.forEach((x) => mods.has(x) || err(here, `bonus inconnu : ${x}`));
             a.multipliers?.forEach((x) => {
               checkCondition(here, x.when, b);
