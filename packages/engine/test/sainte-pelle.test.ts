@@ -131,7 +131,7 @@ test('compter : activités, recharge, quête ordonnée', () => {
   assert.match(pl.text, /\+\d+ XP/);
 });
 
-test('vote, verdict, incendie, urgence maîtrisée, enquête et fin triomphante', () => {
+test('vote, verdict, incendie, urgence maîtrisée, éclats retrouvés et fin triomphante', () => {
   const { engine, clock } = started();
   minutes(engine, clock, 45);
   assert.equal(engine.variables.t, 45);
@@ -161,7 +161,7 @@ test('vote, verdict, incendie, urgence maîtrisée, enquête et fin triomphante'
   assert.equal(engine.variables.forge_etat, 'ok');
   minutes(engine, clock, 10);
   assert.equal(engine.variables.acte, 'releve');
-  // Chantier et enquête menés « à la main ».
+  // Chantier et éclats menés « à la main ».
   engine.adminApply('a', 'eglise', [
     { type: 'objective.add', building: 'eglise', objective: 'arbre', item: 'branche', qty: 12 },
     { type: 'objective.add', building: 'eglise', objective: 'chantier', item: 'buche', qty: 40 },
@@ -169,9 +169,11 @@ test('vote, verdict, incendie, urgence maîtrisée, enquête et fin triomphante'
     { type: 'objective.add', building: 'eglise', objective: 'assemblage', item: 'assemblage', qty: 3 },
   ]);
   const e = new Player(engine, 'b', 'eglise');
-  e.click('Examiner');
-  assert.equal(engine.variables.indices, 1);
-  for (const n of [2, 3, 4, 5, 6]) engine.adminApply('a', undefined, [{ type: 'variable.add', variable: 'indices', amount: 1 }, { type: 'variable.set', variable: `indice${n}`, value: 'oui' }]);
+  e.click('Ramasser l’éclat');
+  assert.match(e.text, /Éclat retrouvé/);
+  assert.equal(engine.variables.eclats, 1);
+  assert.ok(!e.buttons.includes('Ramasser l’éclat'));
+  for (const n of [2, 3, 4, 5, 6]) engine.adminApply('a', undefined, [{ type: 'variable.add', variable: 'eclats', amount: 1 }, { type: 'variable.set', variable: `eclat${n}`, value: 'oui' }]);
   minutes(engine, clock, 60);
   assert.equal(engine.variables.fin, 'triomphe');
   minutes(engine, clock, 11);

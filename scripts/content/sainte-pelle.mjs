@@ -112,12 +112,12 @@ const navRow = (talkLabel, extra = []) =>
 const statusLine = '⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}';
 const PRELUDE = text('*🕯️ La fête de la Sainte Pelle n’a pas encore commencé. Le Roi donnera le signal.*', T('lt', 0));
 
-/** Bouton d'indice : une seule fois pour tout le village. */
-const clue = (n, label, found, when) =>
+/** Éclat de la pierre-tonnerre à ramasser : une seule fois pour tout le village. */
+const shard = (n, label, found, when) =>
   section(
-    `**🔎 ${label}**\n*Un détail cloche…*`,
-    btn('Examiner', { when, actions: [set(`indice${n}`, 'oui'), add('indices', 1), xp(15), tag('indice'), announce(`🔎 **Indice ${n}/6 trouvé :** ${found}`)], onSuccess: { notice: `🔎 **Indice trouvé !** ${found}\n+15 XP` } }, { emoji: '🔎', style: 'primary' }),
-    all(when, v(`indice${n}`, 'non')),
+    `**✨ ${label}**\n*Une lueur bleutée grésille…*`,
+    btn('Ramasser l’éclat', { when, actions: [set(`eclat${n}`, 'oui'), add('eclats', 1), xp(15), tag('eclat-trouve'), announce(`✨ **Éclat ${n}/6 retrouvé :** ${found}`)], onSuccess: { notice: `✨ **Éclat retrouvé !** ${found}\n+15 XP` } }, { emoji: '✨', style: 'primary' }),
+    all(when, v(`eclat${n}`, 'non')),
   );
 
 // ---------------------------------------------------------------------------
@@ -182,10 +182,10 @@ const variables = [
   { id: 'urgence_res', name: 'Issue de l’urgence', initial: 'aucune', options: [opt('aucune', '—'), opt('reussie', '✅ Maîtrisée'), opt('ratee', '❌ Dégâts')] },
   { id: 'forge_etat', name: 'État de la forge', initial: 'ok', options: [opt('ok', '🟢 En état'), opt('endommagee', '🔴 Endommagée')] },
   { id: 'mine_etat', name: 'État de la mine', initial: 'ok', options: [opt('ok', '🟢 En état'), opt('endommagee', '🔴 Galerie à 50 %')] },
-  { id: 'indices', name: 'Indices trouvés', initial: 0 },
-  ...[1, 2, 3, 4, 5, 6].map((n) => ({ id: `indice${n}`, name: `Indice ${n}`, initial: 'non', options: [opt('non', '❔ Pas trouvé'), opt('oui', '🔎 Trouvé')] })),
+  { id: 'eclats', name: 'Éclats de la pierre retrouvés', initial: 0 },
+  ...[1, 2, 3, 4, 5, 6].map((n) => ({ id: `eclat${n}`, name: `Éclat ${n}`, initial: 'non', options: [opt('non', '❔ Pas trouvé'), opt('oui', '✨ Retrouvé')] })),
   { id: 'eglise_ok', name: 'Église relevée', initial: 'non', options: [opt('non', 'Non'), opt('oui', 'Oui')] },
-  { id: 'fin', name: 'Fin de la séance', initial: 'aucune', options: [opt('aucune', '—'), opt('triomphe', '🔔 La Sainte Pelle triomphante'), opt('sans_ame', '🧱 Des pierres sans âme'), opt('parvis', '🙏 La foi sur le parvis'), opt('report', '🌧️ La messe reportée')] },
+  { id: 'fin', name: 'Fin de la séance', initial: 'aucune', options: [opt('aucune', '—'), opt('triomphe', '🔔 Valbrume triomphante'), opt('sans_ame', '⚡ La pierre gronde encore'), opt('parvis', '🙏 La messe sur le parvis'), opt('report', '🌧️ La messe reportée')] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -230,9 +230,9 @@ const place = {
       start: 'accueil',
       nodes: [
         { id: 'accueil', title: '💬 Parler à Maëlis', lines: ['« Bienvenue à Valbrume ! Le panneau des quêtes est juste là. Tout le monde a du travail ce soir. »'], choices: [{ label: 'La fête', emoji: '🎉', goto: 'fete' }, { label: 'La pierre', emoji: '✨', goto: 'pierre', when: from(25) }, { label: 'La nuit de la tempête', emoji: '🌩️', goto: 'nuit', when: from(110) }] },
-        { id: 'fete', title: '🎉 La Sainte Pelle', lines: ['« Chaque année, on bénit la pelle du fondateur : celle qui creusa le premier puits. Il nous faut du bois pour le bûcher et de quoi nourrir tout le monde. »'], choices: [] },
+        { id: 'fete', title: '🎉 La Sainte Pelle', lines: ['« La Sainte Pelle, c’est la pelle du fondateur, celle qui creusa le premier puits. Elle a été perdue il y a bien longtemps, mais chaque année on fête sa mémoire. Il nous faut du bois pour le bûcher et de quoi nourrir tout le monde. »'], choices: [] },
         { id: 'pierre', title: '✨ La pierre-tonnerre', lines: [cases([v('pierre', 'mine'), '« La pierre est retournée dans la montagne. Roland est soulagé, Wagner boude. »'], [v('pierre', 'forge'), '« La pierre est à la forge. Wagner jure qu’il est prudent… »'], [null, '« Roland, Wagner et le Père Anselme ne sont pas d’accord. Le village votera, ici même. »'])], choices: [] },
-        { id: 'nuit', title: '🌩️ La nuit de la tempête', lines: ['« Mon registre des clés ? Seuls le Père Anselme et le sacristain ont la clé du reliquaire. Le sacristain, c’est… Edgar. Depuis douze ans. »'], choices: [] },
+        { id: 'nuit', title: '🌩️ La nuit de la tempête', lines: ['« Cette nuit-là, j’ai vu des étincelles bleues retomber sur toute la vallée, comme une pluie d’étoiles. Il y en avait même une au fond du puits. »'], choices: [] },
       ],
     },
   ],
@@ -248,7 +248,7 @@ const place = {
         PRELUDE,
         notice(),
         widget({ kind: 'quest.board', accent: PLACE }, from(0)),
-        buttons([go('🎉 Fête & Trésor', 'royaume', { style: 'primary' }), go('🗳️ Conseil de la pierre', 'conseil', { style: 'danger', visibleIf: between(45, 65) }), go('🔎 Enquête', 'enquete', { visibleIf: from(100) }), go('🏅 Tableau d’honneur', 'honneur')]),
+        buttons([go('🎉 Fête & Trésor', 'royaume', { style: 'primary' }), go('🗳️ Conseil de la pierre', 'conseil', { style: 'danger', visibleIf: between(45, 65) }), go('✨ Les éclats', 'eclats', { visibleIf: from(100) }), go('🏅 Tableau d’honneur', 'honneur')]),
         widget({ kind: 'activity.board', activity: 'puits', accent: PLACE }),
         navRow('💬 Parler à Maëlis'),
       ],
@@ -290,22 +290,22 @@ const place = {
       ],
     },
     {
-      id: 'enquete',
-      name: 'Enquête',
+      id: 'eclats',
+      name: 'Les éclats',
       blocks: [
         box([
-          text('## 🔎 Où est la Sainte Pelle ?\nLe reliquaire a été trouvé vide après la tempête. Chaque indice n’est trouvé qu’une fois, pour tout le village.\n**Indices : {var.indices}/6**'),
-          text('1. 🔒 **Le reliquaire vide** : le verrou n’est pas forcé, on l’a ouvert avec une clé.', v('indice1', 'oui')),
-          text('2. 👣 **Des traces de boue** sur le pont : de grosses bottes, une démarche titubante, vers la taverne.', v('indice2', 'oui')),
-          text('3. 🏮 **La lanterne d’Edgar**, au pied de l’église, gravée « G.C. ».', v('indice3', 'oui')),
-          text('4. 👁️ **Agathe** a vu quelqu’un courir sous la pluie avec un long paquet, la barbe au vent.', v('indice4', 'oui')),
-          text('5. 🗝️ **Le registre des clés** : seuls le Père Anselme et le sacristain, Edgar, ont la clé.', v('indice5', 'oui')),
-          text('6. 🍯 **La mémoire d’Edgar** : il a caché la relique dans sa cave pour la protéger… puis il a fêté ça.', v('indice6', 'oui')),
-          text('*Les indices se cherchent à l’église, au pont, en forêt, à la ferme et ici. Le dernier se mérite à la taverne.*', not(v('indice6', 'oui'))),
+          text('## ✨ Les éclats de la pierre-tonnerre\nLa foudre a fait éclater la pierre, et le vent en a dispersé les morceaux dans toute la vallée. Le Père Anselme veut les rendre à la terre pendant la messe : tant qu’ils traînent, la pierre gronde.\nChaque éclat ne se ramasse qu’une fois, pour tout le village.\n**Éclats retrouvés : {var.eclats}/6**'),
+          text('1. ⛪ **Dans les décombres de la nef**, sous une poutre.', v('eclat1', 'oui')),
+          text('2. 🌉 **Coincé entre deux pierres du vieux pont.**', v('eclat2', 'oui')),
+          text('3. 🌲 **Au pied du grand chêne tombé**, en forêt.', v('eclat3', 'oui')),
+          text('4. 🌾 **Dans une botte de foin** de la ferme d’Agathe.', v('eclat4', 'oui')),
+          text('5. ⛲ **Au fond du puits** de la Place.', v('eclat5', 'oui')),
+          text('6. 🍺 **Dans la poche d’Edgar**, qui le gardait comme porte-bonheur.', v('eclat6', 'oui')),
+          text('*On en a vu tomber à l’église, au pont, en forêt, à la ferme et sur la Place. Et quelqu’un, à la taverne, en sait plus qu’il ne le dit…*', not(v('eclat6', 'oui'))),
         ], 0xe0b04f),
         notice(),
-        clue(5, 'Le registre des clés de Maëlis', 'seuls le Père Anselme et le sacristain, Edgar, ont la clé du reliquaire.', from(110)),
-        buttons([go('↩️ Retour', 'accueil'), go('🔄 Actualiser', 'enquete')]),
+        shard(5, 'Au fond du puits', 'au fond du puits de la Place.', from(110)),
+        buttons([go('↩️ Retour', 'accueil'), go('🔄 Actualiser', 'eclats')]),
       ],
     },
     {
@@ -348,11 +348,11 @@ taverne.entrance = { text: 'La chaleur du foyer, l’odeur du ragoût et la voix
   // Edgar : rumeurs sur la pierre, la nuit de la tempête.
   const dlg = taverne.modules.find((m) => m.type === 'dialogue');
   const start = dlg.nodes.find((n) => n.id === dlg.start);
-  start.choices.unshift({ label: 'La pierre de Roland', emoji: '✨', goto: 'pierre1', when: between(25, 85) }, { label: 'La relique ?', emoji: '⛪', goto: 'relique', when: from(110) });
+  start.choices.unshift({ label: 'La pierre de Roland', emoji: '✨', goto: 'pierre1', when: between(25, 85) }, { label: 'Les éclats ?', emoji: '✨', goto: 'eclat', when: from(110) });
   dlg.nodes.push(
     { id: 'pierre1', title: '✨ La pierre de Roland', lines: ['« Tu as entendu ? Roland a sorti un caillou qui crépite comme une bûche humide. Moi, je dis : un caillou qui fait du bruit, ça se met dans un tonneau et on n’en parle plus. »'], choices: [{ label: 'Et Wagner ?', emoji: '🔥', goto: 'pierre2' }] },
     { id: 'pierre2', title: '🔥 Wagner et la pierre', lines: ['« Wagner ? Il la regarde comme moi je regarde un tonneau d’hydromel. Ça ne présage rien de bon, crois-moi. Et le Père Anselme en a fait tomber son bréviaire. »'], choices: [] },
-    { id: 'relique', title: '⛪ La relique', lines: [cases([v('indice6', 'oui'), '« Je… je l’avais mise à l’abri, tu comprends ? Dans ma cave, là où rien ne tombe jamais. Et puis j’ai fêté ça. Pardon, mon Père… »'], [null, '« La relique ? Disparue ? Oh, misère… Non, non, moi, cette nuit-là, j’étais ici. Enfin, je crois. Il y avait de l’hydromel. »'])], choices: [] },
+    { id: 'eclat', title: '✨ Les éclats', lines: [cases([v('eclat6', 'oui'), '« Bon, d’accord, je l’avais gardé. Il brillait si joliment au fond de ma chope… Un porte-bonheur, quoi. Rendez-le à la terre, va. »'], [null, '« Des éclats ? Quels éclats ? Moi, cette nuit-là, j’étais ici. Enfin, je crois. Il y avait de l’hydromel. *Il tapote nerveusement sa poche.* »'])], choices: [] },
   );
 }
 
@@ -401,7 +401,7 @@ const mine = {
         { id: 'accueil', title: '💬 Parler à Roland', lines: ['« Ah, un nouveau visage ! Fais attention où tu mets les pieds : ici, les cailloux ne pardonnent pas. »'], choices: [{ label: 'La pierre-tonnerre', emoji: '✨', goto: 'pierre', when: from(25) }, { label: 'Ton avis pour le vote', emoji: '🗳️', goto: 'avis', when: between(45, 65) }, { label: 'La nuit de la tempête', emoji: '🌩️', goto: 'nuit', when: from(110) }] },
         { id: 'pierre', title: '✨ La pierre-tonnerre', lines: ['« Trente ans que je creuse, et jamais vu une pierre pareille. Elle grésille dans la main comme un orage en bouteille. »'], choices: [] },
         { id: 'avis', title: '🗳️ L’avis de Roland', lines: ['« Cette pierre vient de la montagne, elle doit y retourner. Il y a des choses qu’on ne remonte pas, camarade. »'], choices: [] },
-        { id: 'nuit', title: '🌩️ La nuit de la tempête', lines: ['« Moi ? J’étais ici, à surveiller les étais. Mais en remontant, j’ai vu une lanterne filer vers le pont. Une lanterne qui zigzaguait drôlement. »'], choices: [] },
+        { id: 'nuit', title: '🌩️ La nuit de la tempête', lines: ['« La pierre n’aimait pas la lumière du jour, je l’avais dit. Quand la foudre l’a frappée, j’ai vu les morceaux voler jusqu’au pont. Et Edgar qui courait en dessous, la chope en l’air. »'], choices: [] },
       ],
     },
   ],
@@ -474,7 +474,7 @@ const forge = {
         { id: 'pierre', title: '✨ La pierre-tonnerre', lines: ['« Regarde ça. Elle attire la limaille comme un aimant, et elle chauffe sans feu. Avec un métal pareil, on forgerait des merveilles. »'], choices: [] },
         { id: 'avis', title: '🗳️ L’avis de Wagner', lines: ['« Rendre ça à la terre ? Autant jeter de l’or dans la rivière. Laissez-moi l’étudier, je vous promets d’être prudent. »'], choices: [] },
         { id: 'ferrures', title: '🔗 Les ferrures', lines: ['« Le prêtre a besoin de ferrures pour la charpente. Apportez-moi du fer : deux lingots par ferrure, et je vous forge les plus solides de la vallée. »'], choices: [] },
-        { id: 'nuit', title: '🌩️ La nuit de la tempête', lines: ['« J’avais autre chose à faire que regarder dehors. Mais Edgar est passé emprunter une corde. En pleine tempête. Drôle d’idée. »'], choices: [] },
+        { id: 'nuit', title: '🌩️ La nuit de la tempête', lines: ['« Les éclats grésillent encore, je les entends d’ici. Il faut tous les retrouver : séparés, ils ne se calmeront jamais. »'], choices: [] },
       ],
     },
   ],
@@ -538,7 +538,7 @@ const foret = {
       start: 'accueil',
       nodes: [
         { id: 'accueil', title: '💬 Parler à Sylvain', lines: [cases([between(35, 85), '« Les oiseaux se taisent et les cerfs descendent vers la rivière. Ça, c’est jamais bon signe. »'], [from(110), '« La tempête a fait le travail de dix bûcherons. Ramassez tout ce bois : le chantier en aura besoin. »'], [null, '« Bienvenue dans mon bois. Coupe ce qu’il te faut, mais pas plus : les arbres ont la mémoire longue. »'])], choices: [{ label: 'La nuit de la tempête', emoji: '🌩️', goto: 'nuit', when: from(110) }] },
-        { id: 'nuit', title: '🌩️ La nuit de la tempête', lines: ['« J’ai entendu le grand chêne céder vers l’église. Et juste avant… une silhouette qui chantait. Faux. Très faux. »'], choices: [] },
+        { id: 'nuit', title: '🌩️ La nuit de la tempête', lines: ['« Un éclat est tombé juste au pied du grand chêne, avant qu’il cède. Et j’ai vu une silhouette en ramasser un autre en chantant. Faux. Très faux. »'], choices: [] },
       ],
     },
   ],
@@ -555,7 +555,7 @@ const foret = {
         PRELUDE,
         notice(),
         widget({ kind: 'activity.board', activity: 'bois', accent: FORET }),
-        clue(3, 'Une lanterne au pied de l’église', 'la lanterne d’Edgar, gravée « G.C. », retrouvée au pied de l’église.', from(110)),
+        shard(3, 'Au pied du grand chêne tombé', 'au pied du grand chêne tombé, en forêt.', from(110)),
         navRow('💬 Parler à Sylvain'),
       ],
     },
@@ -600,7 +600,7 @@ const ferme = {
       start: 'accueil',
       nodes: [
         { id: 'accueil', title: '💬 Parler à Agathe', lines: [cases([between(55, 85), '« Tout le monde aux champs ! Si l’orage arrive avant qu’on ait rentré le grain, on mangera de la paille tout l’hiver. »'], [null, '« Des bras ! Enfin ! Les œufs sont au poulailler, le puits est sur la Place, et les bottes sont à tes risques. »'])], choices: [{ label: 'La nuit de la tempête', emoji: '🌩️', goto: 'nuit', when: from(110) }] },
-        { id: 'nuit', title: '🌩️ La nuit de la tempête', lines: ['« Pendant la tempête, j’ai vu quelqu’un courir vers le pont avec un long paquet sous le bras. Gros, la barbe au vent… Je n’en dis pas plus. »'], choices: [] },
+        { id: 'nuit', title: '🌩️ La nuit de la tempête', lines: ['« Une étincelle bleue est tombée dans ma grange, en plein orage ! J’ai cru que tout allait brûler. Elle doit être quelque part dans le foin. »'], choices: [] },
       ],
     },
   ],
@@ -615,7 +615,7 @@ const ferme = {
         notice(),
         widget({ kind: 'objective.board', objective: 'recolte', accent: FERME }, from(55)),
         widget({ kind: 'activity.board', activity: 'travaux', accent: FERME }),
-        clue(4, 'Le témoignage d’Agathe', 'Agathe a vu quelqu’un courir sous la pluie avec un long paquet, la barbe au vent.', from(110)),
+        shard(4, 'Dans une botte de foin', 'dans une botte de foin de la ferme d’Agathe.', from(110)),
         navRow('💬 Parler à Agathe'),
       ],
     },
@@ -655,7 +655,7 @@ const pont = {
         PRELUDE,
         notice(),
         widget({ kind: 'activity.board', activity: 'riviere', accent: PONT }),
-        clue(2, 'Des traces de boue', 'de grosses bottes, une démarche titubante, qui filent vers la taverne.', from(110)),
+        shard(2, 'Entre deux pierres du pont', 'coincé entre deux pierres du vieux pont.', from(110)),
         buttons([go('🎒 Mon inventaire', 'inventaire'), go('🔄 Actualiser', 'accueil')]),
       ],
     },
@@ -675,7 +675,7 @@ const eglise = {
   emoji: '⛪',
   accentColor: EGLISE,
   npc: { name: 'Père Anselme', emoji: '⛪', title: 'Prêtre' },
-  entrance: { text: 'La petite église de Valbrume, de l’autre côté du pont. Sur l’autel brille la Sainte Pelle.', button: 'Entrer dans l’église', buttonEmoji: '⛪' },
+  entrance: { text: 'La petite église de Valbrume, de l’autre côté du pont, où l’on fête chaque année la mémoire de la Sainte Pelle.', button: 'Entrer dans l’église', buttonEmoji: '⛪' },
   homeScreen: 'accueil',
   modules: [
     {
@@ -704,9 +704,9 @@ const eglise = {
       narration: 'Le Père Anselme range ses cierges avec soin.',
       start: 'accueil',
       nodes: [
-        { id: 'accueil', title: '💬 Parler au Père Anselme', lines: [cases([from(110), '« L’arbre a crevé la nef, mais les murs tiennent. Avec vos bras, nous relèverons cette église avant la messe. »'], [null, '« Entre, mon enfant. Voici la Sainte Pelle : celle qui creusa le premier puits de Valbrume. Ce soir, nous la bénirons comme chaque année. »'])], choices: [{ label: 'Ton avis pour le vote', emoji: '🗳️', goto: 'avis', when: between(45, 65) }, { label: 'La relique', emoji: '✨', goto: 'relique', when: from(100) }] },
+        { id: 'accueil', title: '💬 Parler au Père Anselme', lines: [cases([from(110), '« L’arbre a crevé la nef, mais les murs tiennent. Avec vos bras, nous relèverons cette église avant la messe. »'], [null, '« Entre, mon enfant. Ce reliquaire est vide depuis des siècles : la Sainte Pelle, celle qui creusa le premier puits de Valbrume, a été perdue il y a bien longtemps. Ce soir, nous fêtons sa mémoire. »'])], choices: [{ label: 'Ton avis pour le vote', emoji: '🗳️', goto: 'avis', when: between(45, 65) }, { label: 'Les éclats', emoji: '✨', goto: 'eclats', when: from(100) }] },
         { id: 'avis', title: '🗳️ L’avis du Père Anselme', lines: ['« Ce qui dort sous la montagne doit y dormir. Rendez cette pierre à la terre, je vous en prie. »'], choices: [] },
-        { id: 'relique', title: '✨ La Sainte Pelle', lines: [cases([v('indice6', 'oui'), '« Edgar… Notre sacristain l’a mise à l’abri dans sa cave. Je ne sais pas si je dois le bénir ou le gronder. »'], [null, '« Le reliquaire est vide. Qui a pu faire une chose pareille, par une nuit pareille ? »'])], choices: [] },
+        { id: 'eclats', title: '✨ Les éclats', lines: [cases([v('eclats', 6, 'gte'), '« Tous les éclats sont là. Pendant la messe, nous les rendrons à la terre, au pied de l’autel. La montagne retrouvera la paix. »'], [null, '« Le ciel a brisé la pierre et dispersé ses éclats. Tant qu’ils traînent dans la vallée, elle grondera. Rapportez-les-moi avant la messe. »'])], choices: [] },
       ],
     },
   ],
@@ -717,14 +717,14 @@ const eglise = {
       guard: { when: notStorm, redirect: 'ferme' },
       blocks: [
         box([
-          text(cases([v('acte', 'fin'), '## ⛪ Église de la Sainte Pelle\n{var.fin.label}'], [from(110), '## ⛪ Église de la Sainte Pelle\n*Un chêne a crevé la nef. Le reliquaire est vide. Le Père Anselme organise le chantier sur le parvis.*'], [null, '## ⛪ Église de la Sainte Pelle\n*Sur l’autel brille la Sainte Pelle, la pelle du fondateur. Le Père Anselme allume les cierges.*'])),
+          text(cases([v('acte', 'fin'), '## ⛪ Église de la Sainte Pelle\n{var.fin.label}'], [from(110), '## ⛪ Église de la Sainte Pelle\n*Un chêne a crevé la nef. Le Père Anselme organise le chantier sur le parvis.*'], [null, '## ⛪ Église de la Sainte Pelle\n*Sur l’autel, le vieux reliquaire de la Sainte Pelle, vide depuis des siècles. Le Père Anselme allume les cierges.*'])),
           text(statusLine),
         ], EGLISE),
         PRELUDE,
         notice(),
         widget({ kind: 'activity.board', activity: 'priere', accent: EGLISE }, T('lt', 110)),
         buttons([go('🪚 Le chantier', 'chantier', { style: 'success' })], from(110)),
-        clue(1, 'Le reliquaire vide', 'le verrou du reliquaire n’est pas forcé : on l’a ouvert avec une clé.', from(110)),
+        shard(1, 'Dans les décombres de la nef', 'dans les décombres de la nef, sous une poutre.', from(110)),
         navRow('💬 Parler au Père Anselme'),
       ],
     },
@@ -754,7 +754,7 @@ const q = (id, name, giver, difficulty, when, steps, o = {}) => ({ id, name, giv
 const visit = (id, label, building) => ({ id, kind: 'visit', label, building });
 const deliver = (id, label, item, qty, building) => ({ id, kind: 'deliver', label, item, qty, building });
 const count = (id, label, tags, target = 1) => ({ id, kind: 'count', label, tags: Array.isArray(tags) ? tags : [tags], target });
-const revealClue = (n, found) => ifThen(v(`indice${n}`, 'non'), [set(`indice${n}`, 'oui'), add('indices', 1), announce(`🔎 **Indice ${n}/6 trouvé :** ${found}`)]);
+const revealShard = (n, found) => ifThen(v(`eclat${n}`, 'non'), [set(`eclat${n}`, 'oui'), add('eclats', 1), announce(`✨ **Éclat ${n}/6 retrouvé :** ${found}`)]);
 
 const quests = [
   q('q01', 'Premiers pas', 'Maëlis', 1, from(0), [{ id: 'lieux', kind: 'visit', label: 'Visiter 4 lieux différents', count: 4 }], { featured: true, description: 'Fais le tour du village : chaque lieu a son salon vocal.' }),
@@ -782,7 +782,7 @@ const quests = [
   q('q23', 'Ma voix compte', 'Maëlis', 2, between(45, 65), [count('roland', 'Écouter l’avis de Roland (mine)', 'dialogue:mine/avis'), count('wagner', 'Écouter l’avis de Wagner (forge)', 'dialogue:forge/avis'), count('vote', 'Voter au conseil de la pierre (Place)', 'vote')], { ordered: true }),
   q('q24', 'Bâcher les toits', 'Maëlis', 2, between(70, 85), [deliver('bois', 'Livrer 4 bûches sur la Place', 'buche', 4, 'place')]),
   q('q25', 'Pierres pour les murs', 'Père Anselme', 2, between(110, 170), [count('pierres', 'Apporter 8 pierres au chantier', 'objective:eglise/chantier:pierre', 8)]),
-  q('q26', 'Le témoin', 'Maëlis', 2, from(110), [count('temoins', 'Interroger 2 habitants sur la nuit de la tempête', ['dialogue:place/nuit', 'dialogue:mine/nuit', 'dialogue:forge/nuit', 'dialogue:foret/nuit', 'dialogue:ferme/nuit', 'dialogue:taverne/relique'], 2)], { rewards: [revealClue(4, 'Agathe a vu quelqu’un courir sous la pluie avec un long paquet, la barbe au vent.')] }),
+  q('q26', 'Où sont tombés les éclats ?', 'Maëlis', 2, from(110), [count('temoins', 'Interroger 2 habitants sur la nuit de la tempête', ['dialogue:place/nuit', 'dialogue:mine/nuit', 'dialogue:forge/nuit', 'dialogue:foret/nuit', 'dialogue:ferme/nuit', 'dialogue:taverne/eclat'], 2)], { rewards: [revealShard(4, 'dans une botte de foin de la ferme d’Agathe.')] }),
   q('q27', 'La ferrure sacrée', 'Wagner', 3, between(110, 170), [count('forger', 'Forger 2 ferrures', 'activity:forge/ferrure', 2), count('livrer', 'Apporter 2 ferrures au chantier', 'objective:eglise/chantier:ferrure', 2)], { ordered: true, rewards: [give('titre_forgeron')] }),
   q('q28', 'Le banquet royal', 'Edgar', 3, from(0), [count('banquet', 'Cuisiner ou commander un Banquet royal', ['cook:taverne/royal', 'buy:taverne/royal'])], { rewards: [give('flasque_hydromel')] }),
   q('q29', 'Le cœur de la montagne', 'Roland', 3, from(25), [deliver('eclat', 'Trouver un éclat de pierre-tonnerre (galerie profonde) et le porter à Wagner', 'eclat', 1, 'forge')], { rewards: [give('eclat_poli')] }),
@@ -790,8 +790,8 @@ const quests = [
   q('q31', 'Le grenier plein', 'Agathe', 3, between(55, 85), [count('gerbes', 'Rentrer 20 gerbes pour la dernière récolte', 'objective:ferme/recolte', 20)], { rewards: [give('panier_agathe', 2)] }),
   q('q32', 'Charpentier', 'Sylvain', 3, between(110, 170), [count('bois', 'Apporter 15 bûches au chantier', 'objective:eglise/chantier:buche', 15)], { rewards: [give('hache_maitre')] }),
   q('q33', 'Héros de la tempête', 'Maëlis', 3, between(90, 100), [count('urgence', 'Contribuer 5 fois à l’urgence (forge ou mine)', ['objective:forge/incendie', 'objective:mine/eboulement'], 5)], { rewards: [give('titre_heros')] }),
-  q('q34', 'Pister la relique', 'Sylvain', 3, from(110), [visit('pont', 'Suivre les traces jusqu’au vieux pont', 'pont'), visit('foret', 'Puis jusqu’à la forêt', 'foret'), visit('taverne', 'Puis jusqu’à la taverne', 'taverne')], { ordered: true, rewards: [revealClue(2, 'de grosses bottes, une démarche titubante, qui filent vers la taverne.')] }),
-  q('q35', 'La cave d’Edgar', 'Edgar', 3, all(from(110), v('indices', 5, 'gte'), v('indice6', 'non')), [deliver('hydromel', 'Offrir 3 flasques d’hydromel à Edgar', 'flasque_hydromel', 3, 'taverne')], { rewards: [give('titre_limier'), set('indice6', 'oui'), add('indices', 1), voice('edgar-aveu', 'taverne'), announce('🍯 **Indice 6/6 : Edgar se souvient !** Il a caché la Sainte Pelle dans sa cave pour la protéger de la tempête… puis il a fêté ça. La relique est retrouvée !')], success: '« Attends… La cave ! Pardonnez-moi, mon Père ! »' }),
+  q('q34', 'Suivre les étincelles', 'Sylvain', 3, from(110), [visit('pont', 'Suivre la traînée d’étincelles jusqu’au vieux pont', 'pont'), visit('foret', 'Puis jusqu’à la forêt', 'foret'), visit('taverne', 'Puis jusqu’à la taverne', 'taverne')], { ordered: true, rewards: [revealShard(2, 'coincé entre deux pierres du vieux pont.')] }),
+  q('q35', 'Le porte-bonheur d’Edgar', 'Edgar', 3, all(from(110), v('eclats', 5, 'gte'), v('eclat6', 'non')), [deliver('hydromel', 'Offrir 3 flasques d’hydromel à Edgar pour qu’il lâche son « porte-bonheur »', 'flasque_hydromel', 3, 'taverne')], { rewards: [give('titre_limier'), set('eclat6', 'oui'), add('eclats', 1), voice('edgar-aveu', 'taverne'), announce('✨ **Éclat 6/6 retrouvé !** Edgar le gardait dans sa poche « comme porte-bonheur ». Tous les éclats sont réunis : le Père Anselme pourra les rendre à la terre.')], success: '« Bon, bon… Tiens, le voilà. Il brillait si joliment au fond de ma chope ! »' }),
   q('q36', 'La dîme du Royaume', 'Maëlis', 3, from(0), [count('don', 'Verser 100 écus au Trésor du Royaume (Place)', 'objective:place/tresor', 100)], { rewards: [give('titre_bienfaiteur')] }),
 ];
 
@@ -808,7 +808,7 @@ const scenario = {
   description: 'Bêta KE4 : 3 heures, de la veille de fête à la messe. À lancer depuis cette page ; la pause fige l’horloge.',
   schedule: { type: 'manual' },
   durationMinutes: 181,
-  onStart: [set('t', 0), set('acte', 'veille'), set('phase', 'calme'), set('meteo', 'soleil'), set('pierre', 'inconnue'), set('votes_mine', 0), set('votes_forge', 0), set('fete', 'en_cours'), set('recolte', 'en_cours'), set('urgence', 'aucune'), set('urgence_res', 'aucune'), set('forge_etat', 'ok'), set('mine_etat', 'ok'), set('indices', 0), ...[1, 2, 3, 4, 5, 6].map((n) => set(`indice${n}`, 'non')), set('eglise_ok', 'non'), set('fin', 'aucune'), voice('maelis-ouverture', 'place')],
+  onStart: [set('t', 0), set('acte', 'veille'), set('phase', 'calme'), set('meteo', 'soleil'), set('pierre', 'inconnue'), set('votes_mine', 0), set('votes_forge', 0), set('fete', 'en_cours'), set('recolte', 'en_cours'), set('urgence', 'aucune'), set('urgence_res', 'aucune'), set('forge_etat', 'ok'), set('mine_etat', 'ok'), set('eclats', 0), ...[1, 2, 3, 4, 5, 6].map((n) => set(`eclat${n}`, 'non')), set('eglise_ok', 'non'), set('fin', 'aucune'), voice('maelis-ouverture', 'place')],
   steps: [
     step(10, 'Tournée d’ouverture', [voice('edgar-tournee', 'taverne')], '🍻 **Tournée d’ouverture à la taverne !** Edgar offre la première chope pendant 10 minutes.'),
     step(20, 'Bénédiction des outils', [voice('anselme-benediction', 'eglise')], '⛪ Le Père Anselme bénit les outils avant la fête. Passez prier à l’église !'),
@@ -824,16 +824,16 @@ const scenario = {
     step(85, 'La tempête éclate', [set('acte', 'tempete'), set('phase', 'tempete'), set('meteo', 'orage'), ifThen(v('recolte', 'reussie'), [voice('edgar-refuge-soupe', 'taverne')], [set('recolte', 'ratee'), voice('agathe-rate', 'ferme'), voice('edgar-refuge-cher', 'taverne')]), voice('sylvain-fermeture', 'foret')], cases([v('recolte', 'reussie'), '⛈️ **LA TEMPÊTE ÉCLATE !** Forêt, ferme, pont et église sont fermés. Réfugiez-vous à la taverne : la soupe y est offerte !'], [null, '⛈️ **LA TEMPÊTE ÉCLATE !** Forêt, ferme, pont et église sont fermés. Réfugiez-vous à la taverne… la récolte est perdue, Edgar rationne.'])),
     step(90, 'La foudre', [ifThen(v('pierre', 'forge'), [set('urgence', 'incendie'), voice('wagner-incendie', 'forge'), voice('maelis-puits', 'place')], [set('urgence', 'eboulement'), voice('roland-eboulement', 'mine')])], cases([v('urgence', 'incendie'), '🔥🚨 **LA FOUDRE EST TOMBÉE SUR LA FORGE !** La pierre-tonnerre l’a attirée. Seaux au puits de la Place, puis à la forge : 30 seaux en 10 minutes !'], [null, '🪨🚨 **ÉBOULEMENT À LA MINE !** La pierre-tonnerre a fait trembler la montagne. Roland est coincé : 30 coups de pioche en 10 minutes !'])),
     step(97, 'Craquement', [voice('sylvain-craquement', 'foret')], '🌳 Un craquement immense dans la vallée… Un grand chêne vient de céder, vers l’autre rive. Vers l’église.'),
-    step(100, 'La relique a disparu', [ifThen(any(all(v('urgence', 'incendie'), obj('forge', 'incendie', 'gte', 100)), all(v('urgence', 'eboulement'), obj('mine', 'eboulement', 'gte', 100))), [set('urgence_res', 'reussie'), { type: 'players.each', actions: [xp(10)] }], [set('urgence_res', 'ratee'), ifThen(v('urgence', 'incendie'), [set('forge_etat', 'endommagee')], [set('mine_etat', 'endommagee')])]), set('urgence', 'aucune'), voice('anselme-disparition', 'eglise')], cases([v('urgence_res', 'reussie'), '✅ **L’urgence est maîtrisée !** +10 XP pour tous.\n⛪ Mais à l’église, le Père Anselme découvre l’impensable : **la Sainte Pelle a disparu !**'], [null, '❌ **Trop tard : les dégâts sont lourds.** Il faudra réparer.\n⛪ Et à l’église, le Père Anselme découvre l’impensable : **la Sainte Pelle a disparu !**'])),
+    step(100, 'La pierre vole en éclats', [ifThen(any(all(v('urgence', 'incendie'), obj('forge', 'incendie', 'gte', 100)), all(v('urgence', 'eboulement'), obj('mine', 'eboulement', 'gte', 100))), [set('urgence_res', 'reussie'), { type: 'players.each', actions: [xp(10)] }], [set('urgence_res', 'ratee'), ifThen(v('urgence', 'incendie'), [set('forge_etat', 'endommagee')], [set('mine_etat', 'endommagee')])]), set('urgence', 'aucune'), voice('anselme-eclats', 'eglise')], cases([v('urgence_res', 'reussie'), '✅ **L’urgence est maîtrisée !** +10 XP pour tous.\n⚡ Mais un dernier éclair frappe la pierre-tonnerre : **elle vole en éclats**, et le vent les disperse dans toute la vallée !'], [null, '❌ **Trop tard : les dégâts sont lourds.** Il faudra réparer.\n⚡ Et un dernier éclair frappe la pierre-tonnerre : **elle vole en éclats**, et le vent les disperse dans toute la vallée !'])),
     step(105, 'Le vent faiblit', [set('meteo', 'pluie_fine')], '🌦️ Le vent faiblit. La pluie n’est plus qu’une bruine.'),
-    step(110, 'Relever le Royaume', [set('acte', 'releve'), set('phase', 'apres'), voice('anselme-chantier', 'eglise'), voice('sylvain-chablis', 'foret'), voice('wagner-ferrures', 'forge')], '⛪ **Le pont rouvre. Relevons le Royaume !** Un chêne a crevé la nef de l’église : le chantier est ouvert. Et l’enquête commence : où est la Sainte Pelle ?'),
+    step(110, 'Relever le Royaume', [set('acte', 'releve'), set('phase', 'apres'), voice('anselme-chantier', 'eglise'), voice('sylvain-chablis', 'foret'), voice('wagner-ferrures', 'forge')], '⛪ **Le pont rouvre. Relevons le Royaume !** Un chêne a crevé la nef de l’église : le chantier est ouvert. Et il faut retrouver les 6 éclats de la pierre avant la messe.'),
     step(130, 'Éclaircie', [set('meteo', 'soleil')], '☀️ Une éclaircie perce les nuages au-dessus de Valbrume.'),
-    step(135, 'Point d’étape', [voice('maelis-etape', 'place')], '📜 **Point d’étape de Maëlis :** chantier à {objective.eglise.chantier} %, arbre dégagé à {objective.eglise.arbre} %, indices {var.indices}/6. Plus que 35 minutes avant la messe !'),
+    step(135, 'Point d’étape', [voice('maelis-etape', 'place')], '📜 **Point d’étape de Maëlis :** chantier à {objective.eglise.chantier} %, arbre dégagé à {objective.eglise.arbre} %, éclats {var.eclats}/6. Plus que 35 minutes avant la messe !'),
     step(160, 'Appel à la messe', [voice('anselme-appel-messe', 'eglise')], '🔔 **Dans dix minutes, le Père Anselme célèbre la messe de la Sainte Pelle.** Dernières livraisons !'),
     step(170, 'La messe', [
       ifThen(all(obj('eglise', 'arbre', 'gte', 100), obj('eglise', 'chantier', 'gte', 70), obj('eglise', 'assemblage', 'gte', 100)), [set('eglise_ok', 'oui')]),
-      ifThen(v('eglise_ok', 'oui'), [ifThen(v('indices', 6, 'gte'), [set('fin', 'triomphe'), voice('anselme-messe-triomphe', 'eglise')], [set('fin', 'sans_ame'), voice('anselme-messe-vide', 'eglise')])], [ifThen(v('indices', 6, 'gte'), [set('fin', 'parvis'), voice('anselme-messe-parvis', 'eglise')], [set('fin', 'report'), voice('anselme-messe-report', 'eglise')])]),
-    ], cases([v('fin', 'triomphe'), '🔔 **LA SAINTE PELLE TRIOMPHANTE !** Messe dans la nef rebâtie, la relique sur l’autel. Les cloches sonnent dans toute la vallée !'], [v('fin', 'sans_ame'), '🧱 **Des pierres sans âme.** Messe dans l’église neuve, mais l’autel est vide. Quelqu’un a vu une lueur au fond de la galerie profonde…'], [v('fin', 'parvis'), '🙏 **La foi sur le parvis.** Messe en plein air devant les échafaudages, la relique brandie par le Père Anselme.'], [null, '🌧️ **La messe reportée.** Le Père Anselme prie depuis le pont, devant une église en ruine. Le chantier continue la semaine prochaine.'])),
+      ifThen(v('eglise_ok', 'oui'), [ifThen(v('eclats', 6, 'gte'), [set('fin', 'triomphe'), voice('anselme-messe-triomphe', 'eglise')], [set('fin', 'sans_ame'), voice('anselme-messe-vide', 'eglise')])], [ifThen(v('eclats', 6, 'gte'), [set('fin', 'parvis'), voice('anselme-messe-parvis', 'eglise')], [set('fin', 'report'), voice('anselme-messe-report', 'eglise')])]),
+    ], cases([v('fin', 'triomphe'), '🔔 **VALBRUME TRIOMPHANTE !** Messe dans la nef rebâtie ; les éclats de la pierre sont rendus à la terre au pied de l’autel. La montagne se tait, les cloches sonnent dans toute la vallée !'], [v('fin', 'sans_ame'), '⚡ **La pierre gronde encore.** Messe dans l’église neuve, mais des éclats manquent toujours. Cette nuit, on entendra encore la montagne grésiller…'], [v('fin', 'parvis'), '🙏 **La messe sur le parvis.** Messe en plein air devant les échafaudages ; les éclats réunis sont rendus à la terre. Le chantier continuera.'], [null, '🌧️ **La messe reportée.** Le Père Anselme prie depuis le pont, devant une église en ruine. Le chantier continue la semaine prochaine.'])),
     step(180, 'Fin de séance', [set('acte', 'fin'), voice('maelis-fin', 'place'), ifThen(v('fin', 'triomphe'), [voice('edgar-tournee-finale', 'taverne')])], cases([v('fete', 'reussie'), '🎉 **Fin de la séance bêta.** Le banquet de la Sainte Pelle est servi ! Merci à tous : le tableau d’honneur est sur la Place, et le monde reste ouvert.'], [null, '🔔 **Fin de la séance bêta.** Merci à tous ! Le tableau d’honneur est sur la Place, et le monde reste ouvert.'])),
   ],
   onEnd: [],
@@ -848,7 +848,7 @@ const world = {
   format: 'kingdom-world@1',
   id: 'sainte-pelle',
   name: 'La Nuit de la Sainte Pelle',
-  description: 'Bêta KE4 : 3 heures pour 8 joueurs. Une pierre tombée du ciel, une tempête, une relique disparue. Lancez le scénario depuis la page En direct.',
+  description: 'Bêta KE4 : 3 heures pour 8 joueurs. Une pierre qui attire la foudre, une tempête, une église à relever. Lancez le scénario depuis la page En direct.',
   settings: { maxActiveJobs: 1, timezone: 'Europe/Paris' },
   events: [scenario],
   stats,

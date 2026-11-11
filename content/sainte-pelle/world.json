@@ -2,7 +2,7 @@
   "format": "kingdom-world@1",
   "id": "sainte-pelle",
   "name": "La Nuit de la Sainte Pelle",
-  "description": "Bêta KE4 : 3 heures pour 8 joueurs. Une pierre tombée du ciel, une tempête, une relique disparue. Lancez le scénario depuis la page En direct.",
+  "description": "Bêta KE4 : 3 heures pour 8 joueurs. Une pierre qui attire la foudre, une tempête, une église à relever. Lancez le scénario depuis la page En direct.",
   "settings": {
     "maxActiveJobs": 1,
     "timezone": "Europe/Paris"
@@ -85,37 +85,37 @@
         },
         {
           "type": "variable.set",
-          "variable": "indices",
+          "variable": "eclats",
           "value": 0
         },
         {
           "type": "variable.set",
-          "variable": "indice1",
+          "variable": "eclat1",
           "value": "non"
         },
         {
           "type": "variable.set",
-          "variable": "indice2",
+          "variable": "eclat2",
           "value": "non"
         },
         {
           "type": "variable.set",
-          "variable": "indice3",
+          "variable": "eclat3",
           "value": "non"
         },
         {
           "type": "variable.set",
-          "variable": "indice4",
+          "variable": "eclat4",
           "value": "non"
         },
         {
           "type": "variable.set",
-          "variable": "indice5",
+          "variable": "eclat5",
           "value": "non"
         },
         {
           "type": "variable.set",
-          "variable": "indice6",
+          "variable": "eclat6",
           "value": "non"
         },
         {
@@ -593,7 +593,7 @@
         },
         {
           "afterMinutes": 100,
-          "name": "La relique a disparu",
+          "name": "La pierre vole en éclats",
           "actions": [
             {
               "type": "variable.set",
@@ -698,7 +698,7 @@
             },
             {
               "type": "audio.play",
-              "sound": "anselme-disparition",
+              "sound": "anselme-eclats",
               "building": "eglise"
             }
           ],
@@ -711,10 +711,10 @@
                   "op": "eq",
                   "value": "reussie"
                 },
-                "text": "✅ **L’urgence est maîtrisée !** +10 XP pour tous.\n⛪ Mais à l’église, le Père Anselme découvre l’impensable : **la Sainte Pelle a disparu !**"
+                "text": "✅ **L’urgence est maîtrisée !** +10 XP pour tous.\n⚡ Mais un dernier éclair frappe la pierre-tonnerre : **elle vole en éclats**, et le vent les disperse dans toute la vallée !"
               },
               {
-                "text": "❌ **Trop tard : les dégâts sont lourds.** Il faudra réparer.\n⛪ Et à l’église, le Père Anselme découvre l’impensable : **la Sainte Pelle a disparu !**"
+                "text": "❌ **Trop tard : les dégâts sont lourds.** Il faudra réparer.\n⚡ Et un dernier éclair frappe la pierre-tonnerre : **elle vole en éclats**, et le vent les disperse dans toute la vallée !"
               }
             ]
           }
@@ -771,7 +771,7 @@
               "building": "forge"
             }
           ],
-          "announce": "⛪ **Le pont rouvre. Relevons le Royaume !** Un chêne a crevé la nef de l’église : le chantier est ouvert. Et l’enquête commence : où est la Sainte Pelle ?"
+          "announce": "⛪ **Le pont rouvre. Relevons le Royaume !** Un chêne a crevé la nef de l’église : le chantier est ouvert. Et il faut retrouver les 6 éclats de la pierre avant la messe."
         },
         {
           "afterMinutes": 130,
@@ -805,7 +805,7 @@
               "building": "place"
             }
           ],
-          "announce": "📜 **Point d’étape de Maëlis :** chantier à {objective.eglise.chantier} %, arbre dégagé à {objective.eglise.arbre} %, indices {var.indices}/6. Plus que 35 minutes avant la messe !"
+          "announce": "📜 **Point d’étape de Maëlis :** chantier à {objective.eglise.chantier} %, arbre dégagé à {objective.eglise.arbre} %, éclats {var.eclats}/6. Plus que 35 minutes avant la messe !"
         },
         {
           "afterMinutes": 160,
@@ -882,7 +882,7 @@
                   "type": "if",
                   "when": {
                     "type": "variable",
-                    "variable": "indices",
+                    "variable": "eclats",
                     "op": "gte",
                     "value": 6
                   },
@@ -917,7 +917,7 @@
                   "type": "if",
                   "when": {
                     "type": "variable",
-                    "variable": "indices",
+                    "variable": "eclats",
                     "op": "gte",
                     "value": 6
                   },
@@ -958,7 +958,7 @@
                   "op": "eq",
                   "value": "triomphe"
                 },
-                "text": "🔔 **LA SAINTE PELLE TRIOMPHANTE !** Messe dans la nef rebâtie, la relique sur l’autel. Les cloches sonnent dans toute la vallée !"
+                "text": "🔔 **VALBRUME TRIOMPHANTE !** Messe dans la nef rebâtie ; les éclats de la pierre sont rendus à la terre au pied de l’autel. La montagne se tait, les cloches sonnent dans toute la vallée !"
               },
               {
                 "when": {
@@ -967,7 +967,7 @@
                   "op": "eq",
                   "value": "sans_ame"
                 },
-                "text": "🧱 **Des pierres sans âme.** Messe dans l’église neuve, mais l’autel est vide. Quelqu’un a vu une lueur au fond de la galerie profonde…"
+                "text": "⚡ **La pierre gronde encore.** Messe dans l’église neuve, mais des éclats manquent toujours. Cette nuit, on entendra encore la montagne grésiller…"
               },
               {
                 "when": {
@@ -976,7 +976,7 @@
                   "op": "eq",
                   "value": "parvis"
                 },
-                "text": "🙏 **La foi sur le parvis.** Messe en plein air devant les échafaudages, la relique brandie par le Père Anselme."
+                "text": "🙏 **La messe sur le parvis.** Messe en plein air devant les échafaudages ; les éclats réunis sont rendus à la terre. Le chantier continuera."
               },
               {
                 "text": "🌧️ **La messe reportée.** Le Père Anselme prie depuis le pont, devant une église en ruine. Le chantier continue la semaine prochaine."
@@ -1814,13 +1814,13 @@
       ]
     },
     {
-      "id": "indices",
-      "name": "Indices trouvés",
+      "id": "eclats",
+      "name": "Éclats de la pierre retrouvés",
       "initial": 0
     },
     {
-      "id": "indice1",
-      "name": "Indice 1",
+      "id": "eclat1",
+      "name": "Éclat 1",
       "initial": "non",
       "options": [
         {
@@ -1829,13 +1829,13 @@
         },
         {
           "value": "oui",
-          "label": "🔎 Trouvé"
+          "label": "✨ Retrouvé"
         }
       ]
     },
     {
-      "id": "indice2",
-      "name": "Indice 2",
+      "id": "eclat2",
+      "name": "Éclat 2",
       "initial": "non",
       "options": [
         {
@@ -1844,13 +1844,13 @@
         },
         {
           "value": "oui",
-          "label": "🔎 Trouvé"
+          "label": "✨ Retrouvé"
         }
       ]
     },
     {
-      "id": "indice3",
-      "name": "Indice 3",
+      "id": "eclat3",
+      "name": "Éclat 3",
       "initial": "non",
       "options": [
         {
@@ -1859,13 +1859,13 @@
         },
         {
           "value": "oui",
-          "label": "🔎 Trouvé"
+          "label": "✨ Retrouvé"
         }
       ]
     },
     {
-      "id": "indice4",
-      "name": "Indice 4",
+      "id": "eclat4",
+      "name": "Éclat 4",
       "initial": "non",
       "options": [
         {
@@ -1874,13 +1874,13 @@
         },
         {
           "value": "oui",
-          "label": "🔎 Trouvé"
+          "label": "✨ Retrouvé"
         }
       ]
     },
     {
-      "id": "indice5",
-      "name": "Indice 5",
+      "id": "eclat5",
+      "name": "Éclat 5",
       "initial": "non",
       "options": [
         {
@@ -1889,13 +1889,13 @@
         },
         {
           "value": "oui",
-          "label": "🔎 Trouvé"
+          "label": "✨ Retrouvé"
         }
       ]
     },
     {
-      "id": "indice6",
-      "name": "Indice 6",
+      "id": "eclat6",
+      "name": "Éclat 6",
       "initial": "non",
       "options": [
         {
@@ -1904,7 +1904,7 @@
         },
         {
           "value": "oui",
-          "label": "🔎 Trouvé"
+          "label": "✨ Retrouvé"
         }
       ]
     },
@@ -1934,15 +1934,15 @@
         },
         {
           "value": "triomphe",
-          "label": "🔔 La Sainte Pelle triomphante"
+          "label": "🔔 Valbrume triomphante"
         },
         {
           "value": "sans_ame",
-          "label": "🧱 Des pierres sans âme"
+          "label": "⚡ La pierre gronde encore"
         },
         {
           "value": "parvis",
-          "label": "🙏 La foi sur le parvis"
+          "label": "🙏 La messe sur le parvis"
         },
         {
           "value": "report",
@@ -2869,7 +2869,7 @@
       },
       {
         "id": "q26",
-        "name": "Le témoin",
+        "name": "Où sont tombés les éclats ?",
         "giver": "Maëlis",
         "difficulty": 2,
         "when": {
@@ -2889,7 +2889,7 @@
               "dialogue:forge/nuit",
               "dialogue:foret/nuit",
               "dialogue:ferme/nuit",
-              "dialogue:taverne/relique"
+              "dialogue:taverne/eclat"
             ],
             "target": 2
           }
@@ -2899,24 +2899,24 @@
             "type": "if",
             "when": {
               "type": "variable",
-              "variable": "indice4",
+              "variable": "eclat4",
               "op": "eq",
               "value": "non"
             },
             "then": [
               {
                 "type": "variable.set",
-                "variable": "indice4",
+                "variable": "eclat4",
                 "value": "oui"
               },
               {
                 "type": "variable.add",
-                "variable": "indices",
+                "variable": "eclats",
                 "amount": 1
               },
               {
                 "type": "announce",
-                "text": "🔎 **Indice 4/6 trouvé :** Agathe a vu quelqu’un courir sous la pluie avec un long paquet, la barbe au vent."
+                "text": "✨ **Éclat 4/6 retrouvé :** dans une botte de foin de la ferme d’Agathe."
               }
             ]
           }
@@ -3207,7 +3207,7 @@
       },
       {
         "id": "q34",
-        "name": "Pister la relique",
+        "name": "Suivre les étincelles",
         "giver": "Sylvain",
         "difficulty": 3,
         "when": {
@@ -3220,7 +3220,7 @@
           {
             "id": "pont",
             "kind": "visit",
-            "label": "Suivre les traces jusqu’au vieux pont",
+            "label": "Suivre la traînée d’étincelles jusqu’au vieux pont",
             "building": "pont"
           },
           {
@@ -3241,24 +3241,24 @@
             "type": "if",
             "when": {
               "type": "variable",
-              "variable": "indice2",
+              "variable": "eclat2",
               "op": "eq",
               "value": "non"
             },
             "then": [
               {
                 "type": "variable.set",
-                "variable": "indice2",
+                "variable": "eclat2",
                 "value": "oui"
               },
               {
                 "type": "variable.add",
-                "variable": "indices",
+                "variable": "eclats",
                 "amount": 1
               },
               {
                 "type": "announce",
-                "text": "🔎 **Indice 2/6 trouvé :** de grosses bottes, une démarche titubante, qui filent vers la taverne."
+                "text": "✨ **Éclat 2/6 retrouvé :** coincé entre deux pierres du vieux pont."
               }
             ]
           }
@@ -3268,7 +3268,7 @@
       },
       {
         "id": "q35",
-        "name": "La cave d’Edgar",
+        "name": "Le porte-bonheur d’Edgar",
         "giver": "Edgar",
         "difficulty": 3,
         "when": {
@@ -3282,13 +3282,13 @@
             },
             {
               "type": "variable",
-              "variable": "indices",
+              "variable": "eclats",
               "op": "gte",
               "value": 5
             },
             {
               "type": "variable",
-              "variable": "indice6",
+              "variable": "eclat6",
               "op": "eq",
               "value": "non"
             }
@@ -3298,7 +3298,7 @@
           {
             "id": "hydromel",
             "kind": "deliver",
-            "label": "Offrir 3 flasques d’hydromel à Edgar",
+            "label": "Offrir 3 flasques d’hydromel à Edgar pour qu’il lâche son « porte-bonheur »",
             "item": "flasque_hydromel",
             "qty": 3,
             "building": "taverne"
@@ -3312,12 +3312,12 @@
           },
           {
             "type": "variable.set",
-            "variable": "indice6",
+            "variable": "eclat6",
             "value": "oui"
           },
           {
             "type": "variable.add",
-            "variable": "indices",
+            "variable": "eclats",
             "amount": 1
           },
           {
@@ -3327,11 +3327,11 @@
           },
           {
             "type": "announce",
-            "text": "🍯 **Indice 6/6 : Edgar se souvient !** Il a caché la Sainte Pelle dans sa cave pour la protéger de la tempête… puis il a fêté ça. La relique est retrouvée !"
+            "text": "✨ **Éclat 6/6 retrouvé !** Edgar le gardait dans sa poche « comme porte-bonheur ». Tous les éclats sont réunis : le Père Anselme pourra les rendre à la terre."
           }
         ],
         "unique": true,
-        "success": "« Attends… La cave ! Pardonnez-moi, mon Père ! »"
+        "success": "« Bon, bon… Tiens, le voilà. Il brillait si joliment au fond de ma chope ! »"
       },
       {
         "id": "q36",
@@ -3561,7 +3561,7 @@
               "id": "fete",
               "title": "🎉 La Sainte Pelle",
               "lines": [
-                "« Chaque année, on bénit la pelle du fondateur : celle qui creusa le premier puits. Il nous faut du bois pour le bûcher et de quoi nourrir tout le monde. »"
+                "« La Sainte Pelle, c’est la pelle du fondateur, celle qui creusa le premier puits. Elle a été perdue il y a bien longtemps, mais chaque année on fête sa mémoire. Il nous faut du bois pour le bûcher et de quoi nourrir tout le monde. »"
               ],
               "choices": []
             },
@@ -3601,7 +3601,7 @@
               "id": "nuit",
               "title": "🌩️ La nuit de la tempête",
               "lines": [
-                "« Mon registre des clés ? Seuls le Père Anselme et le sacristain ont la clé du reliquaire. Le sacristain, c’est… Edgar. Depuis douze ans. »"
+                "« Cette nuit-là, j’ai vu des étincelles bleues retomber sur toute la vallée, comme une pluie d’étoiles. Il y en avait même une au fond du puits. »"
               ],
               "choices": []
             }
@@ -3716,10 +3716,10 @@
                   }
                 },
                 {
-                  "label": "🔎 Enquête",
+                  "label": "✨ Les éclats",
                   "rule": {
                     "onSuccess": {
-                      "goto": "enquete"
+                      "goto": "eclats"
                     }
                   },
                   "visibleIf": {
@@ -4032,84 +4032,84 @@
           ]
         },
         {
-          "id": "enquete",
-          "name": "Enquête",
+          "id": "eclats",
+          "name": "Les éclats",
           "blocks": [
             {
               "type": "container",
               "children": [
                 {
                   "type": "text",
-                  "text": "## 🔎 Où est la Sainte Pelle ?\nLe reliquaire a été trouvé vide après la tempête. Chaque indice n’est trouvé qu’une fois, pour tout le village.\n**Indices : {var.indices}/6**"
+                  "text": "## ✨ Les éclats de la pierre-tonnerre\nLa foudre a fait éclater la pierre, et le vent en a dispersé les morceaux dans toute la vallée. Le Père Anselme veut les rendre à la terre pendant la messe : tant qu’ils traînent, la pierre gronde.\nChaque éclat ne se ramasse qu’une fois, pour tout le village.\n**Éclats retrouvés : {var.eclats}/6**"
                 },
                 {
                   "type": "text",
-                  "text": "1. 🔒 **Le reliquaire vide** : le verrou n’est pas forcé, on l’a ouvert avec une clé.",
+                  "text": "1. ⛪ **Dans les décombres de la nef**, sous une poutre.",
                   "visibleIf": {
                     "type": "variable",
-                    "variable": "indice1",
+                    "variable": "eclat1",
                     "op": "eq",
                     "value": "oui"
                   }
                 },
                 {
                   "type": "text",
-                  "text": "2. 👣 **Des traces de boue** sur le pont : de grosses bottes, une démarche titubante, vers la taverne.",
+                  "text": "2. 🌉 **Coincé entre deux pierres du vieux pont.**",
                   "visibleIf": {
                     "type": "variable",
-                    "variable": "indice2",
+                    "variable": "eclat2",
                     "op": "eq",
                     "value": "oui"
                   }
                 },
                 {
                   "type": "text",
-                  "text": "3. 🏮 **La lanterne d’Edgar**, au pied de l’église, gravée « G.C. ».",
+                  "text": "3. 🌲 **Au pied du grand chêne tombé**, en forêt.",
                   "visibleIf": {
                     "type": "variable",
-                    "variable": "indice3",
+                    "variable": "eclat3",
                     "op": "eq",
                     "value": "oui"
                   }
                 },
                 {
                   "type": "text",
-                  "text": "4. 👁️ **Agathe** a vu quelqu’un courir sous la pluie avec un long paquet, la barbe au vent.",
+                  "text": "4. 🌾 **Dans une botte de foin** de la ferme d’Agathe.",
                   "visibleIf": {
                     "type": "variable",
-                    "variable": "indice4",
+                    "variable": "eclat4",
                     "op": "eq",
                     "value": "oui"
                   }
                 },
                 {
                   "type": "text",
-                  "text": "5. 🗝️ **Le registre des clés** : seuls le Père Anselme et le sacristain, Edgar, ont la clé.",
+                  "text": "5. ⛲ **Au fond du puits** de la Place.",
                   "visibleIf": {
                     "type": "variable",
-                    "variable": "indice5",
+                    "variable": "eclat5",
                     "op": "eq",
                     "value": "oui"
                   }
                 },
                 {
                   "type": "text",
-                  "text": "6. 🍯 **La mémoire d’Edgar** : il a caché la relique dans sa cave pour la protéger… puis il a fêté ça.",
+                  "text": "6. 🍺 **Dans la poche d’Edgar**, qui le gardait comme porte-bonheur.",
                   "visibleIf": {
                     "type": "variable",
-                    "variable": "indice6",
+                    "variable": "eclat6",
                     "op": "eq",
                     "value": "oui"
                   }
                 },
                 {
                   "type": "text",
-                  "text": "*Les indices se cherchent à l’église, au pont, en forêt, à la ferme et ici. Le dernier se mérite à la taverne.*",
+                  "text": "*On en a vu tomber à l’église, au pont, en forêt, à la ferme et sur la Place. Et quelqu’un, à la taverne, en sait plus qu’il ne le dit…*",
                   "visibleIf": {
                     "type": "not",
                     "condition": {
                       "type": "variable",
-                      "variable": "indice6",
+                      "variable": "eclat6",
                       "op": "eq",
                       "value": "oui"
                     }
@@ -4123,9 +4123,9 @@
             },
             {
               "type": "section",
-              "text": "**🔎 Le registre des clés de Maëlis**\n*Un détail cloche…*",
+              "text": "**✨ Au fond du puits**\n*Une lueur bleutée grésille…*",
               "button": {
-                "label": "Examiner",
+                "label": "Ramasser l’éclat",
                 "rule": {
                   "when": {
                     "type": "variable",
@@ -4136,12 +4136,12 @@
                   "actions": [
                     {
                       "type": "variable.set",
-                      "variable": "indice5",
+                      "variable": "eclat5",
                       "value": "oui"
                     },
                     {
                       "type": "variable.add",
-                      "variable": "indices",
+                      "variable": "eclats",
                       "amount": 1
                     },
                     {
@@ -4151,18 +4151,18 @@
                     },
                     {
                       "type": "quest.tag",
-                      "tag": "indice"
+                      "tag": "eclat-trouve"
                     },
                     {
                       "type": "announce",
-                      "text": "🔎 **Indice 5/6 trouvé :** seuls le Père Anselme et le sacristain, Edgar, ont la clé du reliquaire."
+                      "text": "✨ **Éclat 5/6 retrouvé :** au fond du puits de la Place."
                     }
                   ],
                   "onSuccess": {
-                    "notice": "🔎 **Indice trouvé !** seuls le Père Anselme et le sacristain, Edgar, ont la clé du reliquaire.\n+15 XP"
+                    "notice": "✨ **Éclat retrouvé !** au fond du puits de la Place.\n+15 XP"
                   }
                 },
-                "emoji": "🔎",
+                "emoji": "✨",
                 "style": "primary"
               },
               "visibleIf": {
@@ -4176,7 +4176,7 @@
                   },
                   {
                     "type": "variable",
-                    "variable": "indice5",
+                    "variable": "eclat5",
                     "op": "eq",
                     "value": "non"
                   }
@@ -4198,7 +4198,7 @@
                   "label": "🔄 Actualiser",
                   "rule": {
                     "onSuccess": {
-                      "goto": "enquete"
+                      "goto": "eclats"
                     }
                   }
                 }
@@ -4821,9 +4821,9 @@
                   }
                 },
                 {
-                  "label": "La relique ?",
-                  "emoji": "⛪",
-                  "goto": "relique",
+                  "label": "Les éclats ?",
+                  "emoji": "✨",
+                  "goto": "eclat",
                   "when": {
                     "type": "variable",
                     "variable": "t",
@@ -5204,22 +5204,22 @@
               "choices": []
             },
             {
-              "id": "relique",
-              "title": "⛪ La relique",
+              "id": "eclat",
+              "title": "✨ Les éclats",
               "lines": [
                 {
                   "cases": [
                     {
                       "when": {
                         "type": "variable",
-                        "variable": "indice6",
+                        "variable": "eclat6",
                         "op": "eq",
                         "value": "oui"
                       },
-                      "text": "« Je… je l’avais mise à l’abri, tu comprends ? Dans ma cave, là où rien ne tombe jamais. Et puis j’ai fêté ça. Pardon, mon Père… »"
+                      "text": "« Bon, d’accord, je l’avais gardé. Il brillait si joliment au fond de ma chope… Un porte-bonheur, quoi. Rendez-le à la terre, va. »"
                     },
                     {
-                      "text": "« La relique ? Disparue ? Oh, misère… Non, non, moi, cette nuit-là, j’étais ici. Enfin, je crois. Il y avait de l’hydromel. »"
+                      "text": "« Des éclats ? Quels éclats ? Moi, cette nuit-là, j’étais ici. Enfin, je crois. Il y avait de l’hydromel. *Il tapote nerveusement sa poche.* »"
                     }
                   ]
                 }
@@ -6785,7 +6785,7 @@
               "id": "nuit",
               "title": "🌩️ La nuit de la tempête",
               "lines": [
-                "« Moi ? J’étais ici, à surveiller les étais. Mais en remontant, j’ai vu une lanterne filer vers le pont. Une lanterne qui zigzaguait drôlement. »"
+                "« La pierre n’aimait pas la lumière du jour, je l’avais dit. Quand la foudre l’a frappée, j’ai vu les morceaux voler jusqu’au pont. Et Edgar qui courait en dessous, la chope en l’air. »"
               ],
               "choices": []
             }
@@ -7582,7 +7582,7 @@
               "id": "nuit",
               "title": "🌩️ La nuit de la tempête",
               "lines": [
-                "« J’avais autre chose à faire que regarder dehors. Mais Edgar est passé emprunter une corde. En pleine tempête. Drôle d’idée. »"
+                "« Les éclats grésillent encore, je les entends d’ici. Il faut tous les retrouver : séparés, ils ne se calmeront jamais. »"
               ],
               "choices": []
             }
@@ -8368,7 +8368,7 @@
               "id": "nuit",
               "title": "🌩️ La nuit de la tempête",
               "lines": [
-                "« J’ai entendu le grand chêne céder vers l’église. Et juste avant… une silhouette qui chantait. Faux. Très faux. »"
+                "« Un éclat est tombé juste au pied du grand chêne, avant qu’il cède. Et j’ai vu une silhouette en ramasser un autre en chantant. Faux. Très faux. »"
               ],
               "choices": []
             }
@@ -8475,9 +8475,9 @@
             },
             {
               "type": "section",
-              "text": "**🔎 Une lanterne au pied de l’église**\n*Un détail cloche…*",
+              "text": "**✨ Au pied du grand chêne tombé**\n*Une lueur bleutée grésille…*",
               "button": {
-                "label": "Examiner",
+                "label": "Ramasser l’éclat",
                 "rule": {
                   "when": {
                     "type": "variable",
@@ -8488,12 +8488,12 @@
                   "actions": [
                     {
                       "type": "variable.set",
-                      "variable": "indice3",
+                      "variable": "eclat3",
                       "value": "oui"
                     },
                     {
                       "type": "variable.add",
-                      "variable": "indices",
+                      "variable": "eclats",
                       "amount": 1
                     },
                     {
@@ -8503,18 +8503,18 @@
                     },
                     {
                       "type": "quest.tag",
-                      "tag": "indice"
+                      "tag": "eclat-trouve"
                     },
                     {
                       "type": "announce",
-                      "text": "🔎 **Indice 3/6 trouvé :** la lanterne d’Edgar, gravée « G.C. », retrouvée au pied de l’église."
+                      "text": "✨ **Éclat 3/6 retrouvé :** au pied du grand chêne tombé, en forêt."
                     }
                   ],
                   "onSuccess": {
-                    "notice": "🔎 **Indice trouvé !** la lanterne d’Edgar, gravée « G.C. », retrouvée au pied de l’église.\n+15 XP"
+                    "notice": "✨ **Éclat retrouvé !** au pied du grand chêne tombé, en forêt.\n+15 XP"
                   }
                 },
-                "emoji": "🔎",
+                "emoji": "✨",
                 "style": "primary"
               },
               "visibleIf": {
@@ -8528,7 +8528,7 @@
                   },
                   {
                     "type": "variable",
-                    "variable": "indice3",
+                    "variable": "eclat3",
                     "op": "eq",
                     "value": "non"
                   }
@@ -9093,7 +9093,7 @@
               "id": "nuit",
               "title": "🌩️ La nuit de la tempête",
               "lines": [
-                "« Pendant la tempête, j’ai vu quelqu’un courir vers le pont avec un long paquet sous le bras. Gros, la barbe au vent… Je n’en dis pas plus. »"
+                "« Une étincelle bleue est tombée dans ma grange, en plein orage ! J’ai cru que tout allait brûler. Elle doit être quelque part dans le foin. »"
               ],
               "choices": []
             }
@@ -9214,9 +9214,9 @@
             },
             {
               "type": "section",
-              "text": "**🔎 Le témoignage d’Agathe**\n*Un détail cloche…*",
+              "text": "**✨ Dans une botte de foin**\n*Une lueur bleutée grésille…*",
               "button": {
-                "label": "Examiner",
+                "label": "Ramasser l’éclat",
                 "rule": {
                   "when": {
                     "type": "variable",
@@ -9227,12 +9227,12 @@
                   "actions": [
                     {
                       "type": "variable.set",
-                      "variable": "indice4",
+                      "variable": "eclat4",
                       "value": "oui"
                     },
                     {
                       "type": "variable.add",
-                      "variable": "indices",
+                      "variable": "eclats",
                       "amount": 1
                     },
                     {
@@ -9242,18 +9242,18 @@
                     },
                     {
                       "type": "quest.tag",
-                      "tag": "indice"
+                      "tag": "eclat-trouve"
                     },
                     {
                       "type": "announce",
-                      "text": "🔎 **Indice 4/6 trouvé :** Agathe a vu quelqu’un courir sous la pluie avec un long paquet, la barbe au vent."
+                      "text": "✨ **Éclat 4/6 retrouvé :** dans une botte de foin de la ferme d’Agathe."
                     }
                   ],
                   "onSuccess": {
-                    "notice": "🔎 **Indice trouvé !** Agathe a vu quelqu’un courir sous la pluie avec un long paquet, la barbe au vent.\n+15 XP"
+                    "notice": "✨ **Éclat retrouvé !** dans une botte de foin de la ferme d’Agathe.\n+15 XP"
                   }
                 },
-                "emoji": "🔎",
+                "emoji": "✨",
                 "style": "primary"
               },
               "visibleIf": {
@@ -9267,7 +9267,7 @@
                   },
                   {
                     "type": "variable",
-                    "variable": "indice4",
+                    "variable": "eclat4",
                     "op": "eq",
                     "value": "non"
                   }
@@ -9608,9 +9608,9 @@
             },
             {
               "type": "section",
-              "text": "**🔎 Des traces de boue**\n*Un détail cloche…*",
+              "text": "**✨ Entre deux pierres du pont**\n*Une lueur bleutée grésille…*",
               "button": {
-                "label": "Examiner",
+                "label": "Ramasser l’éclat",
                 "rule": {
                   "when": {
                     "type": "variable",
@@ -9621,12 +9621,12 @@
                   "actions": [
                     {
                       "type": "variable.set",
-                      "variable": "indice2",
+                      "variable": "eclat2",
                       "value": "oui"
                     },
                     {
                       "type": "variable.add",
-                      "variable": "indices",
+                      "variable": "eclats",
                       "amount": 1
                     },
                     {
@@ -9636,18 +9636,18 @@
                     },
                     {
                       "type": "quest.tag",
-                      "tag": "indice"
+                      "tag": "eclat-trouve"
                     },
                     {
                       "type": "announce",
-                      "text": "🔎 **Indice 2/6 trouvé :** de grosses bottes, une démarche titubante, qui filent vers la taverne."
+                      "text": "✨ **Éclat 2/6 retrouvé :** coincé entre deux pierres du vieux pont."
                     }
                   ],
                   "onSuccess": {
-                    "notice": "🔎 **Indice trouvé !** de grosses bottes, une démarche titubante, qui filent vers la taverne.\n+15 XP"
+                    "notice": "✨ **Éclat retrouvé !** coincé entre deux pierres du vieux pont.\n+15 XP"
                   }
                 },
-                "emoji": "🔎",
+                "emoji": "✨",
                 "style": "primary"
               },
               "visibleIf": {
@@ -9661,7 +9661,7 @@
                   },
                   {
                     "type": "variable",
-                    "variable": "indice2",
+                    "variable": "eclat2",
                     "op": "eq",
                     "value": "non"
                   }
@@ -9794,7 +9794,7 @@
         "title": "Prêtre"
       },
       "entrance": {
-        "text": "La petite église de Valbrume, de l’autre côté du pont. Sur l’autel brille la Sainte Pelle.",
+        "text": "La petite église de Valbrume, de l’autre côté du pont, où l’on fête chaque année la mémoire de la Sainte Pelle.",
         "button": "Entrer dans l’église",
         "buttonEmoji": "⛪"
       },
@@ -10141,7 +10141,7 @@
                       "text": "« L’arbre a crevé la nef, mais les murs tiennent. Avec vos bras, nous relèverons cette église avant la messe. »"
                     },
                     {
-                      "text": "« Entre, mon enfant. Voici la Sainte Pelle : celle qui creusa le premier puits de Valbrume. Ce soir, nous la bénirons comme chaque année. »"
+                      "text": "« Entre, mon enfant. Ce reliquaire est vide depuis des siècles : la Sainte Pelle, celle qui creusa le premier puits de Valbrume, a été perdue il y a bien longtemps. Ce soir, nous fêtons sa mémoire. »"
                     }
                   ]
                 }
@@ -10170,9 +10170,9 @@
                   }
                 },
                 {
-                  "label": "La relique",
+                  "label": "Les éclats",
                   "emoji": "✨",
-                  "goto": "relique",
+                  "goto": "eclats",
                   "when": {
                     "type": "variable",
                     "variable": "t",
@@ -10191,22 +10191,22 @@
               "choices": []
             },
             {
-              "id": "relique",
-              "title": "✨ La Sainte Pelle",
+              "id": "eclats",
+              "title": "✨ Les éclats",
               "lines": [
                 {
                   "cases": [
                     {
                       "when": {
                         "type": "variable",
-                        "variable": "indice6",
-                        "op": "eq",
-                        "value": "oui"
+                        "variable": "eclats",
+                        "op": "gte",
+                        "value": 6
                       },
-                      "text": "« Edgar… Notre sacristain l’a mise à l’abri dans sa cave. Je ne sais pas si je dois le bénir ou le gronder. »"
+                      "text": "« Tous les éclats sont là. Pendant la messe, nous les rendrons à la terre, au pied de l’autel. La montagne retrouvera la paix. »"
                     },
                     {
-                      "text": "« Le reliquaire est vide. Qui a pu faire une chose pareille, par une nuit pareille ? »"
+                      "text": "« Le ciel a brisé la pierre et dispersé ses éclats. Tant qu’ils traînent dans la vallée, elle grondera. Rapportez-les-moi avant la messe. »"
                     }
                   ]
                 }
@@ -10267,10 +10267,10 @@
                           "op": "gte",
                           "value": 110
                         },
-                        "text": "## ⛪ Église de la Sainte Pelle\n*Un chêne a crevé la nef. Le reliquaire est vide. Le Père Anselme organise le chantier sur le parvis.*"
+                        "text": "## ⛪ Église de la Sainte Pelle\n*Un chêne a crevé la nef. Le Père Anselme organise le chantier sur le parvis.*"
                       },
                       {
-                        "text": "## ⛪ Église de la Sainte Pelle\n*Sur l’autel brille la Sainte Pelle, la pelle du fondateur. Le Père Anselme allume les cierges.*"
+                        "text": "## ⛪ Église de la Sainte Pelle\n*Sur l’autel, le vieux reliquaire de la Sainte Pelle, vide depuis des siècles. Le Père Anselme allume les cierges.*"
                       }
                     ]
                   }
@@ -10331,9 +10331,9 @@
             },
             {
               "type": "section",
-              "text": "**🔎 Le reliquaire vide**\n*Un détail cloche…*",
+              "text": "**✨ Dans les décombres de la nef**\n*Une lueur bleutée grésille…*",
               "button": {
-                "label": "Examiner",
+                "label": "Ramasser l’éclat",
                 "rule": {
                   "when": {
                     "type": "variable",
@@ -10344,12 +10344,12 @@
                   "actions": [
                     {
                       "type": "variable.set",
-                      "variable": "indice1",
+                      "variable": "eclat1",
                       "value": "oui"
                     },
                     {
                       "type": "variable.add",
-                      "variable": "indices",
+                      "variable": "eclats",
                       "amount": 1
                     },
                     {
@@ -10359,18 +10359,18 @@
                     },
                     {
                       "type": "quest.tag",
-                      "tag": "indice"
+                      "tag": "eclat-trouve"
                     },
                     {
                       "type": "announce",
-                      "text": "🔎 **Indice 1/6 trouvé :** le verrou du reliquaire n’est pas forcé : on l’a ouvert avec une clé."
+                      "text": "✨ **Éclat 1/6 retrouvé :** dans les décombres de la nef, sous une poutre."
                     }
                   ],
                   "onSuccess": {
-                    "notice": "🔎 **Indice trouvé !** le verrou du reliquaire n’est pas forcé : on l’a ouvert avec une clé.\n+15 XP"
+                    "notice": "✨ **Éclat retrouvé !** dans les décombres de la nef, sous une poutre.\n+15 XP"
                   }
                 },
-                "emoji": "🔎",
+                "emoji": "✨",
                 "style": "primary"
               },
               "visibleIf": {
@@ -10384,7 +10384,7 @@
                   },
                   {
                     "type": "variable",
-                    "variable": "indice1",
+                    "variable": "eclat1",
                     "op": "eq",
                     "value": "non"
                   }
