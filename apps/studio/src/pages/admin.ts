@@ -1,5 +1,5 @@
 import { h, clear, toast, field, modal, dateTime } from '../ui.ts';
-import { del, get, post } from '../api.ts';
+import { del, get, post, put } from '../api.ts';
 import { state } from '../store.ts';
 
 /** Administration de la plateforme : comptes, mondes, connexions Discord. */
@@ -50,7 +50,16 @@ export async function adminPage(main: HTMLElement) {
           'section',
           { class: 'block' },
           h('h2', null, `Mondes (${o.servers.length})`),
-          h('table', { class: 'grid' }, h('tbody', null, o.servers.map((s: any) => h('tr', null, h('td', null, s.name), h('td', { class: 'muted' }, s.guildId ?? 'sans Discord'), h('td', { class: 'r' }, `v${s.content.published?.version ?? '—'} · ${s.members} accès`))))),
+          h('table', { class: 'grid' }, h('tbody', null, o.servers.map((s: any) => h('tr', null, h('td', null, s.name), h('td', { class: 'muted' }, s.guildId ?? 'sans Discord'), h('td', { class: 'r' }, `v${s.content.published?.version ?? '—'} · ${s.members} accès`), h('td', { class: 'r actions' }, s.guildId ? h('button', { class: 'btn small ghost', title: 'Libère le serveur Discord pour le relier à un autre monde', onclick: async () => {
+            if (!confirm(`Détacher le serveur Discord ${s.guildId} du monde « ${s.name} » ? Le monde est conservé.`)) return;
+            try {
+              await put(`/api/servers/${s.id}`, { guildId: null });
+              toast('Serveur Discord détaché.');
+            } catch (e) {
+              toast((e as Error).message, 'error');
+            }
+            void adminPage(main);
+          } }, 'Détacher Discord') : null))))),
         ),
       ),
       h(

@@ -109,7 +109,7 @@ export function registerApi(router: Router, deps: ApiDeps) {
   router.get('/api/templates', (r) => (me(r), platform.templates()));
 
   router.post('/api/servers', (r) => {
-    const s = platform.createServer(me(r), { name: String(r.body.name ?? ''), guildId: r.body.guildId, template: String(r.body.template ?? 'vierge') });
+    const s = platform.createServer(me(r), { name: String(r.body.name ?? ''), guildId: r.body.guildId, template: String(r.body.template ?? 'vierge'), takeOver: r.body.takeOver === true });
     void deps.discord.syncBuildings(s.id, true).catch(() => {});
     return s;
   });

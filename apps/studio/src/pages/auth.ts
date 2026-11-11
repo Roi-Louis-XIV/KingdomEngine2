@@ -85,12 +85,23 @@ export async function newServerPage(main: HTMLElement, onCreated: (id: string) =
           class: 'form',
           onsubmit: async (e: Event) => {
             e.preventDefault();
-            try {
-              const s = await post('/api/servers', form);
+            const create = async (takeOver: boolean) => {
+              const s = await post('/api/servers', { ...form, takeOver });
               toast(`« ${s.name} » est prêt.`);
               onCreated(s.id);
+            };
+            try {
+              await create(false);
             } catch (err) {
-              toast((err as Error).message, 'error');
+              const holder = (err as { data?: { holder?: { name: string }; canTakeOver?: boolean } }).data;
+              // Serveur Discord déjà relié à un de mes mondes : proposer de le reprendre.
+              if (holder?.canTakeOver && holder.holder && confirm(`Ce serveur Discord est déjà relié au monde « ${holder.holder.name} ».\n\nLe détacher de ce monde (qui sera conservé, sans Discord) et le relier au nouveau monde ?`)) {
+                try {
+                  await create(true);
+                } catch (e2) {
+                  toast((e2 as Error).message, 'error');
+                }
+              } else toast((err as Error).message, 'error');
             }
           },
         },

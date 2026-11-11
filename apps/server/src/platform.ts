@@ -258,13 +258,22 @@ export class Platform {
       .sort((a, b) => a.createdAt - b.createdAt);
   }
 
-  createServer(account: Account, input: { name: string; guildId?: string; template: string }): ServerInfo {
+  /**
+   * Crée un monde. Si le serveur Discord est déjà relié à un autre monde, refus 409 avec ce monde
+   * quand le demandeur peut le reprendre (propriétaire de ce monde ou administrateur) : `takeOver` le détache alors.
+   */
+  createServer(account: Account, input: { name: string; guildId?: string; template: string; takeOver?: boolean }): ServerInfo {
     const name = input.name.trim();
     if (name.length < 2 || name.length > 60) throw new HttpError(400, 'Nom du serveur : 2 à 60 caractères.');
     const guildId = input.guildId?.trim() || null;
     if (guildId && !/^\d{17,20}$/.test(guildId)) throw new HttpError(400, 'Identifiant Discord invalide (17 à 20 chiffres).');
-    if (guildId && this.serverByGuild(guildId))
-      throw new HttpError(409, 'Ce serveur Discord est déjà géré sur la plateforme. Demande à un administrateur de t’y donner accès.');
+    const holder = guildId ? this.serverByGuild(guildId) : undefined;
+    const canTakeOver = !!holder && (account.platformRole === 'platform_admin' || this.roleOf(account, holder.id) === 'owner');
+    if (holder && !(canTakeOver && input.takeOver)) {
+      if (canTakeOver)
+        throw new HttpError(409, `Ce serveur Discord est déjà relié à ton monde « ${holder.name} ».`, { holder: { id: holder.id, name: holder.name }, canTakeOver: true });
+      throw new HttpError(409, 'Ce serveur Discord est déjà géré sur la plateforme par un autre compte. Demande à un administrateur de t’y donner accès.');
+    }
     const owned = (this.db.prepare("SELECT COUNT(*) AS n FROM access WHERE account_id = ? AND role = 'owner'").get(account.id) as { n: number }).n;
     if (account.platformRole !== 'platform_admin' && owned >= this.opts.maxServersPerAccount)
       throw new HttpError(403, `Limite de ${this.opts.maxServersPerAccount} serveurs atteinte.`);
@@ -273,6 +282,10 @@ export class Platform {
     for (let i = 2; this.server(id); i++) id = `${slugify(name)}-${i}`;
     const now = this.now();
     transaction(this.db, () => {
+      if (holder) {
+        this.db.prepare('UPDATE servers SET guild_id = NULL WHERE id = ?').run(holder.id);
+        this.audit(holder.id, account.id, 'server.update', `Serveur Discord ${guildId} repris par le nouveau monde « ${name} »`);
+      }
       this.db.prepare('INSERT INTO servers (id, name, guild_id, template, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, name, guildId, input.template, account.id, now);
       this.db.prepare("INSERT INTO access (account_id, server_id, role) VALUES (?, ?, 'owner')").run(account.id, id);
       // Le modèle est copié : les évolutions du modèle ne touchent jamais ce monde.
@@ -306,8 +319,13 @@ export class Platform {
   deleteServer(serverId: string, confirmName: string): void {
     const s = this.server(serverId);
     if (!s) throw new HttpError(404, 'Serveur introuvable.');
-    if (confirmName.trim() !== s.name) throw new HttpError(400, 'Recopie exactement le nom du serveur pour confirmer.');
-    this.db.prepare('DELETE FROM servers WHERE id = ?').run(serverId);
+    if (confirmName.trim() !== s.name.trim()) throw new HttpError(400, 'Recopie exactement le nom du monde pour confirmer.');
+    transaction(this.db, () => {
+      // Le lien Discord est libéré d'abord : le serveur Discord peut aussitôt être relié à un autre monde.
+      this.db.prepare('UPDATE servers SET guild_id = NULL WHERE id = ?').run(serverId);
+      this.db.prepare('DELETE FROM servers WHERE id = ?').run(serverId);
+    });
+    if (this.server(serverId)) throw new HttpError(500, 'La suppression du monde a échoué.');
   }
 
   members(serverId: string): { accountId: number; username: string; displayName: string; role: ServerRole }[] {

@@ -268,3 +268,30 @@ test('la variable de météo modifiée depuis la vue d’ensemble passe par le s
   assert.equal(live.data.weather.value, 'pluie');
   assert.ok(live.data.weather.until > Date.now());
 });
+
+test('serveur Discord déjà relié : on peut le reprendre, et supprimer un monde le libère', async () => {
+  const guild = '998877665544332211';
+  const first = await admin.post('/api/servers', { name: 'Premier monde', guildId: guild, template: 'sainte-pelle' });
+  assert.equal(first.status, 200);
+  // Recréer avec le même serveur Discord : refus qui nomme le monde, reprise proposée.
+  const again = await admin.post('/api/servers', { name: 'Bêta', guildId: guild, template: 'sainte-pelle' });
+  assert.equal(again.status, 409);
+  assert.equal(again.data.canTakeOver, true);
+  assert.equal(again.data.holder.name, 'Premier monde');
+  const taken = await admin.post('/api/servers', { name: 'Bêta', guildId: guild, template: 'sainte-pelle', takeOver: true });
+  assert.equal(taken.status, 200);
+  assert.equal(taken.data.guildId, guild);
+  assert.equal((await admin.get(`/api/servers/${first.data.id}`)).data.guildId, null);
+  // Supprimer le monde libère le serveur Discord tout de suite.
+  assert.equal((await admin.del(`/api/servers/${taken.data.id}`, { confirm: 'Bêta' })).status, 200);
+  const fresh = await admin.post('/api/servers', { name: 'Bêta', guildId: guild, template: 'sainte-pelle' });
+  assert.equal(fresh.status, 200);
+  assert.equal(fresh.data.guildId, guild);
+  // Un autre compte ne peut pas reprendre le serveur d'un monde qui n'est pas le sien.
+  await admin.post('/api/admin/accounts', { username: 'voisin', password: 'motdepasse-voisin' });
+  const voisin = new Client();
+  assert.equal((await voisin.post('/api/auth/login', { username: 'voisin', password: 'motdepasse-voisin' })).status, 200);
+  const other = await voisin.post('/api/servers', { name: 'Intrus', guildId: guild, template: 'vierge', takeOver: true });
+  assert.equal(other.status, 409);
+  assert.equal(other.data.canTakeOver, undefined);
+});
