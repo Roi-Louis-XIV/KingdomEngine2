@@ -11,6 +11,12 @@ export interface Account {
   username: string;
   displayName: string;
   platformRole: 'user' | 'platform_admin';
+  createdAt: number;
+  discordId: string | null;
+  discordName: string | null;
+  avatarUrl: string | null;
+  hasPassword: boolean;
+  lastLoginAt: number | null;
 }
 export interface ServerInfo {
   id: string;
@@ -26,6 +32,7 @@ export const state = {
   registration: false,
   firstRun: false,
   version: '',
+  discordLogin: false,
   serverId: null as string | null,
   draft: null as null | { serverId: string; world: WorldDef; revision: number; basedOn: number | null; dirty: boolean; issues: Issue[] },
 };
@@ -47,6 +54,7 @@ export async function loadSession() {
   state.registration = s.registration;
   state.firstRun = s.firstRun;
   state.version = s.version;
+  state.discordLogin = !!s.discordLogin;
   const saved = localStorage.getItem('kingdom.server');
   state.serverId = state.servers.find((x) => x.id === saved)?.id ?? state.servers[0]?.id ?? null;
 }

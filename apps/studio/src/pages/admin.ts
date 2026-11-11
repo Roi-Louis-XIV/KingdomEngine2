@@ -6,7 +6,7 @@ import { state } from '../store.ts';
 export async function adminPage(main: HTMLElement) {
   const o = await get('/api/admin/overview');
   const newAccount = () => {
-    const f = { username: '', password: '', displayName: '', platformAdmin: false };
+    const f = { username: '', discordId: '', password: '', displayName: '', platformAdmin: false };
     modal(
       'Nouveau compte',
       h(
@@ -14,7 +14,12 @@ export async function adminPage(main: HTMLElement) {
         { class: 'form' },
         field(f, 'username', { label: 'Identifiant' }, () => {}),
         field(f, 'displayName', { label: 'Nom affiché' }, () => {}),
-        field(f, 'password', { label: 'Mot de passe provisoire', type: 'password', hint: '8 caractères minimum. À transmettre à la personne.' }, () => {}),
+        field(f, 'discordId', {
+          label: 'Identifiant Discord',
+          placeholder: '17 à 20 chiffres',
+          hint: 'Recommandé : la personne se connecte avec Discord, sans mot de passe. Dans Discord : Mode développeur, puis clic droit sur son nom › Copier l’identifiant.',
+        }, () => {}),
+        field(f, 'password', { label: 'Mot de passe provisoire', type: 'password', hint: 'Facultatif si l’identifiant Discord est renseigné. Sinon 8 caractères minimum, à transmettre à la personne.' }, () => {}),
         h('label', { class: 'check' }, h('input', { type: 'checkbox', onchange: (e: Event) => (f.platformAdmin = (e.target as HTMLInputElement).checked) }), 'Administrateur de la plateforme'),
       ),
       [{ label: 'Créer', onclick: async (close) => {
@@ -69,7 +74,7 @@ export async function adminPage(main: HTMLElement) {
         h(
           'table',
           { class: 'grid' },
-          h('thead', null, h('tr', null, h('th', null, 'Compte'), h('th', null, 'Rôle'), h('th', null, 'Mondes'), h('th', null, 'Créé'), h('th', null, ''))),
+          h('thead', null, h('tr', null, h('th', null, 'Compte'), h('th', null, 'Connexion'), h('th', null, 'Rôle'), h('th', null, 'Mondes'), h('th', null, 'Créé'), h('th', null, ''))),
           h(
             'tbody',
             null,
@@ -78,6 +83,7 @@ export async function adminPage(main: HTMLElement) {
                 'tr',
                 null,
                 h('td', null, a.displayName, h('small', { class: 'muted' }, ` ${a.username}`)),
+                h('td', null, [a.discordId ? `Discord${a.discordName ? ` · ${a.discordName}` : ''}` : null, a.hasPassword ? 'mot de passe' : null].filter(Boolean).join(' + ') || '—', a.lastLoginAt ? h('small', { class: 'muted' }, ` · ${dateTime(a.lastLoginAt)}`) : null),
                 h('td', null, a.platformRole === 'platform_admin' ? h('span', { class: 'tag ok' }, 'Administrateur') : 'Utilisateur'),
                 h('td', null, String(a.servers)),
                 h('td', null, dateTime(a.createdAt)),

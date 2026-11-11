@@ -27,6 +27,7 @@ Plateforme no-code de mondes interactifs pour Discord, pour Payen Studio (Louis)
 
 ## État actuel
 - Phases 0, 1 et 2 terminées (moteur, plateforme, Studio, bot, voix, outils, activités, objectifs, édition visuelle). Phase 3 en cours : météo, événements programmés et quêtes faits (`packages/engine/src/clock.ts`, `quests.ts`, `Engine.tick()` appelé toutes les 5 s par `apps/server/src/main.ts`, page Studio « En direct »). Bêta prête : `content/sainte-pelle`. Voir `docs/ROADMAP.md`.
+- Comptes : connexion Discord (OAuth2), page « Mon profil », jetons d’accès et serveur MCP pour les IA (`/mcp`, `docs/MCP_GUIDE.md`), statistiques pour RoyaumeOS (`/api/stats`). Côté RoyaumeOS : `app/kingdomengine.py`, migration 0008, `docs/KINGDOMENGINE.md` de son dépôt.
 - **Jamais testé sur un vrai Discord** : le bot principal et les Voice Workers sont à valider en premier (`.env.example`).
 - Inventaire complet de ce qui reste à porter depuis KE2 : `docs/KE2_INVENTAIRE.md`. Ancien code de référence : branche `agent/kingdomengine2-v2` de ce dépôt.
 

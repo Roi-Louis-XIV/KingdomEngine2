@@ -1,6 +1,7 @@
 import { h, clear, field, toast } from '../ui.ts';
 import { get, post } from '../api.ts';
 import { state } from '../store.ts';
+import { discordLogo } from './profile.ts';
 
 /** Connexion / création du premier compte. */
 export function authPage(onDone: () => void): HTMLElement {
@@ -18,6 +19,25 @@ export function authPage(onDone: () => void): HTMLElement {
         { class: 'muted' },
         state.firstRun ? 'Crée le premier compte : il administrera cette installation.' : register ? 'Ton compte te permettra de créer et superviser tes mondes.' : 'Conçois et supervise tes mondes Discord.',
       ),
+      state.discordLogin
+        ? [
+            h(
+              'a',
+              {
+                class: 'btn primary block discord-btn',
+                href: '/api/auth/discord/start',
+                onclick: (e: Event) => {
+                  e.preventDefault();
+                  location.href = `/api/auth/discord/start${form.remember ? '?remember=1' : ''}`;
+                },
+              },
+              discordLogo(),
+              state.firstRun ? 'Créer le compte avec Discord' : 'Se connecter avec Discord',
+            ),
+            h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: form.remember, onchange: (e: Event) => (form.remember = (e.target as HTMLInputElement).checked) }), 'Rester connecté 7 jours'),
+            h('p', { class: 'or' }, h('span', null, register ? 'ou crée un identifiant' : 'ou avec ton identifiant')),
+          ]
+        : null,
       h(
         'form',
         {
@@ -38,7 +58,7 @@ export function authPage(onDone: () => void): HTMLElement {
         field(form, 'username', { label: 'Identifiant', required: true }, () => {}),
         register ? field(form, 'displayName', { label: 'Nom affiché', placeholder: 'Facultatif' }, () => {}) : null,
         field(form, 'password', { label: 'Mot de passe', type: 'password', required: true, hint: register ? '8 caractères minimum.' : undefined }, () => {}),
-        !register
+        !register && !state.discordLogin
           ? h('label', { class: 'check' }, h('input', { type: 'checkbox', onchange: (e: Event) => (form.remember = (e.target as HTMLInputElement).checked) }), 'Rester connecté 7 jours')
           : null,
         h('button', { class: 'btn primary block', type: 'submit' }, register ? 'Créer le compte' : 'Se connecter'),
@@ -47,7 +67,7 @@ export function authPage(onDone: () => void): HTMLElement {
         ? h('button', { class: 'link', onclick: () => ((mode = register ? 'login' : 'register'), draw()) }, register ? 'J’ai déjà un compte' : 'Créer un compte')
         : null,
     );
-    (box.querySelector('input') as HTMLInputElement | null)?.focus();
+    (box.querySelector('form input') as HTMLInputElement | null)?.focus();
   };
   draw();
   return h('div', { class: 'auth' }, box);

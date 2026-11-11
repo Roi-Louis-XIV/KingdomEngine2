@@ -19,6 +19,27 @@ export interface Account {
   displayName: string;
   platformRole: 'user' | 'platform_admin';
   createdAt: number;
+  discordId: string | null;
+  discordName: string | null;
+  avatarUrl: string | null;
+  hasPassword: boolean;
+  lastLoginAt: number | null;
+}
+
+/** Contexte d'une ouverture de session (affiché dans le profil : « mes appareils »). */
+export interface SessionMeta {
+  ip?: string;
+  userAgent?: string;
+  method?: 'password' | 'discord';
+}
+
+export type TokenAccess = 'read' | 'draft' | 'publish';
+export const TOKEN_ACCESS_LABEL: Record<TokenAccess, string> = { read: 'Lecture seule', draft: 'Lecture et brouillon', publish: 'Brouillon et publication' };
+
+/** Compte authentifié par un jeton d'accès (MCP) : porte le niveau d'accès du jeton. */
+export interface TokenAccount extends Account {
+  tokenId: string;
+  tokenAccess: TokenAccess;
 }
 
 export interface ServerInfo {
@@ -65,6 +86,21 @@ export function verifyPassword(password: string, stored: string): boolean {
 }
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+const DECOY_HASH = hashPassword('leurre-temporel');
+
+function checkPassword(password: string) {
+  if (password.length < 8) throw new HttpError(400, 'Mot de passe : 8 caractères minimum.');
+  if (password.length > 200) throw new HttpError(400, 'Mot de passe : 200 caractères maximum.');
+}
+
+/** Résumé lisible d'un navigateur (« Firefox · Windows »), sans conserver plus que nécessaire. */
+export function describeDevice(ua: string | null | undefined): string {
+  if (!ua) return 'Appareil inconnu';
+  if (/claude|mcp|python|node|curl/i.test(ua) && !/mozilla/i.test(ua)) return 'Outil externe';
+  const browser = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : /Discord/i.test(ua) ? 'Discord' : 'Navigateur';
+  const os = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iPhone / iPad' : /Mac OS X/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
+  return os ? `${browser} · ${os}` : browser;
+}
 
 export function slugify(s: string): string {
   return (
@@ -85,6 +121,10 @@ interface AccountRow {
   password_hash: string;
   platform_role: 'user' | 'platform_admin';
   created_at: number;
+  discord_id: string | null;
+  discord_name: string | null;
+  avatar_url: string | null;
+  last_login_at: number | null;
 }
 const toAccount = (r: AccountRow): Account => ({
   id: r.id,
@@ -92,7 +132,24 @@ const toAccount = (r: AccountRow): Account => ({
   displayName: r.display_name,
   platformRole: r.platform_role,
   createdAt: r.created_at,
+  discordId: r.discord_id ?? null,
+  discordName: r.discord_name ?? null,
+  avatarUrl: r.avatar_url ?? null,
+  hasPassword: !!r.password_hash,
+  lastLoginAt: r.last_login_at ?? null,
 });
+
+/** Profil Discord renvoyé par l'OAuth2 (scope identify). */
+export interface DiscordProfile {
+  id: string;
+  username: string;
+  globalName?: string | null;
+  avatar?: string | null;
+}
+
+const discordAvatar = (p: DiscordProfile) => (p.avatar ? `https://cdn.discordapp.com/avatars/${p.id}/${p.avatar}.png?size=128` : null);
+/** Réauthentification : une session ouverte depuis moins de 15 minutes vaut confirmation. */
+const REAUTH_WINDOW = 15 * 60_000;
 
 export class Platform {
   readonly db: DB;
@@ -123,19 +180,24 @@ export class Platform {
     return this.opts.allowRegistration || this.accountCount() === 0;
   }
 
-  createAccount(input: { username: string; password: string; displayName?: string; platformRole?: Account['platformRole'] }): Account {
+  createAccount(input: { username: string; password?: string; displayName?: string; platformRole?: Account['platformRole']; discordId?: string }): Account {
     const username = input.username.trim();
     if (!/^[\p{L}\p{N}_.-]{3,32}$/u.test(username))
       throw new HttpError(400, 'Identifiant : 3 à 32 caractères (lettres, chiffres, . _ -).');
-    if (input.password.length < 8) throw new HttpError(400, 'Mot de passe : 8 caractères minimum.');
+    const discordId = input.discordId?.trim() || null;
+    if (discordId && !/^\d{17,20}$/.test(discordId)) throw new HttpError(400, 'Identifiant Discord : 17 à 20 chiffres.');
+    const password = input.password ?? '';
+    // Un compte doit pouvoir se connecter : mot de passe, ou compte Discord relié.
+    if (!discordId || password) checkPassword(password);
     // Le tout premier compte administre la plateforme.
     const role = this.accountCount() === 0 ? 'platform_admin' : (input.platformRole ?? 'user');
     try {
       const r = this.db
-        .prepare('INSERT INTO accounts (username, display_name, password_hash, platform_role, created_at) VALUES (?, ?, ?, ?, ?)')
-        .run(username, input.displayName?.trim() || username, hashPassword(input.password), role, this.now());
+        .prepare('INSERT INTO accounts (username, display_name, password_hash, platform_role, created_at, discord_id) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(username, input.displayName?.trim() || username, password ? hashPassword(password) : '', role, this.now(), discordId);
       return this.account(Number(r.lastInsertRowid))!;
     } catch (e) {
+      if (String(e).includes('accounts.discord_id')) throw new HttpError(409, 'Ce compte Discord est déjà relié à un autre compte.');
       if (String(e).includes('UNIQUE')) throw new HttpError(409, 'Cet identifiant est déjà utilisé.');
       throw e;
     }
@@ -151,6 +213,11 @@ export class Platform {
     return r ? toAccount(r) : undefined;
   }
 
+  accountByDiscord(discordId: string): Account | undefined {
+    const r = this.db.prepare('SELECT * FROM accounts WHERE discord_id = ?').get(discordId) as AccountRow | undefined;
+    return r ? toAccount(r) : undefined;
+  }
+
   listAccounts(): (Account & { servers: number })[] {
     const rows = this.db
       .prepare('SELECT a.*, (SELECT COUNT(*) FROM access x WHERE x.account_id = a.id) AS servers FROM accounts a ORDER BY a.id')
@@ -158,10 +225,63 @@ export class Platform {
     return rows.map((r) => ({ ...toAccount(r), servers: r.servers }));
   }
 
+  /** Réinitialisation par un administrateur : toutes les sessions et tous les jetons du compte sont fermés. */
   setPassword(accountId: number, password: string): void {
-    if (password.length < 8) throw new HttpError(400, 'Mot de passe : 8 caractères minimum.');
+    checkPassword(password);
     this.db.prepare('UPDATE accounts SET password_hash = ? WHERE id = ?').run(hashPassword(password), accountId);
     this.db.prepare('DELETE FROM sessions WHERE account_id = ?').run(accountId);
+  }
+
+  /**
+   * Vérifie que la personne connectée est bien la titulaire du compte avant une opération sensible :
+   * mot de passe actuel, ou (compte sans mot de passe) session ouverte il y a moins de 15 minutes.
+   */
+  confirmIdentity(accountId: number, sessionToken: string | undefined, password: string | undefined): void {
+    const row = this.db.prepare('SELECT password_hash FROM accounts WHERE id = ?').get(accountId) as { password_hash: string } | undefined;
+    if (!row) throw new HttpError(401, 'Connexion requise.');
+    if (row.password_hash) {
+      if (!password || !verifyPassword(password, row.password_hash)) throw new HttpError(403, 'Mot de passe actuel incorrect.');
+      return;
+    }
+    const s = sessionToken ? (this.db.prepare('SELECT created_at FROM sessions WHERE token_hash = ?').get(sha256(sessionToken)) as { created_at: number } | undefined) : undefined;
+    if (!s || this.now() - s.created_at > REAUTH_WINDOW)
+      throw new HttpError(403, 'Pour confirmer qu’il s’agit bien de toi, reconnecte-toi avec Discord puis recommence (moins de 15 minutes).', { reauth: true });
+  }
+
+  /** Changement de mot de passe par la personne elle-même : les autres sessions sont fermées, la session actuelle reste ouverte. */
+  changePassword(accountId: number, sessionToken: string | undefined, current: string | undefined, password: string): void {
+    this.confirmIdentity(accountId, sessionToken, current);
+    checkPassword(password);
+    if (current && current === password) throw new HttpError(400, 'Le nouveau mot de passe doit être différent de l’actuel.');
+    this.db.prepare('UPDATE accounts SET password_hash = ? WHERE id = ?').run(hashPassword(password), accountId);
+    this.db.prepare('DELETE FROM sessions WHERE account_id = ? AND token_hash != ?').run(accountId, sessionToken ? sha256(sessionToken) : '');
+  }
+
+  /** Retire le mot de passe (connexion par Discord uniquement). */
+  removePassword(accountId: number, sessionToken: string | undefined, current: string | undefined): void {
+    const a = this.account(accountId);
+    if (!a?.discordId) throw new HttpError(400, 'Relie d’abord ton compte Discord : sans mot de passe ni Discord, tu ne pourrais plus te connecter.');
+    this.confirmIdentity(accountId, sessionToken, current);
+    this.db.prepare("UPDATE accounts SET password_hash = '' WHERE id = ?").run(accountId);
+  }
+
+  updateProfile(accountId: number, input: { displayName?: string; username?: string }): Account {
+    if (input.displayName !== undefined) {
+      const name = String(input.displayName).trim();
+      if (!name || name.length > 60) throw new HttpError(400, 'Nom affiché : 1 à 60 caractères.');
+      this.db.prepare('UPDATE accounts SET display_name = ? WHERE id = ?').run(name, accountId);
+    }
+    if (input.username !== undefined) {
+      const username = String(input.username).trim();
+      if (!/^[\p{L}\p{N}_.-]{3,32}$/u.test(username)) throw new HttpError(400, 'Identifiant : 3 à 32 caractères (lettres, chiffres, . _ -).');
+      try {
+        this.db.prepare('UPDATE accounts SET username = ? WHERE id = ?').run(username, accountId);
+      } catch (e) {
+        if (String(e).includes('UNIQUE')) throw new HttpError(409, 'Cet identifiant est déjà utilisé.');
+        throw e;
+      }
+    }
+    return this.account(accountId)!;
   }
 
   deleteAccount(accountId: number): void {
@@ -170,29 +290,251 @@ export class Platform {
     this.db.prepare('DELETE FROM accounts WHERE id = ?').run(accountId);
   }
 
-  login(username: string, password: string, remember: boolean): { token: string; account: Account; maxAge?: number } {
-    const r = this.db.prepare('SELECT * FROM accounts WHERE username = ?').get(username.trim()) as AccountRow | undefined;
-    // Vérification systématique pour ne pas révéler l'existence d'un compte par le temps de réponse.
-    const ok = verifyPassword(password, r?.password_hash ?? hashPassword('leurre-temporel'));
-    if (!r || !ok) throw new HttpError(401, 'Identifiant ou mot de passe incorrect.');
+  private openSession(accountId: number, remember: boolean, meta: SessionMeta = {}): { token: string; maxAge?: number } {
     const token = randomBytes(32).toString('base64url');
     const ttl = remember ? SESSION_LONG : SESSION_SHORT;
-    this.db.prepare('INSERT INTO sessions (token_hash, account_id, expires_at, created_at) VALUES (?, ?, ?, ?)').run(sha256(token), r.id, this.now() + ttl, this.now());
-    this.db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(this.now());
-    return { token, account: toAccount(r), maxAge: remember ? ttl / 1000 : undefined };
+    const now = this.now();
+    this.db
+      .prepare('INSERT INTO sessions (token_hash, account_id, expires_at, created_at, last_seen, ip, user_agent, method) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(sha256(token), accountId, now + ttl, now, now, meta.ip?.slice(0, 64) ?? null, meta.userAgent?.slice(0, 300) ?? null, meta.method ?? 'password');
+    this.db.prepare('UPDATE accounts SET last_login_at = ? WHERE id = ?').run(now, accountId);
+    this.db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(now);
+    return { token, maxAge: remember ? ttl / 1000 : undefined };
+  }
+
+  login(username: string, password: string, remember: boolean, meta: SessionMeta = {}): { token: string; account: Account; maxAge?: number } {
+    const r = this.db.prepare('SELECT * FROM accounts WHERE username = ?').get(username.trim()) as AccountRow | undefined;
+    // Vérification systématique pour ne pas révéler l'existence d'un compte par le temps de réponse.
+    const ok = verifyPassword(password, r?.password_hash || DECOY_HASH);
+    if (!r || !ok) throw new HttpError(401, r && !r.password_hash ? 'Ce compte se connecte avec Discord.' : 'Identifiant ou mot de passe incorrect.');
+    const { token, maxAge } = this.openSession(r.id, remember, { ...meta, method: 'password' });
+    return { token, account: this.account(r.id)!, maxAge };
   }
 
   authenticate(token: string | undefined): Account | undefined {
     if (!token) return undefined;
-    const row = this.db.prepare('SELECT account_id, expires_at FROM sessions WHERE token_hash = ?').get(sha256(token)) as
-      | { account_id: number; expires_at: number }
+    const hash = sha256(token);
+    const row = this.db.prepare('SELECT account_id, expires_at, last_seen FROM sessions WHERE token_hash = ?').get(hash) as
+      | { account_id: number; expires_at: number; last_seen: number | null }
       | undefined;
     if (!row || row.expires_at < this.now()) return undefined;
+    if (!row.last_seen || this.now() - row.last_seen > 60_000) this.db.prepare('UPDATE sessions SET last_seen = ? WHERE token_hash = ?').run(this.now(), hash);
     return this.account(row.account_id);
   }
 
   logout(token: string | undefined): void {
     if (token) this.db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha256(token));
+  }
+
+  /** Sessions ouvertes du compte (l'identifiant public est un préfixe de l'empreinte, jamais le jeton). */
+  sessions(accountId: number, currentToken?: string) {
+    const current = currentToken ? sha256(currentToken) : '';
+    const rows = this.db
+      .prepare('SELECT token_hash, created_at, last_seen, expires_at, ip, user_agent, method FROM sessions WHERE account_id = ? AND expires_at >= ? ORDER BY COALESCE(last_seen, created_at) DESC')
+      .all(accountId, this.now()) as { token_hash: string; created_at: number; last_seen: number | null; expires_at: number; ip: string | null; user_agent: string | null; method: string | null }[];
+    return rows.map((r) => ({
+      id: r.token_hash.slice(0, 16),
+      current: r.token_hash === current,
+      createdAt: r.created_at,
+      lastSeen: r.last_seen ?? r.created_at,
+      expiresAt: r.expires_at,
+      ip: r.ip,
+      device: describeDevice(r.user_agent),
+      method: (r.method ?? 'password') as 'password' | 'discord',
+    }));
+  }
+
+  revokeSession(accountId: number, id: string): void {
+    if (!/^[0-9a-f]{16}$/.test(id)) throw new HttpError(400, 'Session inconnue.');
+    const r = this.db.prepare("DELETE FROM sessions WHERE account_id = ? AND substr(token_hash, 1, 16) = ?").run(accountId, id);
+    if (!r.changes) throw new HttpError(404, 'Session inconnue ou déjà fermée.');
+  }
+
+  revokeOtherSessions(accountId: number, currentToken: string | undefined): number {
+    return Number(this.db.prepare('DELETE FROM sessions WHERE account_id = ? AND token_hash != ?').run(accountId, currentToken ? sha256(currentToken) : '').changes);
+  }
+
+  // -------------------------------------------------------------------------
+  // Connexion avec Discord (OAuth2)
+  // -------------------------------------------------------------------------
+
+  /** Prépare une connexion Discord : l'état aléatoire relie le retour de Discord à ce navigateur. */
+  oauthStart(mode: 'login' | 'link', accountId: number | null, remember: boolean, returnTo?: string | null): string {
+    const state = randomBytes(24).toString('base64url');
+    // Retour vers une page du Studio uniquement (« profil », « apercu »…), jamais vers une adresse.
+    const back = returnTo && /^[a-z][a-z-]{1,30}$/.test(returnTo) ? returnTo : null;
+    this.db.prepare('DELETE FROM oauth_states WHERE expires_at < ?').run(this.now());
+    this.db.prepare('INSERT INTO oauth_states (state, mode, account_id, remember, return_to, expires_at) VALUES (?, ?, ?, ?, ?, ?)').run(state, mode, accountId, remember ? 1 : 0, back, this.now() + 10 * 60_000);
+    return state;
+  }
+
+  /** Consomme l'état (usage unique). */
+  oauthConsume(state: string): { mode: 'login' | 'link'; accountId: number | null; remember: boolean; returnTo: string | null } {
+    const row = this.db.prepare('SELECT * FROM oauth_states WHERE state = ?').get(state) as
+      | { mode: 'login' | 'link'; account_id: number | null; remember: number; return_to: string | null; expires_at: number }
+      | undefined;
+    this.db.prepare('DELETE FROM oauth_states WHERE state = ?').run(state);
+    if (!row || row.expires_at < this.now()) throw new HttpError(400, 'Connexion Discord expirée. Recommence.');
+    return { mode: row.mode, accountId: row.account_id, remember: !!row.remember, returnTo: row.return_to };
+  }
+
+  /**
+   * Connexion par Discord : compte relié, sinon nouveau compte si les inscriptions sont ouvertes.
+   * Le profil Discord (nom, avatar) est mis à jour à chaque connexion.
+   */
+  loginWithDiscord(profile: DiscordProfile, remember: boolean, meta: SessionMeta = {}): { token: string; account: Account; maxAge?: number; created: boolean } {
+    let account = this.accountByDiscord(profile.id);
+    let created = false;
+    if (!account) {
+      if (!this.registrationOpen())
+        throw new HttpError(403, 'Aucun compte KingdomEngine n’est relié à ce compte Discord. Demande à un administrateur de t’ajouter, ou connecte-toi avec ton identifiant puis relie Discord depuis ton profil.');
+      account = this.createAccount({ username: this.freeUsername(profile.username), displayName: profile.globalName || profile.username, discordId: profile.id });
+      created = true;
+    }
+    this.refreshDiscordProfile(account.id, profile);
+    const { token, maxAge } = this.openSession(account.id, remember, { ...meta, method: 'discord' });
+    return { token, account: this.account(account.id)!, maxAge, created };
+  }
+
+  linkDiscord(accountId: number, profile: DiscordProfile): Account {
+    const holder = this.accountByDiscord(profile.id);
+    if (holder && holder.id !== accountId) throw new HttpError(409, 'Ce compte Discord est déjà relié à un autre compte KingdomEngine.');
+    this.db.prepare('UPDATE accounts SET discord_id = ? WHERE id = ?').run(profile.id, accountId);
+    this.refreshDiscordProfile(accountId, profile);
+    return this.account(accountId)!;
+  }
+
+  unlinkDiscord(accountId: number): Account {
+    const a = this.account(accountId);
+    if (!a?.hasPassword) throw new HttpError(400, 'Choisis d’abord un mot de passe : sans Discord ni mot de passe, tu ne pourrais plus te connecter.');
+    this.db.prepare('UPDATE accounts SET discord_id = NULL, discord_name = NULL, avatar_url = NULL WHERE id = ?').run(accountId);
+    return this.account(accountId)!;
+  }
+
+  private refreshDiscordProfile(accountId: number, p: DiscordProfile) {
+    this.db.prepare('UPDATE accounts SET discord_name = ?, avatar_url = ? WHERE id = ?').run(p.globalName ? `${p.globalName} (@${p.username})` : `@${p.username}`, discordAvatar(p), accountId);
+  }
+
+  private freeUsername(base: string): string {
+    const clean = base.normalize('NFKC').replace(/[^\p{L}\p{N}_.-]/gu, '').slice(0, 28) || 'joueur';
+    const root = clean.length >= 3 ? clean : `${clean}___`.slice(0, 3);
+    for (let i = 0; i < 1000; i++) {
+      const name = i ? `${root}${i + 1}` : root;
+      if (!this.accountByName(name)) return name;
+    }
+    return `${root}-${randomBytes(3).toString('hex')}`;
+  }
+
+  // -------------------------------------------------------------------------
+  // Jetons d'accès (MCP et outils externes)
+  // -------------------------------------------------------------------------
+
+  createToken(accountId: number, input: { name: string; access: TokenAccess; days?: number | null }): { token: string; id: string } {
+    const name = String(input.name ?? '').trim();
+    if (!name || name.length > 60) throw new HttpError(400, 'Nom du jeton : 1 à 60 caractères.');
+    if (!['read', 'draft', 'publish'].includes(input.access)) throw new HttpError(400, 'Niveau d’accès inconnu.');
+    const count = (this.db.prepare('SELECT COUNT(*) AS n FROM api_tokens WHERE account_id = ?').get(accountId) as { n: number }).n;
+    if (count >= 20) throw new HttpError(400, 'Vingt jetons au maximum : supprime ceux qui ne servent plus.');
+    const days = input.days == null ? null : Number(input.days);
+    if (days !== null && (!Number.isInteger(days) || days < 1 || days > 3650)) throw new HttpError(400, 'Durée invalide.');
+    const id = randomBytes(6).toString('hex');
+    const token = `ke4_${randomBytes(30).toString('base64url')}`;
+    this.db
+      .prepare('INSERT INTO api_tokens (id, account_id, name, token_hash, prefix, access, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, accountId, name, sha256(token), token.slice(0, 10), input.access, this.now(), days ? this.now() + days * 86_400_000 : null);
+    return { token, id };
+  }
+
+  tokens(accountId: number) {
+    const rows = this.db.prepare('SELECT * FROM api_tokens WHERE account_id = ? ORDER BY created_at DESC').all(accountId) as {
+      id: string; name: string; prefix: string; access: TokenAccess; created_at: number; last_used_at: number | null; expires_at: number | null;
+    }[];
+    return rows.map((r) => ({ id: r.id, name: r.name, prefix: r.prefix, access: r.access, createdAt: r.created_at, lastUsedAt: r.last_used_at, expiresAt: r.expires_at, expired: !!r.expires_at && r.expires_at < this.now() }));
+  }
+
+  revokeToken(accountId: number, id: string): void {
+    const r = this.db.prepare('DELETE FROM api_tokens WHERE account_id = ? AND id = ?').run(accountId, id);
+    if (!r.changes) throw new HttpError(404, 'Jeton inconnu.');
+  }
+
+  authenticateToken(token: string | undefined): TokenAccount | undefined {
+    if (!token || !token.startsWith('ke4_')) return undefined;
+    const row = this.db.prepare('SELECT id, account_id, access, expires_at, last_used_at FROM api_tokens WHERE token_hash = ?').get(sha256(token)) as
+      | { id: string; account_id: number; access: TokenAccess; expires_at: number | null; last_used_at: number | null }
+      | undefined;
+    if (!row || (row.expires_at && row.expires_at < this.now())) return undefined;
+    const account = this.account(row.account_id);
+    if (!account) return undefined;
+    if (!row.last_used_at || this.now() - row.last_used_at > 60_000) this.db.prepare('UPDATE api_tokens SET last_used_at = ? WHERE id = ?').run(this.now(), row.id);
+    return { ...account, tokenId: row.id, tokenAccess: row.access };
+  }
+
+  // -------------------------------------------------------------------------
+  // Statistiques d'utilisation (suivi externe, ex. RoyaumeOS) — aucune donnée personnelle
+  // -------------------------------------------------------------------------
+
+  usageStats() {
+    const now = this.now();
+    const day = 86_400_000;
+    const n = (sql: string, ...args: (number | string)[]) => (this.db.prepare(sql).get(...args) as { n: number | null }).n ?? 0;
+    const servers = this.allServers();
+    const worlds = servers.map((s) => {
+      // Requêtes légères : le JSON des mondes n'est pas relu.
+      const pub = this.db.prepare("SELECT version, published_at FROM content WHERE server_id = ? AND status = 'published'").get(s.id) as { version: number; published_at: number | null } | undefined;
+      const draft = this.db.prepare("SELECT 1 AS x FROM content WHERE server_id = ? AND status = 'draft'").get(s.id);
+      return {
+        id: s.id,
+        name: s.name,
+        template: s.template,
+        createdAt: s.createdAt,
+        discordLinked: !!s.guildId,
+        published: !!pub,
+        publishedVersion: pub?.version ?? null,
+        publishedAt: pub?.published_at ?? null,
+        hasDraft: !!draft,
+        players: n('SELECT COUNT(*) AS n FROM players WHERE server_id = ?', s.id),
+        activePlayers24h: n('SELECT COUNT(*) AS n FROM players WHERE server_id = ? AND last_seen >= ?', s.id, now - day),
+        activePlayers7d: n('SELECT COUNT(*) AS n FROM players WHERE server_id = ? AND last_seen >= ?', s.id, now - 7 * day),
+        newPlayers7d: n('SELECT COUNT(*) AS n FROM players WHERE server_id = ? AND first_seen >= ?', s.id, now - 7 * day),
+        actions24h: n('SELECT COUNT(*) AS n FROM activity WHERE server_id = ? AND at >= ?', s.id, now - day),
+        lastActivityAt: (this.db.prepare('SELECT MAX(at) AS n FROM activity WHERE server_id = ?').get(s.id) as { n: number | null }).n,
+        editors: n('SELECT COUNT(*) AS n FROM access WHERE server_id = ?', s.id),
+      };
+    });
+    return {
+      accounts: {
+        total: n('SELECT COUNT(*) AS n FROM accounts'),
+        admins: n("SELECT COUNT(*) AS n FROM accounts WHERE platform_role = 'platform_admin'"),
+        discordLinked: n('SELECT COUNT(*) AS n FROM accounts WHERE discord_id IS NOT NULL'),
+        new7d: n('SELECT COUNT(*) AS n FROM accounts WHERE created_at >= ?', now - 7 * day),
+        new30d: n('SELECT COUNT(*) AS n FROM accounts WHERE created_at >= ?', now - 30 * day),
+        active7d: n('SELECT COUNT(DISTINCT account_id) AS n FROM sessions WHERE COALESCE(last_seen, created_at) >= ?', now - 7 * day),
+      },
+      worlds: {
+        total: servers.length,
+        discordLinked: worlds.filter((w) => w.discordLinked).length,
+        published: worlds.filter((w) => w.published).length,
+        live: worlds.filter((w) => w.discordLinked && w.published).length,
+        new30d: worlds.filter((w) => w.createdAt >= now - 30 * day).length,
+      },
+      players: {
+        total: n('SELECT COUNT(*) AS n FROM players'),
+        unique: n('SELECT COUNT(DISTINCT player_id) AS n FROM players'),
+        active24h: n('SELECT COUNT(DISTINCT player_id) AS n FROM players WHERE last_seen >= ?', now - day),
+        active7d: n('SELECT COUNT(DISTINCT player_id) AS n FROM players WHERE last_seen >= ?', now - 7 * day),
+        new7d: n('SELECT COUNT(*) AS n FROM players WHERE first_seen >= ?', now - 7 * day),
+      },
+      activity: {
+        actions24h: n('SELECT COUNT(*) AS n FROM activity WHERE at >= ?', now - day),
+        actions7d: n('SELECT COUNT(*) AS n FROM activity WHERE at >= ?', now - 7 * day),
+        publications30d: n("SELECT COUNT(*) AS n FROM content WHERE published_at >= ?", now - 30 * day),
+      },
+      tokens: {
+        total: n('SELECT COUNT(*) AS n FROM api_tokens'),
+        used7d: n('SELECT COUNT(*) AS n FROM api_tokens WHERE last_used_at >= ?', now - 7 * day),
+      },
+      worldList: worlds,
+    };
   }
 
   // -------------------------------------------------------------------------

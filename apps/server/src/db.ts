@@ -105,6 +105,39 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (server_id, key)
   );
   `,
+  // 2 — comptes Discord, sessions détaillées, jetons d'accès (MCP), connexions OAuth en cours
+  `
+  ALTER TABLE accounts ADD COLUMN discord_id TEXT;
+  ALTER TABLE accounts ADD COLUMN discord_name TEXT;
+  ALTER TABLE accounts ADD COLUMN avatar_url TEXT;
+  ALTER TABLE accounts ADD COLUMN last_login_at INTEGER;
+  CREATE UNIQUE INDEX accounts_discord ON accounts(discord_id) WHERE discord_id IS NOT NULL;
+  ALTER TABLE sessions ADD COLUMN last_seen INTEGER;
+  ALTER TABLE sessions ADD COLUMN ip TEXT;
+  ALTER TABLE sessions ADD COLUMN user_agent TEXT;
+  ALTER TABLE sessions ADD COLUMN method TEXT;
+  CREATE INDEX sessions_account ON sessions(account_id);
+  CREATE TABLE api_tokens (
+    id TEXT PRIMARY KEY,
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    prefix TEXT NOT NULL,
+    access TEXT NOT NULL CHECK (access IN ('read', 'draft', 'publish')),
+    created_at INTEGER NOT NULL,
+    last_used_at INTEGER,
+    expires_at INTEGER
+  );
+  CREATE INDEX api_tokens_account ON api_tokens(account_id);
+  CREATE TABLE oauth_states (
+    state TEXT PRIMARY KEY,
+    mode TEXT NOT NULL CHECK (mode IN ('login', 'link')),
+    account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+    remember INTEGER NOT NULL DEFAULT 0,
+    return_to TEXT,
+    expires_at INTEGER NOT NULL
+  );
+  `,
 ];
 
 export type DB = DatabaseSync;

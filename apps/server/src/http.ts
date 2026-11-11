@@ -15,7 +15,9 @@ export interface Req {
   body: any;
   raw?: Buffer;
   account?: Account;
-  setCookie(name: string, value: string, opts?: { maxAge?: number; clear?: boolean }): void;
+  /** Jeton « Authorization: Bearer … » (routes à jeton uniquement). */
+  bearer?: string;
+  setCookie(name: string, value: string, opts?: { maxAge?: number; clear?: boolean; lax?: boolean; path?: string }): void;
 }
 
 export type Handler = (req: Req) => unknown | Promise<unknown>;
@@ -30,11 +32,36 @@ export class FileReply {
   }
 }
 
+/** Réponse brute (statut, corps texte ou vide, en-têtes) : MCP, pages de redirection. */
+export class RawReply {
+  readonly status: number;
+  readonly body: string | null;
+  readonly headers: Record<string, string>;
+  constructor(status: number, body: string | null, headers: Record<string, string> = {}) {
+    this.status = status;
+    this.body = body;
+    this.headers = headers;
+  }
+}
+
+/** Petite page HTML qui renvoie vers le Studio (après la connexion Discord). */
+export function redirectPage(target: string): RawReply {
+  const safe = target.startsWith('/') && !target.startsWith('//') ? target : '/';
+  const json = JSON.stringify(safe).replace(/</g, '\\u003c');
+  return new RawReply(
+    200,
+    `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>KingdomEngine</title></head><body style="background:#000;color:#fff;font-family:sans-serif"><p>Retour au Studio…</p><script>location.replace(${json})</script><noscript><a href="${safe.replace(/[&<>"]/g, '')}" style="color:#34c27d">Continuer</a></noscript></body></html>`,
+    { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': "default-src 'none'; script-src 'unsafe-inline'", 'referrer-policy': 'no-referrer' },
+  );
+}
+
 interface Route {
   method: string;
   parts: string[];
   handler: Handler;
   raw: boolean;
+  /** Authentification par jeton : pas de cookie lu, donc pas de contrôle CSRF nécessaire. */
+  bearer: boolean;
 }
 
 const MIME: Record<string, string> = {
@@ -56,8 +83,8 @@ export class Router {
   staticDir?: string;
   authenticate?: (token: string | undefined) => Account | undefined;
 
-  add(method: string, pattern: string, handler: Handler, opts: { raw?: boolean } = {}) {
-    this.routes.push({ method, parts: pattern.split('/').filter(Boolean), handler, raw: !!opts.raw });
+  add(method: string, pattern: string, handler: Handler, opts: { raw?: boolean; bearer?: boolean } = {}) {
+    this.routes.push({ method, parts: pattern.split('/').filter(Boolean), handler, raw: !!opts.raw, bearer: !!opts.bearer });
   }
   get = (p: string, h: Handler) => this.add('GET', p, h);
   post = (p: string, h: Handler) => this.add('POST', p, h);
@@ -99,13 +126,16 @@ export class Router {
       res.end(body);
     };
 
-    if (!url.pathname.startsWith('/api/')) return this.serveStatic(url.pathname, res);
+    if (!url.pathname.startsWith('/api/') && url.pathname !== '/mcp') return this.serveStatic(url.pathname, res);
 
     try {
       const m = this.match(method, url.pathname);
-      if (!m) throw new HttpError(404, 'Route inconnue.');
+      if (!m) throw new HttpError(url.pathname === '/mcp' ? 405 : 404, url.pathname === '/mcp' ? 'Méthode non prise en charge.' : 'Route inconnue.');
+      const bearerRoute = m.route.bearer;
       // Protection CSRF : toute écriture doit venir du Studio (en-tête personnalisé + cookie SameSite=Strict).
-      if (method !== 'GET' && req.headers['x-kingdom'] !== '1') throw new HttpError(403, 'Requête refusée.');
+      // Les routes à jeton n'utilisent jamais le cookie : un autre site ne peut rien y faire au nom de quelqu'un.
+      if (!bearerRoute && method !== 'GET' && req.headers['x-kingdom'] !== '1') throw new HttpError(403, 'Requête refusée.');
+      const auth = String(req.headers.authorization ?? '');
       const r: Req = {
         method,
         path: url.pathname,
@@ -113,11 +143,12 @@ export class Router {
         query: url.searchParams,
         headers: req.headers,
         cookies,
-        ip: (req.socket.remoteAddress ?? '').replace('::ffff:', ''),
+        ip: clientIp(req),
         body: {},
-        account: this.authenticate?.(cookies.kingdom_session),
+        account: bearerRoute ? undefined : this.authenticate?.(cookies.kingdom_session),
+        bearer: bearerRoute && /^Bearer\s+\S+$/i.test(auth) ? auth.replace(/^Bearer\s+/i, '').trim() : undefined,
         setCookie: (name, value, opts = {}) => {
-          const parts = [`${name}=${opts.clear ? '' : encodeURIComponent(value)}`, 'Path=/', 'HttpOnly', 'SameSite=Strict'];
+          const parts = [`${name}=${opts.clear ? '' : encodeURIComponent(value)}`, `Path=${opts.path ?? '/'}`, 'HttpOnly', opts.lax ? 'SameSite=Lax' : 'SameSite=Strict'];
           if (this.secureCookies) parts.push('Secure');
           if (opts.clear) parts.push('Max-Age=0');
           else if (opts.maxAge) parts.push(`Max-Age=${Math.floor(opts.maxAge)}`);
@@ -136,6 +167,16 @@ export class Router {
         }
       }
       const out = await m.route.handler(r);
+      if (out instanceof RawReply) {
+        res.writeHead(out.status, {
+          'cache-control': 'no-store',
+          'x-content-type-options': 'nosniff',
+          ...out.headers,
+          ...(setCookies.length ? { 'set-cookie': setCookies } : {}),
+        });
+        res.end(out.body ?? undefined);
+        return;
+      }
       if (out instanceof FileReply) {
         const size = statSync(out.path).size;
         res.writeHead(200, { 'content-type': out.mime, 'content-length': size, 'cache-control': 'private, max-age=300' });
@@ -178,6 +219,14 @@ export class Router {
     });
     createReadStream(file).pipe(res);
   }
+}
+
+/** Adresse du visiteur. Derrière le proxy local (nginx), on lit X-Real-IP ; jamais quand la requête vient d'ailleurs. */
+function clientIp(req: IncomingMessage): string {
+  const direct = (req.socket.remoteAddress ?? '').replace('::ffff:', '');
+  const forwarded = req.headers['x-real-ip'];
+  if ((direct === '127.0.0.1' || direct === '::1') && typeof forwarded === 'string' && /^[0-9a-fA-F:.]{3,45}$/.test(forwarded)) return forwarded;
+  return direct;
 }
 
 function parseCookies(header: string | undefined): Record<string, string> {

@@ -39,6 +39,10 @@ sudo systemctl restart kingdomengineNext
 | `KINGDOM_HOST` | `127.0.0.1` derrière nginx (défaut), `0.0.0.0` pour un accès direct sur le réseau local |
 | `KINGDOM_SECURE_COOKIES` | `1` dès que le Studio est servi en HTTPS |
 | `KINGDOM_ALLOW_REGISTRATION` | `0` par défaut sur un serveur : tu crées toi-même les comptes dans Administration |
+| `KINGDOM_PUBLIC_URL` | Adresse du Studio, ex. `https://studio.exemple.fr` (connexion Discord, adresse MCP) |
+| `KINGDOM_DISCORD_CLIENT_ID`, `KINGDOM_DISCORD_CLIENT_SECRET` | Active « Se connecter avec Discord » (voir ci-dessous) |
+| `KINGDOM_STATS_TOKEN` | Jeton du suivi par RoyaumeOS (32 caractères minimum) |
+| `KINGDOM_STATS_LISTEN` | Facultatif : écoute réservée aux statistiques, ex. `172.17.0.1:8091` |
 
 Ce fichier contient des secrets : il n’est lisible que par root et le service.
 
@@ -67,7 +71,59 @@ Ouvre ensuite http://localhost:8090 sur ton PC (le script affiche le port exact 
 
 Au premier accès, crée ton compte : **le premier compte est administrateur**.
 
-## 4. Au quotidien
+## 4. Comptes, IA et suivi
+
+### Se connecter avec Discord
+
+1. Discord Developer Portal → l’application du **bot principal** (ou une autre) → **OAuth2**.
+2. Copie le **Client ID**, puis **Reset Secret** pour obtenir le Client Secret.
+3. Dans **Redirects**, ajoute `https://ton-domaine.fr/api/auth/discord/callback` (exactement l’adresse de `KINGDOM_PUBLIC_URL`, suivie de ce chemin).
+4. Dans `/etc/kingdomengineNext.env` : `KINGDOM_PUBLIC_URL`, `KINGDOM_DISCORD_CLIENT_ID`, `KINGDOM_DISCORD_CLIENT_SECRET`, puis redémarre.
+
+Seul le scope `identify` est demandé (identifiant, pseudo, avatar) : ni e-mail, ni liste de serveurs. Le jeton Discord n’est pas conservé.
+
+- **Comptes existants** : connecte-toi avec ton identifiant, puis **Mon profil › Relier mon compte Discord**.
+- **Nouvelles personnes** : avec les inscriptions fermées, crée le compte dans **Administration › Nouveau compte** en renseignant son **identifiant Discord**, sans mot de passe. La personne clique ensuite sur « Se connecter avec Discord ».
+- Avec les inscriptions ouvertes, un clic sur « Se connecter avec Discord » suffit à créer le compte.
+
+**Mon profil** (en bas à gauche du Studio) regroupe :
+
+- le nom affiché et l’identifiant ;
+- Discord et le mot de passe : un changement exige le mot de passe actuel et déconnecte les autres appareils ;
+- les appareils connectés, chacun déconnectable ;
+- les jetons pour les IA ;
+- la suppression du compte.
+
+Un compte sans mot de passe confirme les opérations sensibles par une connexion Discord de moins de 15 minutes.
+
+### Les IA (MCP)
+
+Le Studio expose un serveur MCP à l’adresse `https://ton-domaine.fr/mcp`. Dans **Mon profil › Jetons d’accès pour les IA**, crée un jeton avec l’un de ces niveaux :
+
+- lecture seule ;
+- lecture et brouillon ;
+- brouillon et publication.
+
+La fenêtre affiche la commande à copier pour Claude Code et la configuration de Claude Desktop. Les droits du compte sur chaque monde s’appliquent en plus de ceux du jeton. Chaque modification faite par une IA est inscrite au journal du monde. Le guide lu par l’IA est `docs/MCP_GUIDE.md`.
+
+### Suivi par RoyaumeOS
+
+RoyaumeOS lit `GET /api/stats` avec l’en-tête `Authorization: Bearer <KINGDOM_STATS_TOKEN>`. La réponse ne contient que des chiffres agrégés et la liste des mondes : aucun pseudo, aucun identifiant Discord.
+
+1. Génère un jeton : `node -e "console.log(require('crypto').randomBytes(36).toString('base64url'))"`.
+2. Mets-le dans `KINGDOM_STATS_TOKEN` ici, et dans `KINGDOMENGINE_STATS_TOKEN` du `.env` de RoyaumeOS.
+3. Choisis l’adresse que RoyaumeOS utilisera :
+   - **Si le Studio a un domaine en HTTPS** : `KINGDOMENGINE_URL=https://ton-domaine.fr`. C’est le plus simple.
+   - **Sinon** : `KINGDOM_STATS_LISTEN=172.17.0.1:8091` ici. Cette écoute dédiée ne sert que les statistiques, sur l’interface Docker du serveur. Dans RoyaumeOS, mets `KINGDOMENGINE_URL=http://host.docker.internal:8091`.
+4. Redémarre les deux, puis ouvre **Observatoire › KingdomEngine** dans RoyaumeOS.
+
+Vérification depuis le serveur :
+
+```sh
+curl -s -H "Authorization: Bearer <jeton>" http://127.0.0.1:8090/api/stats | head -c 300
+```
+
+## 5. Au quotidien
 
 | Besoin | Commande |
 |---|---|
@@ -82,7 +138,7 @@ Au premier accès, crée ton compte : **le premier compte est administrateur**.
 
 **Les sauvegardes** se font chaque nuit vers 4 h 15, sans arrêter le service. Les 14 dernières sont gardées dans `/var/backups/kingdomengineNext`. Pense à les copier aussi ailleurs que sur le serveur.
 
-## 5. Restaurer une sauvegarde
+## 6. Restaurer une sauvegarde
 
 ```sh
 sudo systemctl stop kingdomengineNext
@@ -94,9 +150,10 @@ sudo chown -R kingdomnext:kingdomnext /var/lib/kingdomengineNext
 sudo systemctl start kingdomengineNext
 ```
 
-## 6. En cas de problème
+## 7. En cas de problème
 
 - **Le service ne démarre pas** : lance `sudo journalctl -u kingdomengineNext -n 50`. La cause est presque toujours une erreur dans `/etc/kingdomengineNext.env` ou un port déjà pris.
 - **« Studio non compilé »** : lance `sudo runuser -u kingdomnext -- bash -c 'cd /opt/kingdomengineNext && npm run build'`.
 - **Le bot reste hors ligne** : vérifie le jeton. Aucun intent privilégié n’est nécessaire. Le journal affiche « ✅ Bot principal connecté » quand tout va bien.
+- **« Connexion Discord interrompue »** ou erreur `redirect_uri` chez Discord : la redirection déclarée dans le Developer Portal doit être exactement `KINGDOM_PUBLIC_URL` suivie de `/api/auth/discord/callback`.
 - **Pas de son** : `ffmpeg -version` doit répondre. Les sons doivent être importés dans la Médiathèque avec les clés attendues.

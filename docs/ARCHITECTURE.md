@@ -33,7 +33,8 @@
 
 | Table | Contenu |
 |---|---|
-| `accounts`, `sessions` | Comptes (mots de passe scrypt), sessions (jetons hachés) |
+| `accounts`, `sessions` | Comptes (mot de passe scrypt facultatif, compte Discord relié), sessions (jetons hachés, appareil, dernière activité) |
+| `api_tokens`, `oauth_states` | Jetons d’accès des IA (hachés, niveau lecture / brouillon / publication), connexions Discord en cours (usage unique, 10 min) |
 | `servers`, `access` | Mondes, serveur Discord associé (unique), droits par compte |
 | `content` | Versions du monde : un brouillon, une version publiée, des archives |
 | `states` | État de jeu de chaque monde (joueurs, réserves, postes, variables) |
@@ -54,6 +55,26 @@ Les migrations sont numérotées et additives : une base existante n’est jamai
 | Administrateur plateforme | Tous les mondes, comptes, état des bots |
 
 Chaque requête vérifie le droit côté serveur. Un monde inaccessible répond « introuvable » pour ne pas révéler son existence. Les écritures exigent le cookie `SameSite=Strict` et un en-tête propre au Studio.
+
+## Comptes, IA et suivi
+
+- **Connexion** (`account-api.ts`, `discord/oauth.ts`) : identifiant et mot de passe, ou Discord en OAuth2.
+  - Discord ne demande que le scope `identify`, et son jeton n'est pas conservé.
+  - L'état OAuth est lié au navigateur par un cookie `Lax` limité à `/api/auth/discord`, et ne sert qu'une fois.
+  - Pour relier un compte, on se fie à l'état enregistré côté serveur : le cookie de session `Strict` n'est pas envoyé au retour de Discord.
+- **Profil** (`#/profil`) : toute opération sensible exige le mot de passe actuel. Un compte sans mot de passe la confirme par une connexion Discord de moins de 15 minutes (`Platform.confirmIdentity`). Changer de mot de passe ferme les autres sessions.
+- **MCP** (`mcp.ts`, `POST /mcp`, JSON-RPC 2.0 sans flux) :
+  - authentification par `Bearer ke4_…`, sans cookie ni contrôle CSRF ;
+  - un en-tête `Origin` étranger est refusé ;
+  - le niveau du jeton filtre les outils, et les droits du compte sur chaque monde s'appliquent en plus ;
+  - les écritures passent par `saveDraft` / `publish`, avec contrôle de révision, et sont auditées ;
+  - `preview_play` joue un essai dans un moteur neuf et isolé ;
+  - guide pour l'IA : `docs/MCP_GUIDE.md`.
+- **Statistiques** (`stats.ts`, `GET /api/stats`) :
+  - jeton `KINGDOM_STATS_TOKEN` comparé à temps constant ;
+  - chiffres agrégés et liste des mondes, sans donnée personnelle ;
+  - lues par RoyaumeOS (Observatoire › KingdomEngine) ;
+  - `KINGDOM_STATS_LISTEN` ouvre une écoute qui ne sert que cette route.
 
 ## Contenu et publication
 

@@ -27,7 +27,23 @@ const app = createApp({
   secureCookies: env.KINGDOM_SECURE_COOKIES === '1',
   maxAudioBytes: Number(env.KINGDOM_AUDIO_MAX_MB ?? 100) * 1024 * 1024,
   version,
+  publicUrl: env.KINGDOM_PUBLIC_URL?.trim() || undefined,
+  discordOAuth:
+    env.KINGDOM_DISCORD_CLIENT_ID && env.KINGDOM_DISCORD_CLIENT_SECRET
+      ? { clientId: env.KINGDOM_DISCORD_CLIENT_ID.trim(), clientSecret: env.KINGDOM_DISCORD_CLIENT_SECRET.trim() }
+      : undefined,
+  statsToken: statsToken(env.KINGDOM_STATS_TOKEN),
 });
+
+function statsToken(raw: string | undefined): string | undefined {
+  const t = raw?.trim();
+  if (!t) return undefined;
+  if (t.length < 32) {
+    console.error('❌ KINGDOM_STATS_TOKEN trop court (32 caractères minimum) : statistiques désactivées.');
+    return undefined;
+  }
+  return t;
+}
 
 // Compte administrateur initial (facultatif) : sinon, le premier compte inscrit devient administrateur.
 if (app.platform.accountCount() === 0 && env.KINGDOM_ADMIN_USERNAME && env.KINGDOM_ADMIN_PASSWORD) {
@@ -40,6 +56,24 @@ const host = env.KINGDOM_HOST ?? '0.0.0.0';
 await app.listen(port, host);
 console.log(`🏰 KingdomEngine ${version} — Studio : http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`);
 if (app.platform.accountCount() === 0) console.log('   Premier lancement : ouvre le Studio et crée ton compte (il sera administrateur).');
+console.log(env.KINGDOM_DISCORD_CLIENT_ID ? '   Connexion avec Discord : activée.' : '   Connexion avec Discord : désactivée (KINGDOM_DISCORD_CLIENT_ID / _SECRET).');
+// Statistiques pour RoyaumeOS sur une écoute dédiée (ex. 192.168.1.20:8091), sans exposer le Studio.
+if (env.KINGDOM_STATS_LISTEN && env.KINGDOM_STATS_TOKEN) {
+  const m = /^(.+):(\d+)$/.exec(env.KINGDOM_STATS_LISTEN.trim());
+  if (!m) console.error('❌ KINGDOM_STATS_LISTEN attendu sous la forme adresse:port.');
+  else {
+    // Ne bloque jamais le Studio : l'interface (ex. docker0) peut ne pas encore exister au démarrage.
+    const listenStats = (attempt: number) =>
+      app
+        .listenStats(Number(m[2]), m[1]!.replace(/^\[|\]$/g, ''))
+        .then(() => console.log(`📊 Statistiques RoyaumeOS : http://${m[1]}:${m[2]}/api/stats`))
+        .catch((e: Error) => {
+          console.error(`❌ Écoute des statistiques ${env.KINGDOM_STATS_LISTEN} : ${e.message}${attempt < 10 ? ' (nouvel essai dans 30 s)' : ''}`);
+          if (attempt < 10) setTimeout(() => void listenStats(attempt + 1), 30_000).unref();
+        });
+    void listenStats(1);
+  }
+}
 
 const stops: (() => void)[] = [];
 // Horloge des mondes : météo, événements programmés, étapes.

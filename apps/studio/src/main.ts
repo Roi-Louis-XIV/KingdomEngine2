@@ -15,6 +15,7 @@ import { journalPage, settingsPage } from './pages/settings.ts';
 import { adminPage } from './pages/admin.ts';
 import { livePage } from './pages/live.ts';
 import { eventsPage } from './pages/events.ts';
+import { profilePage } from './pages/profile.ts';
 
 export type Page = (main: HTMLElement, params: string[]) => void | (() => void) | Promise<void | (() => void)>;
 
@@ -60,6 +61,7 @@ async function render() {
   cleanup = undefined;
   if (!state.account) return clear(root, authPage(() => void boot()));
   const r = route();
+  if (r.name === 'profil') return clear(root, shell('profil', async (main) => (cleanup = await profilePage(main))));
   if (r.name === 'nouveau-serveur' || !state.servers.length) return clear(root, shell(null, (main) => newServerPage(main, async (id) => (await loadSession(), selectServer(id), go('apercu')))));
   if (r.name === 'administration' && state.account.platformRole === 'platform_admin') return clear(root, shell('administration', (main) => adminPage(main)));
   const item = NAV.find((n) => n.route === r.name) ?? (r.name === 'joueur' ? { route: 'joueurs', page: playerPage } : r.name === 'batiment' ? { route: 'batiments', page: buildingPage } : NAV[0]!);
@@ -141,10 +143,10 @@ function shell(active: string | null, mount: (main: HTMLElement) => void): HTMLE
       { class: 'rail-foot' },
       state.account?.platformRole === 'platform_admin' ? h('a', { href: '#/administration', class: `nav-link${active === 'administration' ? ' on' : ''}` }, h('span', { class: 'nav-icon' }, '♛'), 'Administration') : null,
       h(
-        'div',
-        { class: 'me' },
-        h('span', null, h('b', null, state.account!.displayName), h('small', null, `KingdomEngine ${state.version}`)),
-        h('button', { class: 'btn ghost small', onclick: () => accountMenu() }, 'Compte'),
+        'a',
+        { class: `me${active === 'profil' ? ' on' : ''}`, href: '#/profil', 'aria-label': 'Mon profil', 'aria-current': active === 'profil' ? 'page' : null },
+        accountAvatar(state.account!),
+        h('span', null, h('b', null, state.account!.displayName), h('small', null, `Mon profil · KingdomEngine ${state.version}`)),
       ),
     ),
   );
@@ -191,48 +193,25 @@ function saveBar(): HTMLElement {
   return bar;
 }
 
-function accountMenu() {
-  const pw = { current: '', password: '' };
-  modal(
-    'Mon compte',
-    h(
-      'div',
-      { class: 'form' },
-      h('p', null, `Connecté en tant que ${state.account!.username}.`),
-      field(pw, 'current', { label: 'Mot de passe actuel', type: 'password' }, () => {}),
-      field(pw, 'password', { label: 'Nouveau mot de passe', type: 'password', hint: '8 caractères minimum.' }, () => {}),
-    ),
-    [
-      {
-        label: 'Changer le mot de passe',
-        onclick: async (close) => {
-          try {
-            await post('/api/auth/password', pw);
-            close();
-            toast('Mot de passe modifié. Reconnecte-toi.');
-            state.account = null;
-            void render();
-          } catch (e) {
-            toast((e as Error).message, 'error');
-          }
-        },
-      },
-      {
-        label: 'Se déconnecter',
-        kind: 'ghost',
-        onclick: async (close) => {
-          await post('/api/auth/logout');
-          close();
-          state.account = null;
-          state.draft = null;
-          void render();
-        },
-      },
-    ],
-  );
+/** Avatar Discord du compte, sinon ses initiales. */
+export function accountAvatar(a: { displayName: string; avatarUrl: string | null }, size = 32) {
+  return a.avatarUrl
+    ? h('img', { class: 'avatar', src: a.avatarUrl, alt: '', width: size, height: size, style: `width:${size}px;height:${size}px`, referrerpolicy: 'no-referrer' })
+    : h('span', { class: 'avatar', 'aria-hidden': 'true', style: `width:${size}px;height:${size}px` }, initials(a.displayName));
+}
+
+/** Messages laissés dans l'adresse par le retour de Discord (?erreur=… / ?info=…). */
+function flashFromUrl() {
+  const q = new URLSearchParams(location.search);
+  const err = q.get('erreur');
+  const info = q.get('info');
+  if (!err && !info) return;
+  history.replaceState(null, '', location.pathname + location.hash);
+  queueMicrotask(() => (err ? toast(err, 'error') : toast(info!, 'ok')));
 }
 
 async function boot() {
+  flashFromUrl();
   try {
     await loadSession();
   } catch (e) {

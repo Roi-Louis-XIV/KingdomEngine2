@@ -40,5 +40,10 @@ Moteur générique et atomique, Taverne d’Edgar V11 en pur contenu, émulateur
 - ✅ Bêta « La Nuit de la Sainte Pelle » (`content/sainte-pelle`, généré par `scripts/content/sainte-pelle.mjs`) : 3 h, 8 lieux, 36 quêtes, 7 objectifs, 4 fins.
 - ⏳ Saisons et cycle jour/nuit ; lieux, voyages, carte ; groupes d’ambiance multicouches ; réactions vocales des personnages.
 
+## ✅ Comptes et ouverture
+- ✅ Connexion avec Discord, profil complet (identité, mot de passe vérifié, appareils, suppression du compte).
+- ✅ Serveur MCP : une IA lit, modifie en brouillon, vérifie, essaie et publie les mondes avec un jeton.
+- ✅ Statistiques d’utilisation pour RoyaumeOS (Observatoire › KingdomEngine).
+
 ## Phase 4 — Produit
 Bibliothèque de modèles (officiels et communautaires), Académie et tutoriels, journaux plateforme, Support Mode, modèles « Royaume médiéval » et « Station spatiale ».

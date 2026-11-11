@@ -7,6 +7,10 @@ import { HttpError, ROLE_RANK, slugify, type Account, type Platform, type Server
 import type { Runtimes } from './runtime.ts';
 import type { DiscordBridge, VoiceBridge } from './bridges.ts';
 import type { BuildingChannels } from './voice/planner.ts';
+import { registerAccountApi } from './account-api.ts';
+import { registerMcp } from './mcp.ts';
+import { registerStats } from './stats.ts';
+import type { OAuthConfig } from './discord/oauth.ts';
 
 export interface ApiDeps {
   platform: Platform;
@@ -15,6 +19,11 @@ export interface ApiDeps {
   voice: VoiceBridge;
   audioDir: string;
   version: string;
+  publicUrl?: string;
+  discordOAuth?: OAuthConfig;
+  /** Jeton du suivi externe (RoyaumeOS). Sans jeton, /api/stats est désactivé. */
+  statsToken?: string;
+  startedAt: number;
 }
 
 const AUDIO_TYPES: Record<string, string> = {
@@ -34,7 +43,7 @@ const AUDIO_TYPES: Record<string, string> = {
 };
 
 const attempts = new Map<string, { n: number; until: number }>();
-function throttle(key: string) {
+export function throttle(key: string) {
   const now = Date.now();
   const a = attempts.get(key);
   if (a && a.until > now && a.n >= 10) throw new HttpError(429, 'Trop de tentatives. Réessaie dans quelques minutes.');
@@ -69,38 +78,18 @@ export function registerApi(router: Router, deps: ApiDeps) {
     firstRun: platform.accountCount() === 0,
     servers: r.account ? platform.serversFor(r.account) : [],
     version: deps.version,
+    discordLogin: !!deps.discordOAuth,
   }));
 
-  router.post('/api/auth/login', (r) => {
-    throttle(`login:${r.ip}`);
-    const { token, account, maxAge } = platform.login(String(r.body.username ?? ''), String(r.body.password ?? ''), !!r.body.remember);
-    r.setCookie('kingdom_session', token, { maxAge });
-    attempts.delete(`login:${r.ip}`);
-    return { account };
+  registerAccountApi(router, {
+    platform,
+    publicUrl: deps.publicUrl,
+    discordOAuth: deps.discordOAuth,
+    throttle,
+    clearThrottle: (key) => attempts.delete(key),
   });
-
-  router.post('/api/auth/register', (r) => {
-    if (!platform.registrationOpen()) throw new HttpError(403, 'Les inscriptions sont fermées sur cette installation.');
-    throttle(`register:${r.ip}`);
-    platform.createAccount({ username: String(r.body.username ?? ''), password: String(r.body.password ?? ''), displayName: r.body.displayName });
-    const { token, account } = platform.login(String(r.body.username), String(r.body.password), false);
-    r.setCookie('kingdom_session', token);
-    return { account };
-  });
-
-  router.post('/api/auth/logout', (r) => {
-    platform.logout(r.cookies.kingdom_session);
-    r.setCookie('kingdom_session', '', { clear: true });
-    return { ok: true };
-  });
-
-  router.post('/api/auth/password', (r) => {
-    const a = me(r);
-    platform.login(a.username, String(r.body.current ?? ''), false); // vérifie l'ancien mot de passe
-    platform.setPassword(a.id, String(r.body.password ?? ''));
-    r.setCookie('kingdom_session', '', { clear: true });
-    return { ok: true };
-  });
+  registerMcp(router, { platform, runtimes, discord: () => deps.discord, voice: () => deps.voice, version: deps.version, throttle });
+  registerStats(router, { platform, token: deps.statsToken, version: deps.version, startedAt: deps.startedAt, discord: () => deps.discord, voice: () => deps.voice });
 
   // ---------------------------------------------------------------------------
   // Serveurs
@@ -552,7 +541,13 @@ export function registerApi(router: Router, deps: ApiDeps) {
 
   router.post('/api/admin/accounts', (r) => {
     const a = admin(r);
-    const acc = platform.createAccount({ username: String(r.body.username ?? ''), password: String(r.body.password ?? ''), displayName: r.body.displayName, platformRole: r.body.platformAdmin ? 'platform_admin' : 'user' });
+    const acc = platform.createAccount({
+      username: String(r.body.username ?? ''),
+      password: r.body.password ? String(r.body.password) : undefined,
+      displayName: r.body.displayName,
+      platformRole: r.body.platformAdmin ? 'platform_admin' : 'user',
+      discordId: r.body.discordId ? String(r.body.discordId) : undefined,
+    });
     platform.audit(null, a.id, 'account.create', `Compte ${acc.username} créé`);
     return acc;
   });
