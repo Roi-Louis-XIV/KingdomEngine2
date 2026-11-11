@@ -9,22 +9,33 @@ curl -fsSLO https://raw.githubusercontent.com/Roi-Louis-XIV/KingdomEngine2/kingd
 sudo bash install-debian.sh
 ```
 
-Le script installe Node.js 22, git, FFmpeg et sqlite3, crée l’utilisateur système `kingdom`, place le code dans `/opt/kingdomengine` et les données dans `/var/lib/kingdomengine`. Il compile le Studio, **lance les tests** (et s’arrête si l’un échoue), crée le service `kingdomengine` et une sauvegarde quotidienne. On peut le relancer sans risque : il ne touche ni aux données ni à la configuration existantes.
+Tout est installé sous le nom **kingdomengineNext**, séparé de KingdomEngine2 (`/opt/kingdomengine` n’est jamais touché, et le script refuse d’écraser un dossier qui n’est pas le sien) :
 
-> **Si KingdomEngine2 tourne encore sur ce serveur** et utilise déjà le port 8080, mets `KINGDOM_PORT=8090` dans `/etc/kingdomengine.env` (voir l’étape 2). N’utilise jamais le même jeton de bot dans KE2 et KE4 en même temps : arrête d’abord les services de KE2.
+| Élément | Emplacement |
+|---|---|
+| Code | `/opt/kingdomengineNext` |
+| Données (base, sons) | `/var/lib/kingdomengineNextNext` |
+| Configuration (secrets) | `/etc/kingdomengineNext.env` |
+| Sauvegardes | `/var/backups/kingdomengineNextNext` |
+| Service systemd | `kingdomengineNext` (utilisateur système `kingdomnext`) |
+| Port local | 8090 (ou le suivant libre) |
+
+Le script installe Node.js 22, git, FFmpeg et sqlite3. Il compile le Studio, **lance les tests** (et s’arrête si l’un échoue), crée le service `kingdomengineNext` et une sauvegarde quotidienne. On peut le relancer sans risque : il ne touche ni aux données ni à la configuration existantes.
+
+> **KingdomEngine2 peut continuer à tourner à côté.** Seule règle : n’utilise jamais le même jeton de bot Discord dans les deux versions en même temps. Crée de nouvelles applications Discord pour KE4, ou arrête d’abord les services de KE2.
 
 ## 2. Configuration
 
 ```sh
-sudo nano /etc/kingdomengine.env
-sudo systemctl restart kingdomengine
+sudo nano /etc/kingdomengineNext.env
+sudo systemctl restart kingdomengineNext
 ```
 
 | Réglage | Rôle |
 |---|---|
 | `KINGDOM_CORE_TOKEN` | Jeton du bot principal (Discord Developer Portal → Bot → Reset Token) |
 | `VOICE_WORKER_1_TOKEN`, `VOICE_WORKER_1_APPLICATION_ID`, … | Un bot par connexion vocale simultanée |
-| `KINGDOM_PORT` | Port local du Studio (8080 par défaut) |
+| `KINGDOM_PORT` | Port local du Studio (8090 par défaut ici) |
 | `KINGDOM_HOST` | `127.0.0.1` derrière nginx (défaut), `0.0.0.0` pour un accès direct sur le réseau local |
 | `KINGDOM_SECURE_COOKIES` | `1` dès que le Studio est servi en HTTPS |
 | `KINGDOM_ALLOW_REGISTRATION` | `0` par défaut sur un serveur : tu crées toi-même les comptes dans Administration |
@@ -37,22 +48,22 @@ Ce fichier contient des secrets : il n’est lisible que par root et le service.
 
 ```sh
 sudo apt install -y nginx certbot python3-certbot-nginx
-sudo cp /opt/kingdomengine/deploy/nginx-kingdomengine.conf /etc/nginx/sites-available/kingdomengine
-sudo nano /etc/nginx/sites-available/kingdomengine      # remplace studio.exemple.fr par ton domaine
-sudo ln -s /etc/nginx/sites-available/kingdomengine /etc/nginx/sites-enabled/
+sudo bash /opt/kingdomengineNext/deploy/update.sh       # génère /etc/nginx/sites-available/kingdomengineNext si nginx vient d'être installé
+sudo nano /etc/nginx/sites-available/kingdomengineNext  # remplace studio.exemple.fr par ton domaine
+sudo ln -s /etc/nginx/sites-available/kingdomengineNext /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 sudo certbot --nginx -d ton-domaine.fr
 ```
 
-Puis mets `KINGDOM_SECURE_COOKIES=1` dans `/etc/kingdomengine.env` et redémarre le service.
+Puis mets `KINGDOM_SECURE_COOKIES=1` dans `/etc/kingdomengineNext.env` et redémarre le service.
 
 **Sans domaine** : passe par un tunnel SSH depuis ton PC, sans rien ouvrir sur Internet.
 
 ```sh
-ssh -L 8080:127.0.0.1:8080 utilisateur@ip-du-serveur
+ssh -L 8090:127.0.0.1:8090 utilisateur@ip-du-serveur
 ```
 
-Ouvre ensuite http://localhost:8080 sur ton PC.
+Ouvre ensuite http://localhost:8090 sur ton PC (le script affiche le port exact à la fin).
 
 Au premier accès, crée ton compte : **le premier compte est administrateur**.
 
@@ -60,32 +71,32 @@ Au premier accès, crée ton compte : **le premier compte est administrateur**.
 
 | Besoin | Commande |
 |---|---|
-| Voir le journal en direct | `sudo journalctl -u kingdomengine -f` |
-| Redémarrer | `sudo systemctl restart kingdomengine` |
-| État du service | `systemctl status kingdomengine` |
-| Mettre à jour | `sudo bash /opt/kingdomengine/deploy/update.sh` |
-| Sauvegarder maintenant | `sudo bash /opt/kingdomengine/deploy/backup.sh` |
-| Lister les sauvegardes | `ls -lh /var/backups/kingdomengine` |
+| Voir le journal en direct | `sudo journalctl -u kingdomengineNext -f` |
+| Redémarrer | `sudo systemctl restart kingdomengineNext` |
+| État du service | `systemctl status kingdomengineNext` |
+| Mettre à jour | `sudo bash /opt/kingdomengineNext/deploy/update.sh` |
+| Sauvegarder maintenant | `sudo bash /opt/kingdomengineNext/deploy/backup.sh` |
+| Lister les sauvegardes | `ls -lh /var/backups/kingdomengineNext` |
 
 **La mise à jour** sauvegarde d’abord, récupère le code, compile et lance les tests. Si un test échoue, le service n’est **pas** redémarré : l’ancienne version reste en ligne.
 
-**Les sauvegardes** se font chaque nuit à 4 h, sans arrêter le service. Les 14 dernières sont gardées dans `/var/backups/kingdomengine`. Pense à les copier aussi ailleurs que sur le serveur.
+**Les sauvegardes** se font chaque nuit vers 4 h 15, sans arrêter le service. Les 14 dernières sont gardées dans `/var/backups/kingdomengineNext`. Pense à les copier aussi ailleurs que sur le serveur.
 
 ## 5. Restaurer une sauvegarde
 
 ```sh
-sudo systemctl stop kingdomengine
-cd /var/lib/kingdomengine
+sudo systemctl stop kingdomengineNext
+cd /var/lib/kingdomengineNext
 sudo mv kingdom.db kingdom.db.avant-restauration
 sudo rm -f kingdom.db-wal kingdom.db-shm
-sudo tar -xzf /var/backups/kingdomengine/kingdom_AAAA-MM-JJ_HHMMSS.tar.gz -C /var/lib/kingdomengine
-sudo chown -R kingdom:kingdom /var/lib/kingdomengine
-sudo systemctl start kingdomengine
+sudo tar -xzf /var/backups/kingdomengineNext/kingdom_AAAA-MM-JJ_HHMMSS.tar.gz -C /var/lib/kingdomengineNext
+sudo chown -R kingdomnext:kingdomnext /var/lib/kingdomengineNext
+sudo systemctl start kingdomengineNext
 ```
 
 ## 6. En cas de problème
 
-- **Le service ne démarre pas** : lance `sudo journalctl -u kingdomengine -n 50`. La cause est presque toujours une erreur dans `/etc/kingdomengine.env` ou un port déjà pris.
-- **« Studio non compilé »** : lance `sudo runuser -u kingdom -- bash -c 'cd /opt/kingdomengine && npm run build'`.
+- **Le service ne démarre pas** : lance `sudo journalctl -u kingdomengineNext -n 50`. La cause est presque toujours une erreur dans `/etc/kingdomengineNext.env` ou un port déjà pris.
+- **« Studio non compilé »** : lance `sudo runuser -u kingdomnext -- bash -c 'cd /opt/kingdomengineNext && npm run build'`.
 - **Le bot reste hors ligne** : vérifie le jeton, puis l’intent par défaut dans le Developer Portal. Le journal affiche « ✅ Bot principal connecté » quand tout va bien.
 - **Pas de son** : `ffmpeg -version` doit répondre. Les sons doivent être importés dans la Médiathèque avec les clés attendues.

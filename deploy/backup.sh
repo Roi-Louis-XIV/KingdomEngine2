@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Sauvegarde à chaud de KingdomEngine : base SQLite (cohérente, même en fonctionnement) + sons.
-# Garde les 14 dernières sauvegardes. Usage : sudo bash deploy/backup.sh
+# Sauvegarde à chaud de KingdomEngine 4 : base SQLite (cohérente, même en fonctionnement) + sons.
+# Garde les 14 dernières sauvegardes. Usage : sudo bash /opt/kingdomengineNext/deploy/backup.sh
 set -euo pipefail
 
-DATA_DIR="${KINGDOM_DATA_DIR:-/var/lib/kingdomengine}"
-BACKUP_DIR="${KINGDOM_BACKUP_DIR:-/var/backups/kingdomengine}"
+# Le nom de l'installation se déduit de l'emplacement du script : /opt/<NOM>/deploy/backup.sh
+APP_DIR="${KINGDOM_APP_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+NAME="$(basename "$APP_DIR")"
+DATA_DIR="${KINGDOM_DATA_DIR:-/var/lib/$NAME}"
+BACKUP_DIR="${KINGDOM_BACKUP_DIR:-/var/backups/$NAME}"
 KEEP="${KINGDOM_BACKUP_KEEP:-14}"
 STAMP="$(date +%Y-%m-%d_%H%M%S)"
 WORK="$(mktemp -d)"
@@ -13,7 +16,6 @@ trap 'rm -rf "$WORK"' EXIT
 [ -f "$DATA_DIR/kingdom.db" ] || { echo "Aucune base dans $DATA_DIR : rien à sauvegarder."; exit 0; }
 mkdir -p "$BACKUP_DIR"
 
-APP_DIR="${KINGDOM_APP_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 # Copie cohérente même si le serveur écrit en même temps (mode WAL), puis contrôle d'intégrité.
 if node --disable-warning=ExperimentalWarning "$APP_DIR/scripts/backup-db.mjs" "$DATA_DIR/kingdom.db" "$WORK/kingdom.db" 2>/dev/null; then
   :

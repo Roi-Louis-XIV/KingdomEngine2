@@ -1,14 +1,14 @@
 [Unit]
-Description=KingdomEngine 4 (Studio, bot Discord, Voice Workers)
+Description=@NAME@ — KingdomEngine 4 (Studio, bot Discord, Voice Workers)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=kingdom
-Group=kingdom
-WorkingDirectory=/opt/kingdomengine
-EnvironmentFile=/etc/kingdomengine.env
+User=@USER@
+Group=@USER@
+WorkingDirectory=@APP_DIR@
+EnvironmentFile=@ENV_FILE@
 Environment=NODE_ENV=production
 ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning --import tsx apps/server/src/main.ts
 Restart=always
@@ -22,7 +22,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/kingdomengine
+ReadWritePaths=@DATA_DIR@
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
