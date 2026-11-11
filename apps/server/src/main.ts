@@ -50,6 +50,16 @@ if (app.platform.accountCount() === 0 && env.KINGDOM_ADMIN_USERNAME && env.KINGD
   app.platform.createAccount({ username: env.KINGDOM_ADMIN_USERNAME, password: env.KINGDOM_ADMIN_PASSWORD, platformRole: 'platform_admin' });
   console.log(`👑 Compte administrateur « ${env.KINGDOM_ADMIN_USERNAME} » créé.`);
 }
+// Propriétaire reconnu par son compte Discord (comme OWNER_DISCORD_ID dans RoyaumeOS).
+if (env.KINGDOM_OWNER_DISCORD_ID?.trim()) {
+  try {
+    const { account, action } = app.platform.ensureOwnerDiscord(env.KINGDOM_OWNER_DISCORD_ID.trim());
+    const what = { ok: 'reconnu', linked: 'relié au compte administrateur', created: 'créé', promoted: 'nommé administrateur' }[action];
+    console.log(`👑 Propriétaire Discord ${what} : « ${account.username} ».`);
+  } catch (e) {
+    console.error('❌', (e as Error).message);
+  }
+}
 
 const port = Number(env.KINGDOM_PORT ?? 8080);
 const host = env.KINGDOM_HOST ?? '0.0.0.0';

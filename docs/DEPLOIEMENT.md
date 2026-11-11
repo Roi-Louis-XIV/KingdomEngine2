@@ -41,6 +41,7 @@ sudo systemctl restart kingdomengineNext
 | `KINGDOM_ALLOW_REGISTRATION` | `0` par défaut sur un serveur : tu crées toi-même les comptes dans Administration |
 | `KINGDOM_PUBLIC_URL` | Adresse du Studio, ex. `https://studio.exemple.fr` (connexion Discord, adresse MCP) |
 | `KINGDOM_DISCORD_CLIENT_ID`, `KINGDOM_DISCORD_CLIENT_SECRET` | Active « Se connecter avec Discord » (voir ci-dessous) |
+| `KINGDOM_OWNER_DISCORD_ID` | Ton identifiant Discord : toujours administrateur, relié au premier compte administrateur |
 | `KINGDOM_STATS_TOKEN` | Jeton du suivi par RoyaumeOS (32 caractères minimum) |
 | `KINGDOM_STATS_LISTEN` | Facultatif : écoute réservée aux statistiques, ex. `172.17.0.1:8091` |
 
@@ -78,7 +79,9 @@ Au premier accès, crée ton compte : **le premier compte est administrateur**.
 1. Discord Developer Portal → l’application du **bot principal** (ou une autre) → **OAuth2**.
 2. Copie le **Client ID**, puis **Reset Secret** pour obtenir le Client Secret.
 3. Dans **Redirects**, ajoute `https://ton-domaine.fr/api/auth/discord/callback` (exactement l’adresse de `KINGDOM_PUBLIC_URL`, suivie de ce chemin).
-4. Dans `/etc/kingdomengineNext.env` : `KINGDOM_PUBLIC_URL`, `KINGDOM_DISCORD_CLIENT_ID`, `KINGDOM_DISCORD_CLIENT_SECRET`, puis redémarre.
+4. Dans `/etc/kingdomengineNext.env` : `KINGDOM_PUBLIC_URL`, `KINGDOM_DISCORD_CLIENT_ID`, `KINGDOM_DISCORD_CLIENT_SECRET` et `KINGDOM_OWNER_DISCORD_ID` (ton identifiant Discord : Discord › Paramètres › Avancés › Mode développeur, puis clic droit sur ton nom › Copier l’identifiant). Redémarre.
+
+Sans nom de domaine (tunnel SSH), utilise `KINGDOM_PUBLIC_URL=http://localhost:8090` et la redirection `http://localhost:8090/api/auth/discord/callback` : Discord accepte `localhost` en http.
 
 Seul le scope `identify` est demandé (identifiant, pseudo, avatar) : ni e-mail, ni liste de serveurs. Le jeton Discord n’est pas conservé.
 
@@ -122,6 +125,16 @@ Vérification depuis le serveur :
 ```sh
 curl -s -H "Authorization: Bearer <jeton>" http://127.0.0.1:8090/api/stats | head -c 300
 ```
+
+### Je ne peux plus me connecter
+
+```sh
+sudo bash /opt/kingdomengineNext/deploy/compte.sh liste                              # identifiants, Discord, dernière connexion
+sudo bash /opt/kingdomengineNext/deploy/compte.sh mot-de-passe <identifiant>         # nouveau mot de passe affiché une fois
+sudo bash /opt/kingdomengineNext/deploy/compte.sh discord <identifiant> <id discord>  # relie ton compte Discord
+```
+
+Après 10 essais ratés, la connexion est bloquée 5 minutes pour cette adresse : attends avant de réessayer.
 
 ## 5. Au quotidien
 

@@ -396,6 +396,35 @@ export class Platform {
     return { token, account: this.account(account.id)!, maxAge, created };
   }
 
+  /**
+   * Propriétaire déclaré dans la configuration (KINGDOM_OWNER_DISCORD_ID), comme le Roi de RoyaumeOS :
+   * ce compte Discord peut toujours se connecter et administre la plateforme, même inscriptions fermées.
+   * Il est relié au plus ancien administrateur qui n'a pas encore de compte Discord, sinon un compte est créé.
+   */
+  ensureOwnerDiscord(discordId: string): { account: Account; action: 'ok' | 'linked' | 'created' | 'promoted' } {
+    if (!/^\d{17,20}$/.test(discordId)) throw new HttpError(400, 'KINGDOM_OWNER_DISCORD_ID : identifiant Discord de 17 à 20 chiffres.');
+    const existing = this.accountByDiscord(discordId);
+    if (existing) {
+      if (existing.platformRole === 'platform_admin') return { account: existing, action: 'ok' };
+      this.db.prepare("UPDATE accounts SET platform_role = 'platform_admin' WHERE id = ?").run(existing.id);
+      return { account: this.account(existing.id)!, action: 'promoted' };
+    }
+    const admin = this.db.prepare("SELECT id FROM accounts WHERE platform_role = 'platform_admin' AND discord_id IS NULL ORDER BY id LIMIT 1").get() as { id: number } | undefined;
+    if (admin) {
+      this.db.prepare('UPDATE accounts SET discord_id = ? WHERE id = ?').run(discordId, admin.id);
+      return { account: this.account(admin.id)!, action: 'linked' };
+    }
+    const account = this.createAccount({ username: this.freeUsername('roi'), displayName: 'Roi', discordId, platformRole: 'platform_admin' });
+    return { account, action: 'created' };
+  }
+
+  /** Nouveau mot de passe aléatoire (outil de secours en ligne de commande). Ferme les sessions du compte. */
+  resetPasswordRandom(accountId: number): string {
+    const password = randomBytes(9).toString('base64url');
+    this.setPassword(accountId, password);
+    return password;
+  }
+
   linkDiscord(accountId: number, profile: DiscordProfile): Account {
     const holder = this.accountByDiscord(profile.id);
     if (holder && holder.id !== accountId) throw new HttpError(409, 'Ce compte Discord est déjà relié à un autre compte KingdomEngine.');
