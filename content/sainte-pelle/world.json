@@ -5,7 +5,8 @@
   "description": "Bêta KE4 : 3 heures pour 8 joueurs. Une pierre qui attire la foudre, une tempête, une église à relever. Lancez le scénario depuis la page En direct.",
   "settings": {
     "maxActiveJobs": 1,
-    "timezone": "Europe/Paris"
+    "timezone": "Europe/Paris",
+    "voiceAlways": true
   },
   "events": [
     {
@@ -5261,7 +5262,46 @@
             }
           ]
         }
-      ]
+      ],
+      "audio": {
+        "ambience": {
+          "cases": [
+            {
+              "when": {
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "gte",
+                    "value": 85
+                  },
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "lt",
+                    "value": 110
+                  }
+                ]
+              },
+              "sound": "place-tempete"
+            },
+            {
+              "when": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "veille"
+              },
+              "sound": "place-fete"
+            },
+            {
+              "sound": "place-calme"
+            }
+          ]
+        },
+        "volume": 0.5
+      }
     },
     {
       "id": "taverne",
@@ -5275,23 +5315,43 @@
       },
       "homeScreen": "accueil",
       "audio": {
+        "welcome": "edgar-bienvenue",
         "ambience": {
           "cases": [
             {
               "when": {
-                "type": "variable",
-                "variable": "phase",
-                "op": "eq",
-                "value": "tempete"
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "gte",
+                    "value": 85
+                  },
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "lt",
+                    "value": 110
+                  }
+                ]
               },
               "sound": "taverne-tempete"
+            },
+            {
+              "when": {
+                "type": "variable",
+                "variable": "soiree",
+                "op": "eq",
+                "value": "oui"
+              },
+              "sound": "taverne-soiree"
             },
             {
               "sound": "taverne-calme"
             }
           ]
         },
-        "welcome": "edgar-bienvenue",
         "volume": 0.6
       },
       "modules": [
@@ -10840,7 +10900,46 @@
             }
           ]
         }
-      ]
+      ],
+      "audio": {
+        "ambience": {
+          "cases": [
+            {
+              "when": {
+                "type": "variable",
+                "variable": "urgence",
+                "op": "eq",
+                "value": "eboulement"
+              },
+              "sound": "mine-eboulement"
+            },
+            {
+              "when": {
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "gte",
+                    "value": 85
+                  },
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "lt",
+                    "value": 110
+                  }
+                ]
+              },
+              "sound": "mine-tempete"
+            },
+            {
+              "sound": "mine-calme"
+            }
+          ]
+        },
+        "volume": 0.5
+      }
     },
     {
       "id": "forge",
@@ -15865,7 +15964,46 @@
             }
           ]
         }
-      ]
+      ],
+      "audio": {
+        "ambience": {
+          "cases": [
+            {
+              "when": {
+                "type": "variable",
+                "variable": "urgence",
+                "op": "eq",
+                "value": "incendie"
+              },
+              "sound": "forge-incendie"
+            },
+            {
+              "when": {
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "gte",
+                    "value": 85
+                  },
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "lt",
+                    "value": 110
+                  }
+                ]
+              },
+              "sound": "forge-tempete"
+            },
+            {
+              "sound": "forge-calme"
+            }
+          ]
+        },
+        "volume": 0.5
+      }
     },
     {
       "id": "foret",
@@ -15888,10 +16026,21 @@
           "cases": [
             {
               "when": {
-                "type": "variable",
-                "variable": "phase",
-                "op": "eq",
-                "value": "tempete"
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "gte",
+                    "value": 85
+                  },
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "lt",
+                    "value": 110
+                  }
+                ]
               },
               "sound": "foret-tempete"
             },
@@ -19550,7 +19699,37 @@
             }
           ]
         }
-      ]
+      ],
+      "audio": {
+        "ambience": {
+          "cases": [
+            {
+              "when": {
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "gte",
+                    "value": 85
+                  },
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "lt",
+                    "value": 110
+                  }
+                ]
+              },
+              "sound": "ferme-tempete"
+            },
+            {
+              "sound": "ferme-calme"
+            }
+          ]
+        },
+        "volume": 0.5
+      }
     },
     {
       "id": "pont",
@@ -20799,7 +20978,37 @@
             }
           ]
         }
-      ]
+      ],
+      "audio": {
+        "ambience": {
+          "cases": [
+            {
+              "when": {
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "gte",
+                    "value": 85
+                  },
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "lt",
+                    "value": 110
+                  }
+                ]
+              },
+              "sound": "pont-tempete"
+            },
+            {
+              "sound": "pont-calme"
+            }
+          ]
+        },
+        "volume": 0.5
+      }
     },
     {
       "id": "eglise",
@@ -21754,7 +21963,37 @@
             }
           ]
         }
-      ]
+      ],
+      "audio": {
+        "ambience": {
+          "cases": [
+            {
+              "when": {
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "gte",
+                    "value": 85
+                  },
+                  {
+                    "type": "variable",
+                    "variable": "t",
+                    "op": "lt",
+                    "value": 110
+                  }
+                ]
+              },
+              "sound": "eglise-tempete"
+            },
+            {
+              "sound": "eglise-calme"
+            }
+          ]
+        },
+        "volume": 0.5
+      }
     }
   ]
 }

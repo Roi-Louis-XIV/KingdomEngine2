@@ -86,3 +86,27 @@ test('planificateur : bâtiment occupé + audio configuré → présence avec id
   assert.equal(desiredPresences(args)[0]!.ambience, 'taverne-tempete');
   assert.deepEqual(desiredPresences({ ...args, occupancy: new Map() }), [], 'salon vide : aucune présence');
 });
+
+test('ambiance permanente : chaque bâtiment avec ambiance a sa présence, les bâtiments occupés passent en premier', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { Engine } = await import('../../../packages/engine/src/index.ts');
+  const { voiceNeed } = await import('../src/voice/planner.ts');
+  const world = JSON.parse(readFileSync(new URL('../../../content/sainte-pelle/world.json', import.meta.url), 'utf8'));
+  assert.equal(world.settings.voiceAlways, true);
+  const engine = new Engine(world);
+  const channels = Object.fromEntries(world.buildings.map((b: { id: string }) => [b.id, { voice: `vc-${b.id}` }]));
+  assert.equal(voiceNeed(world, channels), 8, 'les 8 lieux de la bêta ont une ambiance : 8 Voice Workers');
+  const all = desiredPresences({ serverId: 's', guildId: 'g1', engine, channels, occupancy: new Map([['vc-forge', 1]]) });
+  assert.equal(all.length, 8, 'tous les salons, même vides');
+  assert.equal(all[0]!.building, 'forge', 'le bâtiment occupé d’abord');
+  assert.equal(all.find((p) => p.building === 'taverne')!.welcome, undefined, 'pas d’accueil dans un salon vide');
+  assert.equal(all.find((p) => p.building === 'place')!.ambience, 'place-calme');
+  // Pas assez de workers : le bâtiment occupé est servi.
+  const plan = pool(3).reconcile(all, 0);
+  assert.equal(plan.assign.length, 3);
+  assert.ok(plan.assign.some((a) => a.presence.building === 'forge'));
+  assert.equal(plan.unplaced.length, 5);
+  // Sans l'option : seulement les salons occupés.
+  world.settings.voiceAlways = false;
+  assert.deepEqual(desiredPresences({ serverId: 's', guildId: 'g1', engine: new Engine(world), channels, occupancy: new Map([['vc-forge', 1]]) }).map((p) => p.building), ['forge']);
+});

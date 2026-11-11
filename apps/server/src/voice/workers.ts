@@ -78,6 +78,14 @@ export class VoiceWorkers implements VoiceBridge {
     }
   }
 
+  /** Prévenu quand un Voice Worker se connecte (pour mettre à jour les permissions des salons). */
+  onBotsChanged?: () => void;
+
+  /** Comptes Discord des Voice Workers (connus par la configuration ou à la connexion). */
+  botIds(): string[] {
+    return [...this.live.values()].map((l) => l.client.user?.id ?? l.config.applicationId ?? '').filter(Boolean);
+  }
+
   async start(): Promise<void> {
     for (const [key, l] of this.live) {
       const state = this.pool.workers.get(key)!;
@@ -87,6 +95,8 @@ export class VoiceWorkers implements VoiceBridge {
         state.guilds = new Set(c.guilds.cache.keys());
         console.log(`🎙️  ${l.config.label} connecté : ${c.user.tag} (${state.guilds.size} serveur(s))`);
         this.refresh();
+        // Un nouveau Voice Worker doit être autorisé dans les salons réservés aux habitants.
+        this.onBotsChanged?.();
       });
       l.client.on(Events.GuildCreate, (g) => (state.guilds.add(g.id), this.refresh()));
       l.client.on(Events.GuildDelete, (g) => (state.guilds.delete(g.id), this.refresh()));

@@ -1474,7 +1474,7 @@ const world = {
   id: 'sainte-pelle',
   name: 'La Nuit de la Sainte Pelle',
   description: 'Bêta KE4 : 3 heures pour 8 joueurs. Une pierre qui attire la foudre, une tempête, une église à relever. Lancez le scénario depuis la page En direct.',
-  settings: { maxActiveJobs: 1, timezone: 'Europe/Paris' },
+  settings: { maxActiveJobs: 1, timezone: 'Europe/Paris', voiceAlways: true },
   events: [scenario],
   stats,
   items,
@@ -1515,6 +1515,28 @@ const world = {
   },
   buildings: [place, taverne, mine, forge, foret, ferme, pont, eglise],
 };
+
+// Ambiances sonores de fond : chaque lieu a la sienne, jouée en permanence (settings.voiceAlways),
+// et elle change avec le scénario. La première condition vraie gagne. Clés à importer dans la Médiathèque.
+const AMBIENCES = {
+  place: [[STORM, 'place-tempete'], [v('acte', 'veille'), 'place-fete'], [null, 'place-calme']],
+  taverne: [[STORM, 'taverne-tempete'], [v('soiree', 'oui'), 'taverne-soiree'], [null, 'taverne-calme']],
+  mine: [[v('urgence', 'eboulement'), 'mine-eboulement'], [STORM, 'mine-tempete'], [null, 'mine-calme']],
+  forge: [[v('urgence', 'incendie'), 'forge-incendie'], [STORM, 'forge-tempete'], [null, 'forge-calme']],
+  foret: [[STORM, 'foret-tempete'], [null, 'foret-calme']],
+  ferme: [[STORM, 'ferme-tempete'], [null, 'ferme-calme']],
+  pont: [[STORM, 'pont-tempete'], [null, 'pont-calme']],
+  eglise: [[STORM, 'eglise-tempete'], [null, 'eglise-calme']],
+};
+for (const b of world.buildings) {
+  const cases = AMBIENCES[b.id];
+  if (!cases) throw new Error(`Ambiance manquante pour « ${b.id} »`);
+  b.audio = {
+    ...(b.audio?.welcome ? { welcome: b.audio.welcome } : {}),
+    ambience: { cases: cases.map(([when, sound]) => (when ? { when, sound } : { sound })) },
+    volume: b.audio?.volume ?? 0.5,
+  };
+}
 
 // La Taverne V11 parle d'« Énergie » : même statistique, renommée « Endurance » pour la bêta.
 const json = JSON.stringify(world, null, 2).replaceAll('Énergie', 'Endurance');

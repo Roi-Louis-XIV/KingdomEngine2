@@ -6,7 +6,7 @@ import { FileReply, type Req, type Router } from './http.ts';
 import { HttpError, ROLE_RANK, slugify, type Account, type Platform, type ServerRole } from './platform.ts';
 import type { Runtimes } from './runtime.ts';
 import type { DiscordBridge, VoiceBridge } from './bridges.ts';
-import type { BuildingChannels } from './voice/planner.ts';
+import { voiceNeed, type BuildingChannels } from './voice/planner.ts';
 import { registerAccountApi } from './account-api.ts';
 import { registerMcp } from './mcp.ts';
 import { registerStats } from './stats.ts';
@@ -405,6 +405,11 @@ export function registerApi(router: Router, deps: ApiDeps) {
       workers: v.workers.map((w) => ({ ...w, installed: s.guildId ? w.guilds.includes(s.guildId) : false })),
       ffmpeg: v.ffmpeg,
       unplaced: v.unplaced.filter((u) => u.serverId === s.id),
+      voiceAlways: !!runtimes.engine(s.id)?.world.settings.voiceAlways,
+      voiceNeed: (() => {
+        const w = runtimes.engine(s.id)?.world;
+        return w ? voiceNeed(w, channelsOf(s.id)) : 0;
+      })(),
     };
   });
 

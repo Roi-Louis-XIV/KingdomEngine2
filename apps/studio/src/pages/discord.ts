@@ -115,7 +115,15 @@ export async function discordPage(main: HTMLElement) {
           h(
             'div',
             null,
-            h('p', null, 'Un Voice Worker joue l’ambiance d’un bâtiment occupé sous le nom de son personnage. Deux bâtiments occupés en même temps demandent deux workers installés.'),
+            d.voiceAlways
+              ? h('p', null, `Ambiance permanente : un Voice Worker reste dans chacun des ${d.voiceNeed} salons vocaux de bâtiments, sous le nom de son personnage. Il en faut ${d.voiceNeed} installés sur ce serveur.`)
+              : h('p', null, 'Un Voice Worker joue l’ambiance d’un bâtiment occupé sous le nom de son personnage. Deux bâtiments occupés en même temps demandent deux workers installés.'),
+            (() => {
+              const installed = d.workers.filter((x: any) => x.installed && x.online).length;
+              return d.voiceAlways && installed < d.voiceNeed
+                ? h('p', { class: 'note' }, `${installed} Voice Worker(s) en ligne sur ${d.voiceNeed} nécessaires : ${d.voiceNeed - installed} bâtiment(s) resteront silencieux quand personne n’y est. Ajoute des workers (VOICE_WORKER_${d.workers.length + 1}_TOKEN…) puis invite-les.`)
+                : null;
+            })(),
             !d.ffmpeg && d.workers.length ? h('p', { class: 'note' }, 'FFmpeg est introuvable sur le serveur : la lecture audio ne fonctionnera pas.') : null,
             d.workers.length
               ? h(

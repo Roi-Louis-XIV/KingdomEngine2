@@ -151,13 +151,15 @@ export function oathPanel(ob: Onboarding, accent = 0x0a6b45): RenderedMessage {
  * Permissions du salon vocal et de la catégorie d'un bâtiment : sans serment, ouverts à tous ;
  * avec serment, réservés au rôle des habitants (et au bot).
  */
-export function voiceOverwrites(everyoneRoleId: string, playerRoleId: string | null, botId: string): Overwrite[] {
+export function voiceOverwrites(everyoneRoleId: string, playerRoleId: string | null, botId: string, voiceBots: string[] = []): Overwrite[] {
   if (!playerRoleId) return [];
   const voice = PermissionFlagsBits.ViewChannel | PermissionFlagsBits.Connect | PermissionFlagsBits.Speak;
   return [
     { id: everyoneRoleId, type: 'role', allow: 0n, deny: PermissionFlagsBits.ViewChannel | PermissionFlagsBits.Connect },
     { id: playerRoleId, type: 'role', allow: voice, deny: 0n },
     { id: botId, type: 'member', allow: voice | PermissionFlagsBits.SendMessages | PermissionFlagsBits.ManageMessages | PermissionFlagsBits.ReadMessageHistory, deny: 0n },
+    // Les Voice Workers doivent pouvoir entrer dans les salons réservés aux habitants pour y jouer l'ambiance.
+    ...[...new Set(voiceBots)].filter((id) => id && id !== botId).map((id) => ({ id, type: 'member' as const, allow: voice, deny: 0n })),
   ];
 }
 

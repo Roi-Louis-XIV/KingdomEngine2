@@ -102,6 +102,16 @@ if (env.KINGDOM_CORE_TOKEN) {
   if (configs.length) {
     const voice = new VoiceWorkers(app.platform, app.runtimes, core, resolve(dataDir, 'audio'), configs);
     app.bridges.voice = voice;
+    core.voiceBotIds = () => voice.botIds();
+    // Dès qu'un Voice Worker se connecte, il est ajouté aux salons vocaux réservés (regroupé sur 10 s).
+    let resync: NodeJS.Timeout | undefined;
+    voice.onBotsChanged = () => {
+      clearTimeout(resync);
+      resync = setTimeout(() => {
+        for (const s of app.platform.allServers()) if (s.guildId) void core.syncBuildings(s.id, true).catch(() => {});
+      }, 10_000);
+      resync.unref();
+    };
     await voice.start();
     stops.push(() => voice.stop());
     console.log(`🎙️  ${configs.length} Voice Worker(s) configuré(s).`);

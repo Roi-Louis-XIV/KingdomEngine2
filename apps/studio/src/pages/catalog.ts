@@ -158,6 +158,13 @@ export async function catalogPage(main: HTMLElement, params: string[]) {
           field(w, 'name', { label: 'Nom du monde' }, changed),
           field(w, 'description', { label: 'Description', type: 'textarea' }, changed),
           field(w.settings, 'maxActiveJobs', { label: 'Métiers exercés en même temps', type: 'number', min: 1, max: 10 }, changed),
+          h(
+            'label',
+            { class: 'check' },
+            h('input', { type: 'checkbox', checked: !!w.settings.voiceAlways, onchange: (e: Event) => ((w.settings.voiceAlways = (e.target as HTMLInputElement).checked || undefined), changed()) }),
+            'Ambiance sonore permanente dans tous les salons vocaux',
+          ),
+          h('p', { class: 'field-hint' }, 'Un Voice Worker reste dans chaque bâtiment qui a une ambiance, même vide : il faut autant de Voice Workers que de bâtiments. Sinon, l’ambiance ne joue que là où il y a des joueurs.'),
         ),
       );
       break;

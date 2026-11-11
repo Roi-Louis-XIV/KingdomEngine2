@@ -177,6 +177,12 @@ export interface WorldDef {
     maxActiveJobs: number;
     /** Fuseau horaire des programmations (défaut : Europe/Paris). */
     timezone?: string;
+    /**
+     * Ambiance permanente : un Voice Worker reste dans chaque salon vocal de bâtiment (qui a une ambiance),
+     * même vide. Il faut au moins autant de Voice Workers que de bâtiments avec ambiance.
+     * Sinon (défaut) : un worker n'est présent que dans les salons où il y a des joueurs.
+     */
+    voiceAlways?: boolean;
   };
   /** Météo automatique (pilote une variable du monde). */
   weather?: WeatherDef;
@@ -348,7 +354,7 @@ export interface BuildingDef {
 export type SoundChoice = Id | { cases: { when?: Condition; sound: Id }[] };
 
 export interface BuildingAudio {
-  /** Fond sonore en boucle tant que des joueurs sont présents. */
+  /** Fond sonore en boucle (tant que des joueurs sont présents, ou tout le temps avec settings.voiceAlways). */
   ambience?: SoundChoice;
   /** Son joué à l'arrivée du Voice Worker. */
   welcome?: Id;

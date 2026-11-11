@@ -110,6 +110,7 @@ Détails techniques :
 ## Voix
 
 - `voice/planner.ts` : un bâtiment dont le salon vocal contient au moins un joueur, et qui a une configuration audio, demande une **présence** (identité du personnage, ambiance selon les variables du monde).
+- **Ambiance permanente** (`world.settings.voiceAlways`, case dans Objets & règles) : tous les bâtiments avec ambiance demandent une présence, même vides ; les occupés passent en premier si les workers manquent. Il faut un Voice Worker par bâtiment (page Discord & voix : nombre nécessaire). Les Voice Workers reçoivent une permission propre dans les salons vocaux réservés aux habitants.
 - `voice/pool.ts` : attribue les présences aux workers libres et installés sur le bon serveur. Une présence garde son worker tant qu’elle est souhaitée, avec 30 s de grâce après le départ du dernier joueur. Si l’ambiance change (Tempête), le son est mis à jour sans changer de worker.
 - `voice/workers.ts` : applique ces décisions sur Discord. Le worker rejoint le salon, prend le nom du personnage, joue l’accueil puis l’ambiance en boucle, ainsi que les sons déclenchés par l’action `audio.play`.
 

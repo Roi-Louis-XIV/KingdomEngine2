@@ -102,6 +102,10 @@ test('serment : panneau dans les limites Discord, bouton sans état, salons rés
   const [everyone, role] = voiceOverwrites('guild', 'habitant', 'bot');
   assert.ok(everyone!.deny & P.ViewChannel && everyone!.deny & P.Connect);
   assert.ok(role!.allow & P.ViewChannel && role!.allow & P.Connect && role!.allow & P.Speak);
+  // Les Voice Workers entrent dans les salons réservés pour y jouer l'ambiance (sans doublon ni le bot principal).
+  const withBots = voiceOverwrites('guild', 'habitant', 'bot', ['w1', 'w2', 'w1', 'bot']);
+  assert.deepEqual(withBots.slice(3).map((o) => o.id), ['w1', 'w2']);
+  assert.ok(withBots.slice(3).every((o) => o.type === 'member' && o.allow & P.Connect && o.allow & P.Speak && o.allow & P.ViewChannel));
   const [all] = oathChannelOverwrites('guild', 'bot');
   assert.ok(all!.allow & P.ViewChannel && all!.deny & P.SendMessages);
   assert.equal(categoryName({ name: 'Mine de Roland', emoji: '⛏️' }), '⛏️ Mine de Roland');

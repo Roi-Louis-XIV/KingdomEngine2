@@ -1,0 +1,208 @@
+=====================================================================
+  KINGDOMENGINE 4 - BETA « LA NUIT DE LA SAINTE PELLE »
+  FICHE DE RETOUR DU TESTEUR
+=====================================================================
+
+Ton pseudo Discord :
+Date de la séance  :
+Appareil utilisé   : [ ] Ordinateur  [ ] Téléphone  [ ] Tablette
+Discord            : [ ] Application  [ ] Navigateur
+
+Comment remplir cette fiche
+---------------------------
+- Garde ce fichier ouvert pendant toute la séance (3 heures).
+- Note au fil de l'eau, même en quelques mots : c'est plus précis que de mémoire.
+- Pour chaque problème, note l'heure : on retrouvera ce qui s'est passé dans le journal.
+- Remplace les [ ] par [x] pour cocher. Écris après les ":" ou sous les tirets.
+- À la fin, envoie le fichier dans le salon indiqué par l'organisation.
+
+Échelle des notes : 1 = pas du tout   2 = peu   3 = moyen   4 = bien   5 = très bien
+
+
+=====================================================================
+  1. L'ARRIVÉE (premières minutes)
+=====================================================================
+
+J'ai trouvé le salon du serment sans aide          : [ ] Oui  [ ] Non
+Le bouton « Je le jure » a fonctionné du 1er coup  : [ ] Oui  [ ] Non
+J'ai reçu mes 100 écus, 2 pains et 2 gourdes       : [ ] Oui  [ ] Non
+J'ai compris comment entrer dans un bâtiment       : [ ] Oui  [ ] Non
+  (rejoindre le salon vocal, puis cliquer sur « Entrer » dans le salon texte)
+J'ai entendu l'ambiance sonore en entrant          : [ ] Oui  [ ] Non
+
+Facilité de prise en main (1 à 5) :
+
+Ce qui m'a bloqué ou surpris au début :
+-
+-
+
+
+=====================================================================
+  2. JOURNAL DE LA SÉANCE
+=====================================================================
+
+Note ici tout ce qui te passe par la tête, avec l'heure.
+Exemples : « 20h14 - j'ai cliqué sur Livrer, rien ne s'est passé »
+           « 20h40 - la tempête est géniale, le son fait peur »
+
+Heure  | Lieu              | Ce qui s'est passé
+-------+-------------------+-------------------------------------------
+       |                   |
+       |                   |
+       |                   |
+       |                   |
+       |                   |
+       |                   |
+       |                   |
+       |                   |
+       |                   |
+       |                   |
+
+
+=====================================================================
+  3. LES BUGS
+=====================================================================
+
+Un bug = quelque chose qui ne marche pas comme prévu : bouton sans effet,
+message d'erreur, objet perdu, interface qui ne se met pas à jour, son absent...
+Copie le bloc ci-dessous autant de fois que nécessaire.
+
+--- Bug n° 1 ---
+Heure                    :
+Lieu (bâtiment)          :
+Ce que j'ai fait         :
+Ce qui s'est passé       :
+Ce que j'attendais       :
+Gravité                  : [ ] Bloquant  [ ] Gênant  [ ] Détail
+Ça s'est reproduit ?     : [ ] Oui  [ ] Non  [ ] Pas essayé
+
+--- Bug n° 2 ---
+Heure                    :
+Lieu (bâtiment)          :
+Ce que j'ai fait         :
+Ce qui s'est passé       :
+Ce que j'attendais       :
+Gravité                  : [ ] Bloquant  [ ] Gênant  [ ] Détail
+Ça s'est reproduit ?     : [ ] Oui  [ ] Non  [ ] Pas essayé
+
+--- Bug n° 3 ---
+Heure                    :
+Lieu (bâtiment)          :
+Ce que j'ai fait         :
+Ce qui s'est passé       :
+Ce que j'attendais       :
+Gravité                  : [ ] Bloquant  [ ] Gênant  [ ] Détail
+Ça s'est reproduit ?     : [ ] Oui  [ ] Non  [ ] Pas essayé
+
+
+=====================================================================
+  4. LES LIEUX
+=====================================================================
+
+Pour chaque lieu visité : une note de 1 à 5 et un commentaire libre.
+Laisse vide si tu n'y es pas allé.
+
+Lieu                          | Note | Commentaire
+------------------------------+------+---------------------------------
+Place du village (Maëlis)     |      |
+À la Gueuse Cocue (Edgar)     |      |
+Mine de Roland                |      |
+Forge du Dragon Noir (Wagner) |      |
+Forêt de Sylvain              |      |
+Ferme d'Agathe                |      |
+Vieux pont de Valbrume        |      |
+Église (Père Anselme)         |      |
+
+Le lieu que j'ai préféré, et pourquoi :
+
+Le lieu le moins réussi, et pourquoi :
+
+
+=====================================================================
+  5. LES QUÊTES ET LES MÉTIERS
+=====================================================================
+
+Nombre de quêtes terminées (environ)                 :
+Les quêtes proposées étaient claires (1 à 5)          :
+Je savais toujours quoi faire ensuite (1 à 5)         :
+Une quête impossible ou incompréhensible (laquelle ?) :
+
+Métier(s) que j'ai pratiqué(s)                        :
+Niveau atteint                                        :
+Monter de niveau était : [ ] Trop lent  [ ] Bien  [ ] Trop rapide
+
+Mon avis sur les quêtes et les métiers :
+-
+-
+
+
+=====================================================================
+  6. L'ÉCONOMIE ET L'ENDURANCE
+=====================================================================
+
+Les prix (taverne, forge, échoppes)  : [ ] Trop chers  [ ] Corrects  [ ] Trop bas
+L'argent gagné                       : [ ] Trop peu    [ ] Correct   [ ] Trop
+L'endurance qui baisse               : [ ] Trop vite   [ ] Correct   [ ] Trop lentement
+Les récoltes (bois, minerai, poisson): [ ] Trop rares  [ ] Correctes [ ] Trop faciles
+Je suis resté bloqué sans argent ou sans endurance : [ ] Oui  [ ] Non
+
+Commentaire :
+-
+
+
+=====================================================================
+  7. LE SCÉNARIO
+=====================================================================
+
+Pour chaque acte : une note de 1 à 5 (intérêt, ambiance) et un mot si besoin.
+
+Acte                                  | Note | Commentaire
+--------------------------------------+------+-----------------------------
+Avant la fête / Veille de fête        |      |
+Les signes (trouvaille de Roland,     |      |
+  conseil de la pierre)               |      |
+La tempête (foudre, éclats, urgences) |      |
+Relever le Royaume (église, messe)    |      |
+Fin de séance                         |      |
+
+Les objectifs communs (dons, chantiers, sauvetages) étaient :
+  [ ] Trop faciles  [ ] Bien dosés  [ ] Trop difficiles  [ ] Je ne les ai pas vus
+
+J'ai senti que le groupe faisait avancer le Royaume (1 à 5) :
+
+Le moment le plus marquant :
+
+Le moment le plus ennuyeux ou le plus confus :
+
+
+=====================================================================
+  8. LE SON ET LES VOIX
+=====================================================================
+
+Les ambiances sonores des lieux (1 à 5)              :
+Les voix des personnages (1 à 5)                     :
+Un son trop fort, trop faible ou absent (où ?)       :
+
+
+=====================================================================
+  9. BILAN
+=====================================================================
+
+Note globale de l'expérience (1 à 10) :
+
+Je rejouerais à un monde KingdomEngine : [ ] Oui  [ ] Peut-être  [ ] Non
+
+Ce qu'il faut absolument garder :
+-
+-
+
+Ce qu'il faut absolument changer :
+-
+-
+
+Une idée ou une envie pour la suite :
+-
+
+
+Merci d'avoir testé KingdomEngine 4 !
+=====================================================================
