@@ -99,12 +99,15 @@ render() {
 render "$APP_DIR/deploy/service.in" >"/etc/systemd/system/$NAME.service"
 render "$APP_DIR/deploy/backup.service.in" >"/etc/systemd/system/$NAME-backup.service"
 render "$APP_DIR/deploy/backup.timer.in" >"/etc/systemd/system/$NAME-backup.timer"
+render "$APP_DIR/deploy/auto-update.service.in" >"/etc/systemd/system/$NAME-auto-update.service"
+render "$APP_DIR/deploy/auto-update.timer.in" >"/etc/systemd/system/$NAME-auto-update.timer"
 if [ -d /etc/nginx/sites-available ] && [ ! -f "/etc/nginx/sites-available/$NAME" ]; then
   render "$APP_DIR/deploy/nginx.conf.in" >"/etc/nginx/sites-available/$NAME"
   echo "   Modèle nginx prêt : /etc/nginx/sites-available/$NAME (non activé)."
 fi
 systemctl daemon-reload
 systemctl enable --now "$NAME-backup.timer" >/dev/null
+systemctl enable --now "$NAME-auto-update.timer" >/dev/null
 systemctl enable "$NAME.service" >/dev/null
 systemctl restart "$NAME.service"
 sleep 3

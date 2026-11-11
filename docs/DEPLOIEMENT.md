@@ -147,7 +147,22 @@ Après 10 essais ratés, la connexion est bloquée 5 minutes pour cette adresse 
 | Sauvegarder maintenant | `sudo bash /opt/kingdomengineNext/deploy/backup.sh` |
 | Lister les sauvegardes | `ls -lh /var/backups/kingdomengineNext` |
 
-**La mise à jour** sauvegarde d’abord, récupère le code, compile et lance les tests. Si un test échoue, le service n’est **pas** redémarré : l’ancienne version reste en ligne.
+**La mise à jour** sauvegarde d’abord, récupère le code, compile et lance les tests. Si un test échoue, le code précédent est remis en place et le service n’est **pas** redémarré : l’ancienne version reste en ligne.
+
+**Mise à jour automatique.** Toutes les 5 minutes, le serveur regarde si la branche `kingdomengine4` a changé sur GitHub. Si oui, il lance cette même mise à jour, sans que tu aies besoin de te connecter au serveur :
+
+- elle est **reportée** tant que des joueurs ont joué dans les 15 dernières minutes : une partie n’est jamais coupée ;
+- une version dont les tests échouent n’est **pas** installée, et elle n’est pas retentée toutes les 5 minutes : le serveur attend la version suivante ;
+- chaque mise à jour fait une sauvegarde `avant-maj_…` (les 10 dernières sont gardées). Les sauvegardes de la nuit ne sont pas concernées.
+
+| Besoin | Commande |
+|---|---|
+| Voir ce qu’elle a fait | `sudo journalctl -u kingdomengineNext-auto-update -n 50` |
+| La couper (ex. pendant la BETA) | `KINGDOM_AUTO_UPDATE=0` dans `/etc/kingdomengineNext.env` |
+| Changer le délai sans joueurs | `KINGDOM_AUTO_UPDATE_QUIET_MINUTES=30` (0 = ne pas attendre) |
+| Forcer tout de suite | `sudo systemctl start kingdomengineNext-auto-update` |
+
+Elle est installée par `install-debian.sh`, ou par une première mise à jour manuelle (`update.sh`) sur une installation existante.
 
 **Les sauvegardes** se font chaque nuit vers 4 h 15, sans arrêter le service. Les 14 dernières sont gardées dans `/var/backups/kingdomengineNext`. Pense à les copier aussi ailleurs que sur le serveur.
 

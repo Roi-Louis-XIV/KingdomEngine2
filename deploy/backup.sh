@@ -9,6 +9,7 @@ NAME="$(basename "$APP_DIR")"
 DATA_DIR="${KINGDOM_DATA_DIR:-/var/lib/$NAME}"
 BACKUP_DIR="${KINGDOM_BACKUP_DIR:-/var/backups/$NAME}"
 KEEP="${KINGDOM_BACKUP_KEEP:-14}"
+PREFIX="${KINGDOM_BACKUP_PREFIX:-kingdom}"
 STAMP="$(date +%Y-%m-%d_%H%M%S)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -28,10 +29,10 @@ else
 fi
 [ -d "$DATA_DIR/audio" ] && cp -a "$DATA_DIR/audio" "$WORK/audio"
 
-ARCHIVE="$BACKUP_DIR/kingdom_$STAMP.tar.gz"
+ARCHIVE="$BACKUP_DIR/${PREFIX}_$STAMP.tar.gz"
 tar -czf "$ARCHIVE" -C "$WORK" .
 chmod 640 "$ARCHIVE"
 echo "Sauvegarde : $ARCHIVE ($(du -h "$ARCHIVE" | cut -f1))"
 
 # Rotation
-ls -1t "$BACKUP_DIR"/kingdom_*.tar.gz 2>/dev/null | tail -n +"$((KEEP + 1))" | xargs -r rm -f
+ls -1t "$BACKUP_DIR"/"$PREFIX"_*.tar.gz 2>/dev/null | tail -n +"$((KEEP + 1))" | xargs -r rm -f

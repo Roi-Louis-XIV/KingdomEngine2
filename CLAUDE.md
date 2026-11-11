@@ -23,7 +23,8 @@ Plateforme no-code de mondes interactifs pour Discord, pour Payen Studio (Louis)
 4. **La voix et l'audio ne bloquent jamais le jeu.**
 5. **Interface en français**, phrases simples, vocabulaire de l'utilisateur (pas de jargon technique). Direction visuelle (demandée par Louis) : fond noir, texte blanc très contrasté, **vert bouteille `#0a6b45`** en aplat aux seuls endroits forts (actif, actions principales, blason), vert clair `#34c27d` pour liens et focus, laiton `#e0b04f` et rouge `#f05252` pour les alertes, titres en serif. L'aperçu Discord garde les couleurs de Discord.
 6. Chaque fonctionnalité arrive avec ses tests (`node:test`). Les limites Discord Components V2 sont vérifiées par `validateRendered`.
-7. Ne pas fusionner dans `main` ni déployer en production sans l'accord de Louis.
+7. Ne pas fusionner dans `main` sans l'accord de Louis.
+8. **Pousser sur `kingdomengine4` déploie** : le serveur de Louis (`kingdomengineNext`) se met à jour tout seul depuis GitHub toutes les 5 minutes (`deploy/auto-update.sh`, reporté si des joueurs ont joué dans les 15 dernières minutes, version refusée si `npm test` échoue). Ne pousser que du code qui passe `npm test` et dont les migrations sont additives.
 
 ## État actuel
 - Phases 0, 1 et 2 terminées (moteur, plateforme, Studio, bot, voix, outils, activités, objectifs, édition visuelle). Phase 3 en cours : météo, événements programmés et quêtes faits (`packages/engine/src/clock.ts`, `quests.ts`, `Engine.tick()` appelé toutes les 5 s par `apps/server/src/main.ts`, page Studio « En direct »). Bêta prête : `content/sainte-pelle`. Voir `docs/ROADMAP.md`.
