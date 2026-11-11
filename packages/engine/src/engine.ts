@@ -158,6 +158,21 @@ export class Engine {
     if (this.state.sessions[sessionId]) this.transact((d) => void delete d.sessions[sessionId]);
   }
 
+  /** Joueur et bâtiment d'une interface ouverte. */
+  session(sessionId: Id): { player: Id; building: Id } | undefined {
+    const s = this.state.sessions[sessionId];
+    return s ? { player: s.player, building: s.building } : undefined;
+  }
+
+  /** Ferme toutes les interfaces d'un joueur dans un bâtiment (sortie du salon vocal). Renvoie les sessions fermées. */
+  closeSessionsOf(playerId: Id, buildingId?: Id): Id[] {
+    const ids = Object.values(this.state.sessions)
+      .filter((s) => s.player === playerId && (!buildingId || s.building === buildingId))
+      .map((s) => s.id);
+    if (ids.length) this.transact((d) => ids.forEach((id) => delete d.sessions[id]));
+    return ids;
+  }
+
   /**
    * Intervention d'administration / de test : applique des actions à un joueur, de façon atomique.
    * buildingId n'est nécessaire que pour les actions visant un inventaire de bâtiment.

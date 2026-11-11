@@ -12,7 +12,7 @@
                     │  Runtimes : un Engine par serveur ◀── publication        │
                     │     │  signaux « changed / reloaded / engine »          │
                     │     ▼                                                    │
- Discord ◀──────────┤  CoreBot (discord.js) : commandes, interfaces, salons    │
+ Discord ◀──────────┤  CoreBot (discord.js) : accès vocal, entrées, interfaces │
                     │  VoiceWorkers (@discordjs/voice) : présences vocales     │
                     └──────────────────────────────────────────────────────────┘
                                      ▲
@@ -59,8 +59,24 @@ Chaque requête vérifie le droit côté serveur. Un monde inaccessible répond 
 
 - **Brouillon.** Le Studio édite une copie locale du monde. La barre d’enregistrement apparaît dès qu’il y a une modification.
 - **Concurrence.** L’enregistrement envoie la révision lue ; si quelqu’un a enregistré entre-temps, le serveur répond 409.
-- **Publication.** `validateWorld` doit être sans erreur. La version précédente est archivée, le moteur rechargé à chaud, les commandes Discord du serveur réenregistrées.
+- **Publication.** `validateWorld` doit être sans erreur. La version précédente est archivée, le moteur rechargé à chaud, les panneaux d’entrée des bâtiments mis à jour sur Discord.
 - **Restauration.** Toute version archivée peut redevenir le brouillon.
+
+## Discord : entrer dans un bâtiment
+
+Mécanique reprise de KingdomEngine2. **Aucune commande slash : tout se fait au clic.**
+
+1. Chaque bâtiment a un **salon vocal** (la porte, avec l’ambiance) et un **salon texte** caché à tous et en lecture seule.
+2. Rejoindre le salon vocal donne au joueur le droit de **voir** le salon texte (permission propre au membre, sans droit d’écrire). Il y trouve un seul message : le **panneau d’entrée** commun (`entrancePanel`, texte et bouton réglables dans l’onglet Général du bâtiment).
+3. « Entrer » ouvre l’**interface personnelle** du joueur (message éphémère, visible de lui seul) sur l’écran d’accueil. Chaque clic **modifie ce message sur place**. Une seule interface par joueur et par bâtiment.
+4. Quitter le salon vocal **efface** ses interfaces, ferme ses sessions et retire l’accès au salon texte. Au retour, il ne voit que l’entrée.
+
+Détails techniques :
+- `discord/access.ts` : règles pures et testées (permissions, déplacements vocaux, réconciliation, nettoyage). `packages/engine/src/entrance.ts` : le panneau, partagé avec l’émulateur du Studio (« Tester » commence devant l’entrée, avec un bouton pour quitter le salon vocal).
+- Le bouton d’entrée a un identifiant sans état (`ke:enter|<bâtiment>`) : il fonctionne après un redémarrage.
+- Au démarrage, à la publication et via « Remettre les salons en ordre » (page Discord & voix), le bot vérifie les permissions, redonne l’accès aux joueurs réellement présents, retire celui des absents, met à jour le panneau et supprime tout autre message. Un message posté malgré tout (par un administrateur) est supprimé aussitôt.
+- Un jeton d’interaction Discord vit 15 minutes : passé ce délai sans clic, l’interface n’est plus rafraîchie automatiquement (le prochain clic la remet à jour).
+- Permissions du bot : Voir les salons, Envoyer des messages, Lire l’historique, Gérer les messages, Gérer les salons, Gérer les rôles (pour les permissions de salon), Se connecter. Intents : Guilds, GuildVoiceStates, GuildMessages (aucun intent privilégié).
 
 ## Voix
 

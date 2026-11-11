@@ -15,8 +15,11 @@ export interface DiscordBridge {
   guild(guildId: string): Promise<{ inGuild: boolean; name?: string; members?: number; channels: GuildChannel[] }>;
   /** Crée (ou retrouve) la catégorie et les salons texte/vocal de chaque bâtiment. */
   provision(serverId: string, buildingIds?: string[]): Promise<Record<string, BuildingChannels>>;
-  /** Réenregistre les commandes du serveur (après publication). */
-  syncCommands(serverId: string): Promise<void>;
+  /**
+   * Met les salons des bâtiments en conformité (accès par le salon vocal, lecture seule,
+   * panneau d'entrée à jour). force : tout revérifier, même si rien n'a changé.
+   */
+  syncBuildings(serverId: string, force?: boolean): Promise<void>;
 }
 
 export interface VoiceBridge {
@@ -37,7 +40,7 @@ export const offlineDiscord: DiscordBridge = {
   provision: async () => {
     throw new Error('Bot principal non connecté : renseigne KINGDOM_CORE_TOKEN puis redémarre.');
   },
-  syncCommands: async () => {},
+  syncBuildings: async () => {},
 };
 
 export const offlineVoice: VoiceBridge = {

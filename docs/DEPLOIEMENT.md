@@ -98,5 +98,5 @@ sudo systemctl start kingdomengineNext
 
 - **Le service ne démarre pas** : lance `sudo journalctl -u kingdomengineNext -n 50`. La cause est presque toujours une erreur dans `/etc/kingdomengineNext.env` ou un port déjà pris.
 - **« Studio non compilé »** : lance `sudo runuser -u kingdomnext -- bash -c 'cd /opt/kingdomengineNext && npm run build'`.
-- **Le bot reste hors ligne** : vérifie le jeton, puis l’intent par défaut dans le Developer Portal. Le journal affiche « ✅ Bot principal connecté » quand tout va bien.
+- **Le bot reste hors ligne** : vérifie le jeton. Aucun intent privilégié n’est nécessaire. Le journal affiche « ✅ Bot principal connecté » quand tout va bien.
 - **Pas de son** : `ffmpeg -version` doit répondre. Les sons doivent être importés dans la Médiathèque avec les clés attendues.

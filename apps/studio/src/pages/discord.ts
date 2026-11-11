@@ -42,7 +42,7 @@ export async function discordPage(main: HTMLElement) {
           h(
             'div',
             null,
-            h('p', null, 'Chaque bâtiment reçoit un salon texte (pour sa commande) et un salon vocal (pour son ambiance).'),
+            h('p', null, 'Chaque bâtiment reçoit un salon vocal (la porte d’entrée, avec son ambiance) et un salon texte en lecture seule, visible seulement par les joueurs présents dans le salon vocal. Le bot y place le panneau d’entrée ; tout se fait au clic, sans commande.'),
             manager && d.guild.inGuild
               ? h(
                   'button',
@@ -60,6 +60,26 @@ export async function discordPage(main: HTMLElement) {
                     },
                   },
                   'Créer les salons manquants',
+                )
+              : null,
+            manager && d.guild.inGuild
+              ? h(
+                  'button',
+                  {
+                    class: 'btn ghost',
+                    title: 'Revérifie les permissions des salons texte, l’accès des joueurs présents et le panneau d’entrée de chaque bâtiment',
+                    onclick: async (e: Event) => {
+                      (e.target as HTMLButtonElement).disabled = true;
+                      try {
+                        await post(`/api/servers/${s.id}/discord/sync`, {});
+                        toast('Salons remis en ordre : panneaux d’entrée et accès à jour.');
+                      } catch (err) {
+                        toast((err as Error).message, 'error');
+                      }
+                      (e.target as HTMLButtonElement).disabled = false;
+                    },
+                  },
+                  'Remettre les salons en ordre',
                 )
               : null,
             w?.buildings.length

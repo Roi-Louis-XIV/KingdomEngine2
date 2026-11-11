@@ -45,7 +45,7 @@ export async function playersPage(main: HTMLElement) {
             h('input', { class: 'search', type: 'search', placeholder: 'Rechercher un joueur…', 'aria-label': 'Rechercher un joueur', oninput: (e: Event) => ((q = (e.target as HTMLInputElement).value), draw()) }),
             h('table', { class: 'grid' }, h('thead', null, h('tr', null, h('th', null, 'Joueur'), h('th', null, 'Métier'), currency ? h('th', { class: 'r' }, currency.name) : null, h('th', { class: 'r' }, 'Vu'))), list),
           ]
-        : emptyState('Aucun joueur pour l’instant', 'Les joueurs apparaissent ici dès leur première commande sur Discord.'),
+        : emptyState('Aucun joueur pour l’instant', 'Les joueurs apparaissent ici dès leur première entrée dans un bâtiment sur Discord.'),
     ),
   );
   void page;

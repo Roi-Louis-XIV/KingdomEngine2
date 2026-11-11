@@ -64,7 +64,8 @@ Légende : ✅ fait · 🟡 partiel · ⏳ planifié (phase indiquée)
 
 | KE2 | KE4 | État |
 |---|---|---|
-| KingdomCore multi-serveurs, commandes générées depuis les données | Bot unique, un moteur par serveur, commandes par serveur | ✅ P1 |
+| KingdomCore multi-serveurs | Bot unique, un moteur par serveur | ✅ P1 |
+| Accès par le salon vocal, salon texte en lecture seule, panneau d’entrée commun, interface éphémère, nettoyage à la sortie | `discord/access.ts` + `discord/core.ts`, panneau réglable dans le Studio, émulateur fidèle | ✅ |
 | Interfaces mono-message, anciens boutons repris au redémarrage | `customId` sans état | ✅ |
 | Lien d’invitation de KingdomCore | Bouton dans « Discord & voix » | ✅ P1 |
 | Provisionnement : catégorie, salons texte/vocal par bâtiment, rôles | Création des salons d’un bâtiment depuis le Studio | 🟡 P1 (rôles ⏳ P2) |

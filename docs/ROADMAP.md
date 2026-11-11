@@ -9,7 +9,7 @@ Moteur générique et atomique, Taverne d’Edgar V11 en pur contenu, émulateur
 - Serveur unique : comptes, sessions, droits à quatre niveaux, plusieurs mondes par compte, modèles de départ.
 - Contenu versionné : brouillon, conflits, validation, publication à chaud, restauration, audit.
 - Supervision : vue d’ensemble en direct, alertes, scénario, réserves, postes, activité, fiches joueurs, interventions auditées.
-- Discord : bot unique multi-serveurs, commandes générées, création des salons des bâtiments.
+- Discord : bot unique multi-serveurs, accès aux bâtiments par le salon vocal (salon texte en lecture seule, panneau d’entrée, interface personnelle effacée à la sortie, aucune commande slash), création des salons des bâtiments.
 - Voix : pool de Voice Workers, présences automatiques, identité du personnage, ambiance selon le scénario, sons d’action, médiathèque.
 - Studio : navigation, sélecteur de serveur, éditeurs de bâtiments (modules, écrans, audio), catalogue, émulateur intégré, publication, Discord & voix, administration, mode mobile.
 

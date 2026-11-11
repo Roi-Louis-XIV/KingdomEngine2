@@ -363,6 +363,8 @@ textarea.code { font-family: var(--mono); font-size: .82rem; line-height: 1.45; 
 .d-btn.primary { background: #5865f2; } .d-btn.secondary { background: #4e5058; } .d-btn.success { background: #248046; } .d-btn.danger { background: #da373c; }
 .d-select { background: #1e1f22; border: 1px solid #1e1f22; color: #dbdee1; border-radius: 8px; width: 100%; }
 .d-ephemeral { margin-top: 10px; font-size: 13px; color: #949ba4; background: #2b2d31; padding: 8px 10px; border-radius: 8px; }
+.d-ephemeral-head { font-size: 12px; color: #949ba4; margin: 2px 0 6px; }
+.emu-screen > .chip { margin-top: 10px; }
 .d-limit { margin-top: 10px; font-size: 13px; color: #f0b232; }
 
 /* ---------- Connexion ---------- */

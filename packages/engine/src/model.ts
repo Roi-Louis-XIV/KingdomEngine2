@@ -225,6 +225,8 @@ export interface BuildingDef {
   /** Couleur d'accent par défaut des encadrés (0xRRGGBB). */
   accentColor?: number;
   npc?: { name: string; emoji?: string; title?: string; avatarUrl?: string };
+  /** Panneau d'entrée affiché dans le salon texte du bâtiment (avant d'entrer). */
+  entrance?: { text?: string; button?: string; buttonEmoji?: string };
   /** Audio du salon vocal du bâtiment (joué par un Voice Worker). */
   audio?: BuildingAudio;
   modules: ModuleDef[];

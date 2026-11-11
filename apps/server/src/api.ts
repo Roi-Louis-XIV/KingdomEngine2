@@ -110,7 +110,7 @@ export function registerApi(router: Router, deps: ApiDeps) {
 
   router.post('/api/servers', (r) => {
     const s = platform.createServer(me(r), { name: String(r.body.name ?? ''), guildId: r.body.guildId, template: String(r.body.template ?? 'vierge') });
-    void deps.discord.syncCommands(s.id).catch(() => {});
+    void deps.discord.syncBuildings(s.id, true).catch(() => {});
     return s;
   });
 
@@ -122,7 +122,7 @@ export function registerApi(router: Router, deps: ApiDeps) {
   router.put('/api/servers/:id', (r) => {
     const s = server(r, 'owner');
     const out = platform.updateServer(s.id, me(r), { name: r.body.name, guildId: r.body.guildId });
-    void deps.discord.syncCommands(s.id).catch(() => {});
+    void deps.discord.syncBuildings(s.id, true).catch(() => {});
     deps.voice.refresh();
     return out;
   });
@@ -182,7 +182,7 @@ export function registerApi(router: Router, deps: ApiDeps) {
     deps.voice.refresh();
     let discordSync: string | null = null;
     try {
-      await deps.discord.syncCommands(s.id);
+      await deps.discord.syncBuildings(s.id, true);
     } catch (e) {
       discordSync = (e as Error).message;
     }
@@ -429,6 +429,7 @@ export function registerApi(router: Router, deps: ApiDeps) {
       throw new HttpError(502, (e as Error).message);
     }
     platform.setSetting(s.id, 'discord.channels', { ...channelsOf(s.id), ...created });
+    await deps.discord.syncBuildings(s.id, true).catch(() => {});
     platform.audit(s.id, me(r).id, 'discord.provision', `Salons créés ou vérifiés : ${Object.keys(created).length} bâtiment(s)`);
     deps.voice.refresh();
     return channelsOf(s.id);
@@ -441,13 +442,14 @@ export function registerApi(router: Router, deps: ApiDeps) {
     all[building] = { text: r.body.text || undefined, voice: r.body.voice || undefined };
     platform.setSetting(s.id, 'discord.channels', all);
     platform.audit(s.id, me(r).id, 'discord.channels', `Salons du bâtiment ${building} modifiés`);
+    void deps.discord.syncBuildings(s.id, true).catch(() => {});
     deps.voice.refresh();
     return all;
   });
 
   router.post('/api/servers/:id/discord/sync', async (r) => {
     const s = server(r, 'manager');
-    await deps.discord.syncCommands(s.id);
+    await deps.discord.syncBuildings(s.id, true);
     return { ok: true };
   });
 

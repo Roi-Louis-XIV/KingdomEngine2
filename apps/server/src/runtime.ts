@@ -106,6 +106,15 @@ export class Runtimes {
     return r;
   }
 
+  /** Sortie d'un bâtiment : ferme les interfaces du joueur (elles ne reviennent pas au retour). */
+  leave(serverId: string, playerId: string, buildingId?: string): string[] {
+    const engine = this.engine(serverId);
+    if (!engine) return [];
+    const closed = engine.closeSessionsOf(playerId, buildingId);
+    if (closed.length) this.persist(serverId);
+    return closed;
+  }
+
   view(serverId: string, sessionId: string): View | undefined {
     const engine = this.engine(serverId);
     if (!engine) return undefined;

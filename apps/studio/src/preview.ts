@@ -2,7 +2,7 @@
  * Émulateur Discord intégré : exécute le vrai moteur sur le brouillon, dans le navigateur,
  * avec des joueurs fictifs et une horloge accélérable. Rien n'est envoyé au serveur.
  */
-import { Engine, validateRendered, type RenderedMessage, type RTopLevel, type RButton, type RSelect, type WorldDef } from '../../../packages/engine/src/index.ts';
+import { Engine, entrancePanel, parseEnter, validateRendered, type RenderedMessage, type RTopLevel, type RButton, type RSelect, type WorldDef } from '../../../packages/engine/src/index.ts';
 import { h, clear, esc } from './ui.ts';
 
 const NAMES = ['Perceval', 'Guenièvre', 'Bohort', 'Iseult'];
@@ -110,11 +110,30 @@ export class Emulator {
     this.el.remove();
   }
 
+  /** Interface ouverte du joueur dans ce bâtiment (null : il est devant l'entrée). */
   private session(): string | null {
     const p = this.players[this.current]!;
-    if (!this.building) return null;
-    p.sessions[this.building] ??= this.engine.openSession(p.id, this.building).sessionId;
-    return p.sessions[this.building]!;
+    const sid = this.building ? p.sessions[this.building] : undefined;
+    if (sid && this.engine.session(sid)) return sid;
+    if (this.building) delete p.sessions[this.building];
+    return null;
+  }
+
+  /** Comme sur Discord : on entre par le bouton du panneau, on sort en quittant le salon vocal. */
+  private enter() {
+    const p = this.players[this.current]!;
+    this.engine.closeSessionsOf(p.id, this.building);
+    p.sessions[this.building] = this.engine.openSession(p.id, this.building).sessionId;
+    this.notice = null;
+    this.render();
+  }
+
+  private leave() {
+    const p = this.players[this.current]!;
+    this.engine.closeSessionsOf(p.id, this.building);
+    delete p.sessions[this.building];
+    this.notice = null;
+    this.render();
   }
 
   private lastJson = '';
@@ -123,10 +142,12 @@ export class Emulator {
     const p = this.players[this.current]!;
     const names = new Map(this.players.map((x) => [x.id, x.name]));
     const view = sid ? this.engine.view(sid) : null;
-    const json = JSON.stringify(view?.message) + this.notice + this.current + this.building;
+    const b = this.world.buildings.find((x) => x.id === this.building);
+    const shown = view?.message ?? (b ? entrancePanel(b) : null);
+    const json = JSON.stringify(shown) + this.notice + this.current + this.building;
     if (tick && json === this.lastJson) return;
     this.lastJson = json;
-    const issues = view ? validateRendered(view.message) : [];
+    const issues = shown ? validateRendered(shown) : [];
     const ps = this.engine.player(p.id);
     clear(
       this.el,
@@ -162,7 +183,9 @@ export class Emulator {
         'div',
         { class: 'emu-screen' },
         h('div', { class: 'd-author' }, h('span', { class: 'd-avatar' }, this.world.buildings.find((b) => b.id === this.building)?.emoji ?? '🏰'), h('b', null, this.world.name), h('span', { class: 'd-app' }, 'APP')),
-        view ? renderMessage(view.message, (id, values) => this.act(id, values), names) : h('p', { class: 'muted' }, 'Aucun bâtiment à afficher.'),
+        view ? h('div', { class: 'd-ephemeral-head' }, '👁️ Interface personnelle — seul·e ', p.name, ' la voit') : b ? h('div', { class: 'd-ephemeral-head' }, '🔊 ', p.name, ' est dans le salon vocal : il voit l’entrée du bâtiment') : null,
+        shown ? renderMessage(shown, (id, values) => (parseEnter(id) ? this.enter() : this.act(id, values)), names) : h('p', { class: 'muted' }, 'Aucun bâtiment à afficher.'),
+        view ? h('button', { class: 'chip', onclick: () => this.leave(), title: 'Simule la sortie du salon vocal : l’interface disparaît' }, '🚶 Quitter le salon vocal') : null,
         this.notice ? h('div', { class: 'd-ephemeral' }, '👁️ Seul·e toi peux voir ceci — ', this.notice) : null,
         issues.length ? h('div', { class: 'd-limit' }, '⚠️ Limites Discord dépassées : ', issues.join(' · ')) : null,
       ),

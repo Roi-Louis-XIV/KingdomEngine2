@@ -1,4 +1,5 @@
 import type { Block, BuildingDef, ButtonDef, ModuleDef, ScreenDef, WidgetDef, WorldDef, SoundChoice } from '../../../../packages/engine/src/index.ts';
+import { DEFAULT_ENTRANCE_TEXT } from '../../../../packages/engine/src/index.ts';
 import { h, clear, field, selectField, toast, modal, confirmDialog, emptyState, uniqueId } from '../ui.ts';
 import { get } from '../api.ts';
 import { can, draft, server, state, touch } from '../store.ts';
@@ -69,7 +70,7 @@ export async function buildingsPage(main: HTMLElement) {
               ),
             ),
           )
-        : emptyState('Aucun bâtiment', 'Crée ton premier bâtiment : il deviendra une commande Discord.', can('editor') ? { label: 'Nouveau bâtiment', onclick: create } : undefined),
+        : emptyState('Aucun bâtiment', 'Crée ton premier bâtiment : il aura son salon vocal et son salon texte sur Discord.', can('editor') ? { label: 'Nouveau bâtiment', onclick: create } : undefined),
     ),
   );
 }
@@ -224,6 +225,12 @@ function generalTab(w: WorldDef, b: BuildingDef, changed: () => void) {
     else b.npc = npc;
     changed();
   };
+  const entrance = (b.entrance ?? {}) as NonNullable<BuildingDef['entrance']>;
+  const onEntrance = () => {
+    if (Object.keys(entrance).length) b.entrance = entrance;
+    else delete b.entrance;
+    changed();
+  };
   return h(
     'div',
     { class: 'form' },
@@ -234,6 +241,18 @@ function generalTab(w: WorldDef, b: BuildingDef, changed: () => void) {
       h('h2', null, 'Personnage'),
       h('p', { class: 'muted' }, 'Le personnage tient le bâtiment. Son nom est repris par le bot vocal qui l’incarne.'),
       h('div', { class: 'row-fields' }, field(npc, 'name', { label: 'Nom', placeholder: 'Edgar Brassebarbe' }, onNpc), field(npc, 'title', { label: 'Rôle', placeholder: 'Tavernier' }, onNpc), field(npc, 'emoji', { label: 'Symbole' }, onNpc)),
+    ),
+    h(
+      'section',
+      { class: 'block' },
+      h('h2', null, 'Entrée du bâtiment'),
+      h(
+        'p',
+        { class: 'muted' },
+        'Sur Discord, on entre par le salon vocal du bâtiment : son salon texte apparaît alors, avec ce panneau. Le clic sur le bouton ouvre l’écran d’accueil, visible du seul joueur. En quittant le salon vocal, tout disparaît.',
+      ),
+      field(entrance, 'text', { label: 'Texte du panneau', type: 'textarea', placeholder: DEFAULT_ENTRANCE_TEXT }, onEntrance),
+      h('div', { class: 'row-fields' }, field(entrance, 'button', { label: 'Bouton', placeholder: 'Entrer' }, onEntrance), field(entrance, 'buttonEmoji', { label: 'Symbole du bouton', placeholder: '🚪' }, onEntrance)),
     ),
     h(
       'section',
