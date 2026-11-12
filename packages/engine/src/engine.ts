@@ -13,6 +13,7 @@ import { type Ctx, type EngineEvent, RuleError, applyAction, describeChanges, ev
 import { handleWidget, renderWidget, text, type WidgetEnv } from './widgets.ts';
 import { DEFAULT_TZ, describeSchedule, nextRun, rollWeather } from './clock.ts';
 import { dropExpiredQuest, questVisit } from './quests.ts';
+import { expireDuels } from './combat.ts';
 import type { EventDef } from './model.ts';
 import type { EventRunState } from './state.ts';
 
@@ -146,12 +147,12 @@ export class Engine {
   // -------------------------------------------------------------------------
 
   /** Ouvre l'interface d'un bâtiment pour un joueur (un message Discord). */
-  openSession(playerId: Id, buildingId: Id): { sessionId: Id; view: View } {
+  openSession(playerId: Id, buildingId: Id, name?: string): { sessionId: Id; view: View } {
     const b = this.building(buildingId);
     const sessionId = this.transact((draft) => {
       draft.players[playerId] ??= newPlayer(this.world);
       const id = this.newId();
-      const session: SessionState = { id, player: playerId, building: b.id, screen: b.homeScreen, ui: {}, createdAt: this.now() };
+      const session: SessionState = { id, player: playerId, building: b.id, screen: b.homeScreen, ui: {}, createdAt: this.now(), ...(name ? { name } : {}) };
       draft.sessions[id] = session;
       // Entrer dans un lieu fait avancer les quêtes « visiter ».
       const ctx = this.ctx(draft, session);
@@ -325,6 +326,8 @@ export class Engine {
       if (st.nextRunAt === null) st.nextRunAt = nextRun(ev.schedule, ctx.now - 1, this.tz, st.startedAt);
       if (st.nextRunAt !== null && ctx.now >= st.nextRunAt) this.startEvent(ctx, ev, st);
     }
+    // Duels : défis sans réponse et tours non joués.
+    if (draft.duels && Object.keys(draft.duels).length) expireDuels(ctx, ctx.now);
     const changed = before !== JSON.stringify(draft);
     if (changed || ctx.events.length) {
       draft.revision += 1;

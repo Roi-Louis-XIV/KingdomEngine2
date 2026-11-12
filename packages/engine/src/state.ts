@@ -23,8 +23,38 @@ export interface PlayerState {
   questDraws?: number;
   /** Instant du dernier nouveau tirage demandé. */
   questRerollAt?: number;
+  /** Combat en cours contre une créature (un seul à la fois). */
+  fight?: FightState;
+  /** Résultat du dernier duel (affiché dans l'arène). */
+  lastDuel?: string;
   /** Instant où le joueur a prêté serment (dotation versée une seule fois). */
   oathAt?: number;
+}
+
+export interface FightState {
+  /** Clé `${bâtiment}/${module}`. */
+  key: string;
+  creature: Id;
+  hp: number;
+  round: number;
+  log: string[];
+}
+
+/** Duel entre deux joueurs : en attente de réponse, puis tour par tour. */
+export interface DuelState {
+  id: Id;
+  /** Clé `${bâtiment}/${module}`. */
+  key: string;
+  challenger: Id;
+  target: Id;
+  status: 'pending' | 'active';
+  createdAt: number;
+  /** Joueur qui doit jouer, et limite pour le faire. */
+  turn: Id;
+  deadline: number;
+  hp: Record<Id, number>;
+  guard: Record<Id, boolean>;
+  log: string[];
 }
 
 export interface ObjectiveState {
@@ -46,6 +76,8 @@ export interface SessionState {
   player: Id;
   building: Id;
   screen: Id;
+  /** Nom affiché du joueur (pour les autres joueurs : duels…). */
+  name?: string;
   notice?: string;
   /** État d'interface propre à chaque widget (filtres, sélections…). */
   ui: Record<string, unknown>;
@@ -66,6 +98,8 @@ export interface WorldState {
   objectives: Record<string, ObjectiveState>;
   weather?: { value: string; since: number; until: number; auto: boolean };
   events: Record<Id, EventRunState>;
+  /** Duels en cours ou proposés. */
+  duels?: Record<Id, DuelState>;
 }
 
 export type EventStatus = 'idle' | 'running' | 'paused' | 'finished';

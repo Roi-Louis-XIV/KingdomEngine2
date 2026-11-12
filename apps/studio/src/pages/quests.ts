@@ -35,6 +35,12 @@ function knownTags(w: WorldDef): { value: string; label: string }[] {
       if (m.type === 'dice') out.push({ value: `dice:${b.id}/${m.id}:win`, label: `${b.name} › gagner aux dés` });
     }
   }
+  if (w.buildings.some((b) => b.modules.some((m) => m.type === 'combat'))) {
+    out.push({ value: 'combat:win', label: 'Vaincre une créature (n’importe laquelle)' });
+    for (const c of w.creatures ?? []) out.push({ value: `combat:win:${c.id}`, label: `Vaincre ${c.emoji ?? ''} ${c.name}`.replace('  ', ' ') });
+    out.push({ value: 'combat:lose', label: 'Être mis à terre par une créature' });
+  }
+  if (w.buildings.some((b) => b.modules.some((m) => m.type === 'combat' && m.duels))) out.push({ value: 'duel:win', label: 'Gagner un duel' }, { value: 'duel:fought', label: 'Livrer un duel (gagné ou perdu)' });
   for (const it of w.items) if (it.consumable) out.push({ value: `consume:${it.id}`, label: `Consommer ${it.name}` });
   out.push({ value: 'repair', label: 'Faire réparer un outil' });
   // Repères posés par l'action « Faire avancer les quêtes ».

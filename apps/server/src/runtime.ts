@@ -101,7 +101,7 @@ export class Runtimes {
   open(serverId: string, player: { id: string; name: string; avatarUrl?: string | null }, buildingId: string): { sessionId: string; view: View } {
     const engine = this.require(serverId);
     this.platform.touchPlayer(serverId, player.id, player.name, player.avatarUrl);
-    const r = engine.openSession(player.id, buildingId);
+    const r = engine.openSession(player.id, buildingId, player.name);
     this.persist(serverId);
     return r;
   }

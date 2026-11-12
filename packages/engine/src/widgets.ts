@@ -27,6 +27,7 @@ import {
 } from './rules.ts';
 import { STARS, abandonQuest, acceptQuest, currentOffers, findQuest, nextLevel, questDeliver, questLevel, questTag, rerollOffers, stepDone, stepTarget } from './quests.ts';
 import type { QuestDef } from './model.ts';
+import { equipmentTotals, handleCombat, renderCombat } from './combat.ts';
 
 export interface WidgetEnv {
   ctx: Ctx;
@@ -762,6 +763,9 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
       out.push({ type: 'row', items: [button(env.id('roll'), st.me.length ? '🔄 Rejouer' : '🎲 Lancer les dés', 'success')] });
       return out;
     }
+
+    case 'combat.arena':
+      return renderCombat(env, findModule(ctx.building, w.combat, 'combat'), w.accent);
   }
 }
 
@@ -906,17 +910,7 @@ export function activityCosts(ctx: Ctx, a: ActivityDef): Action[] {
   });
 }
 
-/** Attaque et défense totales (meilleur objet de chaque emplacement). */
-export function equipmentTotals(ctx: Ctx): { attack: number; defense: number } {
-  const best = new Map<string, { attack: number; defense: number }>();
-  for (const [id, q] of Object.entries(ctx.player.items)) {
-    const eq = q > 0 ? findItem(ctx.world, id)?.equipment : undefined;
-    if (!eq) continue;
-    const cur = best.get(eq.slot) ?? { attack: 0, defense: 0 };
-    best.set(eq.slot, { attack: Math.max(cur.attack, eq.attack ?? 0), defense: Math.max(cur.defense, eq.defense ?? 0) });
-  }
-  return [...best.values()].reduce((s, v) => ({ attack: s.attack + v.attack, defense: s.defense + v.defense }), { attack: 0, defense: 0 });
-}
+export { equipmentTotals } from './combat.ts';
 
 function rollResults(a: ActivityDef, random: () => number, weights: number[] = a.results.map((r) => r.weight)): number[] {
   const total = weights.reduce((s, x) => s + Math.max(0, x), 0);
@@ -1264,6 +1258,9 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
       }
       return {};
     }
+
+    case 'combat.arena':
+      return handleCombat(env, findModule(ctx.building, w.combat, 'combat'), verb, arg, values);
 
     case 'quest.board': {
       if (verb === 'accept') {

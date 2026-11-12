@@ -10,6 +10,7 @@ const TABS = [
   ['metiers', 'Métiers'],
   ['variables', 'Variables du monde'],
   ['personnages', 'Personnages'],
+  ['bestiaire', 'Bestiaire'],
   ['serment', 'Serment d’arrivée'],
   ['regles', 'Règles générales'],
 ] as const;
@@ -213,6 +214,44 @@ export async function catalogPage(main: HTMLElement, params: string[]) {
                 }, '+ Réplique de vie'),
               ),
               changed, redraw),
+      );
+      break;
+    }
+    case 'bestiaire': {
+      const items = w.items.map((i) => ({ value: i.id, label: `${i.emoji ?? ''} ${i.name}`.trim() }));
+      w.creatures ??= [];
+      body.append(
+        h('p', { class: 'muted' }, 'Les créatures que les joueurs affrontent au tour par tour. Un module « Combat » dans un bâtiment choisit lesquelles y rôdent, et quand. Dégâts d’un coup : attaque (±20 %) moins la moitié de la défense de la cible, au moins 1.'),
+        listEditor(w.creatures, 'créature', () => ({ id: uniqueId('creature', w.creatures!.map((c) => c.id)), name: 'Nouvelle créature', emoji: '🐺', hp: 20, attack: 4, defense: 1, rewards: [] }), (c) =>
+          h(
+            'div',
+            { class: 'form' },
+            h('div', { class: 'row-fields' }, field(c, 'emoji', { label: 'Symbole' }, changed), field(c, 'name', { label: 'Nom' }, changed), field(c, 'description', { label: 'Description (à son apparition)' }, changed)),
+            h('div', { class: 'row-fields' }, field(c, 'hp', { label: 'Points de vie', type: 'number', min: 1 }, changed), field(c, 'attack', { label: 'Attaque', type: 'number', min: 0 }, changed), field(c, 'defense', { label: 'Défense', type: 'number', min: 0 }, changed), field(c, 'dodge', { label: 'Esquive (0 à 0,9)', type: 'number', min: 0, max: 0.9, step: 0.05 }, changed)),
+            h('div', null, h('b', null, 'Récompenses de la victoire')),
+            effectsEditor(w, c.rewards, changed),
+            h('div', null, h('b', null, 'Butin'), h('p', { class: 'muted small' }, 'Chaque ligne est tirée à part : chance de 0 à 1 (0,5 = une fois sur deux).')),
+            (c.loot ?? []).map((l, i) =>
+              h(
+                'div',
+                { class: 'row-fields' },
+                selectField('Objet', l.item, items, (v) => ((l.item = v), changed())),
+                field(l, 'qty', { label: 'Quantité', type: 'number', min: 1 }, changed),
+                field(l, 'chance', { label: 'Chance', type: 'number', min: 0.01, max: 1, step: 0.05 }, changed),
+                h('button', { class: 'icon-btn', 'aria-label': 'Retirer ce butin', onclick: () => ((c.loot = c.loot!.filter((_, j) => j !== i)), changed(), redraw()) }, '×'),
+              ),
+            ),
+            h('button', { class: 'btn small', onclick: () => ((c.loot ??= []).push({ item: w.items[0]?.id ?? '', qty: 1, chance: 0.5 }), changed(), redraw()) }, '+ Butin'),
+            (() => {
+              const o = { t: (c.taunts ?? []).join(' | ') };
+              return field(o, 't', { label: 'Phrases quand elle attaque (séparées par |)', wide: true }, () => {
+                const list = (o.t ?? '').split('|').map((x) => x.trim()).filter(Boolean);
+                list.length ? (c.taunts = list) : delete c.taunts;
+                changed();
+              });
+            })(),
+          ),
+          changed, redraw),
       );
       break;
     }

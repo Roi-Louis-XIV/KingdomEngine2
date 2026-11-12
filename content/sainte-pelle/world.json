@@ -1289,6 +1289,24 @@
       "max": 1,
       "initial": 0,
       "kind": "value"
+    },
+    {
+      "id": "sante",
+      "name": "Santé",
+      "emoji": "❤️",
+      "min": 0,
+      "max": 100,
+      "initial": 100,
+      "kind": "gauge"
+    },
+    {
+      "id": "gloire",
+      "name": "Gloire",
+      "emoji": "🏅",
+      "min": 0,
+      "initial": 0,
+      "kind": "value",
+      "unit": "gloire"
     }
   ],
   "items": [
@@ -2401,6 +2419,44 @@
       "name": "Assiette du Bourreau",
       "emoji": "🍖",
       "category": "Plats préparés"
+    },
+    {
+      "id": "onguent",
+      "name": "Onguent de Sylvain",
+      "emoji": "🌿",
+      "category": "Soins",
+      "consumable": {
+        "effects": [
+          {
+            "type": "stat.add",
+            "stat": "sante",
+            "amount": 30
+          }
+        ]
+      },
+      "description": "Herbes pilées et graisse d’ours : rend 30 points de santé."
+    },
+    {
+      "id": "fourrure",
+      "name": "Fourrure de loup",
+      "emoji": "🐺",
+      "category": "Trophées",
+      "baseValue": 9
+    },
+    {
+      "id": "defense_sanglier",
+      "name": "Défense de sanglier",
+      "emoji": "🦴",
+      "category": "Trophées",
+      "baseValue": 12
+    },
+    {
+      "id": "oreille_gobelin",
+      "name": "Oreille de gobelin",
+      "emoji": "👂",
+      "category": "Trophées",
+      "baseValue": 15,
+      "description": "Preuve qu’il y a bien quelque chose au fond de la mine."
     }
   ],
   "modifiers": [
@@ -4332,6 +4388,184 @@
         "success": "« Bon, bon… Tiens, le voilà. Il brillait si joliment au fond de ma chope ! »"
       },
       {
+        "id": "q37",
+        "name": "La bête du bois",
+        "giver": "Sylvain",
+        "difficulty": 1,
+        "when": {
+          "type": "all",
+          "conditions": [
+            {
+              "type": "variable",
+              "variable": "t",
+              "op": "gte",
+              "value": 0
+            },
+            {
+              "type": "variable",
+              "variable": "t",
+              "op": "lt",
+              "value": 85
+            }
+          ]
+        },
+        "steps": [
+          {
+            "id": "loup",
+            "kind": "count",
+            "label": "Vaincre un loup gris (Forêt › Chasser)",
+            "tags": [
+              "combat:win:loup"
+            ],
+            "target": 1
+          }
+        ],
+        "rewards": [
+          {
+            "type": "item.give",
+            "item": "onguent",
+            "qty": 2
+          }
+        ]
+      },
+      {
+        "id": "q38",
+        "name": "Vermine !",
+        "giver": "Roland",
+        "difficulty": 1,
+        "when": {
+          "type": "all",
+          "conditions": [
+            {
+              "type": "variable",
+              "variable": "t",
+              "op": "gte",
+              "value": 0
+            },
+            {
+              "type": "variable",
+              "variable": "t",
+              "op": "lt",
+              "value": 85
+            }
+          ]
+        },
+        "steps": [
+          {
+            "id": "rats",
+            "kind": "count",
+            "label": "Vaincre 3 créatures dans les galeries obscures (Mine)",
+            "tags": [
+              "combat:win:rat",
+              "combat:win:chauve_souris",
+              "combat:win:gobelin"
+            ],
+            "target": 3
+          }
+        ],
+        "rewards": []
+      },
+      {
+        "id": "q39",
+        "name": "Le péage du pont",
+        "giver": "Maëlis",
+        "difficulty": 2,
+        "when": {
+          "type": "variable",
+          "variable": "t",
+          "op": "gte",
+          "value": 0
+        },
+        "steps": [
+          {
+            "id": "brigand",
+            "kind": "count",
+            "label": "Chasser un brigand du vieux pont",
+            "tags": [
+              "combat:win:brigand"
+            ],
+            "target": 1
+          }
+        ],
+        "rewards": [
+          {
+            "type": "stat.add",
+            "stat": "gloire",
+            "amount": 5
+          }
+        ]
+      },
+      {
+        "id": "q40",
+        "name": "Honneur et panache",
+        "giver": "Maëlis",
+        "difficulty": 2,
+        "when": {
+          "type": "variable",
+          "variable": "t",
+          "op": "gte",
+          "value": 0
+        },
+        "steps": [
+          {
+            "id": "duel",
+            "kind": "count",
+            "label": "Gagner un duel (Place › Duels ou Taverne › Bagarre)",
+            "tags": [
+              "duel:win"
+            ],
+            "target": 1
+          }
+        ],
+        "rewards": [],
+        "description": "Le village aime ses champions. Va défier un autre habitant !"
+      },
+      {
+        "id": "q41",
+        "name": "Ce qui grattait au fond",
+        "giver": "Roland",
+        "difficulty": 3,
+        "when": {
+          "type": "all",
+          "conditions": [
+            {
+              "type": "variable",
+              "variable": "t",
+              "op": "gte",
+              "value": 25
+            },
+            {
+              "type": "variable",
+              "variable": "t",
+              "op": "lt",
+              "value": 182
+            }
+          ]
+        },
+        "steps": [
+          {
+            "id": "gobelin",
+            "kind": "count",
+            "label": "Vaincre le gobelin des profondeurs (Mine)",
+            "tags": [
+              "combat:win:gobelin"
+            ],
+            "target": 1
+          },
+          {
+            "id": "oreille",
+            "kind": "deliver",
+            "label": "Rapporter la preuve à Roland",
+            "item": "oreille_gobelin",
+            "qty": 1,
+            "building": "mine"
+          }
+        ],
+        "rewards": [],
+        "unique": true,
+        "ordered": true
+      },
+      {
         "id": "q36",
         "name": "La dîme du Royaume",
         "giver": "Maëlis",
@@ -4707,6 +4941,67 @@
               }
             }
           ]
+        },
+        {
+          "type": "combat",
+          "id": "combat",
+          "name": "🤺 Le cercle des duels",
+          "health": "sante",
+          "base": {
+            "attack": 3,
+            "defense": 1,
+            "dodge": 0.05
+          },
+          "encounters": [],
+          "defeat": {
+            "health": 25,
+            "actions": [
+              {
+                "type": "stat.add",
+                "stat": "ecus",
+                "amount": -10
+              }
+            ],
+            "text": "Tu te réveilles un peu plus tard, la bourse plus légère (−10 écus si tu les avais)."
+          },
+          "heal": {
+            "currency": "ecus",
+            "costPerPoint": 1,
+            "label": "Panser ses blessures"
+          },
+          "duels": {
+            "hp": 30,
+            "turnSec": 90,
+            "rewards": [
+              {
+                "type": "stat.add",
+                "stat": "gloire",
+                "amount": 5
+              },
+              {
+                "type": "stat.add",
+                "stat": "xp",
+                "amount": 5
+              }
+            ],
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "variable",
+                  "variable": "t",
+                  "op": "gte",
+                  "value": 0
+                },
+                {
+                  "type": "variable",
+                  "variable": "monde",
+                  "op": "eq",
+                  "value": "ouvert"
+                }
+              ]
+            }
+          }
         }
       ],
       "screens": [
@@ -4747,7 +5042,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 682821
@@ -4859,6 +5154,15 @@
                     }
                   },
                   "style": "primary"
+                },
+                {
+                  "label": "🤺 Duels",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "combat"
+                    }
+                  },
+                  "style": "danger"
                 },
                 {
                   "label": "🛒 Échoppe",
@@ -5391,6 +5695,7 @@
                 "kind": "player.sheet",
                 "stats": [
                   "energie",
+                  "sante",
                   "alcool"
                 ],
                 "jobs": true,
@@ -5505,6 +5810,72 @@
             },
             {
               "type": "notice"
+            }
+          ]
+        },
+        {
+          "id": "combat",
+          "name": "Combat",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🤺 Le cercle des duels\n*Les habitants font cercle : deux volontaires, des épées émoussées, et toute la gloire du village.*"
+                }
+              ],
+              "accent": 682821
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "combat.arena",
+                "combat": "combat",
+                "accent": 682821
+              }
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "ranking",
+                "stat": "gloire",
+                "title": "🏅 Les plus glorieux",
+                "limit": 5,
+                "accent": 682821
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "↩️ Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "🎒 Mon inventaire",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "combat"
+                    }
+                  }
+                }
+              ]
             }
           ]
         }
@@ -7522,6 +7893,67 @@
               }
             }
           ]
+        },
+        {
+          "type": "combat",
+          "id": "combat",
+          "name": "🤺 Bagarre amicale",
+          "health": "sante",
+          "base": {
+            "attack": 3,
+            "defense": 1,
+            "dodge": 0.05
+          },
+          "encounters": [],
+          "defeat": {
+            "health": 25,
+            "actions": [
+              {
+                "type": "stat.add",
+                "stat": "ecus",
+                "amount": -10
+              }
+            ],
+            "text": "Tu te réveilles un peu plus tard, la bourse plus légère (−10 écus si tu les avais)."
+          },
+          "heal": {
+            "currency": "ecus",
+            "costPerPoint": 1,
+            "label": "Panser ses blessures"
+          },
+          "duels": {
+            "hp": 30,
+            "turnSec": 90,
+            "rewards": [
+              {
+                "type": "stat.add",
+                "stat": "gloire",
+                "amount": 5
+              },
+              {
+                "type": "stat.add",
+                "stat": "xp",
+                "amount": 5
+              }
+            ],
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "variable",
+                  "variable": "t",
+                  "op": "gte",
+                  "value": 0
+                },
+                {
+                  "type": "variable",
+                  "variable": "monde",
+                  "op": "eq",
+                  "value": "ouvert"
+                }
+              ]
+            }
+          }
         }
       ],
       "screens": [
@@ -7856,6 +8288,15 @@
                     }
                   },
                   "style": "success"
+                },
+                {
+                  "label": "🤺 Bagarre",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "combat"
+                    }
+                  },
+                  "style": "danger"
                 },
                 {
                   "label": "📜 Démissionner",
@@ -8281,6 +8722,7 @@
                 "kind": "player.sheet",
                 "stats": [
                   "energie",
+                  "sante",
                   "alcool"
                 ],
                 "jobs": true,
@@ -8740,6 +9182,62 @@
             },
             {
               "type": "notice"
+            }
+          ]
+        },
+        {
+          "id": "combat",
+          "name": "Combat",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🤺 Bagarre amicale\n*Edgar a poussé les tables. « Pas de casse, et le perdant paie sa tournée ! »*"
+                }
+              ],
+              "accent": 8936500
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "combat.arena",
+                "combat": "combat",
+                "accent": 8936500
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "↩️ Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "🎒 Mon inventaire",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "combat"
+                    }
+                  }
+                }
+              ]
             }
           ]
         }
@@ -10165,6 +10663,99 @@
             5,
             10
           ]
+        },
+        {
+          "type": "combat",
+          "id": "combat",
+          "name": "⚔️ Galeries obscures",
+          "health": "sante",
+          "base": {
+            "attack": 3,
+            "defense": 1,
+            "dodge": 0.05
+          },
+          "encounters": [
+            {
+              "creature": "rat",
+              "weight": 5
+            },
+            {
+              "creature": "chauve_souris",
+              "weight": 3
+            },
+            {
+              "creature": "gobelin",
+              "weight": 2,
+              "when": {
+                "type": "variable",
+                "variable": "t",
+                "op": "gte",
+                "value": 25
+              }
+            }
+          ],
+          "costs": [
+            {
+              "type": "stat.add",
+              "stat": "energie",
+              "amount": -4
+            }
+          ],
+          "cooldownSec": 20,
+          "when": {
+            "type": "all",
+            "conditions": [
+              {
+                "type": "variable",
+                "variable": "t",
+                "op": "gte",
+                "value": 0
+              },
+              {
+                "type": "not",
+                "condition": {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 85
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 110
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "variable",
+                "variable": "monde",
+                "op": "eq",
+                "value": "ouvert"
+              }
+            ]
+          },
+          "lockedText": "Pas avant le début de la fête, ni pendant la tempête.",
+          "defeat": {
+            "health": 25,
+            "actions": [
+              {
+                "type": "stat.add",
+                "stat": "ecus",
+                "amount": -10
+              }
+            ],
+            "text": "Tu te réveilles un peu plus tard, la bourse plus légère (−10 écus si tu les avais)."
+          },
+          "heal": {
+            "currency": "ecus",
+            "costPerPoint": 1,
+            "label": "Panser ses blessures"
+          }
         }
       ],
       "screens": [
@@ -10245,7 +10836,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 5989488
@@ -10489,6 +11080,15 @@
                   "style": "primary"
                 },
                 {
+                  "label": "⚔️ Galeries obscures",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "combat"
+                    }
+                  },
+                  "style": "danger"
+                },
+                {
                   "label": "🛒 Échoppe",
                   "rule": {
                     "onSuccess": {
@@ -10545,6 +11145,7 @@
                 "kind": "player.sheet",
                 "stats": [
                   "energie",
+                  "sante",
                   "alcool"
                 ],
                 "jobs": true,
@@ -10628,7 +11229,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 5989488
@@ -10717,7 +11318,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 5989488
@@ -10812,7 +11413,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 5989488
@@ -10913,7 +11514,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 5989488
@@ -11008,7 +11609,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 5989488
@@ -11180,6 +11781,62 @@
                   "rule": {
                     "onSuccess": {
                       "goto": "echoppe-vente"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "combat",
+          "name": "Combat",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## ⚔️ Galeries obscures\n*Au-delà des lanternes, quelque chose gratte la roche…*"
+                }
+              ],
+              "accent": 5989488
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "combat.arena",
+                "combat": "combat",
+                "accent": 5989488
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "↩️ Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "🎒 Mon inventaire",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "combat"
                     }
                   }
                 }
@@ -15178,7 +15835,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 10107677
@@ -15511,6 +16168,7 @@
                 "kind": "player.sheet",
                 "stats": [
                   "energie",
+                  "sante",
                   "alcool"
                 ],
                 "jobs": true,
@@ -15603,7 +16261,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 10107677
@@ -15701,7 +16359,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 10107677
@@ -15799,7 +16457,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 10107677
@@ -15897,7 +16555,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 10107677
@@ -15995,7 +16653,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 10107677
@@ -16093,7 +16751,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 10107677
@@ -17566,6 +18224,139 @@
             5,
             10
           ]
+        },
+        {
+          "type": "combat",
+          "id": "combat",
+          "name": "🏹 Le bois sombre",
+          "health": "sante",
+          "base": {
+            "attack": 3,
+            "defense": 1,
+            "dodge": 0.05
+          },
+          "encounters": [
+            {
+              "creature": "loup",
+              "weight": 4,
+              "when": {
+                "type": "not",
+                "condition": {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 85
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 110
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "creature": "sanglier",
+              "weight": 3,
+              "when": {
+                "type": "not",
+                "condition": {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 85
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 110
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "creature": "loup_orage",
+              "weight": 3,
+              "when": {
+                "type": "variable",
+                "variable": "t",
+                "op": "gte",
+                "value": 110
+              }
+            }
+          ],
+          "costs": [
+            {
+              "type": "stat.add",
+              "stat": "energie",
+              "amount": -4
+            }
+          ],
+          "cooldownSec": 20,
+          "when": {
+            "type": "all",
+            "conditions": [
+              {
+                "type": "variable",
+                "variable": "t",
+                "op": "gte",
+                "value": 0
+              },
+              {
+                "type": "not",
+                "condition": {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 85
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 110
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "variable",
+                "variable": "monde",
+                "op": "eq",
+                "value": "ouvert"
+              }
+            ]
+          },
+          "lockedText": "Pas avant le début de la fête, ni pendant la tempête.",
+          "defeat": {
+            "health": 25,
+            "actions": [
+              {
+                "type": "stat.add",
+                "stat": "ecus",
+                "amount": -10
+              }
+            ],
+            "text": "Tu te réveilles un peu plus tard, la bourse plus légère (−10 écus si tu les avais)."
+          },
+          "heal": {
+            "currency": "ecus",
+            "costPerPoint": 1,
+            "label": "Panser ses blessures"
+          }
         }
       ],
       "screens": [
@@ -17640,7 +18431,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 4156229
@@ -17799,6 +18590,15 @@
                   "style": "primary"
                 },
                 {
+                  "label": "🏹 Chasser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "combat"
+                    }
+                  },
+                  "style": "danger"
+                },
+                {
                   "label": "🛒 Échoppe",
                   "rule": {
                     "onSuccess": {
@@ -17895,6 +18695,7 @@
                 "kind": "player.sheet",
                 "stats": [
                   "energie",
+                  "sante",
                   "alcool"
                 ],
                 "jobs": true,
@@ -17957,7 +18758,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 4156229
@@ -18032,7 +18833,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 4156229
@@ -18107,7 +18908,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 4156229
@@ -18279,6 +19080,62 @@
                   "rule": {
                     "onSuccess": {
                       "goto": "echoppe-vente"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "combat",
+          "name": "Combat",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🏹 Le bois sombre\n*Sous les grands chênes, les bêtes ne sont pas toutes des proies.*"
+                }
+              ],
+              "accent": 4156229
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "combat.arena",
+                "combat": "combat",
+                "accent": 4156229
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "↩️ Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "🎒 Mon inventaire",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "combat"
                     }
                   }
                 }
@@ -19495,7 +20352,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 11570479
@@ -19739,6 +20596,7 @@
                 "kind": "player.sheet",
                 "stats": [
                   "energie",
+                  "sante",
                   "alcool"
                 ],
                 "jobs": true,
@@ -19801,7 +20659,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 11570479
@@ -19869,7 +20727,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 11570479
@@ -20654,6 +21512,85 @@
             5,
             10
           ]
+        },
+        {
+          "type": "combat",
+          "id": "combat",
+          "name": "🗡️ Sous le vieux pont",
+          "health": "sante",
+          "base": {
+            "attack": 3,
+            "defense": 1,
+            "dodge": 0.05
+          },
+          "encounters": [
+            {
+              "creature": "brigand",
+              "weight": 1
+            }
+          ],
+          "costs": [
+            {
+              "type": "stat.add",
+              "stat": "energie",
+              "amount": -4
+            }
+          ],
+          "cooldownSec": 20,
+          "when": {
+            "type": "all",
+            "conditions": [
+              {
+                "type": "variable",
+                "variable": "t",
+                "op": "gte",
+                "value": 0
+              },
+              {
+                "type": "not",
+                "condition": {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 85
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 110
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "variable",
+                "variable": "monde",
+                "op": "eq",
+                "value": "ouvert"
+              }
+            ]
+          },
+          "lockedText": "Pas avant le début de la fête, ni pendant la tempête.",
+          "defeat": {
+            "health": 25,
+            "actions": [
+              {
+                "type": "stat.add",
+                "stat": "ecus",
+                "amount": -10
+              }
+            ],
+            "text": "Tu te réveilles un peu plus tard, la bourse plus légère (−10 écus si tu les avais)."
+          },
+          "heal": {
+            "currency": "ecus",
+            "costPerPoint": 1,
+            "label": "Panser ses blessures"
+          }
         }
       ],
       "screens": [
@@ -20728,7 +21665,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 3894927
@@ -20887,6 +21824,15 @@
                   "style": "success"
                 },
                 {
+                  "label": "🗡️ Sous le pont",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "combat"
+                    }
+                  },
+                  "style": "danger"
+                },
+                {
                   "label": "🎒 Mon inventaire",
                   "rule": {
                     "onSuccess": {
@@ -20956,6 +21902,7 @@
                 "kind": "player.sheet",
                 "stats": [
                   "energie",
+                  "sante",
                   "alcool"
                 ],
                 "jobs": true,
@@ -21018,7 +21965,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 3894927
@@ -21093,7 +22040,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 3894927
@@ -21168,7 +22115,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 3894927
@@ -21340,6 +22287,62 @@
                   "rule": {
                     "onSuccess": {
                       "goto": "echoppe-vente"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "combat",
+          "name": "Combat",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🗡️ Sous le vieux pont\n*L’ombre de l’arche cache plus que des pêcheurs.*"
+                }
+              ],
+              "accent": 3894927
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "combat.arena",
+                "combat": "combat",
+                "accent": 3894927
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "↩️ Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "🎒 Mon inventaire",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "combat"
                     }
                   }
                 }
@@ -21943,7 +22946,7 @@
                 },
                 {
                   "type": "text",
-                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                  "text": "⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                 }
               ],
               "accent": 7232154
@@ -22236,6 +23239,7 @@
                 "kind": "player.sheet",
                 "stats": [
                   "energie",
+                  "sante",
                   "alcool"
                 ],
                 "jobs": true,
@@ -22403,6 +23407,229 @@
         },
         "volume": 0.5
       }
+    }
+  ],
+  "creatures": [
+    {
+      "id": "rat",
+      "name": "Rat des galeries",
+      "emoji": "🐀",
+      "hp": 10,
+      "attack": 3,
+      "defense": 0,
+      "dodge": 0.1,
+      "description": "Gros comme un chat, et tout aussi aimable.",
+      "rewards": [
+        {
+          "type": "stat.add",
+          "stat": "xp",
+          "amount": 3
+        },
+        {
+          "type": "stat.add",
+          "stat": "ecus",
+          "amount": 2
+        }
+      ]
+    },
+    {
+      "id": "chauve_souris",
+      "name": "Nuée de chauves-souris",
+      "emoji": "🦇",
+      "hp": 14,
+      "attack": 4,
+      "defense": 0,
+      "dodge": 0.25,
+      "description": "Un tourbillon d’ailes qui sort du noir.",
+      "rewards": [
+        {
+          "type": "stat.add",
+          "stat": "xp",
+          "amount": 4
+        }
+      ]
+    },
+    {
+      "id": "gobelin",
+      "name": "Gobelin des profondeurs",
+      "emoji": "👺",
+      "hp": 32,
+      "attack": 8,
+      "defense": 3,
+      "description": "Il était donc vrai, ce que racontait Roland…",
+      "rewards": [
+        {
+          "type": "stat.add",
+          "stat": "xp",
+          "amount": 15
+        },
+        {
+          "type": "stat.add",
+          "stat": "ecus",
+          "amount": 12
+        },
+        {
+          "type": "stat.add",
+          "stat": "gloire",
+          "amount": 3
+        }
+      ],
+      "loot": [
+        {
+          "item": "oreille_gobelin",
+          "qty": 1,
+          "chance": 1
+        },
+        {
+          "item": "minerai_argent",
+          "qty": 1,
+          "chance": 0.4
+        }
+      ],
+      "taunts": [
+        "Ma pierre ! Rends-moi ma pierre !",
+        "Ghhrraa… surface… lumière… mal !"
+      ]
+    },
+    {
+      "id": "loup",
+      "name": "Loup gris",
+      "emoji": "🐺",
+      "hp": 22,
+      "attack": 6,
+      "defense": 1,
+      "description": "Il tourne autour de toi, les babines retroussées.",
+      "rewards": [
+        {
+          "type": "stat.add",
+          "stat": "xp",
+          "amount": 8
+        },
+        {
+          "type": "stat.add",
+          "stat": "gloire",
+          "amount": 1
+        }
+      ],
+      "loot": [
+        {
+          "item": "fourrure",
+          "qty": 1,
+          "chance": 0.8
+        },
+        {
+          "item": "onguent",
+          "qty": 1,
+          "chance": 0.2
+        }
+      ]
+    },
+    {
+      "id": "sanglier",
+      "name": "Sanglier furieux",
+      "emoji": "🐗",
+      "hp": 30,
+      "attack": 7,
+      "defense": 3,
+      "description": "Il gratte le sol et baisse la tête.",
+      "rewards": [
+        {
+          "type": "stat.add",
+          "stat": "xp",
+          "amount": 10
+        },
+        {
+          "type": "stat.add",
+          "stat": "gloire",
+          "amount": 2
+        }
+      ],
+      "loot": [
+        {
+          "item": "defense_sanglier",
+          "qty": 1,
+          "chance": 0.7
+        },
+        {
+          "item": "viande",
+          "qty": 2,
+          "chance": 0.6
+        }
+      ]
+    },
+    {
+      "id": "loup_orage",
+      "name": "Loup de l’orage",
+      "emoji": "⚡",
+      "hp": 40,
+      "attack": 10,
+      "defense": 3,
+      "description": "Ses yeux brillent du même bleu que la pierre-tonnerre.",
+      "rewards": [
+        {
+          "type": "stat.add",
+          "stat": "xp",
+          "amount": 20
+        },
+        {
+          "type": "stat.add",
+          "stat": "gloire",
+          "amount": 5
+        }
+      ],
+      "loot": [
+        {
+          "item": "fourrure",
+          "qty": 2,
+          "chance": 1
+        },
+        {
+          "item": "onguent",
+          "qty": 1,
+          "chance": 0.5
+        }
+      ],
+      "taunts": [
+        "Grrrr…"
+      ]
+    },
+    {
+      "id": "brigand",
+      "name": "Brigand du vieux pont",
+      "emoji": "🗡️",
+      "hp": 28,
+      "attack": 7,
+      "defense": 2,
+      "description": "Un capuchon, une lame rouillée et de mauvaises intentions.",
+      "rewards": [
+        {
+          "type": "stat.add",
+          "stat": "xp",
+          "amount": 12
+        },
+        {
+          "type": "stat.add",
+          "stat": "ecus",
+          "amount": 20
+        },
+        {
+          "type": "stat.add",
+          "stat": "gloire",
+          "amount": 3
+        }
+      ],
+      "loot": [
+        {
+          "item": "onguent",
+          "qty": 1,
+          "chance": 0.3
+        }
+      ],
+      "taunts": [
+        "La bourse ou la vie !",
+        "Le péage, c’est moi.",
+        "T’aurais pas dû traîner par ici…"
+      ]
     }
   ],
   "characters": [

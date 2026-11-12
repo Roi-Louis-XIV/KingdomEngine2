@@ -211,7 +211,29 @@ export interface WorldDef {
    * où il se trouve (si des joueurs y sont). Sans cette liste, chaque bâtiment a pour personnage son `npc`.
    */
   characters?: CharacterDef[];
+  /** Bestiaire : créatures que les modules de combat peuvent faire apparaître. */
+  creatures?: CreatureDef[];
   buildings: BuildingDef[];
+}
+
+/** Créature combattue au tour par tour (loup, brigand…). */
+export interface CreatureDef {
+  id: Id;
+  name: string;
+  emoji?: string;
+  description?: string;
+  /** Points de vie. */
+  hp: number;
+  attack: number;
+  defense: number;
+  /** Chance d'esquiver une attaque (0 à 0.9). */
+  dodge?: number;
+  /** Récompenses de la victoire (XP, écus…). */
+  rewards: Action[];
+  /** Butin : chaque ligne est tirée indépendamment. */
+  loot?: { item: Id; qty: number; chance: number }[];
+  /** Phrases lancées par la créature quand elle attaque (au hasard). */
+  taunts?: string[];
 }
 
 export interface CharacterDef {
@@ -418,7 +440,8 @@ export type ModuleDef =
   | DialogueModule
   | DiceModule
   | ActivityModule
-  | ObjectiveModule;
+  | ObjectiveModule
+  | CombatModule;
 
 /** Inventaire partagé du bâtiment. Les objectifs sont des repères, jamais des plafonds. */
 export interface InventoryModule {
@@ -539,6 +562,45 @@ export interface DiceModule {
   texts: { win: Text; lose: Text; draw: Text };
 }
 
+/**
+ * Combat au tour par tour : rencontres avec des créatures (le joueur risque sa santé)
+ * et duels amicaux entre joueurs présents dans le même bâtiment (points de vie à part, sans risque).
+ */
+export interface CombatModule {
+  type: 'combat';
+  id: Id;
+  name: string;
+  /** Statistique de santé du joueur (points de vie contre les créatures). */
+  health: Id;
+  /** Attaque et défense de base, auxquelles s'ajoute l'équipement (meilleur objet de chaque emplacement). */
+  base: { attack: number; defense: number; dodge?: number };
+  /** Rencontres possibles, tirées au hasard selon leur poids. Vide = pas de chasse ici. */
+  encounters: { creature: Id; weight: number; when?: Condition }[];
+  /** Coût pour chercher un adversaire (endurance…). */
+  costs?: Action[];
+  /** Délai entre deux combats (secondes, compté depuis la fin du précédent). */
+  cooldownSec?: number;
+  /** Chasse possible seulement si… */
+  when?: Condition;
+  lockedText?: Text;
+  /** Chance de réussir à fuir (défaut 0.6). */
+  fleeChance?: number;
+  /** Défaite : la santé remonte à cette valeur, puis ces actions (perte d'écus…). */
+  defeat?: { health: number; actions: Action[]; text?: Text };
+  /** Soins payants proposés dans l'arène (prix par point de santé). */
+  heal?: { currency: Id; costPerPoint: number; label?: string };
+  /** Duels entre joueurs présents dans le bâtiment. */
+  duels?: {
+    /** Points de vie de chaque duelliste (jauge propre au duel). */
+    hp: number;
+    /** Récompenses du vainqueur (gloire, XP…). */
+    rewards: Action[];
+    /** Délai pour jouer son tour, sinon abandon (secondes, défaut 90). */
+    turnSec?: number;
+    when?: Condition;
+  };
+}
+
 /** Un résultat possible d'une activité, tiré au hasard selon son poids. */
 export interface ActivityResult {
   weight: number;
@@ -651,6 +713,8 @@ export type WidgetDef =
   | { kind: 'buyback.sell'; buyback: Id; accent?: number }
   | { kind: 'dialogue'; dialogue: Id; exitScreen: Id; accent?: number }
   | { kind: 'dice'; dice: Id; accent?: number }
+  /** Arène : chasse aux créatures et duels entre joueurs (module de combat). */
+  | { kind: 'combat.arena'; combat: Id; accent?: number }
   | { kind: 'activity.board'; activity: Id; accent?: number }
   | { kind: 'objective.board'; objective: Id; accent?: number }
   | { kind: 'player.tools'; title?: string; repair?: { currency: Id; costPerPoint: number }; accent?: number }

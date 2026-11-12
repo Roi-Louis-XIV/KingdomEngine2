@@ -97,7 +97,7 @@ const inventoryScreen = (accent) => ({
   id: 'inventaire',
   name: 'Mon inventaire',
   blocks: [
-    widget({ kind: 'player.sheet', stats: ['energie', 'alcool'], jobs: true, accent }),
+    widget({ kind: 'player.sheet', stats: ['energie', 'sante', 'alcool'], jobs: true, accent }),
     notice(),
     widget({ kind: 'player.consumables', title: '🎒 Mon inventaire', all: true, accent }),
     buttons([go('↩️ Retour', 'accueil'), go('🔄 Actualiser', 'inventaire')]),
@@ -120,7 +120,7 @@ const closedScreen = (message) => ({
 const navRow = (talkLabel, extra = []) =>
   buttons([go(talkLabel, 'dialogue', { style: 'primary' }), ...extra, go('🎒 Mon inventaire', 'inventaire'), go('🔄 Actualiser', 'accueil')]);
 
-const statusLine = '⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}';
+const statusLine = '⚡ **Endurance :** {player.stat.energie}/100 · ❤️ **Santé :** {player.stat.sante}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}';
 const PRELUDE = text('*🕯️ La fête de la Sainte Pelle n’a pas encore commencé. Le Roi donnera le signal.*', T('lt', 0));
 
 /** Éclat de la pierre-tonnerre à ramasser : une seule fois pour tout le village. */
@@ -1380,6 +1380,69 @@ addStall(pont, { name: 'L’étal du vieux pêcheur', who: 'le vieux pêcheur', 
 addStall(eglise, { name: 'Le tronc des offrandes', who: 'le Père Anselme', intro: '« Une obole pour l’église, une bénédiction pour toi. »', stock: { cierge: 30, eau_benite: 30 }, offers: [ware('cierge', 8, 'Bénédictions'), ware('eau_benite', 6, 'Bénédictions')] });
 
 // ---------------------------------------------------------------------------
+// Combat au tour par tour : bêtes de la forêt, vermine de la mine, brigands du pont, duels sur la Place
+// (demande de Louis du 12 novembre). Les armes et armures de Wagner comptent enfin.
+// ---------------------------------------------------------------------------
+
+stats.push(
+  { id: 'sante', name: 'Santé', emoji: '❤️', min: 0, max: 100, initial: 100, kind: 'gauge' },
+  { id: 'gloire', name: 'Gloire', emoji: '🏅', min: 0, initial: 0, kind: 'value', unit: 'gloire' },
+);
+items.push(
+  item('onguent', 'Onguent de Sylvain', '🌿', 'Soins', { consumable: { effects: [stat('sante', 30)] }, description: 'Herbes pilées et graisse d’ours : rend 30 points de santé.' }),
+  item('fourrure', 'Fourrure de loup', '🐺', 'Trophées', { baseValue: 9 }),
+  item('defense_sanglier', 'Défense de sanglier', '🦴', 'Trophées', { baseValue: 12 }),
+  item('oreille_gobelin', 'Oreille de gobelin', '👂', 'Trophées', { baseValue: 15, description: 'Preuve qu’il y a bien quelque chose au fond de la mine.' }),
+);
+const beast = (id, name, emoji, hp, attack, defense, o = {}) => ({ id, name, emoji, hp, attack, defense, ...(o.dodge ? { dodge: o.dodge } : {}), ...(o.description ? { description: o.description } : {}), rewards: [xp(o.xp ?? 5), ...(o.ecus ? [stat('ecus', o.ecus)] : []), ...(o.gloire ? [stat('gloire', o.gloire)] : [])], ...(o.loot ? { loot: o.loot.map(([item, qty, chance]) => ({ item, qty, chance })) } : {}), ...(o.taunts ? { taunts: o.taunts } : {}) });
+const creatures = [
+  beast('rat', 'Rat des galeries', '🐀', 10, 3, 0, { xp: 3, ecus: 2, description: 'Gros comme un chat, et tout aussi aimable.', dodge: 0.1 }),
+  beast('chauve_souris', 'Nuée de chauves-souris', '🦇', 14, 4, 0, { xp: 4, dodge: 0.25, description: 'Un tourbillon d’ailes qui sort du noir.' }),
+  beast('gobelin', 'Gobelin des profondeurs', '👺', 32, 8, 3, { xp: 15, ecus: 12, gloire: 3, loot: [['oreille_gobelin', 1, 1], ['minerai_argent', 1, 0.4]], description: 'Il était donc vrai, ce que racontait Roland…', taunts: ['Ma pierre ! Rends-moi ma pierre !', 'Ghhrraa… surface… lumière… mal !'] }),
+  beast('loup', 'Loup gris', '🐺', 22, 6, 1, { xp: 8, gloire: 1, loot: [['fourrure', 1, 0.8], ['onguent', 1, 0.2]], description: 'Il tourne autour de toi, les babines retroussées.' }),
+  beast('sanglier', 'Sanglier furieux', '🐗', 30, 7, 3, { xp: 10, gloire: 2, loot: [['defense_sanglier', 1, 0.7], ['viande', 2, 0.6]], description: 'Il gratte le sol et baisse la tête.' }),
+  beast('loup_orage', 'Loup de l’orage', '⚡', 40, 10, 3, { xp: 20, gloire: 5, loot: [['fourrure', 2, 1], ['onguent', 1, 0.5]], description: 'Ses yeux brillent du même bleu que la pierre-tonnerre.', taunts: ['Grrrr…'] }),
+  beast('brigand', 'Brigand du vieux pont', '🗡️', 28, 7, 2, { xp: 12, ecus: 20, gloire: 3, loot: [['onguent', 1, 0.3]], description: 'Un capuchon, une lame rouillée et de mauvaises intentions.', taunts: ['La bourse ou la vie !', 'Le péage, c’est moi.', 'T’aurais pas dû traîner par ici…'] }),
+];
+if (!items.some((i) => i.id === 'viande')) creatures.find((c) => c.id === 'sanglier').loot.pop();
+
+const hunting = all(from(0), notStorm, v('monde', 'ouvert'));
+/** Arène d'un lieu : module de combat, écran « combat », bouton depuis l'accueil. */
+function addArena(b, o) {
+  b.modules.push({
+    type: 'combat',
+    id: 'combat',
+    name: o.name,
+    health: 'sante',
+    base: { attack: 3, defense: 1, dodge: 0.05 },
+    encounters: (o.encounters ?? []).map(([creature, weight, when]) => ({ creature, weight, ...(when ? { when } : {}) })),
+    ...(o.encounters ? { costs: [stat('energie', -4)], cooldownSec: 20, when: hunting, lockedText: 'Pas avant le début de la fête, ni pendant la tempête.' } : {}),
+    defeat: { health: 25, actions: [stat('ecus', -10)], text: 'Tu te réveilles un peu plus tard, la bourse plus légère (−10 écus si tu les avais).' },
+    heal: { currency: 'ecus', costPerPoint: 1, label: 'Panser ses blessures' },
+    ...(o.duels ? { duels: { hp: 30, turnSec: 90, rewards: [stat('gloire', 5), xp(5)], when: all(from(0), v('monde', 'ouvert')) } } : {}),
+  });
+  b.screens.push({
+    id: 'combat',
+    name: 'Combat',
+    blocks: [
+      box([text(`## ${o.name}\n*${o.intro}*`)], b.accentColor),
+      notice(),
+      widget({ kind: 'combat.arena', combat: 'combat', accent: b.accentColor }),
+      ...(o.ranking ? [widget({ kind: 'ranking', stat: 'gloire', title: '🏅 Les plus glorieux', limit: 5, accent: b.accentColor })] : []),
+      buttons([go('↩️ Retour', b.homeScreen), go('🎒 Mon inventaire', 'inventaire'), go('🔄 Actualiser', 'combat')]),
+    ],
+  });
+  const home = b.screens.find((x) => x.id === b.homeScreen);
+  const nav = [...home.blocks].reverse().find((x) => x.type === 'buttons');
+  nav.buttons.splice(Math.min(1, nav.buttons.length), 0, go(o.button, 'combat', { style: 'danger' }));
+}
+addArena(mine, { name: '⚔️ Galeries obscures', button: '⚔️ Galeries obscures', intro: 'Au-delà des lanternes, quelque chose gratte la roche…', encounters: [['rat', 5], ['chauve_souris', 3], ['gobelin', 2, from(25)]] });
+addArena(foret, { name: '🏹 Le bois sombre', button: '🏹 Chasser', intro: 'Sous les grands chênes, les bêtes ne sont pas toutes des proies.', encounters: [['loup', 4, notStorm], ['sanglier', 3, notStorm], ['loup_orage', 3, from(110)]] });
+addArena(pont, { name: '🗡️ Sous le vieux pont', button: '🗡️ Sous le pont', intro: 'L’ombre de l’arche cache plus que des pêcheurs.', encounters: [['brigand', 1]] });
+addArena(place, { name: '🤺 Le cercle des duels', button: '🤺 Duels', intro: 'Les habitants font cercle : deux volontaires, des épées émoussées, et toute la gloire du village.', duels: true, ranking: true });
+addArena(taverne, { name: '🤺 Bagarre amicale', button: '🤺 Bagarre', intro: 'Edgar a poussé les tables. « Pas de casse, et le perdant paie sa tournée ! »', duels: true });
+
+// ---------------------------------------------------------------------------
 // Quêtes personnelles
 // ---------------------------------------------------------------------------
 
@@ -1425,6 +1488,11 @@ const quests = [
   q('q33', 'Héros de la tempête', 'Maëlis', 3, between(90, 100), [count('urgence', 'Contribuer 5 fois à l’urgence (forge ou mine)', ['objective:forge/incendie', 'objective:mine/eboulement'], 5)], { rewards: [give('titre_heros')] }),
   q('q34', 'Suivre les étincelles', 'Sylvain', 3, from(110), [visit('pont', 'Suivre la traînée d’étincelles jusqu’au vieux pont', 'pont'), visit('foret', 'Puis jusqu’à la forêt', 'foret'), visit('taverne', 'Puis jusqu’à la taverne', 'taverne')], { ordered: true, rewards: [revealShard(2, 'coincé entre deux pierres du vieux pont.')] }),
   q('q35', 'Le porte-bonheur d’Edgar', 'Edgar', 3, all(from(110), v('eclats', 5, 'gte'), v('eclat6', 'non')), [deliver('hydromel', 'Offrir 3 flasques d’hydromel à Edgar pour qu’il lâche son « porte-bonheur »', 'flasque_hydromel', 3, 'taverne')], { rewards: [give('titre_limier'), set('eclat6', 'oui'), add('eclats', 1), voice('edgar-aveu', 'taverne'), announce('✨ **Éclat 6/6 retrouvé !** Edgar le gardait dans sa poche « comme porte-bonheur ». Tous les éclats sont réunis : le Père Anselme pourra les rendre à la terre.')], success: '« Bon, bon… Tiens, le voilà. Il brillait si joliment au fond de ma chope ! »' }),
+  q('q37', 'La bête du bois', 'Sylvain', 1, between(0, 85), [count('loup', 'Vaincre un loup gris (Forêt › Chasser)', 'combat:win:loup')], { rewards: [give('onguent', 2)] }),
+  q('q38', 'Vermine !', 'Roland', 1, between(0, 85), [count('rats', 'Vaincre 3 créatures dans les galeries obscures (Mine)', ['combat:win:rat', 'combat:win:chauve_souris', 'combat:win:gobelin'], 3)]),
+  q('q39', 'Le péage du pont', 'Maëlis', 2, from(0), [count('brigand', 'Chasser un brigand du vieux pont', 'combat:win:brigand')], { rewards: [stat('gloire', 5)] }),
+  q('q40', 'Honneur et panache', 'Maëlis', 2, from(0), [count('duel', 'Gagner un duel (Place › Duels ou Taverne › Bagarre)', 'duel:win')], { description: 'Le village aime ses champions. Va défier un autre habitant !' }),
+  q('q41', 'Ce qui grattait au fond', 'Roland', 3, all(from(25), T('lt', 182)), [count('gobelin', 'Vaincre le gobelin des profondeurs (Mine)', 'combat:win:gobelin'), deliver('oreille', 'Rapporter la preuve à Roland', 'oreille_gobelin', 1, 'mine')], { ordered: true }),
   q('q36', 'La dîme du Royaume', 'Maëlis', 3, from(0), [count('don', 'Verser 100 écus au Trésor du Royaume (Place)', 'objective:place/tresor', 100)], { rewards: [give('titre_bienfaiteur')] }),
 ];
 
@@ -1626,6 +1694,7 @@ const world = {
     quests,
   },
   buildings: [place, taverne, mine, forge, foret, ferme, pont, eglise],
+  creatures,
   // Personnages en voix : chacun a son Voice Worker, à son nom, là où il se trouve (si des joueurs y sont).
   // Pour la messe (T+165), tous rejoignent l'église : on les voit arriver dans le salon vocal.
   characters: [

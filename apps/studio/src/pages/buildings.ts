@@ -16,6 +16,7 @@ const MODULE_TYPES: { type: ModuleDef['type']; label: string; text: string }[] =
   { type: 'dice', label: 'Jeu de dés', text: 'Un duel de dés contre un personnage.' },
   { type: 'activity', label: 'Activités', text: 'Récoltes et travaux temporisés, avec résultats aléatoires et outils.' },
   { type: 'objective', label: 'Objectif collectif', text: 'Tous les joueurs apportent des ressources vers un but commun.' },
+  { type: 'combat', label: 'Combat', text: 'Chasse aux créatures du bestiaire et duels entre joueurs, au tour par tour.' },
 ];
 const moduleLabel = (t: string) => MODULE_TYPES.find((m) => m.type === t)?.label ?? t;
 
@@ -112,6 +113,20 @@ function defaultModule(type: ModuleDef['type'], b: BuildingDef, w: WorldDef): Mo
       return { type, id, name: 'Dés', dice: 2, faces: 6, opponent: b.npc?.name ?? 'Le tavernier', texts: { win: '🏆 **Tu as gagné !**', lose: '😤 **Perdu !**', draw: '🤝 **Égalité !**' } };
     case 'activity':
       return { type, id, name: 'Activités', activities: [newActivity(w, [])] };
+    case 'combat': {
+      const gauge = w.stats.find((s) => s.kind === 'gauge');
+      return {
+        type,
+        id,
+        name: '⚔️ Arène',
+        health: w.stats.find((s) => /sant|vie/i.test(s.name))?.id ?? gauge?.id ?? w.stats[0]?.id ?? '',
+        base: { attack: 3, defense: 1, dodge: 0.05 },
+        encounters: (w.creatures ?? []).slice(0, 1).map((c) => ({ creature: c.id, weight: 1 })),
+        cooldownSec: 30,
+        defeat: { health: 10, actions: [] },
+        ...(cur ? { heal: { currency: cur, costPerPoint: 1 } } : {}),
+      };
+    }
     case 'objective':
       return { type, id, name: 'Objectif collectif', goals: w.items[0] ? { [w.items[0].id]: 50 } : {}, quantities: [1, 5, 10], currency: cur || undefined, unitRewards: {} };
   }
@@ -633,7 +648,84 @@ function moduleEditor(w: WorldDef, b: BuildingDef, m: ModuleDef, changed: () => 
         typeof m.texts.lose === 'string' ? field(m.texts, 'lose', { label: 'Texte de défaite' }, changed) : null,
         typeof m.texts.draw === 'string' ? field(m.texts, 'draw', { label: 'Texte d’égalité' }, changed) : null,
       );
+    case 'combat':
+      return combatEditor(w, b, m, changed, name);
   }
+}
+
+/** Module de combat : caractéristiques de base, rencontres, défaite, soins, duels. */
+function combatEditor(w: WorldDef, b: BuildingDef, m: Extract<ModuleDef, { type: 'combat' }>, changed: () => void, name: HTMLElement): HTMLElement {
+  const stats = opts.stats(w);
+  const creatures = (w.creatures ?? []).map((c) => ({ value: c.id, label: `${c.emoji ?? ''} ${c.name}`.trim() }));
+  m.defeat ??= { health: 10, actions: [] };
+  const enc = h('div', { class: 'stack' });
+  const drawEnc = () =>
+    clear(enc).append(
+      ...(creatures.length ? [] : [h('p', { class: 'muted' }, 'Le bestiaire est vide : ajoute d’abord des créatures (Catalogue › Bestiaire).')]),
+      ...m.encounters.map((e, i) =>
+        h(
+          'div',
+          { class: 'card soft' },
+          h('div', { class: 'row-fields' }, selectField('Créature', e.creature, creatures, (v) => ((e.creature = v), changed())), field(e, 'weight', { label: 'Fréquence (poids)', type: 'number', min: 0 }, changed), h('button', { class: 'btn ghost danger-text small', onclick: () => (m.encounters.splice(i, 1), changed(), drawEnc()) }, 'Retirer')),
+          h('span', { class: 'field-label' }, 'Apparaît seulement si…'),
+          conditionEditor(w, b, e.when, (c) => (c ? (e.when = c) : delete e.when, changed())),
+        ),
+      ),
+      creatures.length ? h('button', { class: 'btn small', onclick: () => (m.encounters.push({ creature: creatures[0]!.value, weight: 1 }), changed(), drawEnc()) }, '+ Ajouter une rencontre') : null!,
+    );
+  drawEnc();
+
+  const duelBox = h('div', { class: 'stack' });
+  const drawDuels = () => {
+    clear(duelBox).append(
+      h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!m.duels, onchange: (ev: Event) => { (ev.target as HTMLInputElement).checked ? (m.duels = { hp: 30, rewards: [], turnSec: 90 }) : delete m.duels; changed(); drawDuels(); } }), 'Autoriser les duels entre joueurs présents dans le bâtiment'),
+    );
+    if (m.duels)
+      duelBox.append(
+        h('div', { class: 'row-fields' }, field(m.duels, 'hp', { label: 'Points de vie de chaque duelliste', type: 'number', min: 1 }, changed), field(m.duels, 'turnSec', { label: 'Temps pour jouer (secondes)', type: 'number', min: 15 }, changed)),
+        h('p', { class: 'muted' }, 'Les duels ont leur propre jauge : on n’y risque pas sa santé. Qui ne joue pas à temps perd le duel.'),
+        h('span', { class: 'field-label' }, 'Récompense du vainqueur'),
+        effectsEditor(w, m.duels.rewards, changed),
+        h('span', { class: 'field-label' }, 'Duels possibles seulement si…'),
+        conditionEditor(w, b, m.duels.when, (c) => (c ? (m.duels!.when = c) : delete m.duels!.when, changed())),
+      );
+  };
+  drawDuels();
+
+  const healBox = h('div', { class: 'stack' });
+  const drawHeal = () => {
+    clear(healBox).append(
+      h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!m.heal, onchange: (ev: Event) => { (ev.target as HTMLInputElement).checked ? (m.heal = { currency: w.stats.find((s) => s.kind === 'currency')?.id ?? '', costPerPoint: 1 }) : delete m.heal; changed(); drawHeal(); } }), 'Proposer des soins payants dans l’arène'),
+    );
+    if (m.heal) healBox.append(h('div', { class: 'row-fields' }, selectField('Monnaie', m.heal.currency, stats, (v) => ((m.heal!.currency = v), changed())), field(m.heal, 'costPerPoint', { label: 'Prix par point de santé', type: 'number', min: 0 }, changed), field(m.heal, 'label', { label: 'Libellé du bouton', placeholder: 'Se faire soigner' }, changed)));
+  };
+  drawHeal();
+
+  return h(
+    'div',
+    { class: 'form' },
+    h('div', { class: 'row-fields' }, name, selectField('Santé du joueur', m.health, stats, (v) => ((m.health = v), changed()), { hint: 'Les créatures font baisser cette statistique.' })),
+    h('h3', null, 'Le joueur'),
+    h('div', { class: 'row-fields' }, field(m.base, 'attack', { label: 'Attaque de base', type: 'number', min: 0 }, changed), field(m.base, 'defense', { label: 'Défense de base', type: 'number', min: 0 }, changed), field(m.base, 'dodge', { label: 'Esquive (0 à 0,9)', type: 'number', min: 0, max: 0.9, step: 0.05 }, changed)),
+    h('p', { class: 'muted' }, 'S’y ajoute l’équipement : le meilleur objet de chaque emplacement (arme, armure…), réglé dans Catalogue › Objets.'),
+    h('h3', null, 'Rencontres'),
+    enc,
+    h('div', { class: 'row-fields' }, field(m, 'cooldownSec', { label: 'Repos entre deux combats (s)', type: 'number', min: 0 }, changed), field(m, 'fleeChance', { label: 'Chance de fuite (0 à 1, défaut 0,6)', type: 'number', min: 0, max: 1, step: 0.05 }, changed)),
+    h('span', { class: 'field-label' }, 'Coût pour chercher un adversaire'),
+    effectsEditor(w, (m.costs ??= []), changed),
+    h('span', { class: 'field-label' }, 'Chasse possible seulement si…'),
+    conditionEditor(w, b, m.when, (c) => (c ? (m.when = c) : delete m.when, changed())),
+    h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Message quand la chasse est fermée'), textEditor(w, b, () => m.lockedText ?? '', (t) => ((m.lockedText = t || undefined), changed()), 1)),
+    h('h3', null, 'Défaite'),
+    field(m.defeat, 'health', { label: 'La santé remonte à', type: 'number', min: 1 }, changed),
+    h('span', { class: 'field-label' }, 'Pénalité (une perte impossible est ignorée)'),
+    effectsEditor(w, m.defeat.actions, changed),
+    h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Texte de défaite'), textEditor(w, b, () => m.defeat?.text ?? '', (t) => ((m.defeat!.text = t || undefined), changed()), 1)),
+    h('h3', null, 'Soins'),
+    healBox,
+    h('h3', null, 'Duels'),
+    duelBox,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -722,6 +814,16 @@ const ASSISTANTS: { label: string; text: string; run: (w: WorldDef, b: BuildingD
     },
   },
   {
+    label: 'Arène de combat',
+    text: 'Chasse aux créatures et duels entre joueurs, au tour par tour.',
+    run: (w, b) => {
+      const c = ensureModule(w, b, 'combat');
+      const screen = addScreen(b, 'Combat', [{ type: 'notice' }, { type: 'widget', widget: { kind: 'combat.arena', combat: c.id } }, back(b)]);
+      linkFromHome(b, '⚔️ Combat', 'Chasser les créatures ou défier un autre joueur.', screen, 'Combattre');
+      return screen;
+    },
+  },
+  {
     label: 'Personnage qui parle',
     text: 'Un arbre de conversation avec des sujets et des réponses.',
     run: (w, b) => {
@@ -749,6 +851,7 @@ const WIDGETS: { kind: WidgetDef['kind']; label: string; needs?: ModuleDef['type
   { kind: 'buyback.sell', label: 'Vente au bâtiment', needs: 'buyback' },
   { kind: 'dialogue', label: 'Dialogue', needs: 'dialogue' },
   { kind: 'dice', label: 'Jeu de dés', needs: 'dice' },
+  { kind: 'combat.arena', label: 'Arène de combat', needs: 'combat' },
   { kind: 'activity.board', label: 'Tableau des activités', needs: 'activity' },
   { kind: 'objective.board', label: 'Objectif collectif', needs: 'objective' },
   { kind: 'player.tools', label: 'Outils du joueur (et réparation)' },
@@ -783,6 +886,8 @@ function newWidget(kind: WidgetDef['kind'], b: BuildingDef, w: WorldDef, screen:
       return { kind, dialogue: mod('dialogue'), exitScreen: home };
     case 'dice':
       return { kind, dice: mod('dice') };
+    case 'combat.arena':
+      return { kind, combat: mod('combat') };
     case 'activity.board':
       return { kind, activity: mod('activity') };
     case 'objective.board':
@@ -850,7 +955,7 @@ function screensTab(w: WorldDef, b: BuildingDef, changed: () => void, sounds: st
   return box;
 }
 
-const MODULE_KEYS: Record<string, ModuleDef['type']> = { shop: 'shop', production: 'production', dialogue: 'dialogue', dice: 'dice', buyback: 'buyback', activity: 'activity', objective: 'objective' };
+const MODULE_KEYS: Record<string, ModuleDef['type']> = { shop: 'shop', production: 'production', dialogue: 'dialogue', dice: 'dice', buyback: 'buyback', activity: 'activity', objective: 'objective', combat: 'combat' };
 
 /** Réglages d'un widget : module utilisé et écrans de destination. */
 function widgetEditor(b: BuildingDef, wd: WidgetDef, changed: () => void): HTMLElement | null {

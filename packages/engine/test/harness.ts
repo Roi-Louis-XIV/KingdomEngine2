@@ -52,10 +52,10 @@ export class Player {
   lastPrivate?: string;
   readonly engine: Engine;
   readonly id: string;
-  constructor(engine: Engine, id: string, building = 'taverne') {
+  constructor(engine: Engine, id: string, building = 'taverne', name?: string) {
     this.engine = engine;
     this.id = id;
-    const { sessionId, view } = engine.openSession(id, building);
+    const { sessionId, view } = engine.openSession(id, building, name);
     this.sessionId = sessionId;
     this.message = view.message;
   }

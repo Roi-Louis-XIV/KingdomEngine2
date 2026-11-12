@@ -165,6 +165,19 @@ export function validateWorld(w: WorldDef): Issue[] {
   for (const it of w.items) it.consumable?.effects.forEach((a) => checkAction(`Objet ${it.id}`, a));
   for (const it of w.items) if (it.equipment?.saving && !stats.has(it.equipment.saving.stat)) err(`Objet ${it.id}`, `statistique inconnue : ${it.equipment.saving.stat}`);
 
+  const creatures = ids(w.creatures ?? [], 'Bestiaire');
+  for (const c of w.creatures ?? []) {
+    const where = `Créature ${c.id}`;
+    if (!(c.hp > 0)) err(where, 'points de vie à 0');
+    if (c.attack < 0 || c.defense < 0) err(where, 'attaque et défense positives');
+    if (c.dodge !== undefined && (c.dodge < 0 || c.dodge > 0.9)) err(where, 'esquive entre 0 et 0,9');
+    c.rewards.forEach((a) => checkAction(where, a));
+    for (const l of c.loot ?? []) {
+      checkItem(where, l.item);
+      if (l.chance <= 0 || l.chance > 1) err(where, `chance de butin entre 0 et 1 : ${l.item}`);
+    }
+  }
+
   if (w.characters) {
     const ids = new Set<string>();
     for (const c of w.characters) {
@@ -339,6 +352,26 @@ export function validateWorld(w: WorldDef): Issue[] {
         case 'dice':
           if (m.dice < 1 || m.faces < 2) err(where, 'dés invalides');
           break;
+        case 'combat': {
+          const hs = w.stats.find((x) => x.id === m.health);
+          if (!hs) err(where, `statistique de santé inconnue : ${m.health}`);
+          else if (hs.max === undefined) warn(where, `la santé (${m.health}) devrait avoir un maximum`);
+          for (const e of m.encounters) {
+            if (!creatures.has(e.creature)) err(where, `créature inconnue : ${e.creature}`);
+            checkCondition(where, e.when, b);
+          }
+          (m.costs ?? []).forEach((x) => checkAction(where, x, b));
+          (m.defeat?.actions ?? []).forEach((x) => checkAction(where, x, b));
+          checkCondition(where, m.when, b);
+          if (m.heal && !stats.has(m.heal.currency)) err(where, `monnaie inconnue : ${m.heal.currency}`);
+          if (m.duels) {
+            if (!(m.duels.hp > 0)) err(where, 'points de vie des duels à 0');
+            m.duels.rewards.forEach((x) => checkAction(where, x, b));
+            checkCondition(where, m.duels.when, b);
+          }
+          if (!m.encounters.length && !m.duels) warn(where, 'ni créatures ni duels : l’arène sera vide');
+          break;
+        }
         case 'activity': {
           ids(m.activities, where);
           if (m.activities.length > 8) warn(where, 'plus de 8 activités : l’écran risque de dépasser la limite Discord');
@@ -414,6 +447,9 @@ export function validateWorld(w: WorldDef): Issue[] {
           break;
         case 'dice':
           modOf(wd.dice, 'dice', where);
+          break;
+        case 'combat.arena':
+          modOf(wd.combat, 'combat', where);
           break;
         case 'player.consumables':
           break;

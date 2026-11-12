@@ -371,3 +371,32 @@ test('taverne : la carte de la Gueuse Cocue et la brasserie', () => {
   assert.match(t.text, /Les cuves d’Edgar/);
   assert.match(t.text, /Brasseur niveau 1/);
 });
+
+test('combat : chasse en forêt avec l’épée de Wagner, duel sur la Place, quêtes de combat', () => {
+  const { engine, clock } = started();
+  minutes(engine, clock, 5);
+  new Player(engine, 'louis', 'foret', 'Louis');
+  const s2 = engine.snapshot();
+  s2.players.louis!.items.epee_longue = 1;
+  s2.players.louis!.items.cotte_mailles = 1;
+  const e = setup(s2, clock).engine;
+  const f = new Player(e, 'louis', 'foret', 'Louis');
+  f.click('🏹 Chasser');
+  assert.match(f.text, /⚔️ 9 · 🛡️ 5/, 'base 3/1 + épée longue 6 + cotte de mailles 4');
+  assert.match(f.text, /Rôdent ici :\* 🐺 Loup gris · 🐗 Sanglier furieux/);
+  f.click('🔎 Chercher un adversaire');
+  for (let i = 0; i < 20 && f.state.fight; i++) f.click('⚔️ Attaquer');
+  assert.equal(f.state.fight, undefined);
+  assert.match(f.text, /Victoire|mis à terre/);
+  assert.ok(f.state.stats.sante! < 100 || /Victoire/.test(f.text));
+
+  const a = new Player(e, 'alice', 'place', 'Alice');
+  const b = new Player(e, 'bob', 'place', 'Bob');
+  a.click('🤺 Duels');
+  b.click('🤺 Duels');
+  a.choose(/Défier un joueur/, 'bob');
+  b.refresh().click('✅ Accepter');
+  a.refresh().click('🏳️ Abandonner');
+  assert.equal(e.player('bob')!.stats.gloire, 5);
+  assert.match(b.refresh().text, /Les plus glorieux/);
+});

@@ -112,6 +112,15 @@ Détails techniques :
 - Le widget `quest.board` affiche les propositions (tirage reproductible : stables d’un affichage à l’autre, renouvelées après une quête, un abandon ou un nouveau tirage). Le joueur en choisit **une**. Le widget `player.sheet` montre endurance, ivresse, XP, niveau et la quête en cours, avec un bouton « Livrer » dans le bon bâtiment.
 - L’avancement passe par des **repères** émis par le moteur (activité récupérée, apport à un objectif, achat, dialogue, dés gagnés, objet consommé, réparation) ou par l’action `quest.tag`. Entrer dans un lieu compte pour les étapes « visiter ». Une quête dont la fenêtre se ferme est rendue sans pénalité.
 
+## Combat au tour par tour
+
+`packages/engine/src/combat.ts`, module `combat` et widget `combat.arena`, créatures dans `world.creatures` (Studio : Objets & règles › Bestiaire).
+
+- **Chasse** : « Chercher un adversaire » tire une rencontre (poids et conditions), après le coût (endurance) et le repos. Chaque tour : le joueur attaque, se défend (dégâts reçus ×0,4, 35 % de chance de riposte), utilise un objet de soin ou fuit ; puis la créature riposte. La santé est une statistique : elle reste entamée. Victoire : récompenses, butin tiré ligne par ligne. Défaite : la santé remonte à la valeur prévue, pénalité appliquée sans bloquer (une perte impossible est ignorée). Soins payants facultatifs.
+- **Coup** : esquive possible ; dégâts = attaque × (0,8 à 1,2) − défense/2, au moins 1 ; critique 10 % (×1,5). Attaque et défense du joueur = base du module + équipement (meilleur objet de chaque emplacement).
+- **Duels** : un joueur défie un joueur présent (interface ouverte dans le même bâtiment ; son nom vient de la session). État partagé `state.duels` : défi (2 min pour répondre), puis tours alternés avec une jauge propre au duel (on ne risque pas sa santé). Qui ne joue pas à temps perd : `Engine.tick()` applique les délais. Le vainqueur reçoit les récompenses du module.
+- Repères de quête : `combat:win`, `combat:win:<créature>`, `combat:lose`, `duel:win`, `duel:fought`.
+
 ## Voix
 
 - `voice/planner.ts` : pour chaque salon vocal de bâtiment où il y a des joueurs, **un Voice Worker par personnage présent**, à son nom (`world.characters` : domicile + déplacements conditionnels, ex. tous à l'église pour la messe ; à défaut, le `npc` de chaque bâtiment). L'ambiance est jouée par le personnage qui habite le lieu, sinon par un autre présent, sinon par un worker au nom du bâtiment. Un personnage qui se déplace garde son worker, qui change de salon.
