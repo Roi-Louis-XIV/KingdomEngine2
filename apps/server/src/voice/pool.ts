@@ -22,6 +22,8 @@ export interface Presence {
   ambience?: string;
   /** Message répété par-dessus l'ambiance, toutes les `every` secondes. */
   message?: { sound: string; every: number };
+  /** Répliques de vie du personnage disponibles maintenant (une au hasard, en moyenne toutes les `every` s). */
+  chatter?: { every: number; sounds: string[] };
   welcome?: string;
   volume: number;
 }
@@ -73,7 +75,7 @@ export class VoicePool {
       const p = wanted.get(w.presence.key);
       if (p && w.online) {
         w.wantedAt = now;
-        if (p.ambience !== w.presence.ambience || p.channelId !== w.presence.channelId || p.identity.name !== w.presence.identity.name || p.volume !== w.presence.volume || p.holder !== w.presence.holder || p.building !== w.presence.building || JSON.stringify(p.message) !== JSON.stringify(w.presence.message)) {
+        if (p.ambience !== w.presence.ambience || p.channelId !== w.presence.channelId || p.identity.name !== w.presence.identity.name || p.volume !== w.presence.volume || p.holder !== w.presence.holder || p.building !== w.presence.building || JSON.stringify(p.message) !== JSON.stringify(w.presence.message) || JSON.stringify(p.chatter) !== JSON.stringify(w.presence.chatter)) {
           w.presence = p;
           plan.update.push({ worker: w.key, presence: p });
         }

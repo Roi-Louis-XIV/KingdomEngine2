@@ -174,3 +174,27 @@ test('finale : silence après le cri, Roland s’en va sans délai, puis musique
   ]);
   assert.deepEqual(plan([]), [], 'personne : personne');
 });
+
+test('répliques de vie : selon le moment du scénario, seulement avec des joueurs, jamais pendant la finale', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { Engine } = await import('../../../packages/engine/src/index.ts');
+  const world = JSON.parse(readFileSync(new URL('../../../content/sainte-pelle/world.json', import.meta.url), 'utf8'));
+  const engine = new Engine(world);
+  const at = (t: number) => (engine.setVariable('t', t), engine.chatterFor('edgar')!.sounds);
+  assert.ok(at(10).includes('edgar-vie-4') && !at(10).includes('edgar-vie-6'), 'veille : la fête, pas la tempête');
+  assert.ok(at(90).includes('edgar-vie-6') && !at(90).includes('edgar-vie-4'), 'tempête');
+  assert.ok(at(90).includes('edgar-vie-1'), 'les répliques « tout le temps » restent');
+  assert.equal(engine.chatterFor('edgar')!.every, 75);
+  engine.setVariable('acte', 'apocalypse');
+  assert.equal(engine.chatterFor('edgar'), undefined, 'silence pendant la finale');
+  engine.setVariable('acte', 'veille');
+  const channels = Object.fromEntries(world.buildings.map((b: { id: string }) => [b.id, { voice: `vc-${b.id}` }]));
+  engine.setVariable('t', 20);
+  const [edgar] = desiredPresences({ serverId: 's', guildId: 'g1', engine, channels, occupancy: new Map([['vc-taverne', 2]]) });
+  assert.ok(edgar!.chatter!.sounds.length >= 4);
+  world.settings.voiceAlways = true;
+  const always = new Engine(world);
+  always.setVariable('t', 20);
+  const vide = desiredPresences({ serverId: 's', guildId: 'g1', engine: always, channels, occupancy: new Map() });
+  assert.ok(vide.length && vide.every((p) => p.chatter === undefined), 'salon vide : personne ne bavarde');
+});

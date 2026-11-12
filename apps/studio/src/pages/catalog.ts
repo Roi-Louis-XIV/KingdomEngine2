@@ -1,7 +1,7 @@
 import type { WorldDef } from '../../../../packages/engine/src/index.ts';
 import { h, clear, field, selectField, toast, uniqueId } from '../ui.ts';
 import { can, draft, touch } from '../store.ts';
-import { conditionEditor, effectsEditor, textEditor } from '../editors.ts';
+import { conditionEditor, effectsEditor, textEditor, variableCondition } from '../editors.ts';
 
 const TABS = [
   ['objets', 'Objets'],
@@ -187,6 +187,30 @@ export async function catalogPage(main: HTMLElement, params: string[]) {
                     redraw();
                   },
                 }, '+ Déplacement'),
+                h('div', null, h('b', null, 'Répliques de vie'), h('p', { class: 'muted small' }, 'Quand des joueurs sont avec lui, il en dit une au hasard de temps en temps (jamais deux fois de suite). Une condition limite une réplique à un moment du scénario.')),
+                c.chatter
+                  ? [
+                      h('div', { class: 'row-fields' }, field(c.chatter, 'every', { label: 'Une réplique toutes les (secondes, en moyenne)', type: 'number', min: 20, placeholder: '90' }, changed)),
+                      c.chatter.lines.map((l, i) =>
+                        h(
+                          'div',
+                          { class: 'row-fields' },
+                          field(l, 'sound', { label: i === 0 ? 'Son' : undefined, placeholder: 'clé du son' }, changed),
+                          field(l, 'text', { label: i === 0 ? 'Texte (pour l’enregistrement)' : undefined }, changed),
+                          variableCondition(w, l.when, (cond) => ((cond ? (l.when = cond) : delete l.when), changed(), redraw())),
+                          h('button', { class: 'icon-btn', 'aria-label': 'Retirer cette réplique', onclick: () => (c.chatter!.lines.splice(i, 1), changed(), redraw()) }, '×'),
+                        ),
+                      ),
+                    ]
+                  : null,
+                h('button', {
+                  class: 'btn small',
+                  onclick: () => {
+                    (c.chatter ??= { lines: [] }).lines.push({ sound: `${c.id}-vie-${(c.chatter.lines.length + 1)}`, text: '' });
+                    changed();
+                    redraw();
+                  },
+                }, '+ Réplique de vie'),
               ),
               changed, redraw),
       );

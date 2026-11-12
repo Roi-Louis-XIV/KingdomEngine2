@@ -55,6 +55,8 @@ export function desiredPresences(input: {
         building: b.id,
         character: c.id,
         holder,
+        // Pas de bavardage sans public : les présences « permanentes » des salons vides se taisent.
+        chatter: occupied ? engine.chatterFor(c.id) : undefined,
         identity: { name: c.name, avatarUrl: c.home === b.id ? b.npc?.avatarUrl : undefined },
         ambience: holder ? ambience : undefined,
         message: holder ? message : undefined,

@@ -472,6 +472,7 @@ export function registerApi(router: Router, deps: ApiDeps) {
       if (b.audio?.welcome) used.add(b.audio.welcome);
     }
     JSON.stringify(w ?? {}).replace(/"type":"audio\.play","sound":"([^"]+)"/g, (_, k: string) => (used.add(k), ''));
+    for (const c of w?.characters ?? []) c.chatter?.lines.forEach((l) => l.sound && used.add(l.sound));
     const list = platform.audioList(s.id);
     const have = new Set(list.map((a) => a.key));
     return { sounds: list.map(({ file: _f, ...a }) => a), missing: [...used].filter((k) => !have.has(k)).sort() };

@@ -173,6 +173,13 @@ export function validateWorld(w: WorldDef): Issue[] {
       ids.add(c.id);
       if (!c.name?.trim()) err(where, 'nom manquant');
       if (!w.buildings.some((b) => b.id === c.home)) err(where, `bâtiment d’origine inconnu : ${c.home}`);
+      if (c.chatter) {
+        if (c.chatter.every !== undefined && !(c.chatter.every >= 20)) err(where, 'répliques de vie : 20 secondes minimum en moyenne');
+        c.chatter.lines.forEach((l, i) => {
+          if (!l.sound) err(where, `réplique de vie n° ${i + 1} : son manquant`);
+          checkCondition(where, l.when);
+        });
+      }
       for (const m of c.moves ?? []) {
         if (m.building && !w.buildings.some((b) => b.id === m.building)) err(where, `déplacement vers un bâtiment inconnu : ${m.building}`);
         checkCondition(where, m.when);

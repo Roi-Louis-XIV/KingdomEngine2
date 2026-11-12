@@ -226,6 +226,19 @@ export interface CharacterDef {
    * Bâtiment vide = il s'en va (son Voice Worker finit sa phrase puis quitte le vocal).
    */
   moves?: { when: Condition; building: Id }[];
+  /**
+   * Répliques de vie : de temps en temps (en moyenne toutes les `every` secondes, défaut 90), quand des joueurs
+   * sont avec lui et qu'il ne parle pas déjà, le personnage dit une de ces répliques au hasard (jamais deux fois de suite).
+   */
+  chatter?: { every?: number; lines: ChatterLine[] };
+}
+
+export interface ChatterLine {
+  sound: Id;
+  /** Texte de la réplique (script d'enregistrement ; non affiché en jeu). */
+  text?: string;
+  /** Seulement à ce moment-là (phase du scénario, météo…). */
+  when?: Condition;
 }
 
 // ---------------------------------------------------------------------------

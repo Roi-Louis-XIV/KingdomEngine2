@@ -1439,6 +1439,95 @@ const BUILDING_IDS = ['place', 'taverne', 'mine', 'forge', 'foret', 'ferme', 'po
 // (Roland ne panique pas : c'est lui qui crie « Il est revenu ! » avant de s'enfuir.)
 const PANIC = { place: 'maelis-panique', taverne: 'edgar-panique', forge: 'wagner-panique', foret: 'sylvain-panique', ferme: 'agathe-panique', eglise: 'anselme-panique' };
 
+// ---------------------------------------------------------------------------
+// Répliques de vie : une phrase au hasard de temps en temps quand des joueurs sont avec le PNJ.
+// Clés « <pnj>-vie-<n> » ; jamais pendant la finale. Moments : VEILLE (T+0–35), SIGNES (35–85),
+// STORM (85–110), RELEVE (110–165), MESSE (165–182, tous à l'église) ; sans moment = tout le temps.
+// ---------------------------------------------------------------------------
+const VEILLE = T('lt', 35);
+const SIGNES = between(35, 85);
+const RELEVE = between(110, 165);
+const MESSE = between(165, 182);
+const vie = (id, lines) => ({
+  every: 75,
+  lines: lines.map(([when, text], i) => ({ sound: `${id}-vie-${i + 1}`, text, when: when ? all(when, not(v('acte', 'apocalypse'))) : not(v('acte', 'apocalypse')) })),
+});
+const CHATTER = {
+  maelis: vie('maelis', [
+    [null, 'Le panneau des quêtes est à jour, servez-vous ! Il y a du travail pour tout le monde.'],
+    [null, 'Quelqu’un a vu mon registre ? Je l’avais posé là… il y a cinq minutes.'],
+    [VEILLE, 'Des lampions sur la fontaine, des guirlandes au balcon… cette année, la fête sera la plus belle de la vallée !'],
+    [VEILLE, 'N’oubliez pas d’apporter vos dons pour le banquet. Le village compte sur vous.'],
+    [SIGNES, 'Ce ciel ne me dit rien qui vaille. Pressons-nous, il reste tant à préparer.'],
+    [SIGNES, 'Mine ou forge… J’espère que le conseil choisira sagement pour cette maudite pierre.'],
+    [STORM, 'Restez à l’abri ! Personne ne sort sans raison tant que le vent souffle comme ça !'],
+    [RELEVE, 'Courage, tout le monde ! Une pierre après l’autre, et Valbrume sera debout avant la messe.'],
+    [RELEVE, 'Six éclats… Il faut les retrouver tous. Fouillez partout, même sous les feuilles.'],
+    [MESSE, 'Je n’ai jamais vu l’église aussi pleine. Le Père Anselme va en pleurer de joie.'],
+  ]),
+  edgar: vie('edgar', [
+    [null, 'Une chope, l’ami ? La première fait soif, la deuxième fait du bien, la troisième… on verra bien !'],
+    [null, 'Hé, toi ! Pas de chopes cassées dans mon établissement, hein ? Ou tu la paies en écus.'],
+    [null, 'Ça sent bon le ragoût, pas vrai ? Recette de ma grand-mère. Enfin… de la grand-mère de quelqu’un.'],
+    [VEILLE, 'Ce soir, toute la vallée boira à la santé de la Sainte Pelle. Faut que les tonneaux soient pleins !'],
+    [SIGNES, 'Les nuages, ça donne soif aux gens. Bon pour les affaires, mauvais pour les nerfs.'],
+    [STORM, 'Entrez, entrez ! Fermez la porte, bon sang, vous laissez entrer la moitié de la tempête !'],
+    [STORM, 'Personne ne ressort tant que ça tonne. Y a de la place près du feu, serrez-vous.'],
+    [RELEVE, 'Ceux qui travaillent au chantier ont droit à ma meilleure bière. Ce sont les ordres du patron : moi.'],
+    [MESSE, 'Moi, à la messe ? Bah… pour une fois. Mais je garde un œil sur ma taverne d’ici.'],
+  ]),
+  roland: vie('roland', [
+    [null, 'Une galerie, ça s’écoute. Quand la roche se tait, c’est là qu’il faut s’inquiéter.'],
+    [null, 'Ta pioche est émoussée, petit. Va voir Wagner avant de te casser le poignet.'],
+    [VEILLE, 'Fête ou pas fête, la mine ne s’arrête jamais. Le fer ne se sort pas tout seul.'],
+    [SIGNES, 'Cette pierre grésille encore dans ma tête… On n’aurait jamais dû la remonter.'],
+    [SIGNES, 'Les anciens disaient que la montagne garde ses secrets pour de bonnes raisons. Moi, je les crois.'],
+    [STORM, 'Personne ne descend ! J’ai dit personne ! Tant que l’eau ruisselle, la mine est fermée !'],
+    [RELEVE, 'On consolide, on étaye, on reprend. La montagne n’a pas eu le dernier mot.'],
+    [MESSE, 'Même un vieux mineur sait quand il faut prier. Surtout aujourd’hui.'],
+  ]),
+  wagner: vie('wagner', [
+    [null, 'Le fer ne ment jamais : chauffé trop vite, il casse ; chauffé avec patience, il dure cent ans.'],
+    [null, 'Des lingots, j’ai besoin de lingots ! Qui me rapporte du minerai fondu ?'],
+    [VEILLE, 'Pour la fête, je forge une cloche neuve. Enfin… si on me laisse travailler en paix.'],
+    [SIGNES, 'Cette pierre est fascinante. Elle chante quand on l’approche du feu. Je n’ai jamais vu ça.'],
+    [SIGNES, 'Roland a peur de son ombre. Une pierre, c’est une pierre. Elle a juste… des propriétés.'],
+    [STORM, 'Le vent siffle dans la cheminée… Éloignez-vous de l’enclume, on ne sait jamais.'],
+    [RELEVE, 'Des ferrures pour la charpente de l’église : c’est le plus bel ouvrage de ma vie.'],
+    [MESSE, 'J’ai forgé les clous de cette nef. Chaque coup de marteau était une prière, à ma façon.'],
+  ]),
+  sylvain: vie('sylvain', [
+    [null, 'Chut… Écoutez. La forêt parle à qui sait se taire.'],
+    [null, 'On ne coupe pas n’importe quel arbre. Celui-là a vu naître mon grand-père.'],
+    [VEILLE, 'Les cerfs sont descendus près du ruisseau ce matin. Belle journée pour la fête.'],
+    [SIGNES, 'Les oiseaux se sont tus. Les bêtes fuient vers l’est. Ce n’est jamais bon signe.'],
+    [SIGNES, 'Le vent a tourné du mauvais côté. Je n’aime pas cette odeur de fer dans l’air.'],
+    [STORM, 'Restez loin des grands chênes ! La foudre les cherche, et le vent les couche !'],
+    [RELEVE, 'Le grand chêne est tombé… Au moins, son bois servira à rebâtir la maison de Dieu.'],
+    [MESSE, 'Je préfère la cathédrale des arbres. Mais celle-ci n’est pas mal non plus.'],
+  ]),
+  agathe: vie('agathe', [
+    [null, 'Ici, on ne bavarde pas, on travaille ! Les gerbes ne vont pas se lier toutes seules.'],
+    [null, 'Une poule s’est encore échappée. Si vous la voyez, elle s’appelle Bertille. Elle ne répond pas.'],
+    [VEILLE, 'Le blé est mûr, le temps est beau : la meilleure moisson depuis dix ans, si on s’y met.'],
+    [SIGNES, 'Mes vaches sont nerveuses. Quand mes vaches sont nerveuses, moi aussi.'],
+    [SIGNES, 'Plus vite ! Si l’orage arrive avant qu’on ait tout rentré, l’hiver sera long.'],
+    [STORM, 'Les volets ! Fermez les volets de la grange, vite !'],
+    [RELEVE, 'On a perdu des bottes et des clôtures, mais pas le courage. Au travail.'],
+    [MESSE, 'Si on m’avait dit que je finirais la journée à l’église en tablier… Enfin, le Bon Dieu ne regarde pas les tabliers.'],
+  ]),
+  anselme: vie('anselme', [
+    [null, 'Que la paix soit sur cette maison… et sur ceux qui la font tenir debout.'],
+    [null, 'Un cierge, mon enfant ? Il ne coûte presque rien et il éclaire beaucoup.'],
+    [VEILLE, 'La Sainte Pelle a creusé ce village de ses mains. Ce soir, nous honorons sa mémoire.'],
+    [SIGNES, 'Les cloches sonnent faux depuis ce matin… Je prie pour me tromper.'],
+    [STORM, 'Seigneur, protège Valbrume, ses bêtes, ses toits… et ma pauvre toiture en particulier.'],
+    [RELEVE, 'Une église, ce sont des pierres. Une paroisse, ce sont des gens. Et vous êtes là : rien n’est perdu.'],
+    [RELEVE, 'Merci pour ces bûches, mon enfant. Le Ciel tient ses comptes, vous savez.'],
+    [MESSE, 'Approchez, approchez ! Il reste de la place au fond… et sur le parvis.'],
+  ]),
+};
+
 const scenario = {
   id: 'scenario',
   name: 'La Nuit de la Sainte Pelle',
@@ -1553,7 +1642,7 @@ const world = {
       ...(id === 'roland' ? [{ when: any(v('apocalypse', 'panique'), v('apocalypse', 'attente')), building: '' }] : []), // s'enfuit après « Il est revenu ! »
       ...(home === 'eglise' ? [] : [{ when: T('gte', 165), building: 'eglise' }]), // la messe
     ];
-    return { id, name: b.npc.name, emoji: b.npc.emoji, title: b.npc.title, home, moves };
+    return { id, name: b.npc.name, emoji: b.npc.emoji, title: b.npc.title, home, moves, chatter: CHATTER[id] };
   }),
   // Fin de la bêta : plus aucune action possible, chaque interface affiche ce texte.
   closure: {

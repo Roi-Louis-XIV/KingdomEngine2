@@ -22431,7 +22431,296 @@
           },
           "building": "eglise"
         }
-      ]
+      ],
+      "chatter": {
+        "every": 75,
+        "lines": [
+          {
+            "sound": "maelis-vie-1",
+            "text": "Le panneau des quêtes est à jour, servez-vous ! Il y a du travail pour tout le monde.",
+            "when": {
+              "type": "not",
+              "condition": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              }
+            }
+          },
+          {
+            "sound": "maelis-vie-2",
+            "text": "Quelqu’un a vu mon registre ? Je l’avais posé là… il y a cinq minutes.",
+            "when": {
+              "type": "not",
+              "condition": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              }
+            }
+          },
+          {
+            "sound": "maelis-vie-3",
+            "text": "Des lampions sur la fontaine, des guirlandes au balcon… cette année, la fête sera la plus belle de la vallée !",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "variable",
+                  "variable": "t",
+                  "op": "lt",
+                  "value": 35
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "maelis-vie-4",
+            "text": "N’oubliez pas d’apporter vos dons pour le banquet. Le village compte sur vous.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "variable",
+                  "variable": "t",
+                  "op": "lt",
+                  "value": 35
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "maelis-vie-5",
+            "text": "Ce ciel ne me dit rien qui vaille. Pressons-nous, il reste tant à préparer.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 35
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 85
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "maelis-vie-6",
+            "text": "Mine ou forge… J’espère que le conseil choisira sagement pour cette maudite pierre.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 35
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 85
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "maelis-vie-7",
+            "text": "Restez à l’abri ! Personne ne sort sans raison tant que le vent souffle comme ça !",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 85
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 110
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "maelis-vie-8",
+            "text": "Courage, tout le monde ! Une pierre après l’autre, et Valbrume sera debout avant la messe.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 110
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 165
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "maelis-vie-9",
+            "text": "Six éclats… Il faut les retrouver tous. Fouillez partout, même sous les feuilles.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 110
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 165
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "maelis-vie-10",
+            "text": "Je n’ai jamais vu l’église aussi pleine. Le Père Anselme va en pleurer de joie.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 165
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 182
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
     },
     {
       "id": "edgar",
@@ -22458,7 +22747,250 @@
           },
           "building": "eglise"
         }
-      ]
+      ],
+      "chatter": {
+        "every": 75,
+        "lines": [
+          {
+            "sound": "edgar-vie-1",
+            "text": "Une chope, l’ami ? La première fait soif, la deuxième fait du bien, la troisième… on verra bien !",
+            "when": {
+              "type": "not",
+              "condition": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              }
+            }
+          },
+          {
+            "sound": "edgar-vie-2",
+            "text": "Hé, toi ! Pas de chopes cassées dans mon établissement, hein ? Ou tu la paies en écus.",
+            "when": {
+              "type": "not",
+              "condition": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              }
+            }
+          },
+          {
+            "sound": "edgar-vie-3",
+            "text": "Ça sent bon le ragoût, pas vrai ? Recette de ma grand-mère. Enfin… de la grand-mère de quelqu’un.",
+            "when": {
+              "type": "not",
+              "condition": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              }
+            }
+          },
+          {
+            "sound": "edgar-vie-4",
+            "text": "Ce soir, toute la vallée boira à la santé de la Sainte Pelle. Faut que les tonneaux soient pleins !",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "variable",
+                  "variable": "t",
+                  "op": "lt",
+                  "value": 35
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "edgar-vie-5",
+            "text": "Les nuages, ça donne soif aux gens. Bon pour les affaires, mauvais pour les nerfs.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 35
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 85
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "edgar-vie-6",
+            "text": "Entrez, entrez ! Fermez la porte, bon sang, vous laissez entrer la moitié de la tempête !",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 85
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 110
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "edgar-vie-7",
+            "text": "Personne ne ressort tant que ça tonne. Y a de la place près du feu, serrez-vous.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 85
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 110
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "edgar-vie-8",
+            "text": "Ceux qui travaillent au chantier ont droit à ma meilleure bière. Ce sont les ordres du patron : moi.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 110
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 165
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "edgar-vie-9",
+            "text": "Moi, à la messe ? Bah… pour une fois. Mais je garde un œil sur ma taverne d’ici.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 165
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 182
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
     },
     {
       "id": "roland",
@@ -22505,7 +23037,237 @@
           },
           "building": "eglise"
         }
-      ]
+      ],
+      "chatter": {
+        "every": 75,
+        "lines": [
+          {
+            "sound": "roland-vie-1",
+            "text": "Une galerie, ça s’écoute. Quand la roche se tait, c’est là qu’il faut s’inquiéter.",
+            "when": {
+              "type": "not",
+              "condition": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              }
+            }
+          },
+          {
+            "sound": "roland-vie-2",
+            "text": "Ta pioche est émoussée, petit. Va voir Wagner avant de te casser le poignet.",
+            "when": {
+              "type": "not",
+              "condition": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              }
+            }
+          },
+          {
+            "sound": "roland-vie-3",
+            "text": "Fête ou pas fête, la mine ne s’arrête jamais. Le fer ne se sort pas tout seul.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "variable",
+                  "variable": "t",
+                  "op": "lt",
+                  "value": 35
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "roland-vie-4",
+            "text": "Cette pierre grésille encore dans ma tête… On n’aurait jamais dû la remonter.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 35
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 85
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "roland-vie-5",
+            "text": "Les anciens disaient que la montagne garde ses secrets pour de bonnes raisons. Moi, je les crois.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 35
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 85
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "roland-vie-6",
+            "text": "Personne ne descend ! J’ai dit personne ! Tant que l’eau ruisselle, la mine est fermée !",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 85
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 110
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "roland-vie-7",
+            "text": "On consolide, on étaye, on reprend. La montagne n’a pas eu le dernier mot.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 110
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 165
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "roland-vie-8",
+            "text": "Même un vieux mineur sait quand il faut prier. Surtout aujourd’hui.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 165
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 182
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
     },
     {
       "id": "wagner",
@@ -22532,7 +23294,237 @@
           },
           "building": "eglise"
         }
-      ]
+      ],
+      "chatter": {
+        "every": 75,
+        "lines": [
+          {
+            "sound": "wagner-vie-1",
+            "text": "Le fer ne ment jamais : chauffé trop vite, il casse ; chauffé avec patience, il dure cent ans.",
+            "when": {
+              "type": "not",
+              "condition": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              }
+            }
+          },
+          {
+            "sound": "wagner-vie-2",
+            "text": "Des lingots, j’ai besoin de lingots ! Qui me rapporte du minerai fondu ?",
+            "when": {
+              "type": "not",
+              "condition": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              }
+            }
+          },
+          {
+            "sound": "wagner-vie-3",
+            "text": "Pour la fête, je forge une cloche neuve. Enfin… si on me laisse travailler en paix.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "variable",
+                  "variable": "t",
+                  "op": "lt",
+                  "value": 35
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "wagner-vie-4",
+            "text": "Cette pierre est fascinante. Elle chante quand on l’approche du feu. Je n’ai jamais vu ça.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 35
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 85
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "wagner-vie-5",
+            "text": "Roland a peur de son ombre. Une pierre, c’est une pierre. Elle a juste… des propriétés.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 35
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 85
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "wagner-vie-6",
+            "text": "Le vent siffle dans la cheminée… Éloignez-vous de l’enclume, on ne sait jamais.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 85
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 110
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "wagner-vie-7",
+            "text": "Des ferrures pour la charpente de l’église : c’est le plus bel ouvrage de ma vie.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 110
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 165
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "wagner-vie-8",
+            "text": "J’ai forgé les clous de cette nef. Chaque coup de marteau était une prière, à ma façon.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 165
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 182
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
     },
     {
       "id": "sylvain",
@@ -22559,7 +23551,237 @@
           },
           "building": "eglise"
         }
-      ]
+      ],
+      "chatter": {
+        "every": 75,
+        "lines": [
+          {
+            "sound": "sylvain-vie-1",
+            "text": "Chut… Écoutez. La forêt parle à qui sait se taire.",
+            "when": {
+              "type": "not",
+              "condition": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              }
+            }
+          },
+          {
+            "sound": "sylvain-vie-2",
+            "text": "On ne coupe pas n’importe quel arbre. Celui-là a vu naître mon grand-père.",
+            "when": {
+              "type": "not",
+              "condition": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              }
+            }
+          },
+          {
+            "sound": "sylvain-vie-3",
+            "text": "Les cerfs sont descendus près du ruisseau ce matin. Belle journée pour la fête.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "variable",
+                  "variable": "t",
+                  "op": "lt",
+                  "value": 35
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "sylvain-vie-4",
+            "text": "Les oiseaux se sont tus. Les bêtes fuient vers l’est. Ce n’est jamais bon signe.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 35
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 85
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "sylvain-vie-5",
+            "text": "Le vent a tourné du mauvais côté. Je n’aime pas cette odeur de fer dans l’air.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 35
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 85
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "sylvain-vie-6",
+            "text": "Restez loin des grands chênes ! La foudre les cherche, et le vent les couche !",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 85
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 110
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "sylvain-vie-7",
+            "text": "Le grand chêne est tombé… Au moins, son bois servira à rebâtir la maison de Dieu.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 110
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 165
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "sylvain-vie-8",
+            "text": "Je préfère la cathédrale des arbres. Mais celle-ci n’est pas mal non plus.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 165
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 182
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
     },
     {
       "id": "agathe",
@@ -22586,7 +23808,237 @@
           },
           "building": "eglise"
         }
-      ]
+      ],
+      "chatter": {
+        "every": 75,
+        "lines": [
+          {
+            "sound": "agathe-vie-1",
+            "text": "Ici, on ne bavarde pas, on travaille ! Les gerbes ne vont pas se lier toutes seules.",
+            "when": {
+              "type": "not",
+              "condition": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              }
+            }
+          },
+          {
+            "sound": "agathe-vie-2",
+            "text": "Une poule s’est encore échappée. Si vous la voyez, elle s’appelle Bertille. Elle ne répond pas.",
+            "when": {
+              "type": "not",
+              "condition": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              }
+            }
+          },
+          {
+            "sound": "agathe-vie-3",
+            "text": "Le blé est mûr, le temps est beau : la meilleure moisson depuis dix ans, si on s’y met.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "variable",
+                  "variable": "t",
+                  "op": "lt",
+                  "value": 35
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "agathe-vie-4",
+            "text": "Mes vaches sont nerveuses. Quand mes vaches sont nerveuses, moi aussi.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 35
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 85
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "agathe-vie-5",
+            "text": "Plus vite ! Si l’orage arrive avant qu’on ait tout rentré, l’hiver sera long.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 35
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 85
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "agathe-vie-6",
+            "text": "Les volets ! Fermez les volets de la grange, vite !",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 85
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 110
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "agathe-vie-7",
+            "text": "On a perdu des bottes et des clôtures, mais pas le courage. Au travail.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 110
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 165
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "agathe-vie-8",
+            "text": "Si on m’avait dit que je finirais la journée à l’église en tablier… Enfin, le Bon Dieu ne regarde pas les tabliers.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 165
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 182
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
     },
     {
       "id": "anselme",
@@ -22604,7 +24056,237 @@
           },
           "building": ""
         }
-      ]
+      ],
+      "chatter": {
+        "every": 75,
+        "lines": [
+          {
+            "sound": "anselme-vie-1",
+            "text": "Que la paix soit sur cette maison… et sur ceux qui la font tenir debout.",
+            "when": {
+              "type": "not",
+              "condition": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              }
+            }
+          },
+          {
+            "sound": "anselme-vie-2",
+            "text": "Un cierge, mon enfant ? Il ne coûte presque rien et il éclaire beaucoup.",
+            "when": {
+              "type": "not",
+              "condition": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              }
+            }
+          },
+          {
+            "sound": "anselme-vie-3",
+            "text": "La Sainte Pelle a creusé ce village de ses mains. Ce soir, nous honorons sa mémoire.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "variable",
+                  "variable": "t",
+                  "op": "lt",
+                  "value": 35
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "anselme-vie-4",
+            "text": "Les cloches sonnent faux depuis ce matin… Je prie pour me tromper.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 35
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 85
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "anselme-vie-5",
+            "text": "Seigneur, protège Valbrume, ses bêtes, ses toits… et ma pauvre toiture en particulier.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 85
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 110
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "anselme-vie-6",
+            "text": "Une église, ce sont des pierres. Une paroisse, ce sont des gens. Et vous êtes là : rien n’est perdu.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 110
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 165
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "anselme-vie-7",
+            "text": "Merci pour ces bûches, mon enfant. Le Ciel tient ses comptes, vous savez.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 110
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 165
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sound": "anselme-vie-8",
+            "text": "Approchez, approchez ! Il reste de la place au fond… et sur le parvis.",
+            "when": {
+              "type": "all",
+              "conditions": [
+                {
+                  "type": "all",
+                  "conditions": [
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "gte",
+                      "value": 165
+                    },
+                    {
+                      "type": "variable",
+                      "variable": "t",
+                      "op": "lt",
+                      "value": 182
+                    }
+                  ]
+                },
+                {
+                  "type": "not",
+                  "condition": {
+                    "type": "variable",
+                    "variable": "acte",
+                    "op": "eq",
+                    "value": "apocalypse"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
     }
   ],
   "closure": {

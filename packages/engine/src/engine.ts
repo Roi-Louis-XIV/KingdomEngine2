@@ -472,6 +472,15 @@ export class Engine {
     return move ? move.building || undefined : c.home;
   }
 
+  /** Répliques de vie qu'un personnage peut dire maintenant (selon leurs conditions). */
+  chatterFor(id: Id): { every: number; sounds: Id[] } | undefined {
+    const c = this.characters().find((x) => x.id === id);
+    if (!c?.chatter?.lines.length) return undefined;
+    const ctx = this.ctx(structuredClone(this.state), { id: '', player: '__pnj__', building: this.characterLocation(id) ?? c.home, screen: '', ui: {}, createdAt: 0 });
+    const sounds = c.chatter.lines.filter((l) => l.sound && evaluate(ctx, l.when).ok).map((l) => l.sound);
+    return sounds.length ? { every: c.chatter.every ?? 90, sounds } : undefined;
+  }
+
   /** Personnages présents dans un bâtiment, ceux qui y habitent d'abord. */
   charactersIn(buildingId: Id): CharacterDef[] {
     const here = this.characters().filter((c) => this.characterLocation(c.id) === buildingId);

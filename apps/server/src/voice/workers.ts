@@ -44,6 +44,8 @@ interface Live {
   presence?: Presence;
   /** Message répété par-dessus l'ambiance (ex. « rejoignez le salon d'aide »). */
   message?: { key: string; timer: NodeJS.Timeout };
+  /** Prochaine réplique de vie, et la dernière dite (jamais deux fois de suite). */
+  chatter?: { timer: NodeJS.Timeout; last?: string };
 }
 
 /** Lit VOICE_WORKER_1_TOKEN … VOICE_WORKER_20_TOKEN (et leurs APPLICATION_ID). */
@@ -215,6 +217,7 @@ export class VoiceWorkers implements VoiceBridge {
         if (welcome) this.mixer(l).say(welcome, p.volume);
       }
       this.repeatMessage(l, p);
+      this.scheduleChatter(l);
     } catch (e) {
       console.warn(`${l.config.label} n’a pas pu rejoindre le vocal :`, (e as Error).message);
       this.pool.release(workerKey, (e as Error).message);
@@ -239,6 +242,36 @@ export class VoiceWorkers implements VoiceBridge {
     }
     l.mixer.endWhenIdle = !this.soundPath(l.presence?.serverId ?? '', l.presence?.ambience, true);
     return l.mixer;
+  }
+
+  /**
+   * Répliques de vie : à intervalle irrégulier (50 % à 150 % de la moyenne), une réplique au hasard parmi celles
+   * disponibles maintenant (relues à chaque fois : elles suivent le scénario), si le personnage ne parle pas déjà.
+   */
+  private scheduleChatter(l: Live) {
+    if (l.chatter || !l.presence?.chatter) return;
+    const tick = () => {
+      const c = l.presence?.chatter;
+      if (!c || !l.connection) {
+        l.chatter = undefined;
+        return;
+      }
+      if (!l.mixer?.speaking) {
+        const choices = c.sounds.length > 1 ? c.sounds.filter((s) => s !== l.chatter?.last) : c.sounds;
+        const sound = choices[Math.floor(Math.random() * choices.length)];
+        const path = sound && this.soundPath(l.presence!.serverId, sound);
+        if (path) {
+          this.mixer(l).say(path, l.presence!.volume);
+          l.chatter!.last = sound;
+        }
+      }
+      l.chatter!.timer = setTimeout(tick, c.every * (0.5 + Math.random()) * 1000);
+      l.chatter!.timer.unref();
+    };
+    // Première réplique un peu après l'arrivée (pas tous en même temps).
+    const first = setTimeout(tick, (l.presence.chatter.every * (0.3 + Math.random() * 0.7)) * 1000);
+    first.unref();
+    l.chatter = { timer: first };
   }
 
   /** Message répété : dit tout de suite, puis toutes les `every` secondes (sans se superposer à lui-même). */
@@ -284,6 +317,8 @@ export class VoiceWorkers implements VoiceBridge {
     if (!l) return;
     if (l.message) clearInterval(l.message.timer);
     l.message = undefined;
+    if (l.chatter) clearTimeout(l.chatter.timer);
+    l.chatter = undefined;
     // Un personnage qui s'en va finit sa phrase (15 s au plus).
     for (let i = 0; i < 75 && l.mixer?.speaking && l.connection; i++) await new Promise((r) => setTimeout(r, 200));
     l.player?.stop(true);
