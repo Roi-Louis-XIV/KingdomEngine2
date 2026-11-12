@@ -1003,11 +1003,12 @@ function audioTab(w: WorldDef, b: BuildingDef, changed: () => void, sounds: stri
     sounds.length ? selectField(label, value, value && !sounds.includes(value) ? [{ value, label: `${value} (manquant)` }, ...soundOpts] : soundOpts, set, { allowEmpty: 'Aucun' }) : field({ v: value }, 'v', { label: label ?? undefined, placeholder: 'clé du son' }, () => {});
   const draw = () => {
     const audio = b.audio;
-    const cases: { when?: any; sound: string }[] = !audio?.ambience ? [] : typeof audio.ambience === 'string' ? [{ sound: audio.ambience }] : audio.ambience.cases;
+    const cases: { when?: any; sound: string; message?: string; every?: number }[] = !audio?.ambience ? [] : typeof audio.ambience === 'string' ? [{ sound: audio.ambience }] : audio.ambience.cases;
     const write = () => {
       if (!b.audio) return;
-      const clean = cases.filter((c) => c.sound);
-      b.audio.ambience = clean.length === 0 ? undefined : clean.length === 1 && !clean[0]!.when ? clean[0]!.sound : ({ cases: clean } as SoundChoice);
+      // Une ligne sans son mais avec condition = silence pendant ce moment.
+      const clean = cases.filter((c) => c.sound || c.when || c.message);
+      b.audio.ambience = clean.length === 0 ? undefined : clean.length === 1 && !clean[0]!.when && !clean[0]!.message ? clean[0]!.sound : ({ cases: clean } as SoundChoice);
       changed();
     };
     clear(
@@ -1020,13 +1021,21 @@ function audioTab(w: WorldDef, b: BuildingDef, changed: () => void, sounds: stri
               'section',
               { class: 'block' },
               h('h2', null, 'Ambiance'),
-              h('p', { class: 'muted small' }, 'La première ligne dont la condition est vraie est jouée. Exemple : une ambiance d’orage pendant la Tempête, sinon l’ambiance calme.'),
+              h('p', { class: 'muted small' }, 'La première ligne dont la condition est vraie est jouée. Exemple : une ambiance d’orage pendant la Tempête, sinon l’ambiance calme. « Silence » coupe le fond sonore ; un message répété passe par-dessus la musique (ex. « rejoignez le salon d’aide »).'),
               cases.map((c, i) =>
                 h(
                   'div',
                   { class: 'row-fields' },
                   variableCondition(w, c.when, (cond) => ((c.when = cond), cond || delete c.when, write(), draw())),
-                  soundSelect(null, c.sound, (v) => ((c.sound = v), write())),
+                  sounds.length
+                    ? selectField(null, c.sound, c.sound && !sounds.includes(c.sound) ? [{ value: c.sound, label: `${c.sound} (manquant)` }, ...soundOpts] : soundOpts, (v) => ((c.sound = v), write()), { allowEmpty: 'Silence' })
+                    : soundSelect(null, c.sound, (v) => ((c.sound = v), write())),
+                  sounds.length
+                    ? selectField(null, c.message ?? '', soundOpts, (v) => (v ? (c.message = v) : delete c.message, write(), draw()), { allowEmpty: 'Sans message répété' })
+                    : null,
+                  c.message
+                    ? h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Toutes les (s)'), h('input', { type: 'number', min: 5, value: String(c.every ?? 30), oninput: (e: Event) => ((c.every = Math.max(5, Number((e.target as HTMLInputElement).value) || 30)), write()) }))
+                    : null,
                   h('button', { class: 'icon-btn', 'aria-label': 'Retirer', onclick: () => (cases.splice(i, 1), write(), draw()) }, '✕'),
                 ),
               ),

@@ -143,3 +143,34 @@ test('ancien format (sans liste de personnages) : le PNJ de chaque bâtiment ave
   assert.equal(p!.holder, true);
   assert.equal(p!.character, 'npc:taverne');
 });
+
+test('finale : silence après le cri, Roland s’en va sans délai, puis musique d’attente et message en boucle là où il y a des joueurs', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { Engine } = await import('../../../packages/engine/src/index.ts');
+  const { departedKeys } = await import('../src/voice/planner.ts');
+  const world = JSON.parse(readFileSync(new URL('../../../content/sainte-pelle/world.json', import.meta.url), 'utf8'));
+  const engine = new Engine(world);
+  const channels = Object.fromEntries(world.buildings.map((b: { id: string }) => [b.id, { voice: `vc-${b.id}` }]));
+  const plan = (occupied: string[]) => desiredPresences({ serverId: 's', guildId: 'g1', engine, channels, occupancy: new Map(occupied.map((b) => [`vc-${b}`, 1])) });
+  engine.setVariable('t', 182);
+  engine.setVariable('acte', 'apocalypse');
+  engine.setVariable('apocalypse', 'cri');
+  assert.ok(plan(['eglise', 'mine']).every((p) => p.ambience === undefined), 'silence total');
+  engine.setVariable('apocalypse', 'panique');
+  assert.deepEqual([...departedKeys(engine, 's')], ['s:pnj:roland'], 'Roland est parti');
+  assert.equal(plan(['eglise']).length, 6, 'les 6 autres PNJ restent pour hurler');
+  // Le pool libère Roland tout de suite (pas de délai de grâce).
+  const p = pool(1);
+  const base = { guildId: 'g1', serverId: 's', channelId: 'vc-eglise', building: 'eglise', identity: { name: 'Roland' }, volume: 0.6, character: 'roland' };
+  p.reconcile([{ ...base, key: 's:pnj:roland' }], 0);
+  assert.equal(p.reconcile([], 1000, departedKeys(engine, 's')).release.length, 1);
+  // Attente : plus aucun PNJ ; un worker au nom du lieu là où il y a des joueurs, musique + message toutes les 20 s.
+  engine.setVariable('apocalypse', 'attente');
+  engine.setVariable('monde', 'ferme');
+  const attente = plan(['eglise', 'mine']);
+  assert.deepEqual(attente.map((x) => [x.identity.name, x.ambience, x.message?.sound, x.message?.every]), [
+    ['Mine de Roland', 'fin-attente', 'fin-rejoindre-aide', 20],
+    ['Église de la Sainte Pelle', 'fin-attente', 'fin-rejoindre-aide', 20],
+  ]);
+  assert.deepEqual(plan([]), [], 'personne : personne');
+});

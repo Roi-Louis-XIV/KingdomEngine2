@@ -25,7 +25,7 @@ import type { Runtimes } from '../runtime.ts';
 import type { VoiceBridge } from '../bridges.ts';
 import type { CoreBot } from '../discord/core.ts';
 import { VoicePool, type Presence } from './pool.ts';
-import { desiredPresences, type BuildingChannels } from './planner.ts';
+import { departedKeys, desiredPresences, type BuildingChannels } from './planner.ts';
 
 export interface WorkerConfig {
   key: string;
@@ -42,6 +42,8 @@ interface Live {
   /** Ambiance + répliques mixées, envoyées en continu au salon vocal. */
   mixer?: Mixer;
   presence?: Presence;
+  /** Message répété par-dessus l'ambiance (ex. « rejoignez le salon d'aide »). */
+  message?: { key: string; timer: NodeJS.Timeout };
 }
 
 /** Lit VOICE_WORKER_1_TOKEN … VOICE_WORKER_20_TOKEN (et leurs APPLICATION_ID). */
@@ -158,16 +160,19 @@ export class VoiceWorkers implements VoiceBridge {
 
   private async reconcile() {
     const desired: Presence[] = [];
+    const departed = new Set<string>();
     for (const s of this.platform.allServers()) {
       if (!s.guildId) continue;
       const engine = this.runtimes.engine(s.id);
       if (!engine) continue;
       const channels = this.platform.setting<Record<string, BuildingChannels>>(s.id, 'discord.channels', {});
       desired.push(...desiredPresences({ serverId: s.id, guildId: s.guildId, engine, channels, occupancy: this.core.occupancy(s.guildId) }));
+      for (const k of departedKeys(engine, s.id)) departed.add(k);
     }
-    const plan = this.pool.reconcile(desired, Date.now());
+    const plan = this.pool.reconcile(desired, Date.now(), departed);
     this.unplaced = plan.unplaced.map((u) => ({ serverId: u.presence.serverId, building: u.presence.building, reason: u.reason }));
-    for (const r of plan.release) await this.leave(r.worker);
+    // En parallèle : un personnage qui finit sa phrase ne retarde pas les autres départs.
+    await Promise.all(plan.release.map((r) => this.leave(r.worker)));
     for (const a of plan.assign) await this.join(a.worker, a.presence, true);
     for (const u of plan.update) await this.join(u.worker, u.presence, false);
   }
@@ -209,6 +214,7 @@ export class VoiceWorkers implements VoiceBridge {
         const welcome = this.soundPath(p.serverId, p.welcome);
         if (welcome) this.mixer(l).say(welcome, p.volume);
       }
+      this.repeatMessage(l, p);
     } catch (e) {
       console.warn(`${l.config.label} n’a pas pu rejoindre le vocal :`, (e as Error).message);
       this.pool.release(workerKey, (e as Error).message);
@@ -235,6 +241,23 @@ export class VoiceWorkers implements VoiceBridge {
     return l.mixer;
   }
 
+  /** Message répété : dit tout de suite, puis toutes les `every` secondes (sans se superposer à lui-même). */
+  private repeatMessage(l: Live, p: Presence) {
+    const key = p.message ? `${p.message.sound}|${p.message.every}` : '';
+    if ((l.message?.key ?? '') === key) return;
+    if (l.message) clearInterval(l.message.timer);
+    l.message = undefined;
+    if (!p.message) return;
+    const say = () => {
+      const path = this.soundPath(p.serverId, p.message!.sound);
+      if (path && l.connection && !l.mixer?.speaking) this.mixer(l).say(path, p.volume);
+    };
+    say();
+    const timer = setInterval(say, Math.max(5, p.message.every) * 1000);
+    timer.unref();
+    l.message = { key, timer };
+  }
+
   private createPlayer(l: Live): AudioPlayer {
     const player = createAudioPlayer();
     player.on('error', (e) => console.warn(`${l.config.label} lecture :`, e.message));
@@ -259,6 +282,10 @@ export class VoiceWorkers implements VoiceBridge {
   private async leave(workerKey: string) {
     const l = this.live.get(workerKey);
     if (!l) return;
+    if (l.message) clearInterval(l.message.timer);
+    l.message = undefined;
+    // Un personnage qui s'en va finit sa phrase (15 s au plus).
+    for (let i = 0; i < 75 && l.mixer?.speaking && l.connection; i++) await new Promise((r) => setTimeout(r, 200));
     l.player?.stop(true);
     l.connection?.destroy();
     l.connection = undefined;

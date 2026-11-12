@@ -174,7 +174,7 @@ export async function catalogPage(main: HTMLElement, params: string[]) {
                   h(
                     'div',
                     { class: 'row-fields' },
-                    selectField('Va à', m.building, buildings, (v) => ((m.building = v), changed())),
+                    selectField('Va à', m.building, buildings, (v) => ((m.building = v), changed()), { allowEmpty: 'Nulle part : il s’en va' }),
                     h('div', null, h('span', { class: 'field-label' }, 'Quand'), conditionEditor(w, undefined, m.when, (cond) => ((m.when = cond ?? m.when), changed()))),
                     h('button', { class: 'icon-btn', 'aria-label': 'Retirer ce déplacement', onclick: () => ((c.moves = c.moves!.filter((_, j) => j !== i)), changed(), redraw()) }, '×'),
                   ),

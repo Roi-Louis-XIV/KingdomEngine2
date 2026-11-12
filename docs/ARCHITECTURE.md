@@ -116,6 +116,8 @@ Détails techniques :
 
 - `voice/planner.ts` : pour chaque salon vocal de bâtiment où il y a des joueurs, **un Voice Worker par personnage présent**, à son nom (`world.characters` : domicile + déplacements conditionnels, ex. tous à l'église pour la messe ; à défaut, le `npc` de chaque bâtiment). L'ambiance est jouée par le personnage qui habite le lieu, sinon par un autre présent, sinon par un worker au nom du bâtiment. Un personnage qui se déplace garde son worker, qui change de salon.
 - `voice/mixer.ts` : chaque worker **mixe** l'ambiance en boucle et les répliques par-dessus (ffmpeg → PCM 48 kHz, somme par trames de 20 ms → Opus). Les répliques d'un même worker s'enchaînent. Un worker sans ambiance n'émet que pendant ses répliques (on voit sur Discord qui parle).
+- Déplacement vers « nulle part » (bâtiment vide) : le personnage s'en va ; son worker finit sa phrase (15 s au plus) puis quitte le vocal, sans délai de grâce.
+- Ambiance : une ligne au son vide = **silence** ; une ligne peut porter un **message répété** par-dessus la musique (`message`, toutes les `every` secondes).
 - `audio.play` avec `character` = réplique dite par ce personnage là où il se trouve ; sans, le son est joué par le worker qui tient l'ambiance du bâtiment.
 - **Ambiance permanente** (`world.settings.voiceAlways`) : les workers restent même dans les salons vides (désactivé dans la bêta).
 - `voice/pool.ts` : attribue les présences aux workers libres et installés sur le bon serveur. Une présence garde son worker tant qu’elle est souhaitée, avec 30 s de grâce après le départ du dernier joueur. Si l’ambiance change (Tempête), le son est mis à jour sans changer de worker.

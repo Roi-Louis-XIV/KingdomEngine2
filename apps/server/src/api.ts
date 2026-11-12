@@ -468,7 +468,7 @@ export function registerApi(router: Router, deps: ApiDeps) {
     for (const b of w?.buildings ?? []) {
       const amb = b.audio?.ambience;
       if (typeof amb === 'string') used.add(amb);
-      else amb?.cases.forEach((c) => used.add(c.sound));
+      else amb?.cases.forEach((c) => (c.sound && used.add(c.sound), c.message && used.add(c.message)));
       if (b.audio?.welcome) used.add(b.audio.welcome);
     }
     JSON.stringify(w ?? {}).replace(/"type":"audio\.play","sound":"([^"]+)"/g, (_, k: string) => (used.add(k), ''));

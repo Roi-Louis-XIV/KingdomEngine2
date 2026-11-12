@@ -20,6 +20,8 @@ export interface Presence {
   holder?: boolean;
   identity: { name: string; avatarUrl?: string };
   ambience?: string;
+  /** Message répété par-dessus l'ambiance, toutes les `every` secondes. */
+  message?: { sound: string; every: number };
   welcome?: string;
   volume: number;
 }
@@ -61,7 +63,7 @@ export class VoicePool {
   }
 
   /** Calcule les changements nécessaires et met à jour l'état interne en conséquence. */
-  reconcile(desired: Presence[], now: number): ReconcilePlan {
+  reconcile(desired: Presence[], now: number, departed: Set<string> = new Set()): ReconcilePlan {
     const plan: ReconcilePlan = { assign: [], update: [], release: [], unplaced: [] };
     const wanted = new Map(desired.map((p) => [p.key, p]));
 
@@ -71,12 +73,12 @@ export class VoicePool {
       const p = wanted.get(w.presence.key);
       if (p && w.online) {
         w.wantedAt = now;
-        if (p.ambience !== w.presence.ambience || p.channelId !== w.presence.channelId || p.identity.name !== w.presence.identity.name || p.volume !== w.presence.volume || p.holder !== w.presence.holder || p.building !== w.presence.building) {
+        if (p.ambience !== w.presence.ambience || p.channelId !== w.presence.channelId || p.identity.name !== w.presence.identity.name || p.volume !== w.presence.volume || p.holder !== w.presence.holder || p.building !== w.presence.building || JSON.stringify(p.message) !== JSON.stringify(w.presence.message)) {
           w.presence = p;
           plan.update.push({ worker: w.key, presence: p });
         }
         wanted.delete(p.key);
-      } else if (!w.online || now - (w.wantedAt ?? 0) >= this.graceMs || desired.some((d) => d.channelId === w.presence!.channelId && d.holder && w.presence!.holder)) {
+      } else if (!w.online || now - (w.wantedAt ?? 0) >= this.graceMs || departed.has(w.presence.key) || desired.some((d) => d.channelId === w.presence!.channelId && d.holder && w.presence!.holder)) {
         // Libération immédiate (sans délai de grâce) quand quelqu'un d'autre reprend l'ambiance de ce salon :
         // ex. le personnage du lieu arrive et remplace la présence au nom du bâtiment.
         plan.release.push({ worker: w.key, presenceKey: w.presence.key });

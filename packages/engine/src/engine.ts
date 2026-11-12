@@ -6,7 +6,7 @@
  * toutes les actions réussissent. Comme les méthodes sont synchrones, deux interactions
  * ne peuvent jamais s'entrelacer.
  */
-import type { Action, Block, ButtonDef, CharacterDef, Id, Rule, ScreenDef, WorldDef, BuildingDef } from './model.ts';
+import type { Action, Block, ButtonDef, CharacterDef, Id, Rule, ScreenDef, SoundCase, WorldDef, BuildingDef } from './model.ts';
 import type { RButton, RContainer, RenderedMessage, RTopLevel } from './components.ts';
 import { createInitialState, newPlayer, syncStructure, type SessionState, type WorldState } from './state.ts';
 import { type Ctx, type EngineEvent, RuleError, applyAction, describeChanges, evaluate, pickText } from './rules.ts';
@@ -467,7 +467,9 @@ export class Engine {
     if (!c) return undefined;
     if (!c.moves?.length) return c.home;
     const ctx = this.ctx(structuredClone(this.state), { id: '', player: '__pnj__', building: c.home, screen: '', ui: {}, createdAt: 0 });
-    return c.moves.find((m) => evaluate(ctx, m.when).ok)?.building ?? c.home;
+    const move = c.moves.find((m) => evaluate(ctx, m.when).ok);
+    // Un déplacement vers « nulle part » : le personnage s'en est allé.
+    return move ? move.building || undefined : c.home;
   }
 
   /** Personnages présents dans un bâtiment, ceux qui y habitent d'abord. */
@@ -476,14 +478,20 @@ export class Engine {
     return [...here.filter((c) => c.home === buildingId), ...here.filter((c) => c.home !== buildingId)];
   }
 
-  ambienceFor(buildingId: Id): Id | undefined {
+  /** Ambiance actuelle d'un bâtiment (première ligne dont la condition est vraie). */
+  ambienceCase(buildingId: Id): SoundCase | undefined {
     const b = this.world.buildings.find((x) => x.id === buildingId);
     const choice = b?.audio?.ambience;
     if (!choice) return undefined;
-    if (typeof choice === 'string') return choice;
+    if (typeof choice === 'string') return { sound: choice };
     const draft = structuredClone(this.state);
     const ctx = this.ctx(draft, { id: '', player: '__ambience__', building: buildingId, screen: '', ui: {}, createdAt: 0 });
-    return choice.cases.find((c) => evaluate(ctx, c.when).ok)?.sound;
+    return choice.cases.find((c) => evaluate(ctx, c.when).ok);
+  }
+
+  /** Son d'ambiance en boucle (undefined = rien ou silence). */
+  ambienceFor(buildingId: Id): Id | undefined {
+    return this.ambienceCase(buildingId)?.sound || undefined;
   }
 
   /** Rendu actuel d'une session (applique les redirections d'accès si nécessaire). */

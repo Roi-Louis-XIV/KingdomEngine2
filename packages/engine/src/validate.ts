@@ -174,7 +174,7 @@ export function validateWorld(w: WorldDef): Issue[] {
       if (!c.name?.trim()) err(where, 'nom manquant');
       if (!w.buildings.some((b) => b.id === c.home)) err(where, `bâtiment d’origine inconnu : ${c.home}`);
       for (const m of c.moves ?? []) {
-        if (!w.buildings.some((b) => b.id === m.building)) err(where, `déplacement vers un bâtiment inconnu : ${m.building}`);
+        if (m.building && !w.buildings.some((b) => b.id === m.building)) err(where, `déplacement vers un bâtiment inconnu : ${m.building}`);
         checkCondition(where, m.when);
       }
     }
@@ -273,7 +273,11 @@ export function validateWorld(w: WorldDef): Issue[] {
     };
     screen(b.homeScreen, `${at} › écran d'accueil`);
     const amb = b.audio?.ambience;
-    if (amb && typeof amb !== 'string') amb.cases.forEach((c) => checkCondition(`${at} › audio`, c.when, b));
+    if (amb && typeof amb !== 'string')
+      amb.cases.forEach((c) => {
+        checkCondition(`${at} › audio`, c.when, b);
+        if (c.every !== undefined && !(c.every >= 5)) err(`${at} › audio`, 'message répété : 5 secondes minimum entre deux passages');
+      });
     void mid;
 
     for (const m of b.modules) {

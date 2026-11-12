@@ -221,7 +221,10 @@ export interface CharacterDef {
   emoji?: string;
   /** Bâtiment où il se trouve d'habitude : il y joue l'ambiance. */
   home: Id;
-  /** Déplacements : la première condition vraie l'emmène dans ce bâtiment (ex. tous à l'église pour la messe). */
+  /**
+   * Déplacements : la première condition vraie l'emmène dans ce bâtiment (ex. tous à l'église pour la messe).
+   * Bâtiment vide = il s'en va (son Voice Worker finit sa phrase puis quitte le vocal).
+   */
   moves?: { when: Condition; building: Id }[];
 }
 
@@ -374,7 +377,16 @@ export interface BuildingDef {
 }
 
 /** Choix d'un son, éventuellement selon des conditions (phase du scénario…). */
-export type SoundChoice = Id | { cases: { when?: Condition; sound: Id }[] };
+export type SoundChoice = Id | { cases: SoundCase[] };
+
+export interface SoundCase {
+  when?: Condition;
+  /** Son en boucle ; vide = silence. */
+  sound: Id;
+  /** Message répété par-dessus (ex. « rejoignez le salon d'aide »), toutes les `every` secondes (défaut 30). */
+  message?: Id;
+  every?: number;
+}
 
 export interface BuildingAudio {
   /** Fond sonore en boucle (tant que des joueurs sont présents, ou tout le temps avec settings.voiceAlways). */

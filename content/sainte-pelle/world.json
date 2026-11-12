@@ -134,6 +134,11 @@
           "value": "ouvert"
         },
         {
+          "type": "variable.set",
+          "variable": "apocalypse",
+          "value": "non"
+        },
+        {
           "type": "audio.play",
           "sound": "maelis-ouverture",
           "building": "place",
@@ -1077,7 +1082,7 @@
         },
         {
           "afterMinutes": 182,
-          "name": "L’apocalypse",
+          "name": "Le cri de la bête",
           "actions": [
             {
               "type": "variable.set",
@@ -1088,6 +1093,11 @@
               "type": "variable.set",
               "variable": "acte",
               "value": "apocalypse"
+            },
+            {
+              "type": "variable.set",
+              "variable": "apocalypse",
+              "value": "cri"
             },
             {
               "type": "audio.play",
@@ -1128,6 +1138,44 @@
               "type": "audio.play",
               "sound": "monstre-cri",
               "building": "eglise"
+            }
+          ]
+        },
+        {
+          "afterMinutes": 182.25,
+          "name": "Il est revenu !",
+          "actions": [
+            {
+              "type": "variable.set",
+              "variable": "t",
+              "value": 182.25
+            },
+            {
+              "type": "variable.set",
+              "variable": "apocalypse",
+              "value": "revenu"
+            },
+            {
+              "type": "audio.play",
+              "sound": "roland-il-est-revenu",
+              "building": "eglise",
+              "character": "roland"
+            }
+          ]
+        },
+        {
+          "afterMinutes": 182.33333333333334,
+          "name": "La panique",
+          "actions": [
+            {
+              "type": "variable.set",
+              "variable": "t",
+              "value": 182.33333333333334
+            },
+            {
+              "type": "variable.set",
+              "variable": "apocalypse",
+              "value": "panique"
             },
             {
               "type": "audio.play",
@@ -1140,12 +1188,6 @@
               "sound": "edgar-panique",
               "building": "taverne",
               "character": "edgar"
-            },
-            {
-              "type": "audio.play",
-              "sound": "roland-panique",
-              "building": "mine",
-              "character": "roland"
             },
             {
               "type": "audio.play",
@@ -1170,46 +1212,22 @@
               "sound": "anselme-panique",
               "building": "eglise",
               "character": "anselme"
+            }
+          ]
+        },
+        {
+          "afterMinutes": 182.66666666666666,
+          "name": "Le silence retombe",
+          "actions": [
+            {
+              "type": "variable.set",
+              "variable": "t",
+              "value": 182.66666666666666
             },
             {
-              "type": "audio.play",
-              "sound": "fin-rejoindre-aide",
-              "building": "place"
-            },
-            {
-              "type": "audio.play",
-              "sound": "fin-rejoindre-aide",
-              "building": "taverne"
-            },
-            {
-              "type": "audio.play",
-              "sound": "fin-rejoindre-aide",
-              "building": "mine"
-            },
-            {
-              "type": "audio.play",
-              "sound": "fin-rejoindre-aide",
-              "building": "forge"
-            },
-            {
-              "type": "audio.play",
-              "sound": "fin-rejoindre-aide",
-              "building": "foret"
-            },
-            {
-              "type": "audio.play",
-              "sound": "fin-rejoindre-aide",
-              "building": "ferme"
-            },
-            {
-              "type": "audio.play",
-              "sound": "fin-rejoindre-aide",
-              "building": "pont"
-            },
-            {
-              "type": "audio.play",
-              "sound": "fin-rejoindre-aide",
-              "building": "eglise"
+              "type": "variable.set",
+              "variable": "apocalypse",
+              "value": "attente"
             },
             {
               "type": "variable.set",
@@ -1217,7 +1235,7 @@
               "value": "ferme"
             }
           ],
-          "announce": "👹 **UN HURLEMENT INHUMAIN DÉCHIRE LA NUIT SUR VALBRUME !**\nLes habitants fuient en criant, les cloches sonnent à toute volée, le ciel se fend en deux…\n\n🔔 **La bêta est terminée — merci à tous !** Rejoignez {salon.aide} pour le récap de votre aventure, et n’oubliez pas d’envoyer votre fiche de retour."
+          "announce": "👹 **UN HURLEMENT INHUMAIN A DÉCHIRÉ LA NUIT SUR VALBRUME.** Les habitants ont fui, plus rien ne bouge…\n\n🔔 **La bêta est terminée — merci à tous !** Rejoignez {salon.aide} pour le récap de votre aventure, et n’oubliez pas d’envoyer votre fiche de retour."
         }
       ],
       "onEnd": [],
@@ -2549,6 +2567,33 @@
         {
           "value": "apocalypse",
           "label": "👹 L’apocalypse"
+        }
+      ]
+    },
+    {
+      "id": "apocalypse",
+      "name": "Finale",
+      "initial": "non",
+      "options": [
+        {
+          "value": "non",
+          "label": "—"
+        },
+        {
+          "value": "cri",
+          "label": "👹 Le cri"
+        },
+        {
+          "value": "revenu",
+          "label": "😱 Il est revenu"
+        },
+        {
+          "value": "panique",
+          "label": "🏃 La panique"
+        },
+        {
+          "value": "attente",
+          "label": "🎵 Attente (salon d’aide)"
         }
       ]
     },
@@ -5470,11 +5515,22 @@
             {
               "when": {
                 "type": "variable",
+                "variable": "apocalypse",
+                "op": "eq",
+                "value": "attente"
+              },
+              "sound": "fin-attente",
+              "message": "fin-rejoindre-aide",
+              "every": 20
+            },
+            {
+              "when": {
+                "type": "variable",
                 "variable": "acte",
                 "op": "eq",
                 "value": "apocalypse"
               },
-              "sound": "apocalypse"
+              "sound": ""
             },
             {
               "when": {
@@ -5531,11 +5587,22 @@
             {
               "when": {
                 "type": "variable",
+                "variable": "apocalypse",
+                "op": "eq",
+                "value": "attente"
+              },
+              "sound": "fin-attente",
+              "message": "fin-rejoindre-aide",
+              "every": 20
+            },
+            {
+              "when": {
+                "type": "variable",
                 "variable": "acte",
                 "op": "eq",
                 "value": "apocalypse"
               },
-              "sound": "apocalypse"
+              "sound": ""
             },
             {
               "when": {
@@ -11127,11 +11194,22 @@
             {
               "when": {
                 "type": "variable",
+                "variable": "apocalypse",
+                "op": "eq",
+                "value": "attente"
+              },
+              "sound": "fin-attente",
+              "message": "fin-rejoindre-aide",
+              "every": 20
+            },
+            {
+              "when": {
+                "type": "variable",
                 "variable": "acte",
                 "op": "eq",
                 "value": "apocalypse"
               },
-              "sound": "apocalypse"
+              "sound": ""
             },
             {
               "when": {
@@ -16201,11 +16279,22 @@
             {
               "when": {
                 "type": "variable",
+                "variable": "apocalypse",
+                "op": "eq",
+                "value": "attente"
+              },
+              "sound": "fin-attente",
+              "message": "fin-rejoindre-aide",
+              "every": 20
+            },
+            {
+              "when": {
+                "type": "variable",
                 "variable": "acte",
                 "op": "eq",
                 "value": "apocalypse"
               },
-              "sound": "apocalypse"
+              "sound": ""
             },
             {
               "when": {
@@ -16266,11 +16355,22 @@
             {
               "when": {
                 "type": "variable",
+                "variable": "apocalypse",
+                "op": "eq",
+                "value": "attente"
+              },
+              "sound": "fin-attente",
+              "message": "fin-rejoindre-aide",
+              "every": 20
+            },
+            {
+              "when": {
+                "type": "variable",
                 "variable": "acte",
                 "op": "eq",
                 "value": "apocalypse"
               },
-              "sound": "apocalypse"
+              "sound": ""
             },
             {
               "when": {
@@ -19955,11 +20055,22 @@
             {
               "when": {
                 "type": "variable",
+                "variable": "apocalypse",
+                "op": "eq",
+                "value": "attente"
+              },
+              "sound": "fin-attente",
+              "message": "fin-rejoindre-aide",
+              "every": 20
+            },
+            {
+              "when": {
+                "type": "variable",
                 "variable": "acte",
                 "op": "eq",
                 "value": "apocalypse"
               },
-              "sound": "apocalypse"
+              "sound": ""
             },
             {
               "when": {
@@ -21243,11 +21354,22 @@
             {
               "when": {
                 "type": "variable",
+                "variable": "apocalypse",
+                "op": "eq",
+                "value": "attente"
+              },
+              "sound": "fin-attente",
+              "message": "fin-rejoindre-aide",
+              "every": 20
+            },
+            {
+              "when": {
+                "type": "variable",
                 "variable": "acte",
                 "op": "eq",
                 "value": "apocalypse"
               },
-              "sound": "apocalypse"
+              "sound": ""
             },
             {
               "when": {
@@ -22237,11 +22359,22 @@
             {
               "when": {
                 "type": "variable",
+                "variable": "apocalypse",
+                "op": "eq",
+                "value": "attente"
+              },
+              "sound": "fin-attente",
+              "message": "fin-rejoindre-aide",
+              "every": 20
+            },
+            {
+              "when": {
+                "type": "variable",
                 "variable": "acte",
                 "op": "eq",
                 "value": "apocalypse"
               },
-              "sound": "apocalypse"
+              "sound": ""
             },
             {
               "when": {
@@ -22283,6 +22416,15 @@
         {
           "when": {
             "type": "variable",
+            "variable": "monde",
+            "op": "eq",
+            "value": "ferme"
+          },
+          "building": ""
+        },
+        {
+          "when": {
+            "type": "variable",
             "variable": "t",
             "op": "gte",
             "value": 165
@@ -22298,6 +22440,15 @@
       "title": "Tavernier",
       "home": "taverne",
       "moves": [
+        {
+          "when": {
+            "type": "variable",
+            "variable": "monde",
+            "op": "eq",
+            "value": "ferme"
+          },
+          "building": ""
+        },
         {
           "when": {
             "type": "variable",
@@ -22319,6 +22470,35 @@
         {
           "when": {
             "type": "variable",
+            "variable": "monde",
+            "op": "eq",
+            "value": "ferme"
+          },
+          "building": ""
+        },
+        {
+          "when": {
+            "type": "any",
+            "conditions": [
+              {
+                "type": "variable",
+                "variable": "apocalypse",
+                "op": "eq",
+                "value": "panique"
+              },
+              {
+                "type": "variable",
+                "variable": "apocalypse",
+                "op": "eq",
+                "value": "attente"
+              }
+            ]
+          },
+          "building": ""
+        },
+        {
+          "when": {
+            "type": "variable",
             "variable": "t",
             "op": "gte",
             "value": 165
@@ -22334,6 +22514,15 @@
       "title": "Maître forgeron",
       "home": "forge",
       "moves": [
+        {
+          "when": {
+            "type": "variable",
+            "variable": "monde",
+            "op": "eq",
+            "value": "ferme"
+          },
+          "building": ""
+        },
         {
           "when": {
             "type": "variable",
@@ -22355,6 +22544,15 @@
         {
           "when": {
             "type": "variable",
+            "variable": "monde",
+            "op": "eq",
+            "value": "ferme"
+          },
+          "building": ""
+        },
+        {
+          "when": {
+            "type": "variable",
             "variable": "t",
             "op": "gte",
             "value": 165
@@ -22373,6 +22571,15 @@
         {
           "when": {
             "type": "variable",
+            "variable": "monde",
+            "op": "eq",
+            "value": "ferme"
+          },
+          "building": ""
+        },
+        {
+          "when": {
+            "type": "variable",
             "variable": "t",
             "op": "gte",
             "value": 165
@@ -22386,7 +22593,18 @@
       "name": "Père Anselme",
       "emoji": "⛪",
       "title": "Prêtre",
-      "home": "eglise"
+      "home": "eglise",
+      "moves": [
+        {
+          "when": {
+            "type": "variable",
+            "variable": "monde",
+            "op": "eq",
+            "value": "ferme"
+          },
+          "building": ""
+        }
+      ]
     }
   ],
   "closure": {

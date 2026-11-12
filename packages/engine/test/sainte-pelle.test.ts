@@ -185,23 +185,34 @@ test('vote, verdict, incendie, urgence maîtrisée, éclats retrouvés et fin tr
   assert.match(place.click('🏅 Tableau d’honneur').text, /Tableau d’honneur/);
   assert.equal(engine.ambienceFor('taverne'), 'taverne-calme');
 
-  // Finale : cri de monstre partout, panique des PNJ, invitation au salon d'aide, monde fermé.
-  const events = [];
-  for (let i = 0; i < 4 && engine.variables.monde !== 'ferme'; i++) {
-    clock.advance(60);
-    events.push(...engine.tick());
+  // Finale, toutes les 5 s comme sur le serveur : cri partout, silence, « Il est revenu ! », panique, attente.
+  const timeline: { at: number; e: { type: string; building?: string; sound?: string; character?: string; text?: string } }[] = [];
+  const start = clock.now();
+  for (let i = 0; i < 60 && engine.variables.monde !== 'ferme'; i++) {
+    clock.advance(5);
+    for (const e of engine.tick()) timeline.push({ at: Math.round((clock.now() - start) / 1000), e });
   }
+  const events = timeline.map((x) => x.e);
   assert.equal(engine.variables.acte, 'apocalypse');
   assert.equal(engine.variables.monde, 'ferme');
-  const sounds = events.filter((e) => e.type === 'audio.play') as { building: string; sound: string }[];
+  const sounds = timeline.filter((x) => x.e.type === 'audio.play');
   const BUILDINGS = ['place', 'taverne', 'mine', 'forge', 'foret', 'ferme', 'pont', 'eglise'];
+  const cri = sounds.filter((x) => x.e.sound === 'monstre-cri');
+  assert.deepEqual(cri.map((x) => x.e.building).sort(), [...BUILDINGS].sort(), 'le cri dans tous les lieux');
+  assert.ok(cri.every((x) => !x.e.character), 'le cri est un son du lieu, pas une réplique');
+  const revenu = sounds.find((x) => x.e.sound === 'roland-il-est-revenu')!;
+  assert.equal(revenu.e.character, 'roland');
+  assert.ok(revenu.at - cri[0]!.at >= 15 && revenu.at - cri[0]!.at <= 20, `le cri, 5 s de silence, puis Roland (${revenu.at - cri[0]!.at} s)`);
+  const panique = sounds.filter((x) => x.e.sound!.endsWith('-panique'));
+  assert.deepEqual(panique.map((x) => x.e.character).sort(), ['agathe', 'anselme', 'edgar', 'maelis', 'sylvain', 'wagner']);
+  assert.ok(panique.every((x) => x.at > revenu.at), 'les autres hurlent après Roland');
+  // Silence total entre le cri et l'attente, puis musique d'attente + message en boucle partout.
   for (const b of BUILDINGS) {
-    const here = sounds.filter((x) => x.building === b).map((x) => x.sound);
-    assert.equal(here[0], 'monstre-cri', `le cri d’abord (${b})`);
-    assert.equal(here.at(-1), 'fin-rejoindre-aide', `l’invitation en dernier (${b})`);
-    if (b !== 'pont') assert.equal(here.length, 3, `cri, panique, invitation (${b})`);
-    assert.equal(engine.ambienceFor(b), 'apocalypse');
+    assert.equal(engine.ambienceCase(b)?.sound, 'fin-attente');
+    assert.equal(engine.ambienceCase(b)?.message, 'fin-rejoindre-aide');
   }
+  // Tous les PNJ sont partis.
+  assert.ok(engine.characters().every((c) => engine.characterLocation(c.id) === undefined));
   assert.ok(events.some((e) => e.type === 'announce' && e.text.includes('{salon.aide}')));
   // Le monde est fermé : chaque interface n'affiche que la fermeture, plus aucune action.
   place.refresh();

@@ -37,7 +37,9 @@ export function desiredPresences(input: {
     if (!explicit && !b.audio) continue;
     const occupied = (input.occupancy.get(voice) ?? 0) >= 1;
     if (!occupied && !always) continue;
-    const ambience = engine.ambienceFor(b.id);
+    const amb = engine.ambienceCase(b.id);
+    const ambience = amb?.sound || undefined;
+    const message = amb?.message ? { sound: amb.message, every: amb.every ?? 30 } : undefined;
     const volume = b.audio?.volume ?? 0.6;
     // L'accueil n'a de sens que si quelqu'un l'entend.
     const welcome = occupied ? b.audio?.welcome : undefined;
@@ -55,15 +57,21 @@ export function desiredPresences(input: {
         holder,
         identity: { name: c.name, avatarUrl: c.home === b.id ? b.npc?.avatarUrl : undefined },
         ambience: holder ? ambience : undefined,
+        message: holder ? message : undefined,
         welcome: holder ? welcome : undefined,
         volume,
       });
     });
     if (!here.length && b.audio)
-      out.push({ occupied, key: buildingKey(serverId, b.id), guildId, channelId: voice, serverId, building: b.id, holder: true, identity: { name: b.name }, ambience, welcome, volume });
+      out.push({ occupied, key: buildingKey(serverId, b.id), guildId, channelId: voice, serverId, building: b.id, holder: true, identity: { name: b.name }, ambience, message, welcome, volume });
   }
   // Bâtiments occupés d'abord (et, dans un bâtiment, celui qui joue l'ambiance) : ils sont servis en priorité.
   return out.sort((a, b) => Number(b.occupied) - Number(a.occupied) || Number(b.holder) - Number(a.holder)).map(({ occupied: _, ...p }) => p);
+}
+
+/** Personnages partis (déplacés « nulle part ») : leur Voice Worker quitte le vocal sans délai de grâce. */
+export function departedKeys(engine: Engine, serverId: string): Set<string> {
+  return new Set(engine.characters().filter((c) => !engine.characterLocation(c.id)).map((c) => characterKey(serverId, c.id)));
 }
 
 /** Nombre de Voice Workers nécessaires si tous les salons vocaux étaient occupés en même temps. */
