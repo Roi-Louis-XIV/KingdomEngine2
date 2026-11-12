@@ -80,7 +80,7 @@ export function authPage(onDone: () => void): HTMLElement {
     h(
       'div',
       { class: 'auth-brand-inner' },
-      h('div', { class: 'auth-crest', 'aria-hidden': 'true' }, 'K'),
+      h('img', { class: 'auth-logo', src: '/assets/logo-kingdomengine.svg', alt: '', width: 92, height: 100 }),
       h('h1', { class: 'auth-wordmark' }, 'KingdomEngine'),
       h('p', { class: 'auth-tagline' }, 'Des mondes vivants dans tes salons Discord.'),
       h(
@@ -91,7 +91,7 @@ export function authPage(onDone: () => void): HTMLElement {
         h('li', null, h('span', { 'aria-hidden': 'true' }, '📜'), h('div', null, h('b', null, 'Sans écrire une ligne de code'), h('small', null, 'Quêtes, métiers, événements : tout se conçoit dans le Studio.'))),
       ),
     ),
-    h('p', { class: 'auth-foot' }, 'Payen Studio'),
+    h('p', { class: 'auth-foot' }, h('span', null, 'Une création'), h('img', { src: '/assets/logo-payen-studio.png', alt: 'Payen Studio', width: 86, height: 70 })),
   );
   return h('div', { class: 'auth' }, brand, h('main', { class: 'auth-panel' }, box));
 }

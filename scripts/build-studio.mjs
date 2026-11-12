@@ -19,4 +19,5 @@ try {
 execFileSync(process.execPath, [tsc, '-p', join(studio, 'tsconfig.json')], { stdio: 'inherit' });
 cpSync(join(studio, 'index.html'), join(studio, 'dist/index.html'));
 cpSync(join(studio, 'styles.css'), join(studio, 'dist/styles.css'));
+cpSync(join(studio, 'assets'), join(studio, 'dist/assets'), { recursive: true });
 console.log('Studio compilé dans apps/studio/dist');

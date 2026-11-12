@@ -123,6 +123,7 @@ function shell(active: string | null, mount: (main: HTMLElement) => void): HTMLE
     'nav',
     { class: 'rail', 'aria-label': 'Navigation principale' },
     h('a', { class: 'skip', href: '#main' }, 'Aller au contenu'),
+    h('div', { class: 'rail-brand' }, h('img', { src: '/assets/logo-kingdomengine.svg', alt: '', width: 26, height: 28 }), h('span', null, 'KingdomEngine')),
     h('div', { class: 'rail-top' }, switcher, h('button', { class: 'btn ghost small menu-toggle', 'aria-label': 'Menu', 'aria-expanded': 'false', onclick: (e: Event) => {
       const rail = (e.currentTarget as HTMLElement).closest('.rail')!;
       const open = rail.classList.toggle('open');
@@ -150,6 +151,7 @@ function shell(active: string | null, mount: (main: HTMLElement) => void): HTMLE
         accountAvatar(state.account!),
         h('span', null, h('b', null, state.account!.displayName), h('small', null, `Mon profil · KingdomEngine ${state.version}`)),
       ),
+      h('div', { class: 'rail-signature' }, h('span', null, 'Une création'), h('img', { src: '/assets/logo-payen-studio.png', alt: 'Payen Studio', width: 54, height: 44 })),
     ),
   );
   const bar = saveBar();
