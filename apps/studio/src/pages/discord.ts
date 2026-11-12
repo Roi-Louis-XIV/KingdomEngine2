@@ -162,6 +162,24 @@ export async function discordPage(main: HTMLElement) {
                 .catch((err) => toast((err as Error).message, 'error')), { allowEmpty: 'Ne pas publier sur Discord' })
           : h('p', { class: 'note' }, 'Disponible une fois le bot présent sur le serveur Discord.'),
       ),
+      h(
+        'section',
+        { class: 'block' },
+        h('h2', null, 'Salon d’aide'),
+        h('p', { class: 'muted' }, 'Le salon où tu accueilles les joueurs bloqués. Dans tous les textes du monde (annonces, écrans, fermeture), {salon.aide} devient un lien cliquable vers ce salon.'),
+        d.guild.inGuild && manager
+          ? selectField(
+              null,
+              d.helpChannel ?? '',
+              d.guild.channels.filter((c: any) => c.type === 'voice' || c.type === 'text').map((c: any) => ({ value: c.id, label: `${c.type === 'voice' ? '🔊' : '#'} ${c.name}` })),
+              (v) =>
+                void put(`/api/servers/${s.id}/discord/help`, { channel: v || null })
+                  .then(() => toast(v ? 'Salon d’aide enregistré.' : 'Salon d’aide retiré.'))
+                  .catch((err) => toast((err as Error).message, 'error')),
+              { allowEmpty: 'Aucun' },
+            )
+          : h('p', { class: 'note' }, 'Disponible une fois le bot présent sur le serveur Discord.'),
+      ),
       h('p', { class: 'muted small' }, 'Les ambiances se règlent dans chaque bâtiment, onglet Audio ; les sons s’importent dans la Médiathèque.'),
     );
   };

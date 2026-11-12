@@ -175,7 +175,8 @@ if (hache?.tool) hache.tool.maxDurability = 40;
 const opt = (value, label) => ({ value, label });
 const variables = [
   { id: 't', name: 'Minute du scénario (T+)', initial: -1 },
-  { id: 'acte', name: 'Acte', initial: 'prelude', options: [opt('prelude', '🕯️ Avant la fête'), opt('veille', '🎉 Veille de fête'), opt('signes', '🌥️ Les signes'), opt('tempete', '⛈️ La tempête'), opt('releve', '⛪ Relever le Royaume'), opt('fin', '🔔 Fin de séance')] },
+  { id: 'acte', name: 'Acte', initial: 'prelude', options: [opt('prelude', '🕯️ Avant la fête'), opt('veille', '🎉 Veille de fête'), opt('signes', '🌥️ Les signes'), opt('tempete', '⛈️ La tempête'), opt('releve', '⛪ Relever le Royaume'), opt('fin', '🔔 Fin de séance'), opt('apocalypse', '👹 L’apocalypse')] },
+  { id: 'monde', name: 'Monde', initial: 'ouvert', options: [opt('ouvert', '🟢 Ouvert'), opt('ferme', '🔒 Fermé (fin de la bêta)')] },
   // Compatibilité avec les textes de la Taverne d'Edgar V11.
   { id: 'phase', name: 'Phase (Taverne)', initial: 'calme', options: [opt('calme', '🟢 Calme'), opt('tempete', '🌩️ Tempête'), opt('apres', '⛪ Après-tempête')] },
   { id: 'soiree', name: 'Soirée à la taverne', initial: 'non', options: [opt('non', 'Non'), opt('oui', '🎻 En cours')] },
@@ -1426,14 +1427,18 @@ const quests = [
 
 const step = (afterMinutes, name, actions, text) => ({ afterMinutes, name, actions: [set('t', afterMinutes), ...actions], ...(text ? { announce: text } : {}) });
 
+const BUILDING_IDS = ['place', 'taverne', 'mine', 'forge', 'foret', 'ferme', 'pont', 'eglise'];
+// Répliques de panique des PNJ pendant l'apocalypse (le pont n'a pas de PNJ : seulement le cri).
+const PANIC = { place: 'maelis-panique', taverne: 'edgar-panique', mine: 'roland-panique', forge: 'wagner-panique', foret: 'sylvain-panique', ferme: 'agathe-panique', eglise: 'anselme-panique' };
+
 const scenario = {
   id: 'scenario',
   name: 'La Nuit de la Sainte Pelle',
   emoji: '🔔',
   description: 'Bêta KE4 : 3 heures, de la veille de fête à la messe. À lancer depuis cette page ; la pause fige l’horloge.',
   schedule: { type: 'manual' },
-  durationMinutes: 181,
-  onStart: [set('t', 0), set('acte', 'veille'), set('phase', 'calme'), set('meteo', 'soleil'), set('pierre', 'inconnue'), set('votes_mine', 0), set('votes_forge', 0), set('fete', 'en_cours'), set('recolte', 'en_cours'), set('urgence', 'aucune'), set('urgence_res', 'aucune'), set('forge_etat', 'ok'), set('mine_etat', 'ok'), set('eclats', 0), ...[1, 2, 3, 4, 5, 6].map((n) => set(`eclat${n}`, 'non')), set('eglise_ok', 'non'), set('fin', 'aucune'), voice('maelis-ouverture', 'place')],
+  durationMinutes: 185,
+  onStart: [set('t', 0), set('acte', 'veille'), set('phase', 'calme'), set('meteo', 'soleil'), set('pierre', 'inconnue'), set('votes_mine', 0), set('votes_forge', 0), set('fete', 'en_cours'), set('recolte', 'en_cours'), set('urgence', 'aucune'), set('urgence_res', 'aucune'), set('forge_etat', 'ok'), set('mine_etat', 'ok'), set('eclats', 0), ...[1, 2, 3, 4, 5, 6].map((n) => set(`eclat${n}`, 'non')), set('eglise_ok', 'non'), set('fin', 'aucune'), set('monde', 'ouvert'), voice('maelis-ouverture', 'place')],
   steps: [
     step(10, 'Tournée d’ouverture', [voice('edgar-tournee', 'taverne')], '🍻 **Tournée d’ouverture à la taverne !** Edgar offre la première chope pendant 10 minutes.'),
     step(20, 'Bénédiction des outils', [voice('anselme-benediction', 'eglise')], '⛪ Le Père Anselme bénit les outils avant la fête. Passez prier à l’église !'),
@@ -1459,7 +1464,16 @@ const scenario = {
       ifThen(all(obj('eglise', 'arbre', 'gte', 100), obj('eglise', 'chantier', 'gte', 70), obj('eglise', 'assemblage', 'gte', 100)), [set('eglise_ok', 'oui')]),
       ifThen(v('eglise_ok', 'oui'), [ifThen(v('eclats', 6, 'gte'), [set('fin', 'triomphe'), voice('anselme-messe-triomphe', 'eglise')], [set('fin', 'sans_ame'), voice('anselme-messe-vide', 'eglise')])], [ifThen(v('eclats', 6, 'gte'), [set('fin', 'parvis'), voice('anselme-messe-parvis', 'eglise')], [set('fin', 'report'), voice('anselme-messe-report', 'eglise')])]),
     ], cases([v('fin', 'triomphe'), '🔔 **VALBRUME TRIOMPHANTE !** Messe dans la nef rebâtie ; les éclats de la pierre sont rendus à la terre au pied de l’autel. La montagne se tait, les cloches sonnent dans toute la vallée !'], [v('fin', 'sans_ame'), '⚡ **La pierre gronde encore.** Messe dans l’église neuve, mais des éclats manquent toujours. Cette nuit, on entendra encore la montagne grésiller…'], [v('fin', 'parvis'), '🙏 **La messe sur le parvis.** Messe en plein air devant les échafaudages ; les éclats réunis sont rendus à la terre. Le chantier continuera.'], [null, '🌧️ **La messe reportée.** Le Père Anselme prie depuis le pont, devant une église en ruine. Le chantier continue la semaine prochaine.'])),
-    step(180, 'Fin de séance', [set('acte', 'fin'), voice('maelis-fin', 'place'), ifThen(v('fin', 'triomphe'), [voice('edgar-tournee-finale', 'taverne')])], cases([v('fete', 'reussie'), '🎉 **Fin de la séance bêta.** Le banquet de la Sainte Pelle est servi ! Merci à tous : le tableau d’honneur est sur la Place, et le monde reste ouvert.'], [null, '🔔 **Fin de la séance bêta.** Merci à tous ! Le tableau d’honneur est sur la Place, et le monde reste ouvert.'])),
+    step(180, 'Fin de séance', [set('acte', 'fin'), voice('maelis-fin', 'place'), ifThen(v('fin', 'triomphe'), [voice('edgar-tournee-finale', 'taverne')])], cases([v('fete', 'reussie'), '🎉 **Le banquet de la Sainte Pelle est servi !** Le tableau d’honneur est sur la Place. Profitez de la fête…'], [null, '🔔 **La fête s’achève à Valbrume.** Le tableau d’honneur est sur la Place. Profitez de ces derniers instants…'])),
+    // Finale de la bêta : un cri de monstre résonne dans tous les lieux en même temps, les PNJ paniquent,
+    // une voix invite à rejoindre le salon d'aide, et le monde se ferme ({salon.aide} = salon choisi dans Discord & voix).
+    step(182, 'L’apocalypse', [
+      set('acte', 'apocalypse'),
+      ...BUILDING_IDS.map((b) => voice('monstre-cri', b)),
+      ...Object.entries(PANIC).map(([b, sound]) => voice(sound, b)),
+      ...BUILDING_IDS.map((b) => voice('fin-rejoindre-aide', b)),
+      set('monde', 'ferme'),
+    ], '👹 **UN HURLEMENT INHUMAIN DÉCHIRE LA NUIT SUR VALBRUME !**\nLes habitants fuient en criant, les cloches sonnent à toute volée, le ciel se fend en deux…\n\n🔔 **La bêta est terminée — merci à tous !** Rejoignez {salon.aide} pour le récap de votre aventure, et n’oubliez pas d’envoyer votre fiche de retour.'),
   ],
   onEnd: [],
   announce: { start: '🔔 **La fête de la Sainte Pelle commence à Valbrume !** Rendez-vous sur la Place du village : Maëlis vous attend avec le panneau des quêtes.' },
@@ -1514,10 +1528,16 @@ const world = {
     quests,
   },
   buildings: [place, taverne, mine, forge, foret, ferme, pont, eglise],
+  // Fin de la bêta : plus aucune action possible, chaque interface affiche ce texte.
+  closure: {
+    when: v('monde', 'ferme'),
+    text: '# 👹 Le Royaume est tombé\n*Un hurlement inhumain a déchiré la nuit. Les habitants ont fui, les portes battent au vent, plus rien ne bouge à Valbrume…*\n\n🔔 **La bêta « La Nuit de la Sainte Pelle » est terminée. Merci d’avoir joué !**\n\n🎙️ Rejoins le salon vocal {salon.aide} pour le récap de ton aventure avec l’équipe.\n📝 Pense à envoyer ta fiche de retour.',
+  },
 };
 
 // Ambiances sonores de fond : chaque lieu a la sienne, jouée en permanence (settings.voiceAlways),
 // et elle change avec le scénario. La première condition vraie gagne. Clés à importer dans la Médiathèque.
+const APOCALYPSE = [v('acte', 'apocalypse'), 'apocalypse'];
 const AMBIENCES = {
   place: [[STORM, 'place-tempete'], [v('acte', 'veille'), 'place-fete'], [null, 'place-calme']],
   taverne: [[STORM, 'taverne-tempete'], [v('soiree', 'oui'), 'taverne-soiree'], [null, 'taverne-calme']],
@@ -1531,6 +1551,7 @@ const AMBIENCES = {
 for (const b of world.buildings) {
   const cases = AMBIENCES[b.id];
   if (!cases) throw new Error(`Ambiance manquante pour « ${b.id} »`);
+  cases.unshift(APOCALYPSE); // l'apocalypse couvre tout le reste
   b.audio = {
     ...(b.audio?.welcome ? { welcome: b.audio.welcome } : {}),
     ambience: { cases: cases.map(([when, sound]) => (when ? { when, sound } : { sound })) },

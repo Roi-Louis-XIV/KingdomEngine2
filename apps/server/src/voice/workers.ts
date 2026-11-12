@@ -40,6 +40,10 @@ interface Live {
   /** Son d'ambiance en boucle actuellement attendu. */
   ambience?: { path: string; volume: number };
   presence?: Presence;
+  /** Un son ponctuel (accueil, réplique, cri…) est en cours : l'ambiance attend la fin. */
+  oneShot?: boolean;
+  /** Sons ponctuels en attente : ils s'enchaînent au lieu de se couper. */
+  queue: { path: string; volume: number }[];
 }
 
 /** Lit VOICE_WORKER_1_TOKEN … VOICE_WORKER_20_TOKEN (et leurs APPLICATION_ID). */
@@ -74,7 +78,7 @@ export class VoiceWorkers implements VoiceBridge {
     this.ffmpeg = hasFfmpeg();
     for (const c of configs) {
       this.pool.register(c.key, c.label);
-      this.live.set(c.key, { client: new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] }), config: c });
+      this.live.set(c.key, { client: new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] }), config: c, queue: [] });
     }
   }
 
@@ -201,9 +205,10 @@ export class VoiceWorkers implements VoiceBridge {
       l.ambience = path ? { path, volume: p.volume } : undefined;
       if (fresh && p.welcome) {
         const welcome = this.soundPath(p.serverId, p.welcome);
-        if (welcome) return this.play(l, welcome, p.volume);
+        if (welcome) return this.playOneShot(l, welcome, p.volume);
       }
-      if (fresh || changed) this.playAmbience(l);
+      // Un son ponctuel en cours n'est jamais coupé : la nouvelle ambiance démarrera après lui.
+      if ((fresh || changed) && !l.oneShot) this.playAmbience(l);
     } catch (e) {
       console.warn(`${l.config.label} n’a pas pu rejoindre le vocal :`, (e as Error).message);
       this.pool.release(workerKey, (e as Error).message);
@@ -215,7 +220,12 @@ export class VoiceWorkers implements VoiceBridge {
   private createPlayer(l: Live): AudioPlayer {
     const player = createAudioPlayer();
     // À la fin d'un son (accueil, effet ou boucle d'ambiance), l'ambiance reprend.
-    player.on(AudioPlayerStatus.Idle, () => this.playAmbience(l));
+    player.on(AudioPlayerStatus.Idle, () => {
+      const next = l.queue.shift();
+      if (next && l.connection) return this.play(l, next.path, next.volume);
+      l.oneShot = false;
+      this.playAmbience(l);
+    });
     player.on('error', (e) => console.warn(`${l.config.label} lecture :`, e.message));
     return player;
   }
@@ -225,6 +235,16 @@ export class VoiceWorkers implements VoiceBridge {
     const res = createAudioResource(path, { inlineVolume: true });
     res.volume?.setVolume(volume);
     l.player.play(res);
+  }
+
+  /** Son ponctuel : interrompt l'ambiance (qui reprend ensuite) ; s'il y en a déjà un, il attend son tour. */
+  private playOneShot(l: Live, path: string, volume: number) {
+    if (l.oneShot) {
+      if (l.queue.length < 10) l.queue.push({ path, volume });
+      return;
+    }
+    l.oneShot = true;
+    this.play(l, path, volume);
   }
 
   private playAmbience(l: Live) {
@@ -239,7 +259,7 @@ export class VoiceWorkers implements VoiceBridge {
     if (!w) return;
     const l = this.live.get(w.key)!;
     const path = this.soundPath(serverId, sound);
-    if (path) this.play(l, path, l.presence?.volume ?? 0.8);
+    if (path) this.playOneShot(l, path, l.presence?.volume ?? 0.8);
   }
 
   private async leave(workerKey: string) {
@@ -249,6 +269,8 @@ export class VoiceWorkers implements VoiceBridge {
     l.connection?.destroy();
     l.connection = undefined;
     l.ambience = undefined;
+    l.queue = [];
+    l.oneShot = false;
     const guild = l.presence && l.client.guilds.cache.get(l.presence.guildId);
     if (guild?.members.me?.nickname) await guild.members.me.setNickname(null).catch(() => {});
     l.presence = undefined;

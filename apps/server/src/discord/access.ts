@@ -173,3 +173,14 @@ export function oathChannelOverwrites(everyoneRoleId: string, botId: string): Ov
 
 /** Nom de la catégorie d'un bâtiment. */
 export const categoryName = (b: { name: string; emoji?: string }) => `${b.emoji ? b.emoji + ' ' : ''}${b.name}`.slice(0, 100);
+
+/**
+ * Salons cités dans les textes du monde : {salon.aide} devient un lien Discord (<#id>) vers le salon choisi
+ * dans Discord & voix, ou « #aide » s'il n'est pas choisi.
+ */
+export function channelTokens(text: string, channels: Record<string, string | null | undefined>): string {
+  return text.replace(/\{salon\.([a-z0-9_-]+)\}/gi, (_, key: string) => {
+    const id = channels[key.toLowerCase()];
+    return id ? `<#${id}>` : `#${key}`;
+  });
+}

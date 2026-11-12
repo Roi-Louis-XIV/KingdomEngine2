@@ -179,10 +179,55 @@ test('vote, verdict, incendie, urgence maîtrisée, éclats retrouvés et fin tr
   for (const n of [2, 3, 4, 5, 6]) engine.adminApply('a', undefined, [{ type: 'variable.add', variable: 'eclats', amount: 1 }, { type: 'variable.set', variable: `eclat${n}`, value: 'oui' }]);
   minutes(engine, clock, 60);
   assert.equal(engine.variables.fin, 'triomphe');
-  minutes(engine, clock, 11);
+  for (let i = 0; i < 15 && engine.variables.acte !== 'fin'; i++) minutes(engine, clock, 1);
   assert.equal(engine.variables.acte, 'fin');
+  const place = new Player(engine, 'a', 'place');
+  assert.match(place.click('🏅 Tableau d’honneur').text, /Tableau d’honneur/);
+  assert.equal(engine.ambienceFor('taverne'), 'taverne-calme');
+
+  // Finale : cri de monstre partout, panique des PNJ, invitation au salon d'aide, monde fermé.
+  const events = [];
+  for (let i = 0; i < 4 && engine.variables.monde !== 'ferme'; i++) {
+    clock.advance(60);
+    events.push(...engine.tick());
+  }
+  assert.equal(engine.variables.acte, 'apocalypse');
+  assert.equal(engine.variables.monde, 'ferme');
+  const sounds = events.filter((e) => e.type === 'audio.play') as { building: string; sound: string }[];
+  const BUILDINGS = ['place', 'taverne', 'mine', 'forge', 'foret', 'ferme', 'pont', 'eglise'];
+  for (const b of BUILDINGS) {
+    const here = sounds.filter((x) => x.building === b).map((x) => x.sound);
+    assert.equal(here[0], 'monstre-cri', `le cri d’abord (${b})`);
+    assert.equal(here.at(-1), 'fin-rejoindre-aide', `l’invitation en dernier (${b})`);
+    if (b !== 'pont') assert.equal(here.length, 3, `cri, panique, invitation (${b})`);
+    assert.equal(engine.ambienceFor(b), 'apocalypse');
+  }
+  assert.ok(events.some((e) => e.type === 'announce' && e.text.includes('{salon.aide}')));
+  // Le monde est fermé : chaque interface n'affiche que la fermeture, plus aucune action.
+  place.refresh();
+  assert.match(place.text, /Le Royaume est tombé/);
+  assert.match(place.text, /\{salon\.aide\}/);
+  assert.deepEqual(place.buttons, []);
+  const taverne = new Player(engine, 'b', 'taverne');
+  assert.match(taverne.text, /bêta « La Nuit de la Sainte Pelle » est terminée/);
+  const forge = new Player(engine, 'c', 'forge');
+  assert.deepEqual(forge.buttons, []);
+  minutes(engine, clock, 5);
   assert.equal(engine.live().events.find((x) => x.id === 'scenario')?.status, 'finished');
-  assert.match(new Player(engine, 'a', 'place').click('🏅 Tableau d’honneur').text, /Tableau d’honneur/);
+  assert.equal(engine.variables.monde, 'ferme', 'le monde reste fermé après le scénario');
+  // Rouvrir (En direct › variables) : tout redevient jouable.
+  engine.setVariable('monde', 'ouvert');
+  assert.ok(new Player(engine, 'a', 'place').buttons.length > 0);
+});
+
+test('fermeture : une interface ouverte avant la fermeture refuse toute action', () => {
+  const { engine } = started();
+  const p = new Player(engine, 'a', 'place');
+  const button = p.button(/.+/);
+  engine.setVariable('monde', 'ferme');
+  const r = engine.interact('a', button.customId);
+  assert.equal(r.ok, false);
+  assert.match(r.private ?? '', /Le Royaume est tombé/);
 });
 
 test('urgence ratée : la forge est endommagée jusqu’à ce qu’on la rebâtisse', () => {

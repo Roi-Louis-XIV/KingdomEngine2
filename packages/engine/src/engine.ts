@@ -466,6 +466,13 @@ export class Engine {
   }
 
   /** Rendu actuel d'une session (applique les redirections d'accès si nécessaire). */
+  /** Fermeture du monde (world.closure) : le texte à afficher, ou undefined si le monde est ouvert. */
+  private closureText(ctx: Ctx): string | undefined {
+    const c = this.world.closure;
+    if (!c || !evaluate(ctx, c.when).ok) return undefined;
+    return pickText(ctx, c.text) || '🔒 Le monde est fermé.';
+  }
+
   view(sessionId: Id): View {
     const session = this.state.sessions[sessionId];
     if (!session) return { message: { components: [text('⌛ Cette interface a expiré. Relance la commande.')] }, wakeAt: null };
@@ -492,6 +499,8 @@ export class Engine {
     const session = draft.sessions[sessionId]!;
     const ctx = this.ctx(draft, session);
     const b = ctx.building;
+    const closed = this.closureText(ctx);
+    if (closed !== undefined) return { message: { components: [{ type: 'container', accent: b.accentColor, children: [text(closed)] }] }, wakeAt: null };
     const screen = this.screen(b, session.screen);
     let wakeAt: number | null = null;
     const components: RTopLevel[] = [];
@@ -596,6 +605,8 @@ export class Engine {
     if (!session) return { ok: false, private: '⌛ Cette interface a expiré. Relance la commande.' };
     if (session.player !== playerId) return { ok: false, private: "🔒 Cette interface appartient à un autre joueur. Ouvre la tienne." };
     const b = this.building(session.building);
+    const closed = this.closureText(this.ctx(structuredClone(this.state), session));
+    if (closed !== undefined) return { ok: false, private: closed };
     const screen = b.screens.find((s) => s.id === screenId);
     if (!screen || !path) return { ok: false, private: 'Interaction inconnue.' };
 

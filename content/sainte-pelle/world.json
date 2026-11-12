@@ -17,7 +17,7 @@
       "schedule": {
         "type": "manual"
       },
-      "durationMinutes": 181,
+      "durationMinutes": 185,
       "onStart": [
         {
           "type": "variable.set",
@@ -128,6 +128,11 @@
           "type": "variable.set",
           "variable": "fin",
           "value": "aucune"
+        },
+        {
+          "type": "variable.set",
+          "variable": "monde",
+          "value": "ouvert"
         },
         {
           "type": "audio.play",
@@ -1030,13 +1035,150 @@
                   "op": "eq",
                   "value": "reussie"
                 },
-                "text": "🎉 **Fin de la séance bêta.** Le banquet de la Sainte Pelle est servi ! Merci à tous : le tableau d’honneur est sur la Place, et le monde reste ouvert."
+                "text": "🎉 **Le banquet de la Sainte Pelle est servi !** Le tableau d’honneur est sur la Place. Profitez de la fête…"
               },
               {
-                "text": "🔔 **Fin de la séance bêta.** Merci à tous ! Le tableau d’honneur est sur la Place, et le monde reste ouvert."
+                "text": "🔔 **La fête s’achève à Valbrume.** Le tableau d’honneur est sur la Place. Profitez de ces derniers instants…"
               }
             ]
           }
+        },
+        {
+          "afterMinutes": 182,
+          "name": "L’apocalypse",
+          "actions": [
+            {
+              "type": "variable.set",
+              "variable": "t",
+              "value": 182
+            },
+            {
+              "type": "variable.set",
+              "variable": "acte",
+              "value": "apocalypse"
+            },
+            {
+              "type": "audio.play",
+              "sound": "monstre-cri",
+              "building": "place"
+            },
+            {
+              "type": "audio.play",
+              "sound": "monstre-cri",
+              "building": "taverne"
+            },
+            {
+              "type": "audio.play",
+              "sound": "monstre-cri",
+              "building": "mine"
+            },
+            {
+              "type": "audio.play",
+              "sound": "monstre-cri",
+              "building": "forge"
+            },
+            {
+              "type": "audio.play",
+              "sound": "monstre-cri",
+              "building": "foret"
+            },
+            {
+              "type": "audio.play",
+              "sound": "monstre-cri",
+              "building": "ferme"
+            },
+            {
+              "type": "audio.play",
+              "sound": "monstre-cri",
+              "building": "pont"
+            },
+            {
+              "type": "audio.play",
+              "sound": "monstre-cri",
+              "building": "eglise"
+            },
+            {
+              "type": "audio.play",
+              "sound": "maelis-panique",
+              "building": "place"
+            },
+            {
+              "type": "audio.play",
+              "sound": "edgar-panique",
+              "building": "taverne"
+            },
+            {
+              "type": "audio.play",
+              "sound": "roland-panique",
+              "building": "mine"
+            },
+            {
+              "type": "audio.play",
+              "sound": "wagner-panique",
+              "building": "forge"
+            },
+            {
+              "type": "audio.play",
+              "sound": "sylvain-panique",
+              "building": "foret"
+            },
+            {
+              "type": "audio.play",
+              "sound": "agathe-panique",
+              "building": "ferme"
+            },
+            {
+              "type": "audio.play",
+              "sound": "anselme-panique",
+              "building": "eglise"
+            },
+            {
+              "type": "audio.play",
+              "sound": "fin-rejoindre-aide",
+              "building": "place"
+            },
+            {
+              "type": "audio.play",
+              "sound": "fin-rejoindre-aide",
+              "building": "taverne"
+            },
+            {
+              "type": "audio.play",
+              "sound": "fin-rejoindre-aide",
+              "building": "mine"
+            },
+            {
+              "type": "audio.play",
+              "sound": "fin-rejoindre-aide",
+              "building": "forge"
+            },
+            {
+              "type": "audio.play",
+              "sound": "fin-rejoindre-aide",
+              "building": "foret"
+            },
+            {
+              "type": "audio.play",
+              "sound": "fin-rejoindre-aide",
+              "building": "ferme"
+            },
+            {
+              "type": "audio.play",
+              "sound": "fin-rejoindre-aide",
+              "building": "pont"
+            },
+            {
+              "type": "audio.play",
+              "sound": "fin-rejoindre-aide",
+              "building": "eglise"
+            },
+            {
+              "type": "variable.set",
+              "variable": "monde",
+              "value": "ferme"
+            }
+          ],
+          "announce": "👹 **UN HURLEMENT INHUMAIN DÉCHIRE LA NUIT SUR VALBRUME !**\nLes habitants fuient en criant, les cloches sonnent à toute volée, le ciel se fend en deux…\n\n🔔 **La bêta est terminée — merci à tous !** Rejoignez {salon.aide} pour le récap de votre aventure, et n’oubliez pas d’envoyer votre fiche de retour."
         }
       ],
       "onEnd": [],
@@ -2364,6 +2506,25 @@
         {
           "value": "fin",
           "label": "🔔 Fin de séance"
+        },
+        {
+          "value": "apocalypse",
+          "label": "👹 L’apocalypse"
+        }
+      ]
+    },
+    {
+      "id": "monde",
+      "name": "Monde",
+      "initial": "ouvert",
+      "options": [
+        {
+          "value": "ouvert",
+          "label": "🟢 Ouvert"
+        },
+        {
+          "value": "ferme",
+          "label": "🔒 Fermé (fin de la bêta)"
         }
       ]
     },
@@ -5268,6 +5429,15 @@
           "cases": [
             {
               "when": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              },
+              "sound": "apocalypse"
+            },
+            {
+              "when": {
                 "type": "all",
                 "conditions": [
                   {
@@ -5318,6 +5488,15 @@
         "welcome": "edgar-bienvenue",
         "ambience": {
           "cases": [
+            {
+              "when": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              },
+              "sound": "apocalypse"
+            },
             {
               "when": {
                 "type": "all",
@@ -10907,6 +11086,15 @@
             {
               "when": {
                 "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              },
+              "sound": "apocalypse"
+            },
+            {
+              "when": {
+                "type": "variable",
                 "variable": "urgence",
                 "op": "eq",
                 "value": "eboulement"
@@ -15971,6 +16159,15 @@
             {
               "when": {
                 "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              },
+              "sound": "apocalypse"
+            },
+            {
+              "when": {
+                "type": "variable",
                 "variable": "urgence",
                 "op": "eq",
                 "value": "incendie"
@@ -16024,6 +16221,15 @@
       "audio": {
         "ambience": {
           "cases": [
+            {
+              "when": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              },
+              "sound": "apocalypse"
+            },
             {
               "when": {
                 "type": "all",
@@ -19705,6 +19911,15 @@
           "cases": [
             {
               "when": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              },
+              "sound": "apocalypse"
+            },
+            {
+              "when": {
                 "type": "all",
                 "conditions": [
                   {
@@ -20984,6 +21199,15 @@
           "cases": [
             {
               "when": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              },
+              "sound": "apocalypse"
+            },
+            {
+              "when": {
                 "type": "all",
                 "conditions": [
                   {
@@ -21969,6 +22193,15 @@
           "cases": [
             {
               "when": {
+                "type": "variable",
+                "variable": "acte",
+                "op": "eq",
+                "value": "apocalypse"
+              },
+              "sound": "apocalypse"
+            },
+            {
+              "when": {
                 "type": "all",
                 "conditions": [
                   {
@@ -21995,5 +22228,14 @@
         "volume": 0.5
       }
     }
-  ]
+  ],
+  "closure": {
+    "when": {
+      "type": "variable",
+      "variable": "monde",
+      "op": "eq",
+      "value": "ferme"
+    },
+    "text": "# 👹 Le Royaume est tombé\n*Un hurlement inhumain a déchiré la nuit. Les habitants ont fui, les portes battent au vent, plus rien ne bouge à Valbrume…*\n\n🔔 **La bêta « La Nuit de la Sainte Pelle » est terminée. Merci d’avoir joué !**\n\n🎙️ Rejoins le salon vocal {salon.aide} pour le récap de ton aventure avec l’équipe.\n📝 Pense à envoyer ta fiche de retour."
+  }
 }

@@ -380,6 +380,14 @@ export function registerApi(router: Router, deps: ApiDeps) {
     return { ok: true };
   });
 
+  router.put('/api/servers/:id/discord/help', (r) => {
+    const s = server(r, 'manager');
+    const channel = typeof r.body.channel === 'string' && /^\d{17,20}$/.test(r.body.channel) ? r.body.channel : null;
+    platform.setSetting(s.id, 'discord.helpChannel', channel);
+    platform.audit(s.id, me(r).id, 'discord.help', channel ? 'Salon d’aide choisi' : 'Salon d’aide retiré');
+    return { ok: true };
+  });
+
   router.get('/api/servers/:id/audit', (r) => platform.auditLog(server(r, 'viewer').id, 100));
   router.get('/api/servers/:id/activity', (r) => {
     const s = server(r, 'viewer');
@@ -402,6 +410,7 @@ export function registerApi(router: Router, deps: ApiDeps) {
       guild: g,
       channels: channelsOf(s.id),
       announceChannel: platform.setting<string | null>(s.id, 'discord.announceChannel', null),
+      helpChannel: platform.setting<string | null>(s.id, 'discord.helpChannel', null),
       workers: v.workers.map((w) => ({ ...w, installed: s.guildId ? w.guilds.includes(s.guildId) : false })),
       ffmpeg: v.ffmpeg,
       unplaced: v.unplaced.filter((u) => u.serverId === s.id),

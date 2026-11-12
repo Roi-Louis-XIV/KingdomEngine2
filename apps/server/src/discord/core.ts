@@ -42,6 +42,7 @@ import {
   textChannelBase,
   voiceMove,
   voiceOverwrites,
+  channelTokens,
   type Overwrite,
 } from './access.ts';
 
@@ -414,7 +415,19 @@ export class CoreBot implements DiscordBridge {
     const channelId = this.platform.setting<string | null>(serverId, 'discord.announceChannel', null);
     if (!channelId || !this.client.isReady()) return;
     const ch = await this.client.channels.fetch(channelId).catch(() => null);
-    if (ch?.isTextBased() && 'send' in ch) await ch.send({ content: text.slice(0, 2000), allowedMentions: { parse: [] } });
+    if (ch?.isTextBased() && 'send' in ch) await ch.send({ content: this.links(serverId, text).slice(0, 2000), allowedMentions: { parse: [] } });
+  }
+
+  /** Salons cités dans les textes ({salon.aide}) → liens Discord. */
+  private links(serverId: string, text: string): string {
+    return channelTokens(text, { aide: this.platform.setting<string | null>(serverId, 'discord.helpChannel', null) });
+  }
+
+  /** Rendu Discord d'une interface, avec les liens vers les salons cités. */
+  private render(serverId: string, message: Parameters<typeof toDiscord>[0]) {
+    const components = toDiscord(message);
+    const json = JSON.stringify(components);
+    return json.includes('{salon.') ? (JSON.parse(json.replace(/\{salon\.[a-z0-9_-]+\}/gi, (m) => JSON.stringify(this.links(serverId, m)).slice(1, -1))) as typeof components) : components;
   }
 
   // -------------------------------------------------------------------------
@@ -539,7 +552,7 @@ export class CoreBot implements DiscordBridge {
     // Une seule interface par joueur et par bâtiment : les anciennes disparaissent.
     await this.closeInterfaces(serverId, player.id, b.id);
     const { sessionId, view } = this.runtimes.open(serverId, player, b.id);
-    const components = toDiscord(view.message);
+    const components = this.render(serverId, view.message);
     await i.reply({ components: components as never, flags: EPHEMERAL | COMPONENTS_V2_FLAG });
     this.live.set(sessionId, {
       serverId,
@@ -571,10 +584,10 @@ export class CoreBot implements DiscordBridge {
     const values = i.isStringSelectMenu() ? i.values : [];
     const result = this.runtimes.interact(serverId, player, i.customId, values);
     if (!result.message) {
-      await i.reply({ content: result.private ?? 'Action impossible.', flags: EPHEMERAL });
+      await i.reply({ content: this.links(serverId, result.private ?? 'Action impossible.'), flags: EPHEMERAL });
       return;
     }
-    const components = toDiscord(result.message);
+    const components = this.render(serverId, result.message);
     const prev = this.live.get(sessionId);
     if (prev) prev.busy = true;
     try {
@@ -615,7 +628,7 @@ export class CoreBot implements DiscordBridge {
       if (!view) continue;
       l.revision = engine.revision;
       l.wakeAt = view.wakeAt;
-      const components = toDiscord(view.message);
+      const components = this.render(l.serverId, view.message);
       const json = JSON.stringify(components);
       if (json === l.json) continue;
       l.busy = true;

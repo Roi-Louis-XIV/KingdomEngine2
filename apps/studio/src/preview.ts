@@ -11,6 +11,7 @@ function md(src: string, names: Map<string, string>): string {
   const inline = (s: string) =>
     s
       .replace(/&lt;@([\w-]+)&gt;/g, (_, id: string) => `<span class="d-mention">@${esc(names.get(id) ?? id)}</span>`)
+      .replace(/\{salon\.([\w-]+)\}/g, (_, key: string) => `<span class="d-mention">#${esc(key)}</span>`)
       .replace(/&lt;t:(\d+):?\w?&gt;/g, (_, t: string) => `<span class="d-ts">${new Date(Number(t) * 1000).toLocaleTimeString('fr-FR')}</span>`)
       .replace(/`([^`]+)`/g, '<code>$1</code>')
       .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')

@@ -1,7 +1,7 @@
 import type { WorldDef } from '../../../../packages/engine/src/index.ts';
 import { h, clear, field, selectField, toast, uniqueId } from '../ui.ts';
 import { can, draft, touch } from '../store.ts';
-import { effectsEditor, textEditor } from '../editors.ts';
+import { conditionEditor, effectsEditor, textEditor } from '../editors.ts';
 
 const TABS = [
   ['objets', 'Objets'],
@@ -165,6 +165,32 @@ export async function catalogPage(main: HTMLElement, params: string[]) {
             'Ambiance sonore permanente dans tous les salons vocaux',
           ),
           h('p', { class: 'field-hint' }, 'Un Voice Worker reste dans chaque bâtiment qui a une ambiance, même vide : il faut autant de Voice Workers que de bâtiments. Sinon, l’ambiance ne joue que là où il y a des joueurs.'),
+        ),
+        h(
+          'div',
+          { class: 'form' },
+          h('h3', null, 'Fermeture du monde'),
+          h('p', { class: 'muted' }, 'Fin de séance, maintenance… Tant que la condition est vraie, chaque bâtiment n’affiche plus que ce texte et aucune action n’est possible. Écris {salon.aide} pour un lien vers le salon d’aide (choisi dans Discord & voix).'),
+          h(
+            'label',
+            { class: 'check' },
+            h('input', {
+              type: 'checkbox',
+              checked: !!w.closure,
+              onchange: (e: Event) => {
+                w.closure = (e.target as HTMLInputElement).checked ? { when: { type: 'variable', variable: w.variables[0]?.id ?? '', op: 'eq', value: '' }, text: '🔒 Le monde est fermé pour le moment. Rejoins {salon.aide} si tu as besoin d’aide.' } : undefined;
+                changed();
+                redraw();
+              },
+            }),
+            'Prévoir une fermeture du monde',
+          ),
+          w.closure
+            ? [
+                h('div', null, h('b', null, 'Fermé quand'), conditionEditor(w, undefined, w.closure.when, (c) => ((w.closure!.when = c ?? w.closure!.when), changed()))),
+                h('label', null, 'Texte affiché dans chaque bâtiment', textEditor(w, undefined, () => w.closure!.text, (t) => ((w.closure!.text = t), changed()), 5)),
+              ]
+            : null,
         ),
       );
       break;

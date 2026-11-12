@@ -163,6 +163,12 @@ export function validateWorld(w: WorldDef): Issue[] {
   for (const it of w.items) it.consumable?.effects.forEach((a) => checkAction(`Objet ${it.id}`, a));
   for (const it of w.items) if (it.equipment?.saving && !stats.has(it.equipment.saving.stat)) err(`Objet ${it.id}`, `statistique inconnue : ${it.equipment.saving.stat}`);
 
+  if (w.closure) {
+    if (!w.closure.when) err('Fermeture du monde', 'condition manquante');
+    else checkCondition('Fermeture du monde', w.closure.when);
+    checkText('Fermeture du monde', w.closure.text);
+  }
+
   if (w.onboarding) {
     const ob = w.onboarding;
     if (!ob.title?.trim()) err('Serment', 'titre manquant');

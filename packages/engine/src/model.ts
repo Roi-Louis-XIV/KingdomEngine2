@@ -199,6 +199,12 @@ export interface WorldDef {
   quests?: QuestSystem;
   /** Arrivée dans le monde : serment à prêter avant d'accéder aux bâtiments. */
   onboarding?: Onboarding;
+  /**
+   * Fermeture du monde (fin de séance, maintenance…) : tant que la condition est vraie, chaque interface
+   * de bâtiment n'affiche que ce texte et plus aucune action n'est possible.
+   * Dans les textes, {salon.aide} devient un lien vers le salon d'aide choisi dans Discord & voix.
+   */
+  closure?: { when: Condition; text: Text };
   buildings: BuildingDef[];
 }
 

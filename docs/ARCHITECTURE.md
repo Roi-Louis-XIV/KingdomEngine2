@@ -76,6 +76,11 @@ Chaque requête vérifie le droit côté serveur. Un monde inaccessible répond 
   - lues par RoyaumeOS (Observatoire › KingdomEngine) ;
   - `KINGDOM_STATS_LISTEN` ouvre une écoute qui ne sert que cette route.
 
+## Fermeture du monde et salon d'aide
+
+- `world.closure` (`{ when, text }`, Studio › Objets & règles › Règles générales) : tant que la condition est vraie, chaque interface n'affiche que le texte et toute action est refusée. Les interfaces ouvertes basculent au rafraîchissement suivant.
+- `{salon.aide}` dans un texte (écran, annonce, fermeture) devient `<#id>` du salon choisi dans Discord & voix › Salon d'aide (`discord.helpChannel`), « #aide » sinon (`discord/access.ts › channelTokens`).
+
 ## Contenu et publication
 
 - **Brouillon.** Le Studio édite une copie locale du monde. La barre d’enregistrement apparaît dès qu’il y a une modification.
@@ -110,6 +115,7 @@ Détails techniques :
 ## Voix
 
 - `voice/planner.ts` : un bâtiment dont le salon vocal contient au moins un joueur, et qui a une configuration audio, demande une **présence** (identité du personnage, ambiance selon les variables du monde).
+- **Sons ponctuels en file** : dans un même bâtiment, les sons (`audio.play`, accueil) s'enchaînent au lieu de se couper ; un changement d'ambiance attend la fin du son en cours.
 - **Ambiance permanente** (`world.settings.voiceAlways`, case dans Objets & règles) : tous les bâtiments avec ambiance demandent une présence, même vides ; les occupés passent en premier si les workers manquent. Il faut un Voice Worker par bâtiment (page Discord & voix : nombre nécessaire). Les Voice Workers reçoivent une permission propre dans les salons vocaux réservés aux habitants.
 - `voice/pool.ts` : attribue les présences aux workers libres et installés sur le bon serveur. Une présence garde son worker tant qu’elle est souhaitée, avec 30 s de grâce après le départ du dernier joueur. Si l’ambiance change (Tempête), le son est mis à jour sans changer de worker.
 - `voice/workers.ts` : applique ces décisions sur Discord. Le worker rejoint le salon, prend le nom du personnage, joue l’accueil puis l’ambiance en boucle, ainsi que les sons déclenchés par l’action `audio.play`.

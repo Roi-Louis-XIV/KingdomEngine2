@@ -110,3 +110,11 @@ test('serment : panneau dans les limites Discord, bouton sans état, salons rés
   assert.ok(all!.allow & P.ViewChannel && all!.deny & P.SendMessages);
   assert.equal(categoryName({ name: 'Mine de Roland', emoji: '⛏️' }), '⛏️ Mine de Roland');
 });
+
+test('salons cités dans les textes : {salon.aide} devient un lien Discord', async () => {
+  const { channelTokens } = await import('../src/discord/access.ts');
+  assert.equal(channelTokens('Rejoins {salon.aide} !', { aide: '123456789012345678' }), 'Rejoins <#123456789012345678> !');
+  assert.equal(channelTokens('Rejoins {salon.aide} !', { aide: null }), 'Rejoins #aide !');
+  assert.equal(channelTokens('{salon.Aide} et {salon.inconnu}', { aide: '1' }), '<#1> et #inconnu');
+  assert.equal(channelTokens('Rien à remplacer {var.t}', { aide: '1' }), 'Rien à remplacer {var.t}');
+});
