@@ -6,25 +6,52 @@ import { discordLogo } from './profile.ts';
 /** Connexion / création du premier compte. */
 export function authPage(onDone: () => void): HTMLElement {
   let mode: 'login' | 'register' = state.firstRun ? 'register' : 'login';
+  // Avec Discord, l'identifiant et le mot de passe sont repliés (accès de secours).
+  let showPassword = !state.discordLogin;
   const form = { username: '', password: '', displayName: '', remember: false };
   const box = h('div', { class: 'auth-card' });
+  const remember = () =>
+    h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: form.remember, onchange: (e: Event) => (form.remember = (e.target as HTMLInputElement).checked) }), 'Rester connecté 7 jours');
   const draw = () => {
     const register = mode === 'register';
+    const passwordForm = h(
+      'form',
+      {
+        class: 'form',
+        onsubmit: async (e: Event) => {
+          e.preventDefault();
+          const btn = (e.target as HTMLFormElement).querySelector('button[type=submit]') as HTMLButtonElement;
+          btn.disabled = true;
+          try {
+            await post(register ? '/api/auth/register' : '/api/auth/login', form);
+            onDone();
+          } catch (err) {
+            toast((err as Error).message, 'error');
+            btn.disabled = false;
+          }
+        },
+      },
+      field(form, 'username', { label: 'Identifiant', required: true }, () => {}),
+      register ? field(form, 'displayName', { label: 'Nom affiché', placeholder: 'Facultatif' }, () => {}) : null,
+      field(form, 'password', { label: 'Mot de passe', type: 'password', required: true, hint: register ? '8 caractères minimum.' : undefined }, () => {}),
+      !state.discordLogin && !register ? remember() : null,
+      h('button', { class: `btn ${state.discordLogin ? '' : 'primary '}block`, type: 'submit' }, register ? 'Créer le compte' : 'Se connecter'),
+    );
     clear(
       box,
-      h('div', { class: 'auth-crest', 'aria-hidden': 'true' }, 'K'),
-      h('h1', null, state.firstRun ? 'Bienvenue dans KingdomEngine' : register ? 'Créer un compte' : 'Connexion au Studio'),
+      h('p', { class: 'auth-kicker' }, state.firstRun ? 'Première installation' : register ? 'Nouveau compte' : 'Studio'),
+      h('h2', null, state.firstRun ? 'Bienvenue, bâtisseur' : register ? 'Rejoins le Studio' : 'Bon retour parmi nous'),
       h(
         'p',
-        { class: 'muted' },
-        state.firstRun ? 'Crée le premier compte : il administrera cette installation.' : register ? 'Ton compte te permettra de créer et superviser tes mondes.' : 'Conçois et supervise tes mondes Discord.',
+        { class: 'auth-lead' },
+        state.firstRun ? 'Crée le premier compte : il administrera cette installation.' : register ? 'Ton compte te permettra de créer et superviser tes mondes.' : 'Connecte-toi pour concevoir et superviser tes mondes.',
       ),
       state.discordLogin
         ? [
             h(
               'a',
               {
-                class: 'btn primary block discord-btn',
+                class: 'btn block discord-btn',
                 href: '/api/auth/discord/start',
                 onclick: (e: Event) => {
                   e.preventDefault();
@@ -34,43 +61,39 @@ export function authPage(onDone: () => void): HTMLElement {
               discordLogo(),
               state.firstRun ? 'Créer le compte avec Discord' : 'Se connecter avec Discord',
             ),
-            h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: form.remember, onchange: (e: Event) => (form.remember = (e.target as HTMLInputElement).checked) }), 'Rester connecté 7 jours'),
-            h('p', { class: 'or' }, h('span', null, register ? 'ou crée un identifiant' : 'ou avec ton identifiant')),
+            remember(),
+            showPassword
+              ? [h('p', { class: 'or' }, h('span', null, register ? 'ou crée un identifiant' : 'ou avec ton identifiant')), passwordForm]
+              : h('button', { class: 'link auth-alt', onclick: () => ((showPassword = true), draw(), (box.querySelector('form input') as HTMLInputElement | null)?.focus()) }, 'Utiliser un identifiant et un mot de passe'),
           ]
-        : null,
-      h(
-        'form',
-        {
-          class: 'form',
-          onsubmit: async (e: Event) => {
-            e.preventDefault();
-            const btn = (e.target as HTMLFormElement).querySelector('button[type=submit]') as HTMLButtonElement;
-            btn.disabled = true;
-            try {
-              await post(register ? '/api/auth/register' : '/api/auth/login', form);
-              onDone();
-            } catch (err) {
-              toast((err as Error).message, 'error');
-              btn.disabled = false;
-            }
-          },
-        },
-        field(form, 'username', { label: 'Identifiant', required: true }, () => {}),
-        register ? field(form, 'displayName', { label: 'Nom affiché', placeholder: 'Facultatif' }, () => {}) : null,
-        field(form, 'password', { label: 'Mot de passe', type: 'password', required: true, hint: register ? '8 caractères minimum.' : undefined }, () => {}),
-        !register && !state.discordLogin
-          ? h('label', { class: 'check' }, h('input', { type: 'checkbox', onchange: (e: Event) => (form.remember = (e.target as HTMLInputElement).checked) }), 'Rester connecté 7 jours')
-          : null,
-        h('button', { class: 'btn primary block', type: 'submit' }, register ? 'Créer le compte' : 'Se connecter'),
-      ),
+        : passwordForm,
       !state.firstRun && state.registration
-        ? h('button', { class: 'link', onclick: () => ((mode = register ? 'login' : 'register'), draw()) }, register ? 'J’ai déjà un compte' : 'Créer un compte')
+        ? h('button', { class: 'link auth-alt', onclick: () => ((mode = register ? 'login' : 'register'), draw()) }, register ? 'J’ai déjà un compte' : 'Créer un compte')
         : null,
     );
-    (box.querySelector('form input') as HTMLInputElement | null)?.focus();
+    if (!state.discordLogin) (box.querySelector('form input') as HTMLInputElement | null)?.focus();
   };
   draw();
-  return h('div', { class: 'auth' }, box);
+  const brand = h(
+    'aside',
+    { class: 'auth-brand' },
+    h(
+      'div',
+      { class: 'auth-brand-inner' },
+      h('div', { class: 'auth-crest', 'aria-hidden': 'true' }, 'K'),
+      h('h1', { class: 'auth-wordmark' }, 'KingdomEngine'),
+      h('p', { class: 'auth-tagline' }, 'Des mondes vivants dans tes salons Discord.'),
+      h(
+        'ul',
+        { class: 'auth-points' },
+        h('li', null, h('span', { 'aria-hidden': 'true' }, '🏰'), h('div', null, h('b', null, 'Des lieux à visiter'), h('small', null, 'Chaque bâtiment est un salon vocal où l’on entre, travaille et commerce.'))),
+        h('li', null, h('span', { 'aria-hidden': 'true' }, '🎙️'), h('div', null, h('b', null, 'Des personnages qui parlent'), h('small', null, 'Les PNJ rejoignent le vocal, vivent et réagissent au scénario.'))),
+        h('li', null, h('span', { 'aria-hidden': 'true' }, '📜'), h('div', null, h('b', null, 'Sans écrire une ligne de code'), h('small', null, 'Quêtes, métiers, événements : tout se conçoit dans le Studio.'))),
+      ),
+    ),
+    h('p', { class: 'auth-foot' }, 'Payen Studio'),
+  );
+  return h('div', { class: 'auth' }, brand, h('main', { class: 'auth-panel' }, box));
 }
 
 /** Création d'un serveur (monde) depuis un modèle. */
