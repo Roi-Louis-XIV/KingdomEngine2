@@ -126,7 +126,7 @@ export class Router {
       res.end(body);
     };
 
-    if (!url.pathname.startsWith('/api/') && url.pathname !== '/mcp') return this.serveStatic(url.pathname, res);
+    if (!url.pathname.startsWith('/api/') && url.pathname !== '/mcp') return this.serveStatic(url.pathname, res, req);
 
     try {
       const m = this.match(method, url.pathname);
@@ -193,7 +193,7 @@ export class Router {
     }
   }
 
-  private serveStatic(pathname: string, res: ServerResponse) {
+  private serveStatic(pathname: string, res: ServerResponse, req?: IncomingMessage) {
     if (!this.staticDir) {
       res.writeHead(404).end();
       return;
@@ -210,9 +210,18 @@ export class Router {
       res.writeHead(503, { 'content-type': 'text/plain; charset=utf-8' }).end('Studio non compilé : lance « npm run build ».');
       return;
     }
+    // Toujours revalidé (no-cache + ETag) : après une mise à jour, chacun reçoit tout de suite le nouveau Studio
+    // (les fichiers ne portent pas de numéro de version) ; sinon une réponse 304 très légère.
+    const st = statSync(file);
+    const etag = `"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`;
+    if (req?.headers['if-none-match'] === etag) {
+      res.writeHead(304, { etag, 'cache-control': 'no-cache' }).end();
+      return;
+    }
     res.writeHead(200, {
       'content-type': MIME[extname(file)] ?? 'application/octet-stream',
-      'cache-control': extname(file) === '.html' ? 'no-cache' : 'public, max-age=60',
+      'cache-control': 'no-cache',
+      etag,
       'x-content-type-options': 'nosniff',
       'x-frame-options': 'DENY',
       'referrer-policy': 'same-origin',
