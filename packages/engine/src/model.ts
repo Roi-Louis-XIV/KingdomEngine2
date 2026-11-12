@@ -234,6 +234,31 @@ export interface CreatureDef {
   loot?: { item: Id; qty: number; chance: number }[];
   /** Phrases lancées par la créature quand elle attaque (au hasard). */
   taunts?: string[];
+  /** Sons propres à la créature (sinon ceux du module de combat). */
+  sounds?: { appear?: Id; attack?: Id; death?: Id };
+}
+
+/** Sons d'un module de combat, joués dans le salon vocal du bâtiment. Chacun est facultatif. */
+export interface CombatSounds {
+  /** Une créature surgit. */
+  appear?: Id;
+  /** Coup porté, coup critique, coup esquivé. */
+  hit?: Id;
+  crit?: Id;
+  miss?: Id;
+  /** Mise en garde. */
+  guard?: Id;
+  /** Le joueur est touché par une créature. */
+  hurt?: Id;
+  /** Objet de soin ou soins payants. */
+  heal?: Id;
+  flee?: Id;
+  victory?: Id;
+  defeat?: Id;
+  /** Duels : défi lancé, duel accepté, fin du duel. */
+  challenge?: Id;
+  duelStart?: Id;
+  duelWin?: Id;
 }
 
 export interface CharacterDef {
@@ -570,6 +595,8 @@ export interface CombatModule {
   type: 'combat';
   id: Id;
   name: string;
+  /** Phrase d'ambiance sous le titre de l'arène. */
+  description?: Text;
   /** Statistique de santé du joueur (points de vie contre les créatures). */
   health: Id;
   /** Attaque et défense de base, auxquelles s'ajoute l'équipement (meilleur objet de chaque emplacement). */
@@ -589,6 +616,8 @@ export interface CombatModule {
   defeat?: { health: number; actions: Action[]; text?: Text };
   /** Soins payants proposés dans l'arène (prix par point de santé). */
   heal?: { currency: Id; costPerPoint: number; label?: string };
+  /** Sons des combats et des duels. */
+  sounds?: CombatSounds;
   /** Duels entre joueurs présents dans le bâtiment. */
   duels?: {
     /** Points de vie de chaque duelliste (jauge propre au duel). */
@@ -714,7 +743,15 @@ export type WidgetDef =
   | { kind: 'dialogue'; dialogue: Id; exitScreen: Id; accent?: number }
   | { kind: 'dice'; dice: Id; accent?: number }
   /** Arène : chasse aux créatures et duels entre joueurs (module de combat). */
-  | { kind: 'combat.arena'; combat: Id; accent?: number }
+  | {
+      kind: 'combat.arena';
+      combat: Id;
+      accent?: number;
+      /** Affichage résumé (pour l'accueil) : ce qui se passe, et un bouton vers cet écran d'arène. */
+      openScreen?: Id;
+      /** Libellé du bouton du résumé. */
+      openLabel?: string;
+    }
   | { kind: 'activity.board'; activity: Id; accent?: number }
   | { kind: 'objective.board'; objective: Id; accent?: number }
   | { kind: 'player.tools'; title?: string; repair?: { currency: Id; costPerPoint: number }; accent?: number }

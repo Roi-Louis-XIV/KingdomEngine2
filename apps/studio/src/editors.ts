@@ -553,3 +553,16 @@ export function buttonEditor(w: WorldDef, b: BuildingDef, btn: ButtonDef, onChan
     outcome('onFailure', 'Si c’est refusé', 'Rien n’est appliqué : les actions sont annulées en bloc.'),
   );
 }
+
+/** Champ « son » : clé libre (le son peut être importé plus tard), avec les sons déjà importés en suggestion. */
+export function soundField<T extends object>(obj: T, key: keyof T & string, label: string, sounds: string[], onChange: () => void): HTMLElement {
+  const list = `sons-${Math.random().toString(36).slice(2, 8)}`;
+  const input = h('input', { value: String((obj as Record<string, unknown>)[key] ?? ''), placeholder: 'aucun', list }) as HTMLInputElement;
+  input.addEventListener('input', () => {
+    const v = input.value.trim();
+    if (v) (obj as Record<string, unknown>)[key] = v;
+    else delete (obj as Record<string, unknown>)[key];
+    onChange();
+  });
+  return h('label', { class: 'field' }, h('span', { class: 'field-label' }, label), input, h('datalist', { id: list }, sounds.map((s) => h('option', { value: s }))));
+}

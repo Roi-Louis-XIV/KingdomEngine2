@@ -23,7 +23,7 @@ const world = (): WorldDef => ({
   jobs: [],
   variables: [{ id: 'nuit', name: 'Nuit', options: [{ value: 'non', label: 'Non' }, { value: 'oui', label: 'Oui' }], initial: 'non' }],
   creatures: [
-    { id: 'rat', name: 'Rat', emoji: '🐀', hp: 6, attack: 2, defense: 0, rewards: [{ type: 'stat.add', stat: 'ecus', amount: 5 }], loot: [{ item: 'croc', qty: 1, chance: 1 }] },
+    { id: 'rat', name: 'Rat', emoji: '🐀', hp: 6, attack: 2, defense: 0, sounds: { appear: 'couic', death: 'rat-mort' }, rewards: [{ type: 'stat.add', stat: 'ecus', amount: 5 }], loot: [{ item: 'croc', qty: 1, chance: 1 }] },
     { id: 'ogre', name: 'Ogre', emoji: '👹', hp: 500, attack: 40, defense: 0, rewards: [] },
   ],
   buildings: [
@@ -46,6 +46,7 @@ const world = (): WorldDef => ({
           fleeChance: 0,
           defeat: { health: 10, actions: [{ type: 'stat.add', stat: 'ecus', amount: -50 }] },
           heal: { currency: 'ecus', costPerPoint: 1 },
+          sounds: { hit: 'coup', crit: 'critique', hurt: 'aie', victory: 'victoire', challenge: 'defi', duelWin: 'bravo' },
           duels: { hp: 20, rewards: [{ type: 'stat.add', stat: 'gloire', amount: 10 }], turnSec: 60 },
         },
       ],
@@ -79,9 +80,9 @@ test('coup : esquive, dégâts réduits par la défense et la garde, au moins 1'
 test('chasse : victoire, récompenses, butin, repère de quête, recharge', () => {
   const { engine, clock } = setup();
   const p = new Player(engine, 'alice', 'cave', 'Alice');
-  assert.match(p.text, /Rôdent ici :\* 🐀 Rat/);
+  assert.match(p.text, /Ce qui rôde ici\*\*\n🐀 Rat — ❤️ 6 · ⚔️ 2 · 🛡️ 0 · 🟢 à ta portée/);
   p.click('🔎 Chercher un adversaire');
-  assert.match(p.text, /Combat — 🐀 Rat/);
+  assert.match(p.text, /Combat contre 🐀 Rat/);
   assert.ok(p.state.fight);
   // Attaque 4 contre défense 0 : 4 par coup ; le rat (2 d'attaque, défense joueur 1) inflige 2.
   p.click('⚔️ Attaquer');
@@ -113,7 +114,7 @@ test('équipement, objet de soin pendant le combat, soins payants', () => {
   assert.match(q.text, /⚔️ 10 · 🛡️ 1/, 'attaque de base + épée');
   assert.match(q.button(/Se faire soigner/).label, /30 écus/);
   q.click('🔎 Chercher un adversaire');
-  q.choose(/Utiliser un objet/, 'potion');
+  q.choose(/Se soigner avec un objet/, 'potion');
   assert.equal(q.state.items.potion ?? 0, 0);
   assert.equal(q.state.stats.sante, 38, '+20 puis −2');
   q.click('⚔️ Attaquer');
@@ -131,7 +132,7 @@ test('défaite : la santé remonte au minimum prévu, la perte impossible est ig
   assert.match(p.text, /Ogre/);
   p.click('🛡️ Se défendre'); // 40 → garde : 16 (×0,4) ; 50 − 16 = 34
   assert.equal(p.state.stats.sante, 34);
-  p.click('🏃 Fuir'); // fuite impossible (0 %) : 40 − 0,5 = 40 → 34 − 40 < 0
+  p.click(/🏃 Fuir/); // fuite impossible (0 %) : 40 − 0,5 = 40 → 34 − 40 < 0
   assert.equal(p.state.fight, undefined);
   assert.match(p.text, /t’a mis à terre/);
   assert.equal(p.state.stats.sante, 10);
@@ -145,13 +146,14 @@ test('duel : défi entre joueurs présents, tours alternés, garde, victoire et 
   a.refresh();
   assert.deepEqual(a.options(/Défier un joueur/).map((o) => o.label), ['Bob']);
   a.choose(/Défier un joueur/, 'bob');
-  assert.match(a.text, /Défi lancé à \*\*Bob\*\*/);
+  assert.match(a.text, /Tu as défié \*\*Bob\*\* : en attente de sa réponse/);
   b.refresh();
   assert.match(b.text, /\*\*Alice\*\* te défie en duel/);
-  b.click('✅ Accepter');
+  assert.ok(b.buttons.includes('✅ Accepter le duel de Alice'));
+  b.click(/✅ Accepter/);
   assert.match(b.text, /À toi de jouer/);
   a.refresh();
-  assert.match(a.text, /Au tour de Bob/);
+  assert.match(a.text, /⏳ \*\*Bob\*\* réfléchit/);
   assert.ok(!a.buttons.includes('⚔️ Attaquer'));
   a.click('🏳️ Abandonner');
   b.refresh();
@@ -160,7 +162,7 @@ test('duel : défi entre joueurs présents, tours alternés, garde, victoire et 
 
   // Second duel jusqu'au bout : 4 d'attaque contre 1 de défense = 4 (3,5 arrondi) par coup, 20 PV.
   b.choose(/Défier un joueur/, 'alice');
-  a.refresh().click('✅ Accepter');
+  a.refresh().click(/✅ Accepter/);
   for (let i = 0; i < 12 && engine.snapshot().duels && Object.keys(engine.snapshot().duels!).length; i++) {
     const turn = Object.values(engine.snapshot().duels!)[0]!.turn;
     (turn === 'alice' ? a : b).refresh().click('⚔️ Attaquer');
@@ -178,7 +180,7 @@ test('duel : un défi sans réponse expire, un tour non joué fait perdre', () =
   engine.tick();
   assert.deepEqual(engine.snapshot().duels, {});
   a.refresh().choose(/Défier un joueur/, 'bob');
-  b.refresh().click('✅ Accepter');
+  b.refresh().click(/✅ Accepter/);
   clock.advance(61);
   engine.tick();
   assert.equal(engine.player('alice')!.stats.gloire, 10);
@@ -193,4 +195,61 @@ test('un joueur absent ne peut pas être défié', () => {
   engine.closeSessionsOf('bob', 'cave');
   a.choose(/Défier un joueur/, 'bob');
   assert.match(a.text, /n’est plus là/);
+});
+
+test('sons : chaque étape du combat joue son son dans le salon du bâtiment', () => {
+  const { engine } = setup();
+  const p = new Player(engine, 'alice', 'cave', 'Alice');
+  const sounds = (label: string | RegExp) => {
+    const r = engine.interact('alice', p.button(label).customId);
+    if (r.message) p.message = r.message;
+    return (r.events ?? []).filter((e) => e.type === 'audio.play').map((e) => (e.type === 'audio.play' ? `${e.building}:${e.sound}` : ''));
+  };
+  assert.deepEqual(sounds('🔎 Chercher un adversaire'), ['cave:couic'], 'son propre à la créature');
+  assert.deepEqual(sounds('⚔️ Attaquer'), ['cave:coup', 'cave:aie'], 'mon coup puis la riposte');
+  assert.deepEqual(sounds('⚔️ Attaquer'), ['cave:coup', 'cave:rat-mort', 'cave:victoire']);
+  new Player(engine, 'bob', 'cave', 'Bob');
+  p.refresh();
+  const s = p.message.components.flatMap((c) => (c.type === 'row' ? c.items : [])).find((i) => i.type === 'select')!;
+  const r = engine.interact('alice', s.customId, ['bob']);
+  assert.deepEqual(r.events?.map((e) => (e.type === 'audio.play' ? e.sound : '')), ['defi']);
+});
+
+test('affichage : dernier tour mis en avant, tours précédents résumés en petit', () => {
+  const { engine } = setup();
+  engine.setVariable('nuit', 'oui');
+  const p = new Player(engine, 'alice', 'cave');
+  p.click('🔎 Chercher un adversaire');
+  assert.match(p.text, /Ce qui vient de se passer\*\*\n👀 \*\*👹 Ogre\*\* surgit devant toi/);
+  p.click('🛡️ Se défendre');
+  assert.match(p.text, /Ce qui vient de se passer\*\*\n🛡️ Tu te mets en garde\.\n🩸 👹 Ogre t’inflige \*\*16\*\* \(amorti par ta garde\)\.\n-# 👀/);
+  assert.match(p.text, /Tour 2 · à toi de jouer/);
+  assert.ok(p.buttons.includes('🏃 Fuir (0 %)'));
+});
+
+test('résumé sur l’accueil : bêtes qui rôdent, combat en cours, défi reçu, bouton vers l’arène', () => {
+  const w = world();
+  const cave = w.buildings[0]!;
+  cave.screens.push({ id: 'hall', name: 'Hall', blocks: [{ type: 'notice' }, { type: 'widget', widget: { kind: 'combat.arena', combat: 'arene', openScreen: 'accueil', openLabel: '⚔️ Arène' } }] });
+  cave.homeScreen = 'hall';
+  assert.deepEqual(validateWorld(w).filter((i) => i.level === 'error'), []);
+  const clock = new Clock();
+  let n = 0;
+  const engine = new Engine(w, undefined, { now: clock.now, random: () => 0.5, newId: () => `s${++n}` });
+  const a = new Player(engine, 'alice', 'cave', 'Alice');
+  assert.match(a.text, /\*\*Arène\*\*\nRôdent ici : 🐀 Rat\n🤺 Défie un autre habitant présent ici\./);
+  a.click('⚔️ Arène');
+  assert.equal(a.screen, 'accueil');
+  a.click('🔎 Chercher un adversaire');
+  const back = new Player(engine, 'alice', 'cave', 'Alice');
+  assert.match(back.text, /⚠️ \*\*Combat en cours\*\* contre 🐀 Rat \(6\/6\)/);
+  assert.ok(back.buttons.includes('⚔️ Reprendre le combat'));
+  // Défi reçu : il s'affiche dès l'accueil.
+  const c = new Player(engine, 'carla', 'cave', 'Carla');
+  const b = new Player(engine, 'bob', 'cave', 'Bob');
+  b.click('⚔️ Arène');
+  b.choose(/Défier un joueur/, 'carla');
+  assert.match(c.refresh().text, /📣 \*\*Bob te défie en duel !\*\*/);
+  assert.ok(c.buttons.includes('🤺 Répondre'));
+  assert.match(b.refresh().text, /Tu as défié \*\*Carla\*\*/);
 });

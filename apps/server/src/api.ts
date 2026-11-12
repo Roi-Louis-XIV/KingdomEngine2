@@ -473,6 +473,9 @@ export function registerApi(router: Router, deps: ApiDeps) {
     }
     JSON.stringify(w ?? {}).replace(/"type":"audio\.play","sound":"([^"]+)"/g, (_, k: string) => (used.add(k), ''));
     for (const c of w?.characters ?? []) c.chatter?.lines.forEach((l) => l.sound && used.add(l.sound));
+    // Sons des combats : modules et créatures.
+    for (const b of w?.buildings ?? []) for (const m of b.modules) if (m.type === 'combat') Object.values(m.sounds ?? {}).forEach((k) => k && used.add(k));
+    for (const c of w?.creatures ?? []) Object.values(c.sounds ?? {}).forEach((k) => k && used.add(k));
     const list = platform.audioList(s.id);
     const have = new Set(list.map((a) => a.key));
     return { sounds: list.map(({ file: _f, ...a }) => a), missing: [...used].filter((k) => !have.has(k)).sort() };

@@ -1394,7 +1394,8 @@ items.push(
   item('defense_sanglier', 'Défense de sanglier', '🦴', 'Trophées', { baseValue: 12 }),
   item('oreille_gobelin', 'Oreille de gobelin', '👂', 'Trophées', { baseValue: 15, description: 'Preuve qu’il y a bien quelque chose au fond de la mine.' }),
 );
-const beast = (id, name, emoji, hp, attack, defense, o = {}) => ({ id, name, emoji, hp, attack, defense, ...(o.dodge ? { dodge: o.dodge } : {}), ...(o.description ? { description: o.description } : {}), rewards: [xp(o.xp ?? 5), ...(o.ecus ? [stat('ecus', o.ecus)] : []), ...(o.gloire ? [stat('gloire', o.gloire)] : [])], ...(o.loot ? { loot: o.loot.map(([item, qty, chance]) => ({ item, qty, chance })) } : {}), ...(o.taunts ? { taunts: o.taunts } : {}) });
+// Sons de chaque créature : apparition, attaque, mort (clés à importer dans la Médiathèque).
+const beast = (id, name, emoji, hp, attack, defense, o = {}) => ({ id, name, emoji, hp, attack, defense, sounds: { appear: `${id.replace('_', '-')}-apparition`, attack: `${id.replace('_', '-')}-attaque`, death: `${id.replace('_', '-')}-mort` }, ...(o.dodge ? { dodge: o.dodge } : {}), ...(o.description ? { description: o.description } : {}), rewards: [xp(o.xp ?? 5), ...(o.ecus ? [stat('ecus', o.ecus)] : []), ...(o.gloire ? [stat('gloire', o.gloire)] : [])], ...(o.loot ? { loot: o.loot.map(([item, qty, chance]) => ({ item, qty, chance })) } : {}), ...(o.taunts ? { taunts: o.taunts } : {}) });
 const creatures = [
   beast('rat', 'Rat des galeries', '🐀', 10, 3, 0, { xp: 3, ecus: 2, description: 'Gros comme un chat, et tout aussi aimable.', dodge: 0.1 }),
   beast('chauve_souris', 'Nuée de chauves-souris', '🦇', 14, 4, 0, { xp: 4, dodge: 0.25, description: 'Un tourbillon d’ailes qui sort du noir.' }),
@@ -1406,6 +1407,12 @@ const creatures = [
 ];
 if (!items.some((i) => i.id === 'viande')) creatures.find((c) => c.id === 'sanglier').loot.pop();
 
+// Sons communs des combats et des duels, joués dans le salon vocal du lieu.
+const COMBAT_SOUNDS = {
+  hit: 'combat-coup', crit: 'combat-critique', miss: 'combat-esquive', guard: 'combat-garde', hurt: 'combat-blessure',
+  heal: 'combat-soin', flee: 'combat-fuite', victory: 'combat-victoire', defeat: 'combat-defaite',
+  challenge: 'duel-defi', duelStart: 'duel-debut', duelWin: 'duel-victoire',
+};
 const hunting = all(from(0), notStorm, v('monde', 'ouvert'));
 /** Arène d'un lieu : module de combat, écran « combat », bouton depuis l'accueil. */
 function addArena(b, o) {
@@ -1413,28 +1420,31 @@ function addArena(b, o) {
     type: 'combat',
     id: 'combat',
     name: o.name,
+    description: o.intro,
     health: 'sante',
     base: { attack: 3, defense: 1, dodge: 0.05 },
     encounters: (o.encounters ?? []).map(([creature, weight, when]) => ({ creature, weight, ...(when ? { when } : {}) })),
     ...(o.encounters ? { costs: [stat('energie', -4)], cooldownSec: 20, when: hunting, lockedText: 'Pas avant le début de la fête, ni pendant la tempête.' } : {}),
     defeat: { health: 25, actions: [stat('ecus', -10)], text: 'Tu te réveilles un peu plus tard, la bourse plus légère (−10 écus si tu les avais).' },
     heal: { currency: 'ecus', costPerPoint: 1, label: 'Panser ses blessures' },
+    sounds: COMBAT_SOUNDS,
     ...(o.duels ? { duels: { hp: 30, turnSec: 90, rewards: [stat('gloire', 5), xp(5)], when: all(from(0), v('monde', 'ouvert')) } } : {}),
   });
   b.screens.push({
     id: 'combat',
     name: 'Combat',
     blocks: [
-      box([text(`## ${o.name}\n*${o.intro}*`)], b.accentColor),
       notice(),
       widget({ kind: 'combat.arena', combat: 'combat', accent: b.accentColor }),
       ...(o.ranking ? [widget({ kind: 'ranking', stat: 'gloire', title: '🏅 Les plus glorieux', limit: 5, accent: b.accentColor })] : []),
       buttons([go('↩️ Retour', b.homeScreen), go('🎒 Mon inventaire', 'inventaire'), go('🔄 Actualiser', 'combat')]),
     ],
   });
+  // Sur l'accueil : un encadré qui dit ce qui se passe (combat en cours, défi reçu, bêtes, duels) avec son bouton,
+  // juste avant la barre de navigation.
   const home = b.screens.find((x) => x.id === b.homeScreen);
-  const nav = [...home.blocks].reverse().find((x) => x.type === 'buttons');
-  nav.buttons.splice(Math.min(1, nav.buttons.length), 0, go(o.button, 'combat', { style: 'danger' }));
+  const at = home.blocks.lastIndexOf([...home.blocks].reverse().find((x) => x.type === 'buttons'));
+  home.blocks.splice(at, 0, widget({ kind: 'combat.arena', combat: 'combat', openScreen: 'combat', openLabel: o.button, accent: 0x7a2e2e }));
 }
 addArena(mine, { name: '⚔️ Galeries obscures', button: '⚔️ Galeries obscures', intro: 'Au-delà des lanternes, quelque chose gratte la roche…', encounters: [['rat', 5], ['chauve_souris', 3], ['gobelin', 2, from(25)]] });
 addArena(foret, { name: '🏹 Le bois sombre', button: '🏹 Chasser', intro: 'Sous les grands chênes, les bêtes ne sont pas toutes des proies.', encounters: [['loup', 4, notStorm], ['sanglier', 3, notStorm], ['loup_orage', 3, from(110)]] });
@@ -1748,6 +1758,17 @@ for (const b of world.buildings) {
     volume: b.audio?.volume ?? 0.5,
   };
 }
+
+// Lisibilité et limite Discord (40 éléments par message) : le titre d'un lieu et sa ligne d'état
+// (endurance, santé, bourse…) forment un seul texte au lieu de deux.
+const joinText = (t, line) => (typeof t === 'string' ? `${t}\n${line}` : { cases: t.cases.map((c) => ({ ...c, text: joinText(c.text, line) })) });
+for (const b of world.buildings)
+  for (const sc of b.screens)
+    for (const bl of sc.blocks) {
+      const ch = bl.type === 'container' ? bl.children : [];
+      const i = ch.findIndex((x, k) => k > 0 && x.type === 'text' && x.text === statusLine && ch[k - 1].type === 'text' && !ch[k - 1].visibleIf && !x.visibleIf);
+      if (i > 0) ch.splice(i - 1, 2, { type: 'text', text: joinText(ch[i - 1].text, statusLine) });
+    }
 
 // La Taverne V11 parle d'« Énergie » : même statistique, renommée « Endurance » pour la bêta.
 const json = JSON.stringify(world, null, 2).replaceAll('Énergie', 'Endurance');

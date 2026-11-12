@@ -1,7 +1,7 @@
 import type { WorldDef } from '../../../../packages/engine/src/index.ts';
 import { h, clear, field, selectField, toast, uniqueId } from '../ui.ts';
 import { can, draft, touch } from '../store.ts';
-import { conditionEditor, effectsEditor, textEditor, variableCondition } from '../editors.ts';
+import { conditionEditor, effectsEditor, soundField, textEditor, variableCondition } from '../editors.ts';
 
 const TABS = [
   ['objets', 'Objets'],
@@ -228,6 +228,7 @@ export async function catalogPage(main: HTMLElement, params: string[]) {
             { class: 'form' },
             h('div', { class: 'row-fields' }, field(c, 'emoji', { label: 'Symbole' }, changed), field(c, 'name', { label: 'Nom' }, changed), field(c, 'description', { label: 'Description (à son apparition)' }, changed)),
             h('div', { class: 'row-fields' }, field(c, 'hp', { label: 'Points de vie', type: 'number', min: 1 }, changed), field(c, 'attack', { label: 'Attaque', type: 'number', min: 0 }, changed), field(c, 'defense', { label: 'Défense', type: 'number', min: 0 }, changed), field(c, 'dodge', { label: 'Esquive (0 à 0,9)', type: 'number', min: 0, max: 0.9, step: 0.05 }, changed)),
+            h('div', { class: 'row-fields' }, soundField((c.sounds ??= {}), 'appear', 'Son d’apparition', [], changed), soundField(c.sounds, 'attack', 'Son quand elle attaque', [], changed), soundField(c.sounds, 'death', 'Son quand elle meurt', [], changed)),
             h('div', null, h('b', null, 'Récompenses de la victoire')),
             effectsEditor(w, c.rewards, changed),
             h('div', null, h('b', null, 'Butin'), h('p', { class: 'muted small' }, 'Chaque ligne est tirée à part : chance de 0 à 1 (0,5 = une fois sur deux).')),

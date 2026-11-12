@@ -120,6 +120,8 @@ Détails techniques :
 - **Coup** : esquive possible ; dégâts = attaque × (0,8 à 1,2) − défense/2, au moins 1 ; critique 10 % (×1,5). Attaque et défense du joueur = base du module + équipement (meilleur objet de chaque emplacement).
 - **Duels** : un joueur défie un joueur présent (interface ouverte dans le même bâtiment ; son nom vient de la session). État partagé `state.duels` : défi (2 min pour répondre), puis tours alternés avec une jauge propre au duel (on ne risque pas sa santé). Qui ne joue pas à temps perd : `Engine.tick()` applique les délais. Le vainqueur reçoit les récompenses du module.
 - Repères de quête : `combat:win`, `combat:win:<créature>`, `combat:lose`, `duel:win`, `duel:fought`.
+- **Affichage** : l'arène montre en haut l'état des combattants (jauges), puis « Ce qui vient de se passer » (le dernier tour en clair, les tours précédents résumés en petit), puis les actions. Chaque créature affiche une pastille de difficulté calculée pour ce joueur (🟢 à ta portée, 🟡 coriace, 🔴 dangereux). Avec `openScreen`, le widget devient un **résumé pour l'accueil** : une ligne qui dit ce qui se passe (combat en cours, duel, défi reçu, bêtes qui rôdent, duels à regarder) avec un bouton vers l'arène.
+- **Sons** (`sounds` du module, `sounds` de chaque créature) : apparition, coup, critique, esquive, garde, blessure, soin, fuite, victoire, défaite, défi, début et fin de duel ; joués dans le salon vocal du bâtiment par l'événement `audio.play`. Ils apparaissent dans Médiathèque › sons manquants.
 
 ## Voix
 

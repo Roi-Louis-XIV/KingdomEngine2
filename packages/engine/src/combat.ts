@@ -9,8 +9,8 @@
  *
  * Tout le hasard est tiré côté moteur, dans la transaction.
  */
-import type { Action, CombatModule, CreatureDef, Id } from './model.ts';
-import type { RButton, RSelect, RTopLevel } from './components.ts';
+import type { Action, CombatModule, CombatSounds, CreatureDef, Id } from './model.ts';
+import type { RButton, RContainer, RSelect, RTopLevel } from './components.ts';
 import type { DuelState, WorldState } from './state.ts';
 import { type Ctx, RuleError, applyAction, evaluate, findItem, findStat, itemName, pickText } from './rules.ts';
 import { questTag } from './quests.ts';
@@ -23,11 +23,20 @@ export interface CombatEnv {
   random(): number;
 }
 
-const LOG_LINES = 5;
+/** Tours précédents gardés sous « Ce qui vient de se passer ». */
+const LOG_LINES = 4;
 const PENDING_MS = 2 * 60_000;
 
 const text = (content: string) => ({ type: 'text' as const, content });
-const box = (content: string, accent?: number): RTopLevel => ({ type: 'container', accent, children: [text(content)] });
+/** Encadré en plusieurs parties séparées par un trait (les parties vides sont ignorées). */
+const panel = (parts: string[], accent?: number): RContainer => {
+  const children: RContainer['children'] = [];
+  for (const p of parts.filter((x) => x.trim())) {
+    if (children.length) children.push({ type: 'separator' });
+    children.push(text(p));
+  }
+  return { type: 'container', accent, children };
+};
 const button = (customId: string, label: string, style: RButton['style'] = 'secondary'): RButton => ({ type: 'button', customId, label, style });
 const rows = (items: RButton[]): RTopLevel[] => {
   const out: RTopLevel[] = [];
@@ -116,10 +125,34 @@ function soft(ctx: Ctx, actions: Action[] = []) {
   }
 }
 
-const pushLog = (log: string[], ...lines: string[]) => {
-  log.push(...lines);
-  while (log.length > LOG_LINES) log.shift();
-};
+/** Nouveau tour : l'ancien « dernier tour » passe dans l'historique (résumé en une ligne). */
+function newTurn(st: { last?: string[]; log: string[] }, lines: string[]) {
+  if (st.last?.length) {
+    st.log.push(st.last.join(' '));
+    while (st.log.length > LOG_LINES) st.log.shift();
+  }
+  st.last = lines;
+}
+
+/** Joue un son dans le salon vocal du bâtiment (sans effet s'il n'est pas configuré). */
+function sfx(ctx: Ctx, sound: Id | undefined) {
+  if (sound) ctx.events.push({ type: 'audio.play', building: ctx.building.id, sound, player: ctx.playerId });
+}
+const blowSound = (s: CombatSounds | undefined, b: Blow) => (b.dodged ? s?.miss : b.crit ? (s?.crit ?? s?.hit) : s?.hit);
+
+/** Rapidité estimée d'un combat : nombre de coups moyens pour mettre l'autre à terre. */
+function hitsToKill(attacker: Fighter, defender: Fighter, hp: number) {
+  const avg = Math.max(1, attacker.attack - defender.defense * 0.5) * (1 - defender.dodge);
+  return Math.ceil(hp / Math.max(0.5, avg));
+}
+/** Pastille de difficulté d'une créature pour ce joueur. */
+function danger(me: Fighter, myHp: number, c: CreatureDef): string {
+  const mine = hitsToKill(me, creatureFighter(c), c.hp);
+  const theirs = hitsToKill(creatureFighter(c), me, Math.max(1, myHp));
+  if (theirs <= mine) return '🔴 dangereux pour toi';
+  if (theirs <= mine * 2) return '🟡 coriace';
+  return '🟢 à ta portée';
+}
 
 /** Objets consommables du joueur qui rendent de la santé. */
 function healingItems(ctx: Ctx, mod: CombatModule): { id: Id; qty: number; amount: number }[] {
@@ -185,6 +218,7 @@ function finishDuel(ctx: Ctx, mod: CombatModule, d: DuelState, winner: Id, reaso
   const lctx = loser === ctx.playerId ? ctx : ctx.state.players[loser] ? ctxFor(ctx, loser) : undefined;
   if (lctx) questTag(lctx, 'duel:fought');
   questTag(wctx, 'duel:fought');
+  sfx(ctx, mod.sounds?.duelWin);
   const result = `🏆 **${nameOf(ctx.state, winner)}** remporte le duel contre **${nameOf(ctx.state, loser)}** ${reason}.`;
   // Le dernier résultat reste visible pour les deux duellistes.
   for (const p of [winner, loser]) {
@@ -220,8 +254,17 @@ export function expireDuels(ctx: Ctx, now: number): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Rendu
+// Rendu : en haut l'état des combattants, puis « ce qui vient de se passer », puis les actions.
 // ---------------------------------------------------------------------------
+
+const bar = (label: string, value: number, max: number, extra = '') => `${label}\n\`${gauge(value, max)}\` **${value}**/${max}${extra}`;
+
+function happened(st: { last?: string[]; log: string[] }, empty: string): string {
+  const lines = ['**Ce qui vient de se passer**', ...(st.last?.length ? st.last : [empty])];
+  // Les tours précédents en petit et en gris, du plus récent au plus ancien.
+  for (const old of [...st.log].reverse()) lines.push(`-# ${old}`);
+  return lines.join('\n');
+}
 
 export function renderCombat(env: CombatEnv, mod: CombatModule, accent?: number): RTopLevel[] {
   const { ctx } = env;
@@ -229,123 +272,180 @@ export function renderCombat(env: CombatEnv, mod: CombatModule, accent?: number)
   const key = combatKey(ctx.building.id, mod.id);
   const me = fighterOf(ctx, mod);
   const hp = healthOf(ctx, mod);
-  const myLine = `${hp.emoji} **Toi** ${hp.value}/${hp.max}  \`${gauge(hp.value, hp.max)}\`  · ⚔️ ${me.attack} · 🛡️ ${me.defense}`;
+  const myStats = ` · ⚔️ ${me.attack} · 🛡️ ${me.defense}`;
   const out: RTopLevel[] = [];
 
-  // Combat en cours contre une créature (ici).
+  // 1. Combat en cours contre une créature (ici).
   const fight = p.fight?.key === key ? p.fight : undefined;
   const creature = fight ? findCreature(ctx, fight.creature) : undefined;
   if (fight && creature) {
+    const them = creatureFighter(creature);
     out.push(
-      box(
+      panel(
         [
-          `### ⚔️ Combat — ${cname(creature)}`,
-          `${cname(creature)} ${fight.hp}/${creature.hp}  \`${gauge(fight.hp, creature.hp)}\``,
-          myLine,
-          '',
-          fight.log.join('\n'),
-          '',
-          `*Tour ${fight.round + 1} : à toi de jouer.*`,
-        ].join('\n'),
+          `### ⚔️ Combat contre ${cname(creature)}\n-# Tour ${fight.round + 1} · à toi de jouer`,
+          [bar(`${cname(creature)}`, fight.hp, creature.hp, ` · ⚔️ ${them.attack} · 🛡️ ${them.defense}`), bar(`${hp.emoji} **Toi**`, hp.value, hp.max, myStats)].join('\n\n'),
+          happened(fight, `👀 ${cname(creature)} te fait face.${creature.description ? ` *${creature.description}*` : ''}`),
+        ],
         accent ?? 0x7a2e2e,
       ),
     );
-    out.push(...rows([button(env.id('attack'), '⚔️ Attaquer', 'danger'), button(env.id('guard'), '🛡️ Se défendre', 'primary'), button(env.id('flee'), '🏃 Fuir')]));
+    out.push(...rows([button(env.id('attack'), '⚔️ Attaquer', 'danger'), button(env.id('guard'), '🛡️ Se défendre', 'primary'), button(env.id('flee'), `🏃 Fuir (${Math.round((mod.fleeChance ?? 0.6) * 100)} %)`)]));
     const heals = healingItems(ctx, mod);
     if (heals.length) {
       const sel: RSelect = {
         type: 'select',
         customId: env.id('use'),
-        placeholder: '🧪 Utiliser un objet (prend ton tour)…',
+        placeholder: '🧪 Se soigner avec un objet (prend ton tour)…',
         options: heals.slice(0, 25).map((h) => ({ label: `${findItem(ctx.world, h.id)!.name} ×${h.qty}`.slice(0, 100), value: h.id, description: `+${h.amount} ${hp.name}`, emoji: findItem(ctx.world, h.id)!.emoji })),
       };
       out.push({ type: 'row', items: [sel] });
     }
+    out.push(text('-# 🛡️ Se défendre : tu encaisses beaucoup moins, et tu ripostes parfois.'));
     return out;
   }
   if (p.fight && p.fight.key !== key) {
     const [b] = p.fight.key.split('/');
-    out.push(box(`### ⚔️ ${mod.name}\n*Tu es déjà en plein combat ailleurs (${ctx.world.buildings.find((x) => x.id === b)?.name ?? b}). Termine-le d’abord.*`, accent));
+    out.push(panel([`### ⚔️ ${mod.name}`, `⚠️ Tu es déjà en plein combat ailleurs (**${ctx.world.buildings.find((x) => x.id === b)?.name ?? b}**). Retournes-y pour le terminer.`], accent));
     return out;
   }
 
-  // Duel (proposé ou en cours).
+  // 2. Duel en cours.
   const duel = mod.duels ? duelOf(ctx, key, ctx.playerId) : undefined;
   if (duel?.status === 'active') {
     const other = duel.challenger === ctx.playerId ? duel.target : duel.challenger;
     const max = mod.duels!.hp;
     const mine = duel.turn === ctx.playerId;
+    const left = secs(duel.deadline - ctx.now);
     env.wake(duel.deadline);
     out.push(
-      box(
+      panel(
         [
-          `### 🤺 Duel contre ${nameOf(ctx.state, other)}`,
-          `🤺 **${nameOf(ctx.state, other)}** ${duel.hp[other]}/${max}  \`${gauge(duel.hp[other] ?? 0, max)}\``,
-          `🤺 **Toi** ${duel.hp[ctx.playerId]}/${max}  \`${gauge(duel.hp[ctx.playerId] ?? 0, max)}\`  · ⚔️ ${me.attack} · 🛡️ ${me.defense}`,
-          '',
-          duel.log.join('\n') || '*Les duellistes se saluent.*',
-          '',
-          mine ? `**À toi de jouer !** (encore ${secs(duel.deadline - ctx.now)})` : `*Au tour de ${nameOf(ctx.state, other)}… (encore ${secs(duel.deadline - ctx.now)})*`,
-        ].join('\n'),
+          `### 🤺 Duel contre ${nameOf(ctx.state, other)}\n${mine ? `🟢 **À toi de jouer !** Il te reste ${left}.` : `⏳ **${nameOf(ctx.state, other)}** réfléchit… (${left})`}`,
+          [bar(`🤺 **${nameOf(ctx.state, other)}**${duel.guard[other] ? ' 🛡️ en garde' : ''}`, duel.hp[other] ?? 0, max), bar(`🤺 **Toi**${duel.guard[ctx.playerId] ? ' 🛡️ en garde' : ''}`, duel.hp[ctx.playerId] ?? 0, max, myStats)].join('\n\n'),
+          happened(duel, '*Les duellistes se saluent.*'),
+        ],
         accent ?? 0x885c34,
       ),
     );
     out.push(...rows([...(mine ? [button(env.id('dattack', duel.id), '⚔️ Attaquer', 'danger'), button(env.id('dguard', duel.id), '🛡️ Se garder', 'primary')] : []), button(env.id('yield', duel.id), '🏳️ Abandonner')]));
+    out.push(text(`-# Un duel ne coûte pas de santé. Qui ne joue pas dans les ${mod.duels!.turnSec ?? 90} s perd le duel.`));
     return out;
   }
 
-  // Accueil de l'arène.
-  const lines = [`### ⚔️ ${mod.name}`, myLine];
-  const enc = encountersNow(ctx, mod);
+  // 3. Accueil de l'arène : mon état, ce qui rôde ici, le repos.
+  const desc = pickText(ctx, mod.description);
+  const head = [`### ${mod.name}${desc ? `\n*${desc}*` : ''}`, '', bar(`${hp.emoji} **Toi**`, hp.value, hp.max, myStats)];
+  if (hp.value <= 0) head.push(`⚠️ Tu es trop mal en point pour chasser : soigne-toi d’abord.`);
+  const parts = [head.join('\n')];
   if (mod.encounters.length) {
     const lock = evaluate(ctx, mod.when);
-    if (!lock.ok) lines.push(`🔒 ${pickText(ctx, mod.lockedText) || lock.reason}`);
-    else if (enc.length) lines.push(`*Rôdent ici :* ${enc.map((e) => cname(findCreature(ctx, e.creature)!)).join(' · ')}`);
-    else lines.push('*Rien ne rôde par ici pour l’instant.*');
+    const hunt: string[] = ['**Ce qui rôde ici**'];
+    if (!lock.ok) hunt.push(`🔒 ${pickText(ctx, mod.lockedText) || lock.reason}`);
+    else {
+      const enc = encountersNow(ctx, mod);
+      if (!enc.length) hunt.push('*Rien pour l’instant.*');
+      for (const e of enc) {
+        const c = findCreature(ctx, e.creature)!;
+        hunt.push(`${cname(c)} — ❤️ ${c.hp} · ⚔️ ${c.attack} · 🛡️ ${c.defense} · ${danger(me, hp.value, c)}`);
+      }
+      const cost = (mod.costs ?? []).map((a) => (a.type === 'stat.add' && a.amount < 0 ? `${-a.amount} ${findStat(ctx.world, a.stat)?.name ?? a.stat}` : '')).filter(Boolean);
+      if (cost.length) hunt.push(`-# Chercher un adversaire coûte ${cost.join(' et ')}. Le hasard choisit parmi ces bêtes.`);
+    }
     const cd = p.cooldowns[cooldownKey(key)];
     if (cd && cd > ctx.now) {
-      lines.push(`⏳ Reprends ton souffle : encore ${secs(cd - ctx.now)}.`);
+      hunt.push(`⏳ Reprends ton souffle : encore ${secs(cd - ctx.now)}.`);
       env.wake(cd);
     }
+    parts.push(hunt.join('\n'));
   }
-  const lastDuel = p.lastDuel;
-  if (lastDuel) lines.push('', lastDuel);
-  out.push(box(lines.join('\n'), accent));
+  out.push(panel(parts, accent));
 
   const actions: RButton[] = [];
   if (mod.encounters.length) actions.push(button(env.id('hunt'), '🔎 Chercher un adversaire', 'success'));
   if (mod.heal && hp.value < hp.max) {
     const cost = (hp.max - hp.value) * mod.heal.costPerPoint;
-    actions.push(button(env.id('heal'), `🩹 ${mod.heal.label ?? 'Se faire soigner'} (${cost} ${findStat(ctx.world, mod.heal.currency)?.unit ?? ''})`.replace(' )', ')'), 'primary'));
+    actions.push(button(env.id('heal'), `🩹 ${mod.heal.label ?? 'Se faire soigner'} : ${cost} ${findStat(ctx.world, mod.heal.currency)?.unit ?? ''}`.trim(), 'primary'));
   }
   out.push(...rows(actions));
 
+  // 4. Duels : défis reçus, défi envoyé, duels en cours ici (pour les spectateurs), choix d'un adversaire.
   if (mod.duels && evaluate(ctx, mod.duels.when).ok) {
-    const incoming = Object.values(ctx.state.duels ?? {}).filter((d) => d.key === key && d.status === 'pending' && d.target === ctx.playerId);
-    for (const d of incoming.slice(0, 2)) {
-      env.wake(d.createdAt + PENDING_MS);
-      out.push({
-        type: 'section',
-        texts: [text(`🤺 **${nameOf(ctx.state, d.challenger)}** te défie en duel ! (${mod.duels.hp} points de vie chacun, sans risque pour ta santé)`)],
-        accessory: button(env.id('accept', d.id), '✅ Accepter', 'success'),
-      });
-    }
-    if (incoming.length) out.push(...rows(incoming.slice(0, 2).map((d) => button(env.id('refuse', d.id), `❌ Refuser (${nameOf(ctx.state, d.challenger)})`.slice(0, 80), 'danger'))));
+    const here = Object.values(ctx.state.duels ?? {}).filter((d) => d.key === key);
+    const lines = ['**🤺 Duels**', `-# Défie un joueur présent : ${mod.duels.hp} points de vie chacun, sans risque pour ta santé.`];
+    const watching = here.filter((d) => d.status === 'active');
+    for (const d of watching.slice(0, 3))
+      lines.push(`⚔️ **${nameOf(ctx.state, d.challenger)}** (${d.hp[d.challenger]}/${mod.duels.hp}) contre **${nameOf(ctx.state, d.target)}** (${d.hp[d.target]}/${mod.duels.hp})`);
+    if (p.lastDuel) lines.push(p.lastDuel);
     const outgoing = duel?.status === 'pending' && duel.challenger === ctx.playerId ? duel : undefined;
-    if (outgoing) {
-      env.wake(outgoing.createdAt + PENDING_MS);
-      out.push({ type: 'section', texts: [text(`⏳ Tu as défié **${nameOf(ctx.state, outgoing.target)}**. En attente de sa réponse…`)], accessory: button(env.id('cancel', outgoing.id), 'Annuler') });
-    } else {
+    if (outgoing) lines.push(`⏳ Tu as défié **${nameOf(ctx.state, outgoing.target)}** : en attente de sa réponse (${secs(outgoing.createdAt + PENDING_MS - ctx.now)}).`);
+    const incoming = here.filter((d) => d.status === 'pending' && d.target === ctx.playerId).slice(0, 2);
+    for (const d of incoming) lines.push(`📣 **${nameOf(ctx.state, d.challenger)}** te défie en duel ! (${secs(d.createdAt + PENDING_MS - ctx.now)} pour répondre)`);
+    out.push(panel([lines.join('\n')], accent));
+    for (const d of [...incoming, ...(outgoing ? [outgoing] : [])]) env.wake(d.createdAt + PENDING_MS);
+    for (const d of incoming)
+      out.push({ type: 'row', items: [button(env.id('accept', d.id), `✅ Accepter le duel de ${nameOf(ctx.state, d.challenger)}`.slice(0, 80), 'success'), button(env.id('refuse', d.id), '❌ Refuser', 'danger')] });
+    if (outgoing) out.push({ type: 'row', items: [button(env.id('cancel', outgoing.id), 'Annuler mon défi')] });
+    else {
       const others = presentPlayers(ctx).filter((o) => !busy(ctx.state, o.id));
       if (others.length)
-        out.push({
-          type: 'row',
-          items: [{ type: 'select', customId: env.id('challenge'), placeholder: '🤺 Défier un joueur présent…', options: others.slice(0, 25).map((o) => ({ label: o.name.slice(0, 100), value: o.id })) }],
-        });
-      else out.push(text('*🤺 Personne d’autre ici pour un duel.*'));
+        out.push({ type: 'row', items: [{ type: 'select', customId: env.id('challenge'), placeholder: '🤺 Défier un joueur présent…', options: others.slice(0, 25).map((o) => ({ label: o.name.slice(0, 100), value: o.id })) }] });
+      else out.push(text('-# Personne d’autre n’est libre ici pour un duel.'));
     }
   }
   return out;
+}
+
+/**
+ * Résumé pour l'accueil d'un bâtiment : ce qui se passe dans l'arène pour ce joueur
+ * (combat en cours, défi reçu, duel en cours, bêtes qui rôdent, duels à regarder) et un bouton pour y aller.
+ */
+export function renderCombatSummary(env: CombatEnv, mod: CombatModule, label: string | undefined): RTopLevel[] {
+  const { ctx } = env;
+  const p = ctx.player;
+  const key = combatKey(ctx.building.id, mod.id);
+  const go = (text: string, buttonLabel: string, style: RButton['style'] = 'secondary'): RTopLevel[] => [
+    // Une simple ligne avec son bouton (sans encadré : l'accueil est souvent déjà chargé).
+    { type: 'section', texts: [{ type: 'text', content: text }], accessory: button(env.id('open'), buttonLabel, style) },
+  ];
+  const title = `**${mod.name}**`;
+
+  const fight = p.fight?.key === key ? p.fight : undefined;
+  const creature = fight ? findCreature(ctx, fight.creature) : undefined;
+  if (fight && creature) {
+    const hp = healthOf(ctx, mod);
+    return go(`${title}\n⚠️ **Combat en cours** contre ${cname(creature)} (${creature.hp ? `${fight.hp}/${creature.hp}` : ''}) · ${hp.emoji} toi ${hp.value}/${hp.max}`, '⚔️ Reprendre le combat', 'danger');
+  }
+  const duel = mod.duels ? duelOf(ctx, key, ctx.playerId) : undefined;
+  if (duel?.status === 'active') {
+    const other = duel.challenger === ctx.playerId ? duel.target : duel.challenger;
+    env.wake(duel.deadline);
+    return go(`${title}\n⚠️ **Duel en cours** contre ${nameOf(ctx.state, other)} · ${duel.turn === ctx.playerId ? `**à toi de jouer** (${secs(duel.deadline - ctx.now)})` : 'à son tour'}`, '🤺 Retourner au duel', 'danger');
+  }
+  const incoming = Object.values(ctx.state.duels ?? {}).find((d) => d.key === key && d.status === 'pending' && d.target === ctx.playerId);
+  if (incoming) {
+    env.wake(incoming.createdAt + PENDING_MS);
+    return go(`${title}\n📣 **${nameOf(ctx.state, incoming.challenger)} te défie en duel !** (${secs(incoming.createdAt + PENDING_MS - ctx.now)} pour répondre)`, '🤺 Répondre', 'success');
+  }
+
+  const lines = [title];
+  if (mod.encounters.length) {
+    const lock = evaluate(ctx, mod.when);
+    if (!lock.ok) lines.push(`🔒 ${pickText(ctx, mod.lockedText) || lock.reason}`);
+    else {
+      const enc = encountersNow(ctx, mod);
+      lines.push(enc.length ? `Rôdent ici : ${enc.map((e) => cname(findCreature(ctx, e.creature)!)).join(' · ')}` : '*Rien ne rôde par ici pour l’instant.*');
+    }
+  }
+  if (mod.duels && evaluate(ctx, mod.duels.when).ok) {
+    const active = Object.values(ctx.state.duels ?? {}).filter((d) => d.key === key && d.status === 'active');
+    lines.push(
+      active.length
+        ? `🤺 ${active.slice(0, 2).map((d) => `**${nameOf(ctx.state, d.challenger)}** contre **${nameOf(ctx.state, d.target)}**`).join(' · ')}${active.length > 2 ? ` (+${active.length - 2})` : ''} : duel en cours !`
+        : '🤺 Défie un autre habitant présent ici.',
+    );
+  }
+  return go(lines.join('\n'), label ?? 'Y aller', 'danger');
 }
 
 // ---------------------------------------------------------------------------
@@ -368,6 +468,8 @@ function victory(env: CombatEnv, mod: CombatModule, creature: CreatureDef, lines
     }
   questTag(ctx, 'combat:win');
   questTag(ctx, `combat:win:${creature.id}`);
+  sfx(ctx, creature.sounds?.death);
+  sfx(ctx, mod.sounds?.victory);
   const gains = ctx.changes
     .slice(before)
     .flatMap((c) => (c.kind === 'stat' && c.after > c.before ? [`+${c.after - c.before} ${findStat(ctx.world, c.stat)?.unit ?? findStat(ctx.world, c.stat)?.name ?? c.stat}`] : []))
@@ -376,7 +478,7 @@ function victory(env: CombatEnv, mod: CombatModule, creature: CreatureDef, lines
   return { notice: [...lines, summary].join('\n') };
 }
 
-export function handleCombat(env: CombatEnv, mod: CombatModule, verb: string, arg: string, values: string[]): { notice?: string } {
+export function handleCombat(env: CombatEnv, mod: CombatModule, verb: string, arg: string, values: string[]): { notice?: string; goto?: Id } {
   const { ctx } = env;
   const p = ctx.player;
   const key = combatKey(ctx.building.id, mod.id);
@@ -399,7 +501,8 @@ export function handleCombat(env: CombatEnv, mod: CombatModule, verb: string, ar
       let x = env.random() * total;
       const pick = enc.find((e) => (x -= e.weight) < 0) ?? enc[enc.length - 1]!;
       const creature = findCreature(ctx, pick.creature)!;
-      p.fight = { key, creature: creature.id, hp: creature.hp, round: 0, log: [`👀 **${cname(creature)}** surgit devant toi !${creature.description ? ` *${creature.description}*` : ''}`] };
+      p.fight = { key, creature: creature.id, hp: creature.hp, round: 0, last: [`👀 **${cname(creature)}** surgit devant toi !${creature.description ? ` *${creature.description}*` : ''}`], log: [] };
+      sfx(ctx, creature.sounds?.appear ?? mod.sounds?.appear);
       return {};
     }
 
@@ -423,13 +526,16 @@ export function handleCombat(env: CombatEnv, mod: CombatModule, verb: string, ar
         const b = strike(env.random, me, them);
         fight.hp = Math.max(0, fight.hp - b.damage);
         lines.push(b.dodged ? `💨 ${cname(creature)} esquive ton attaque.` : `${b.crit ? '💥 **Coup critique !** ' : '⚔️ '}Tu infliges **${b.damage}** à ${cname(creature)}.`);
+        sfx(ctx, blowSound(mod.sounds, b));
       } else if (verb === 'guard') {
         guarded = true;
         lines.push('🛡️ Tu te mets en garde.');
+        sfx(ctx, mod.sounds?.guard);
       } else if (verb === 'flee') {
         if (env.random() < (mod.fleeChance ?? 0.6)) {
           delete p.fight;
           p.cooldowns[cooldownKey(key)] = ctx.now + (mod.cooldownSec ?? 0) * 1000;
+          sfx(ctx, mod.sounds?.flee);
           return { notice: `🏃 Tu t’enfuis à toutes jambes : ${cname(creature)} ne te suit pas.` };
         }
         lines.push('🏃 Tu tentes de fuir… mais la créature te barre la route !');
@@ -442,6 +548,7 @@ export function handleCombat(env: CombatEnv, mod: CombatModule, verb: string, ar
         for (const e of findItem(ctx.world, id)!.consumable!.effects) applyAction(ctx, e);
         questTag(ctx, `consume:${id}`);
         lines.push(`🧪 ${itemName(ctx.world, id)} : +${hp().value - before} ${hp().name}.`);
+        sfx(ctx, mod.sounds?.heal);
       }
 
       if (fight.hp <= 0) return victory(env, mod, creature, lines);
@@ -451,13 +558,14 @@ export function handleCombat(env: CombatEnv, mod: CombatModule, verb: string, ar
       const after = Math.max(0, hp().value - b.damage);
       setHealth(ctx, mod, after);
       const taunt = creature.taunts?.length && env.random() < 0.35 ? ` *« ${creature.taunts[Math.floor(env.random() * creature.taunts.length)]} »*` : '';
-      lines.push(b.dodged ? `💨 Tu esquives l’attaque de ${cname(creature)}.` : `${b.crit ? '💥 **Coup critique !** ' : '🩸 '}${cname(creature)} t’inflige **${b.damage}**.${taunt}`);
+      lines.push(b.dodged ? `💨 Tu esquives l’attaque de ${cname(creature)}.` : `${b.crit ? '💥 **Coup critique !** ' : '🩸 '}${cname(creature)} t’inflige **${b.damage}**${guarded ? ' (amorti par ta garde)' : ''}.${taunt}`);
+      if (!b.dodged) sfx(ctx, creature.sounds?.attack ?? mod.sounds?.hurt);
       if (guarded && !b.dodged && env.random() < 0.35) {
         const r = strike(env.random, { ...me, attack: Math.max(1, Math.round(me.attack / 2)) }, { ...them, dodge: 0 });
         fight.hp = Math.max(0, fight.hp - r.damage);
         lines.push(`↩️ Riposte ! Tu infliges **${r.damage}** à ${cname(creature)}.`);
       }
-      pushLog(fight.log, ...lines);
+      newTurn(fight, lines);
 
       if (fight.hp <= 0) return victory(env, mod, creature, lines);
       if (after <= 0) {
@@ -473,8 +581,9 @@ export function handleCombat(env: CombatEnv, mod: CombatModule, verb: string, ar
           .filter((c) => c.kind === 'stat' && c.after < c.before)
           .map((c) => (c.kind === 'stat' ? `−${c.before - c.after} ${findStat(ctx.world, c.stat)?.unit ?? findStat(ctx.world, c.stat)?.name ?? c.stat}` : ''))
           .join(' · ');
+        sfx(ctx, mod.sounds?.defeat);
         const summary = `☠️ **${cname(creature)} t’a mis à terre.** ${pickText(ctx, mod.defeat?.text) || 'Tu te réveilles un peu plus tard, endolori(e).'}${lost ? ` (${lost})` : ''}`;
-              return { notice: summary };
+        return { notice: summary };
       }
       return {};
     }
@@ -487,6 +596,7 @@ export function handleCombat(env: CombatEnv, mod: CombatModule, verb: string, ar
       if (missing <= 0) throw new RuleError('Tu es déjà en pleine forme.');
       applyAction(ctx, { type: 'stat.add', stat: mod.heal.currency, amount: -missing * mod.heal.costPerPoint });
       setHealth(ctx, mod, h.max);
+      sfx(ctx, mod.sounds?.heal);
       return { notice: `🩹 Te voilà soigné(e) : ${h.emoji} ${h.max}/${h.max}.` };
     }
 
@@ -503,7 +613,8 @@ export function handleCombat(env: CombatEnv, mod: CombatModule, verb: string, ar
       const id = `d${ctx.now.toString(36)}${Math.floor(env.random() * 1e6).toString(36)}`;
       duelsOf(ctx.state)[id] = { id, key, challenger: ctx.playerId, target, status: 'pending', createdAt: ctx.now, turn: target, deadline: ctx.now + PENDING_MS, hp: {}, guard: {}, log: [] };
       delete p.lastDuel;
-      return { notice: `🤺 Défi lancé à **${nameOf(ctx.state, target)}** ! Il ou elle a 2 minutes pour répondre.` };
+      sfx(ctx, mod.sounds?.challenge);
+      return {}; // le panneau des duels affiche le défi en attente
     }
 
     case 'cancel':
@@ -525,9 +636,11 @@ export function handleCombat(env: CombatEnv, mod: CombatModule, verb: string, ar
       // Celui qui a été défié frappe en premier.
       d.turn = d.target;
       d.deadline = ctx.now + (mod.duels!.turnSec ?? 90) * 1000;
-      d.log = [`🤺 **${nameOf(ctx.state, d.target)}** relève le défi de **${nameOf(ctx.state, d.challenger)}** !`];
+      d.last = [`🤺 **${nameOf(ctx.state, d.target)}** relève le défi de **${nameOf(ctx.state, d.challenger)}** !`];
+      d.log = [];
       delete p.lastDuel;
-      return { notice: '🤺 Duel accepté : à toi de frapper en premier !' };
+      sfx(ctx, mod.sounds?.duelStart);
+      return {};
     }
 
     case 'dattack':
@@ -545,15 +658,18 @@ export function handleCombat(env: CombatEnv, mod: CombatModule, verb: string, ar
       const otherName = nameOf(ctx.state, other);
       if (verb === 'dguard') {
         d.guard[ctx.playerId] = true;
-        pushLog(d.log, `🛡️ **${meName}** se met en garde.`);
+        newTurn(d, [`🛡️ **${meName}** se met en garde.`]);
+        sfx(ctx, mod.sounds?.guard);
       } else {
         const me = fighterOf(ctx, mod);
         const otherCtx = ctxFor(ctx, other);
         const them = ctx.state.players[other] ? fighterOf(otherCtx, mod) : { attack: 1, defense: 0, dodge: 0 };
-        const b = strike(env.random, me, them, d.guard[other]);
+        const guardedBefore = !!d.guard[other];
+        const b = strike(env.random, me, them, guardedBefore);
         d.guard[other] = false;
         d.hp[other] = Math.max(0, (d.hp[other] ?? 0) - b.damage);
-        pushLog(d.log, b.dodged ? `💨 **${otherName}** esquive le coup de **${meName}**.` : `${b.crit ? '💥 ' : '⚔️ '}**${meName}** touche **${otherName}** : **${b.damage}**${b.crit ? ' (critique !)' : ''}.`);
+        newTurn(d, [b.dodged ? `💨 **${otherName}** esquive le coup de **${meName}**.` : `${b.crit ? '💥 ' : '⚔️ '}**${meName}** touche **${otherName}** : **−${b.damage}**${b.crit ? ' (critique !)' : ''}${guardedBefore ? ' (amorti par sa garde)' : ''}.`]);
+        sfx(ctx, blowSound(mod.sounds, b));
         if (d.hp[other]! <= 0) {
           finishDuel(ctx, mod, d, ctx.playerId, `(${otherName} est à terre)`);
           return { notice: `🏆 **Victoire !** ${otherName} met un genou à terre.` };

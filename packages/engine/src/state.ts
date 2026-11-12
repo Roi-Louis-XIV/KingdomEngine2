@@ -37,6 +37,8 @@ export interface FightState {
   creature: Id;
   hp: number;
   round: number;
+  /** Ce qui s'est passé au dernier tour (mis en avant), puis l'historique des tours précédents. */
+  last?: string[];
   log: string[];
 }
 
@@ -54,6 +56,8 @@ export interface DuelState {
   deadline: number;
   hp: Record<Id, number>;
   guard: Record<Id, boolean>;
+  /** Dernière action (mise en avant), puis l'historique. */
+  last?: string[];
   log: string[];
 }
 

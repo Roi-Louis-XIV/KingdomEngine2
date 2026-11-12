@@ -383,7 +383,7 @@ test('combat : chasse en forêt avec l’épée de Wagner, duel sur la Place, qu
   const f = new Player(e, 'louis', 'foret', 'Louis');
   f.click('🏹 Chasser');
   assert.match(f.text, /⚔️ 9 · 🛡️ 5/, 'base 3/1 + épée longue 6 + cotte de mailles 4');
-  assert.match(f.text, /Rôdent ici :\* 🐺 Loup gris · 🐗 Sanglier furieux/);
+  assert.match(f.text, /🐺 Loup gris — ❤️ 22 · ⚔️ 6 · 🛡️ 1 · 🟢 à ta portée\n🐗 Sanglier furieux/);
   f.click('🔎 Chercher un adversaire');
   for (let i = 0; i < 20 && f.state.fight; i++) f.click('⚔️ Attaquer');
   assert.equal(f.state.fight, undefined);
@@ -395,7 +395,7 @@ test('combat : chasse en forêt avec l’épée de Wagner, duel sur la Place, qu
   a.click('🤺 Duels');
   b.click('🤺 Duels');
   a.choose(/Défier un joueur/, 'bob');
-  b.refresh().click('✅ Accepter');
+  b.refresh().click(/✅ Accepter/);
   a.refresh().click('🏳️ Abandonner');
   assert.equal(e.player('bob')!.stats.gloire, 5);
   assert.match(b.refresh().text, /Les plus glorieux/);

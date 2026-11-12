@@ -450,6 +450,7 @@ export function validateWorld(w: WorldDef): Issue[] {
           break;
         case 'combat.arena':
           modOf(wd.combat, 'combat', where);
+          if (wd.openScreen) screen(wd.openScreen, where);
           break;
         case 'player.consumables':
           break;

@@ -27,7 +27,7 @@ import {
 } from './rules.ts';
 import { STARS, abandonQuest, acceptQuest, currentOffers, findQuest, nextLevel, questDeliver, questLevel, questTag, rerollOffers, stepDone, stepTarget } from './quests.ts';
 import type { QuestDef } from './model.ts';
-import { equipmentTotals, handleCombat, renderCombat } from './combat.ts';
+import { equipmentTotals, handleCombat, renderCombat, renderCombatSummary } from './combat.ts';
 
 export interface WidgetEnv {
   ctx: Ctx;
@@ -765,7 +765,9 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
     }
 
     case 'combat.arena':
-      return renderCombat(env, findModule(ctx.building, w.combat, 'combat'), w.accent);
+      return w.openScreen
+        ? renderCombatSummary(env, findModule(ctx.building, w.combat, 'combat'), w.openLabel)
+        : renderCombat(env, findModule(ctx.building, w.combat, 'combat'), w.accent);
   }
 }
 
@@ -1260,6 +1262,7 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
     }
 
     case 'combat.arena':
+      if (verb === 'open' && w.openScreen) return { goto: w.openScreen };
       return handleCombat(env, findModule(ctx.building, w.combat, 'combat'), verb, arg, values);
 
     case 'quest.board': {

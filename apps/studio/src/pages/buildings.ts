@@ -3,7 +3,7 @@ import { DEFAULT_ENTRANCE_TEXT } from '../../../../packages/engine/src/index.ts'
 import { h, clear, field, selectField, toast, modal, confirmDialog, emptyState, uniqueId } from '../ui.ts';
 import { get } from '../api.ts';
 import { can, draft, server, state, touch } from '../store.ts';
-import { effectsEditor, qtyMapEditor, opts, variableCondition, conditionEditor, buttonEditor, textEditor } from '../editors.ts';
+import { soundField, effectsEditor, qtyMapEditor, opts, variableCondition, conditionEditor, buttonEditor, textEditor } from '../editors.ts';
 import { Emulator } from '../preview.ts';
 import { go } from '../main.ts';
 
@@ -649,12 +649,12 @@ function moduleEditor(w: WorldDef, b: BuildingDef, m: ModuleDef, changed: () => 
         typeof m.texts.draw === 'string' ? field(m.texts, 'draw', { label: 'Texte d’égalité' }, changed) : null,
       );
     case 'combat':
-      return combatEditor(w, b, m, changed, name);
+      return combatEditor(w, b, m, changed, name, sounds);
   }
 }
 
 /** Module de combat : caractéristiques de base, rencontres, défaite, soins, duels. */
-function combatEditor(w: WorldDef, b: BuildingDef, m: Extract<ModuleDef, { type: 'combat' }>, changed: () => void, name: HTMLElement): HTMLElement {
+function combatEditor(w: WorldDef, b: BuildingDef, m: Extract<ModuleDef, { type: 'combat' }>, changed: () => void, name: HTMLElement, sounds: string[]): HTMLElement {
   const stats = opts.stats(w);
   const creatures = (w.creatures ?? []).map((c) => ({ value: c.id, label: `${c.emoji ?? ''} ${c.name}`.trim() }));
   m.defeat ??= { health: 10, actions: [] };
@@ -705,6 +705,7 @@ function combatEditor(w: WorldDef, b: BuildingDef, m: Extract<ModuleDef, { type:
     'div',
     { class: 'form' },
     h('div', { class: 'row-fields' }, name, selectField('Santé du joueur', m.health, stats, (v) => ((m.health = v), changed()), { hint: 'Les créatures font baisser cette statistique.' })),
+    h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Phrase d’ambiance (sous le titre)'), textEditor(w, b, () => m.description ?? '', (t) => ((m.description = t || undefined), changed()), 1)),
     h('h3', null, 'Le joueur'),
     h('div', { class: 'row-fields' }, field(m.base, 'attack', { label: 'Attaque de base', type: 'number', min: 0 }, changed), field(m.base, 'defense', { label: 'Défense de base', type: 'number', min: 0 }, changed), field(m.base, 'dodge', { label: 'Esquive (0 à 0,9)', type: 'number', min: 0, max: 0.9, step: 0.05 }, changed)),
     h('p', { class: 'muted' }, 'S’y ajoute l’équipement : le meilleur objet de chaque emplacement (arme, armure…), réglé dans Catalogue › Objets.'),
@@ -725,6 +726,18 @@ function combatEditor(w: WorldDef, b: BuildingDef, m: Extract<ModuleDef, { type:
     healBox,
     h('h3', null, 'Duels'),
     duelBox,
+    h('h3', null, 'Sons'),
+    h('p', { class: 'muted' }, 'Joués dans le salon vocal du bâtiment. Laisse vide pour aucun son. Une créature peut avoir ses propres sons (Bestiaire).'),
+    (() => {
+      const snd = (m.sounds ??= {});
+      const f = (k: keyof typeof snd, label: string) => soundField(snd, k, label, sounds, changed);
+      return h(
+        'div',
+        { class: 'row-fields' },
+        f('appear', 'Une créature surgit'), f('hit', 'Coup porté'), f('crit', 'Coup critique'), f('miss', 'Coup esquivé'), f('guard', 'Mise en garde'), f('hurt', 'Le joueur est touché'),
+        f('heal', 'Soin'), f('flee', 'Fuite'), f('victory', 'Victoire'), f('defeat', 'Défaite'), f('challenge', 'Défi lancé'), f('duelStart', 'Début du duel'), f('duelWin', 'Fin du duel'),
+      );
+    })(),
   );
 }
 
@@ -819,7 +832,13 @@ const ASSISTANTS: { label: string; text: string; run: (w: WorldDef, b: BuildingD
     run: (w, b) => {
       const c = ensureModule(w, b, 'combat');
       const screen = addScreen(b, 'Combat', [{ type: 'notice' }, { type: 'widget', widget: { kind: 'combat.arena', combat: c.id } }, back(b)]);
-      linkFromHome(b, '⚔️ Combat', 'Chasser les créatures ou défier un autre joueur.', screen, 'Combattre');
+      // Sur l'accueil : un résumé de ce qui se passe dans l'arène, avec un bouton pour y aller.
+      const home = b.screens.find((x) => x.id === b.homeScreen);
+      if (home) {
+        const at = home.blocks.findIndex((x) => x.type === 'buttons');
+        const block: Block = { type: 'widget', widget: { kind: 'combat.arena', combat: c.id, openScreen: screen, openLabel: '⚔️ Combattre' } };
+        at >= 0 ? home.blocks.splice(at, 0, block) : home.blocks.push(block);
+      }
       return screen;
     },
   },
@@ -967,7 +986,7 @@ function widgetEditor(b: BuildingDef, wd: WidgetDef, changed: () => void): HTMLE
       const type = MODULE_KEYS[k]!;
       fields.push(selectField('Module', v, b.modules.filter((m) => m.type === type).map((m) => ({ value: m.id, label: m.name })), (x) => ((rec[k] = x), changed())));
     } else if (/Screen$/.test(k)) {
-      const label = { checkoutScreen: 'Écran de validation d’achat', backScreen: 'Écran de retour', recipeScreen: 'Écran des recettes', exitScreen: 'Écran de sortie' }[k] ?? k;
+      const label = { checkoutScreen: 'Écran de validation d’achat', backScreen: 'Écran de retour', recipeScreen: 'Écran des recettes', exitScreen: 'Écran de sortie', openScreen: 'Écran de l’arène (résumé avec bouton)' }[k] ?? k;
       fields.push(selectField(label, v, b.screens.map((s) => ({ value: s.id, label: s.name })), (x) => ((rec[k] = x), changed())));
     } else if (k === 'title') fields.push(field(rec as Record<string, string>, k, { label: 'Titre' }, changed));
   }
