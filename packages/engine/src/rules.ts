@@ -23,7 +23,7 @@ export interface Ctx {
 }
 
 export type EngineEvent =
-  | { type: 'audio.play'; building: Id; sound: Id; player: Id }
+  | { type: 'audio.play'; building: Id; sound: Id; player: Id; character?: Id }
   /** Annonce publique (événement, météo) à diffuser dans le salon d'annonces. */
   | { type: 'announce'; text: string; source: string };
 
@@ -424,7 +424,7 @@ export function applyAction(ctx: Ctx, a: Action): void {
     }
     case 'audio.play': {
       if (!a.sound) throw new RuleError('Son non défini.');
-      ctx.events.push({ type: 'audio.play', building: a.building ?? ctx.building.id, sound: a.sound, player: ctx.playerId });
+      ctx.events.push({ type: 'audio.play', building: a.building ?? ctx.building.id, sound: a.sound, player: ctx.playerId, ...(a.character ? { character: a.character } : {}) });
       return;
     }
     case 'variable.add': {

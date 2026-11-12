@@ -114,9 +114,10 @@ Détails techniques :
 
 ## Voix
 
-- `voice/planner.ts` : un bâtiment dont le salon vocal contient au moins un joueur, et qui a une configuration audio, demande une **présence** (identité du personnage, ambiance selon les variables du monde).
-- **Sons ponctuels en file** : dans un même bâtiment, les sons (`audio.play`, accueil) s'enchaînent au lieu de se couper ; un changement d'ambiance attend la fin du son en cours.
-- **Ambiance permanente** (`world.settings.voiceAlways`, case dans Objets & règles) : tous les bâtiments avec ambiance demandent une présence, même vides ; les occupés passent en premier si les workers manquent. Il faut un Voice Worker par bâtiment (page Discord & voix : nombre nécessaire). Les Voice Workers reçoivent une permission propre dans les salons vocaux réservés aux habitants.
+- `voice/planner.ts` : pour chaque salon vocal de bâtiment où il y a des joueurs, **un Voice Worker par personnage présent**, à son nom (`world.characters` : domicile + déplacements conditionnels, ex. tous à l'église pour la messe ; à défaut, le `npc` de chaque bâtiment). L'ambiance est jouée par le personnage qui habite le lieu, sinon par un autre présent, sinon par un worker au nom du bâtiment. Un personnage qui se déplace garde son worker, qui change de salon.
+- `voice/mixer.ts` : chaque worker **mixe** l'ambiance en boucle et les répliques par-dessus (ffmpeg → PCM 48 kHz, somme par trames de 20 ms → Opus). Les répliques d'un même worker s'enchaînent. Un worker sans ambiance n'émet que pendant ses répliques (on voit sur Discord qui parle).
+- `audio.play` avec `character` = réplique dite par ce personnage là où il se trouve ; sans, le son est joué par le worker qui tient l'ambiance du bâtiment.
+- **Ambiance permanente** (`world.settings.voiceAlways`) : les workers restent même dans les salons vides (désactivé dans la bêta).
 - `voice/pool.ts` : attribue les présences aux workers libres et installés sur le bon serveur. Une présence garde son worker tant qu’elle est souhaitée, avec 30 s de grâce après le départ du dernier joueur. Si l’ambiance change (Tempête), le son est mis à jour sans changer de worker.
 - `voice/workers.ts` : applique ces décisions sur Discord. Le worker rejoint le salon, prend le nom du personnage, joue l’accueil puis l’ambiance en boucle, ainsi que les sons déclenchés par l’action `audio.play`.
 

@@ -6,7 +6,7 @@
  * toutes les actions réussissent. Comme les méthodes sont synchrones, deux interactions
  * ne peuvent jamais s'entrelacer.
  */
-import type { Action, Block, ButtonDef, Id, Rule, ScreenDef, WorldDef, BuildingDef } from './model.ts';
+import type { Action, Block, ButtonDef, CharacterDef, Id, Rule, ScreenDef, WorldDef, BuildingDef } from './model.ts';
 import type { RButton, RContainer, RenderedMessage, RTopLevel } from './components.ts';
 import { createInitialState, newPlayer, syncStructure, type SessionState, type WorldState } from './state.ts';
 import { type Ctx, type EngineEvent, RuleError, applyAction, describeChanges, evaluate, pickText } from './rules.ts';
@@ -455,6 +455,27 @@ export class Engine {
   }
 
   /** Son d'ambiance actuel d'un bâtiment (selon les variables du monde), ou undefined. */
+  /** Personnages en voix : world.characters, ou à défaut le PNJ de chaque bâtiment. */
+  characters(): CharacterDef[] {
+    if (this.world.characters) return this.world.characters;
+    return this.world.buildings.filter((b) => b.npc).map((b) => ({ id: `npc:${b.id}`, name: b.npc!.name, title: b.npc!.title, emoji: b.npc!.emoji, home: b.id }));
+  }
+
+  /** Bâtiment où se trouve un personnage maintenant (son premier déplacement dont la condition est vraie, sinon chez lui). */
+  characterLocation(id: Id): Id | undefined {
+    const c = this.characters().find((x) => x.id === id);
+    if (!c) return undefined;
+    if (!c.moves?.length) return c.home;
+    const ctx = this.ctx(structuredClone(this.state), { id: '', player: '__pnj__', building: c.home, screen: '', ui: {}, createdAt: 0 });
+    return c.moves.find((m) => evaluate(ctx, m.when).ok)?.building ?? c.home;
+  }
+
+  /** Personnages présents dans un bâtiment, ceux qui y habitent d'abord. */
+  charactersIn(buildingId: Id): CharacterDef[] {
+    const here = this.characters().filter((c) => this.characterLocation(c.id) === buildingId);
+    return [...here.filter((c) => c.home === buildingId), ...here.filter((c) => c.home !== buildingId)];
+  }
+
   ambienceFor(buildingId: Id): Id | undefined {
     const b = this.world.buildings.find((x) => x.id === buildingId);
     const choice = b?.audio?.ambience;

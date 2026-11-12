@@ -125,6 +125,8 @@ export function validateWorld(w: WorldDef): Issue[] {
         break;
       case 'audio.play':
         if (!a.sound) err(where, 'son non défini');
+        if (a.character && !(w.characters ?? []).some((c) => c.id === a.character)) err(where, `personnage inconnu : ${a.character}`);
+        if (a.building && !w.buildings.some((x) => x.id === a.building)) err(where, `bâtiment inconnu : ${a.building}`);
         break;
       case 'tool.wear':
       case 'tool.repair':
@@ -162,6 +164,21 @@ export function validateWorld(w: WorldDef): Issue[] {
 
   for (const it of w.items) it.consumable?.effects.forEach((a) => checkAction(`Objet ${it.id}`, a));
   for (const it of w.items) if (it.equipment?.saving && !stats.has(it.equipment.saving.stat)) err(`Objet ${it.id}`, `statistique inconnue : ${it.equipment.saving.stat}`);
+
+  if (w.characters) {
+    const ids = new Set<string>();
+    for (const c of w.characters) {
+      const where = `Personnage ${c.name || c.id}`;
+      if (!c.id || ids.has(c.id)) err(where, 'identifiant manquant ou en double');
+      ids.add(c.id);
+      if (!c.name?.trim()) err(where, 'nom manquant');
+      if (!w.buildings.some((b) => b.id === c.home)) err(where, `bâtiment d’origine inconnu : ${c.home}`);
+      for (const m of c.moves ?? []) {
+        if (!w.buildings.some((b) => b.id === m.building)) err(where, `déplacement vers un bâtiment inconnu : ${m.building}`);
+        checkCondition(where, m.when);
+      }
+    }
+  }
 
   if (w.closure) {
     if (!w.closure.when) err('Fermeture du monde', 'condition manquante');

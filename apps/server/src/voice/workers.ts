@@ -1,19 +1,21 @@
 /**
  * Voice Workers : bots Discord techniques qui rejoignent le salon vocal d'un bâtiment occupé,
- * prennent le nom de son PNJ et jouent son ambiance (et les sons déclenchés par les actions).
+ * prennent le nom d'un personnage (ou du bâtiment) et y disent ses répliques ; l'un d'eux joue l'ambiance.
+ * Chaque worker mixe l'ambiance et les répliques (mixer.ts) : on parle par-dessus le fond sonore.
  * L'allocation est décidée par VoicePool (testé) ; ce fichier applique ses décisions sur Discord.
  */
 import { Client, Events, GatewayIntentBits } from 'discord.js';
 import {
-  AudioPlayerStatus,
   createAudioPlayer,
   createAudioResource,
   entersState,
   joinVoiceChannel,
+  StreamType,
   VoiceConnectionStatus,
   type AudioPlayer,
   type VoiceConnection,
 } from '@discordjs/voice';
+import { Mixer } from './mixer.ts';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -37,13 +39,9 @@ interface Live {
   config: WorkerConfig;
   connection?: VoiceConnection;
   player?: AudioPlayer;
-  /** Son d'ambiance en boucle actuellement attendu. */
-  ambience?: { path: string; volume: number };
+  /** Ambiance + répliques mixées, envoyées en continu au salon vocal. */
+  mixer?: Mixer;
   presence?: Presence;
-  /** Un son ponctuel (accueil, réplique, cri…) est en cours : l'ambiance attend la fin. */
-  oneShot?: boolean;
-  /** Sons ponctuels en attente : ils s'enchaînent au lieu de se couper. */
-  queue: { path: string; volume: number }[];
 }
 
 /** Lit VOICE_WORKER_1_TOKEN … VOICE_WORKER_20_TOKEN (et leurs APPLICATION_ID). */
@@ -78,7 +76,7 @@ export class VoiceWorkers implements VoiceBridge {
     this.ffmpeg = hasFfmpeg();
     for (const c of configs) {
       this.pool.register(c.key, c.label);
-      this.live.set(c.key, { client: new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] }), config: c, queue: [] });
+      this.live.set(c.key, { client: new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] }), config: c });
     }
   }
 
@@ -113,7 +111,7 @@ export class VoiceWorkers implements VoiceBridge {
     }
     this.core.onVoiceActivity = () => this.refresh();
     this.runtimes.on((sig) => {
-      if (sig.type === 'engine') for (const e of sig.events) if (e.type === 'audio.play') void this.playOnce(sig.serverId, e.building, e.sound);
+      if (sig.type === 'engine') for (const e of sig.events) if (e.type === 'audio.play') this.playOnce(sig.serverId, e.building, e.sound, e.character);
       if (sig.type === 'changed' || sig.type === 'reloaded') this.refresh();
     });
     this.timer = setInterval(() => this.refresh(), 5000);
@@ -174,11 +172,12 @@ export class VoiceWorkers implements VoiceBridge {
     for (const u of plan.update) await this.join(u.worker, u.presence, false);
   }
 
-  private soundPath(serverId: string, key: string | undefined): string | undefined {
+  private soundPath(serverId: string, key: string | undefined, quiet = false): string | undefined {
     if (!key) return undefined;
     const a = this.platform.audio(serverId, key);
     const path = a && join(this.audioDir, serverId, a.file);
     if (!path || !existsSync(path)) {
+      if (quiet) return undefined;
       console.warn(`🔇 Son « ${key} » introuvable dans la médiathèque de ${serverId} (le jeu continue sans).`);
       return undefined;
     }
@@ -200,15 +199,16 @@ export class VoiceWorkers implements VoiceBridge {
         l.connection.subscribe(l.player);
       }
       l.presence = p;
-      const path = this.soundPath(p.serverId, p.ambience);
-      const changed = path !== l.ambience?.path;
-      l.ambience = path ? { path, volume: p.volume } : undefined;
+      const ambience = this.soundPath(p.serverId, p.ambience);
+      if (ambience) this.mixer(l).setAmbience(ambience, p.volume);
+      else if (l.mixer) {
+        l.mixer.setAmbience(undefined, p.volume);
+        l.mixer.endWhenIdle = true;
+      }
       if (fresh && p.welcome) {
         const welcome = this.soundPath(p.serverId, p.welcome);
-        if (welcome) return this.playOneShot(l, welcome, p.volume);
+        if (welcome) this.mixer(l).say(welcome, p.volume);
       }
-      // Un son ponctuel en cours n'est jamais coupé : la nouvelle ambiance démarrera après lui.
-      if ((fresh || changed) && !l.oneShot) this.playAmbience(l);
     } catch (e) {
       console.warn(`${l.config.label} n’a pas pu rejoindre le vocal :`, (e as Error).message);
       this.pool.release(workerKey, (e as Error).message);
@@ -217,49 +217,43 @@ export class VoiceWorkers implements VoiceBridge {
     }
   }
 
+  /**
+   * Mixeur du worker, créé à la demande. Avec une ambiance, il tourne en continu ; sans, il s'arrête
+   * après la dernière réplique (le personnage ne paraît parler que lorsqu'il parle).
+   */
+  private mixer(l: Live): Mixer {
+    if (!l.mixer) {
+      const m = new Mixer(ffmpegPath());
+      l.mixer = m;
+      m.once('end', () => {
+        if (l.mixer === m) l.mixer = undefined;
+      });
+      l.player ??= this.createPlayer(l);
+      l.player.play(createAudioResource(m, { inputType: StreamType.Raw }));
+    }
+    l.mixer.endWhenIdle = !this.soundPath(l.presence?.serverId ?? '', l.presence?.ambience, true);
+    return l.mixer;
+  }
+
   private createPlayer(l: Live): AudioPlayer {
     const player = createAudioPlayer();
-    // À la fin d'un son (accueil, effet ou boucle d'ambiance), l'ambiance reprend.
-    player.on(AudioPlayerStatus.Idle, () => {
-      const next = l.queue.shift();
-      if (next && l.connection) return this.play(l, next.path, next.volume);
-      l.oneShot = false;
-      this.playAmbience(l);
-    });
     player.on('error', (e) => console.warn(`${l.config.label} lecture :`, e.message));
     return player;
   }
 
-  private play(l: Live, path: string, volume: number) {
-    if (!l.player) return;
-    const res = createAudioResource(path, { inlineVolume: true });
-    res.volume?.setVolume(volume);
-    l.player.play(res);
-  }
-
-  /** Son ponctuel : interrompt l'ambiance (qui reprend ensuite) ; s'il y en a déjà un, il attend son tour. */
-  private playOneShot(l: Live, path: string, volume: number) {
-    if (l.oneShot) {
-      if (l.queue.length < 10) l.queue.push({ path, volume });
-      return;
-    }
-    l.oneShot = true;
-    this.play(l, path, volume);
-  }
-
-  private playAmbience(l: Live) {
-    if (l.ambience && l.connection) this.play(l, l.ambience.path, l.ambience.volume);
-    else l.player?.stop(true);
-  }
-
-  /** Son ponctuel (action d'un joueur) : interrompt l'ambiance, qui reprend ensuite. */
-  private async playOnce(serverId: string, building: string, sound: string) {
-    const key = `${serverId}:${building}`;
-    const w = [...this.pool.workers.values()].find((x) => x.presence?.key === key);
+  /**
+   * Son déclenché par le jeu. Réplique d'un personnage : dite par son worker, là où il se trouve
+   * (personne ne l'entend s'il est dans un salon vide). Sinon : jouée par le worker qui tient l'ambiance du bâtiment.
+   */
+  private playOnce(serverId: string, building: string, sound: string, character?: string) {
+    const presences = [...this.pool.workers.values()].filter((w) => w.presence?.serverId === serverId);
+    const w = character
+      ? presences.find((x) => x.presence!.character === character)
+      : (presences.find((x) => x.presence!.building === building && x.presence!.holder) ?? presences.find((x) => x.presence!.building === building));
     if (!w) return;
     const l = this.live.get(w.key)!;
     const path = this.soundPath(serverId, sound);
-    if (path) this.playOneShot(l, path, l.presence?.volume ?? 0.8);
+    if (path && l.connection) this.mixer(l).say(path, l.presence?.volume ?? 0.8);
   }
 
   private async leave(workerKey: string) {
@@ -268,9 +262,8 @@ export class VoiceWorkers implements VoiceBridge {
     l.player?.stop(true);
     l.connection?.destroy();
     l.connection = undefined;
-    l.ambience = undefined;
-    l.queue = [];
-    l.oneShot = false;
+    l.mixer?.destroy();
+    l.mixer = undefined;
     const guild = l.presence && l.client.guilds.cache.get(l.presence.guildId);
     if (guild?.members.me?.nickname) await guild.members.me.setNickname(null).catch(() => {});
     l.presence = undefined;
@@ -279,6 +272,7 @@ export class VoiceWorkers implements VoiceBridge {
   stop() {
     if (this.timer) clearInterval(this.timer);
     for (const l of this.live.values()) {
+      l.mixer?.destroy();
       l.connection?.destroy();
       void l.client.destroy();
     }
@@ -299,4 +293,16 @@ function hasFfmpeg(): boolean {
     /* absent du PATH */
   }
   return false;
+}
+
+/** Programme ffmpeg utilisé par le mixeur : FFMPEG_PATH, sinon ffmpeg-static, sinon celui du système. */
+function ffmpegPath(): string {
+  if (process.env.FFMPEG_PATH) return process.env.FFMPEG_PATH;
+  try {
+    const bundled = createRequire(import.meta.url)('ffmpeg-static') as string | null;
+    if (bundled && existsSync(bundled)) return bundled;
+  } catch {
+    /* paquet absent */
+  }
+  return 'ffmpeg';
 }

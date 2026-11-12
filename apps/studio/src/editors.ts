@@ -137,7 +137,10 @@ export function effectsEditor(w: WorldDef, list: Action[], onChange: () => void,
               sounds.length
                 ? selectField(null, a.sound, sounds.map((s) => ({ value: s, label: s })), (v) => set({ sound: v }), { allowEmpty: 'Choisir un son…' })
                 : h('input', { value: a.sound, placeholder: 'clé du son', oninput: (e: Event) => set({ sound: (e.target as HTMLInputElement).value }) }),
-            ];
+              w.characters?.length
+                ? selectField(null, a.character ?? '', w.characters.map((c) => ({ value: c.id, label: `dit par ${c.emoji ?? ''} ${c.name}`.replace('  ', ' ') })), (v) => set({ character: v || undefined }), { allowEmpty: 'son du lieu (ambiance)' })
+                : null,
+            ].filter(Boolean) as HTMLElement[];
             break;
           case 'variable.add':
             fields = [selectField(null, a.variable, opts.variables(w), (v) => set({ variable: v })), num(a.amount, (n) => set({ amount: n }), { 'aria-label': 'Montant' })];

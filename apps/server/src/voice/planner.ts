@@ -1,9 +1,11 @@
 /**
- * Présences vocales souhaitées pour un serveur : un bâtiment qui possède une configuration audio
- * et dont le salon vocal contient au moins un joueur reçoit une présence.
- * Avec « ambiance permanente » (world.settings.voiceAlways), tous ces bâtiments en reçoivent une,
- * occupés ou non ; les bâtiments occupés passent en premier si les workers manquent.
- * L'identité est celle du PNJ du bâtiment (ou le bâtiment lui-même).
+ * Présences vocales souhaitées pour un serveur. Pour chaque bâtiment dont le salon vocal contient
+ * au moins un joueur (ou tous, avec « ambiance permanente » : world.settings.voiceAlways) :
+ * - chaque personnage qui s'y trouve (engine.charactersIn) reçoit sa présence, à son nom : il y dit ses répliques ;
+ * - l'ambiance du bâtiment (et ses sons sans personnage) est jouée par celui qui y habite,
+ *   sinon par un autre personnage présent, sinon par une présence au nom du bâtiment.
+ * Sans world.characters, le personnage de chaque bâtiment est son `npc` (comportement d'origine).
+ * Les bâtiments occupés passent en premier si les workers manquent.
  */
 import type { Engine } from '../../../../packages/engine/src/index.ts';
 import type { Presence } from './pool.ts';
@@ -13,6 +15,9 @@ export interface BuildingChannels {
   voice?: string;
 }
 
+export const characterKey = (serverId: string, character: string) => `${serverId}:pnj:${character}`;
+export const buildingKey = (serverId: string, building: string) => `${serverId}:lieu:${building}`;
+
 export function desiredPresences(input: {
   serverId: string;
   guildId: string;
@@ -21,32 +26,48 @@ export function desiredPresences(input: {
   /** Nombre de joueurs humains par salon vocal. */
   occupancy: Map<string, number>;
 }): Presence[] {
+  const { engine, serverId, guildId } = input;
   const out: (Presence & { occupied: boolean })[] = [];
-  const always = !!input.engine.world.settings.voiceAlways;
-  for (const b of input.engine.world.buildings) {
+  const always = !!engine.world.settings.voiceAlways;
+  const explicit = !!engine.world.characters;
+  for (const b of engine.world.buildings) {
     const voice = input.channels[b.id]?.voice;
-    if (!voice || !b.audio) continue;
+    if (!voice) continue;
+    // Sans liste de personnages : rien sans configuration audio (comportement d'origine).
+    if (!explicit && !b.audio) continue;
     const occupied = (input.occupancy.get(voice) ?? 0) >= 1;
     if (!occupied && !always) continue;
-    out.push({
-      occupied,
-      key: `${input.serverId}:${b.id}`,
-      guildId: input.guildId,
-      channelId: voice,
-      serverId: input.serverId,
-      building: b.id,
-      identity: { name: b.npc?.name ?? b.name, avatarUrl: b.npc?.avatarUrl },
-      ambience: input.engine.ambienceFor(b.id),
-      // L'accueil n'a de sens que si quelqu'un l'entend.
-      welcome: occupied ? b.audio.welcome : undefined,
-      volume: b.audio.volume ?? 0.6,
+    const ambience = engine.ambienceFor(b.id);
+    const volume = b.audio?.volume ?? 0.6;
+    // L'accueil n'a de sens que si quelqu'un l'entend.
+    const welcome = occupied ? b.audio?.welcome : undefined;
+    const here = engine.charactersIn(b.id);
+    here.forEach((c, i) => {
+      const holder = i === 0; // charactersIn place ceux qui habitent ici en premier
+      out.push({
+        occupied,
+        key: characterKey(serverId, c.id),
+        guildId,
+        channelId: voice,
+        serverId,
+        building: b.id,
+        character: c.id,
+        holder,
+        identity: { name: c.name, avatarUrl: c.home === b.id ? b.npc?.avatarUrl : undefined },
+        ambience: holder ? ambience : undefined,
+        welcome: holder ? welcome : undefined,
+        volume,
+      });
     });
+    if (!here.length && b.audio)
+      out.push({ occupied, key: buildingKey(serverId, b.id), guildId, channelId: voice, serverId, building: b.id, holder: true, identity: { name: b.name }, ambience, welcome, volume });
   }
-  // Bâtiments occupés d'abord : ce sont eux qui reçoivent un worker s'il n'y en a pas pour tout le monde.
-  return out.sort((a, b) => Number(b.occupied) - Number(a.occupied)).map(({ occupied: _, ...p }) => p);
+  // Bâtiments occupés d'abord (et, dans un bâtiment, celui qui joue l'ambiance) : ils sont servis en priorité.
+  return out.sort((a, b) => Number(b.occupied) - Number(a.occupied) || Number(b.holder) - Number(a.holder)).map(({ occupied: _, ...p }) => p);
 }
 
-/** Nombre de Voice Workers nécessaires pour l'ambiance permanente : un par bâtiment avec ambiance et salon vocal. */
-export function voiceNeed(world: { buildings: { id: string; audio?: unknown }[] }, channels: Record<string, BuildingChannels>): number {
-  return world.buildings.filter((b) => b.audio && channels[b.id]?.voice).length;
+/** Nombre de Voice Workers nécessaires si tous les salons vocaux étaient occupés en même temps. */
+export function voiceNeed(engine: Engine, channels: Record<string, BuildingChannels>): number {
+  const occupancy = new Map(Object.values(channels).flatMap((c) => (c.voice ? [[c.voice, 1] as [string, number]] : [])));
+  return desiredPresences({ serverId: 's', guildId: 'g', engine, channels, occupancy }).length;
 }

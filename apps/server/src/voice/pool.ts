@@ -14,6 +14,10 @@ export interface Presence {
   channelId: string;
   serverId: string;
   building: string;
+  /** Personnage incarné (ses répliques passent par ce worker, où qu'il soit). */
+  character?: string;
+  /** Joue l'ambiance du bâtiment et ses sons sans personnage. */
+  holder?: boolean;
   identity: { name: string; avatarUrl?: string };
   ambience?: string;
   welcome?: string;
@@ -67,12 +71,14 @@ export class VoicePool {
       const p = wanted.get(w.presence.key);
       if (p && w.online) {
         w.wantedAt = now;
-        if (p.ambience !== w.presence.ambience || p.channelId !== w.presence.channelId || p.identity.name !== w.presence.identity.name || p.volume !== w.presence.volume) {
+        if (p.ambience !== w.presence.ambience || p.channelId !== w.presence.channelId || p.identity.name !== w.presence.identity.name || p.volume !== w.presence.volume || p.holder !== w.presence.holder || p.building !== w.presence.building) {
           w.presence = p;
           plan.update.push({ worker: w.key, presence: p });
         }
         wanted.delete(p.key);
-      } else if (!w.online || now - (w.wantedAt ?? 0) >= this.graceMs) {
+      } else if (!w.online || now - (w.wantedAt ?? 0) >= this.graceMs || desired.some((d) => d.channelId === w.presence!.channelId && d.holder && w.presence!.holder)) {
+        // Libération immédiate (sans délai de grâce) quand quelqu'un d'autre reprend l'ambiance de ce salon :
+        // ex. le personnage du lieu arrive et remplace la présence au nom du bâtiment.
         plan.release.push({ worker: w.key, presenceKey: w.presence.key });
         w.presence = undefined;
         w.wantedAt = undefined;

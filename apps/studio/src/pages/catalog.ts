@@ -9,6 +9,7 @@ const TABS = [
   ['bonus', 'Bonus'],
   ['metiers', 'Métiers'],
   ['variables', 'Variables du monde'],
+  ['personnages', 'Personnages'],
   ['serment', 'Serment d’arrivée'],
   ['regles', 'Règles générales'],
 ] as const;
@@ -147,6 +148,47 @@ export async function catalogPage(main: HTMLElement, params: string[]) {
           h('div', null, h('b', null, 'Dotation de départ'), h('p', { class: 'muted small' }, 'Donnée une seule fois, au premier serment.'), effectsEditor(w, ob.actions, changed)),
           h('p', { class: 'muted' }, 'Après publication, utilise « Créer les salons manquants » puis « Remettre les salons en ordre » dans Discord & voix.'),
         ),
+      );
+      break;
+    }
+    case 'personnages': {
+      const buildings = w.buildings.map((b) => ({ value: b.id, label: `${b.emoji ?? ''} ${b.name}`.trim() }));
+      body.append(
+        h('p', { class: 'muted' }, 'Chaque personnage a son Voice Worker, à son nom, dans le salon vocal où il se trouve (quand des joueurs y sont). Le personnage qui habite un bâtiment y joue l’ambiance ; s’il est absent, un autre personnage présent la joue ; sans personnage, le Voice Worker prend le nom du bâtiment. Il faut donc autant de Voice Workers que de personnages et de bâtiments occupés en même temps.'),
+        !w.characters
+          ? h('div', { class: 'card' }, h('p', null, 'Ce monde utilise encore le PNJ de chaque bâtiment (onglet Général du bâtiment).'), h('button', {
+              class: 'btn',
+              onclick: () => {
+                w.characters = w.buildings.filter((b) => b.npc).map((b) => ({ id: uniqueId(b.npc!.name, []), name: b.npc!.name, emoji: b.npc!.emoji, title: b.npc!.title, home: b.id }));
+                changed();
+                redraw();
+              },
+            }, 'Créer les personnages à partir des PNJ des bâtiments'))
+          : listEditor(w.characters, 'personnage', () => ({ id: uniqueId('pnj', w.characters!.map((c) => c.id)), name: 'Nouveau personnage', emoji: '🧑', home: w.buildings[0]?.id ?? '' }), (c) =>
+              h(
+                'div',
+                { class: 'form' },
+                h('div', { class: 'row-fields' }, field(c, 'emoji', { label: 'Symbole' }, changed), field(c, 'name', { label: 'Nom (celui du Voice Worker)' }, changed), field(c, 'title', { label: 'Titre' }, changed), selectField('Habite', c.home, buildings, (v) => ((c.home = v), changed()))),
+                h('div', null, h('b', null, 'Déplacements'), h('p', { class: 'muted small' }, 'La première condition vraie l’emmène dans ce bâtiment ; sinon il est chez lui.')),
+                (c.moves ?? []).map((m, i) =>
+                  h(
+                    'div',
+                    { class: 'row-fields' },
+                    selectField('Va à', m.building, buildings, (v) => ((m.building = v), changed())),
+                    h('div', null, h('span', { class: 'field-label' }, 'Quand'), conditionEditor(w, undefined, m.when, (cond) => ((m.when = cond ?? m.when), changed()))),
+                    h('button', { class: 'icon-btn', 'aria-label': 'Retirer ce déplacement', onclick: () => ((c.moves = c.moves!.filter((_, j) => j !== i)), changed(), redraw()) }, '×'),
+                  ),
+                ),
+                h('button', {
+                  class: 'btn small',
+                  onclick: () => {
+                    (c.moves ??= []).push({ building: w.buildings[0]?.id ?? '', when: { type: 'variable', variable: w.variables[0]?.id ?? '', op: 'eq', value: '' } });
+                    changed();
+                    redraw();
+                  },
+                }, '+ Déplacement'),
+              ),
+              changed, redraw),
       );
       break;
     }

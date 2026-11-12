@@ -35,5 +35,5 @@ Plateforme no-code de mondes interactifs pour Discord, pour Payen Studio (Louis)
 ## Prochaines étapes
 1. Brancher le bot et les Voice Workers sur un serveur Discord de test et corriger ce qui doit l'être.
 2. Phase 2 bis : serment, catégories par bâtiment, métiers et échoppes faits ; restent la désinstallation des salons et les bâtiments réservés à un rôle.
-3. Bêta « La Nuit de la Sainte Pelle » : répétition à 2 joueurs (Tester, ▶ scénario, +10 min), import des voix et des 21 ambiances de fond (Médiathèque › sons manquants), 8 Voice Workers pour l'ambiance permanente (`settings.voiceAlways`), fiche testeur `content/sainte-pelle/fiche-testeur.txt`, réglage des cibles.
+3. Bêta « La Nuit de la Sainte Pelle » : répétition à 2 joueurs (Tester, ▶ scénario, +10 min), import des voix et des 21 ambiances de fond (Médiathèque › sons manquants), un Voice Worker par personnage présent et par lieu occupé sans personnage (`world.characters`, mixage `voice/mixer.ts`) ; à la messe les 7 PNJ sont à l'église, fiche testeur `content/sainte-pelle/fiche-testeur.txt`, réglage des cibles.
 4. Suite de la phase 3 : saisons et jour/nuit, géographie et voyages (voir `docs/KE2_INVENTAIRE.md`).

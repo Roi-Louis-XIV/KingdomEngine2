@@ -416,8 +416,8 @@ export function registerApi(router: Router, deps: ApiDeps) {
       unplaced: v.unplaced.filter((u) => u.serverId === s.id),
       voiceAlways: !!runtimes.engine(s.id)?.world.settings.voiceAlways,
       voiceNeed: (() => {
-        const w = runtimes.engine(s.id)?.world;
-        return w ? voiceNeed(w, channelsOf(s.id)) : 0;
+        const e = runtimes.engine(s.id);
+        return e ? voiceNeed(e, channelsOf(s.id)) : 0;
       })(),
     };
   });

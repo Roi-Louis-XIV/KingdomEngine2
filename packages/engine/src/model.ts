@@ -65,7 +65,8 @@ export type Action =
   | { type: 'modifier.apply'; modifier: Id; durationSec: number }
   | { type: 'variable.set'; variable: Id; value: string | number }
   /** Joue un son de la médiathèque dans le vocal du bâtiment (celui de l'action, ou `building`). */
-  | { type: 'audio.play'; sound: Id; building?: Id }
+  /** Son joué dans un bâtiment ; avec `character`, c'est une réplique de ce personnage, dite là où il se trouve. */
+  | { type: 'audio.play'; sound: Id; building?: Id; character?: Id }
   /** Ajoute (ou retire) une valeur numérique à une variable du monde. */
   | { type: 'variable.add'; variable: Id; amount: number }
   /** Si / sinon : actions selon une condition (branches du scénario). */
@@ -205,7 +206,23 @@ export interface WorldDef {
    * Dans les textes, {salon.aide} devient un lien vers le salon d'aide choisi dans Discord & voix.
    */
   closure?: { when: Condition; text: Text };
+  /**
+   * Personnages (PNJ) présents en voix : chacun a son Voice Worker, à son nom, dans le salon vocal du bâtiment
+   * où il se trouve (si des joueurs y sont). Sans cette liste, chaque bâtiment a pour personnage son `npc`.
+   */
+  characters?: CharacterDef[];
   buildings: BuildingDef[];
+}
+
+export interface CharacterDef {
+  id: Id;
+  name: string;
+  title?: string;
+  emoji?: string;
+  /** Bâtiment où il se trouve d'habitude : il y joue l'ambiance. */
+  home: Id;
+  /** Déplacements : la première condition vraie l'emmène dans ce bâtiment (ex. tous à l'église pour la messe). */
+  moves?: { when: Condition; building: Id }[];
 }
 
 // ---------------------------------------------------------------------------

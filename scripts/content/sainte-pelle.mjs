@@ -37,7 +37,13 @@ const take = (item, qty = 1) => ({ type: 'item.take', item, qty });
 const stat = (s, amount) => ({ type: 'stat.add', stat: s, amount });
 const xp = (amount) => stat('xp', amount);
 const ifThen = (when, then, otherwise) => ({ type: 'if', when, then, ...(otherwise ? { else: otherwise } : {}) });
-const voice = (sound, building) => ({ type: 'audio.play', sound, building });
+// Réplique : la clé du son commence par le personnage qui la dit (« anselme-messe… » → anselme).
+// Elle est dite là où se trouve le personnage ; les autres sons (cri, invitation…) sont joués dans le bâtiment.
+const SPEAKERS = ['maelis', 'edgar', 'roland', 'wagner', 'sylvain', 'agathe', 'anselme'];
+const voice = (sound, building) => {
+  const who = sound.split('-')[0];
+  return { type: 'audio.play', sound, building, ...(SPEAKERS.includes(who) ? { character: who } : {}) };
+};
 const announce = (text) => ({ type: 'announce', text });
 const tag = (t, amount) => ({ type: 'quest.tag', tag: t, ...(amount ? { amount } : {}) });
 const contribute = (building, objective, item, qty = 1) => ({ type: 'objective.add', building, objective, item, qty });
@@ -1488,7 +1494,7 @@ const world = {
   id: 'sainte-pelle',
   name: 'La Nuit de la Sainte Pelle',
   description: 'Bêta KE4 : 3 heures pour 8 joueurs. Une pierre qui attire la foudre, une tempête, une église à relever. Lancez le scénario depuis la page En direct.',
-  settings: { maxActiveJobs: 1, timezone: 'Europe/Paris', voiceAlways: true },
+  settings: { maxActiveJobs: 1, timezone: 'Europe/Paris' },
   events: [scenario],
   stats,
   items,
@@ -1528,6 +1534,20 @@ const world = {
     quests,
   },
   buildings: [place, taverne, mine, forge, foret, ferme, pont, eglise],
+  // Personnages en voix : chacun a son Voice Worker, à son nom, là où il se trouve (si des joueurs y sont).
+  // Pour la messe (T+165), tous rejoignent l'église : on les voit arriver dans le salon vocal.
+  characters: [
+    ['maelis', 'place'],
+    ['edgar', 'taverne'],
+    ['roland', 'mine'],
+    ['wagner', 'forge'],
+    ['sylvain', 'foret'],
+    ['agathe', 'ferme'],
+    ['anselme', 'eglise'],
+  ].map(([id, home]) => {
+    const b = [place, taverne, mine, forge, foret, ferme, pont, eglise].find((x) => x.id === home);
+    return { id, name: b.npc.name, emoji: b.npc.emoji, title: b.npc.title, home, ...(home === 'eglise' ? {} : { moves: [{ when: T('gte', 165), building: 'eglise' }] }) };
+  }),
   // Fin de la bêta : plus aucune action possible, chaque interface affiche ce texte.
   closure: {
     when: v('monde', 'ferme'),

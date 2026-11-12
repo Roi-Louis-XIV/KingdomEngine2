@@ -5,8 +5,7 @@
   "description": "Bêta KE4 : 3 heures pour 8 joueurs. Une pierre qui attire la foudre, une tempête, une église à relever. Lancez le scénario depuis la page En direct.",
   "settings": {
     "maxActiveJobs": 1,
-    "timezone": "Europe/Paris",
-    "voiceAlways": true
+    "timezone": "Europe/Paris"
   },
   "events": [
     {
@@ -137,7 +136,8 @@
         {
           "type": "audio.play",
           "sound": "maelis-ouverture",
-          "building": "place"
+          "building": "place",
+          "character": "maelis"
         }
       ],
       "steps": [
@@ -153,7 +153,8 @@
             {
               "type": "audio.play",
               "sound": "edgar-tournee",
-              "building": "taverne"
+              "building": "taverne",
+              "character": "edgar"
             }
           ],
           "announce": "🍻 **Tournée d’ouverture à la taverne !** Edgar offre la première chope pendant 10 minutes."
@@ -170,7 +171,8 @@
             {
               "type": "audio.play",
               "sound": "anselme-benediction",
-              "building": "eglise"
+              "building": "eglise",
+              "character": "anselme"
             }
           ],
           "announce": "⛪ Le Père Anselme bénit les outils avant la fête. Passez prier à l’église !"
@@ -187,7 +189,8 @@
             {
               "type": "audio.play",
               "sound": "roland-trouvaille",
-              "building": "mine"
+              "building": "mine",
+              "character": "roland"
             }
           ],
           "announce": "✨ **Roland a trouvé quelque chose !** Une pierre qui grésille au fond de la mine. La galerie profonde est ouverte."
@@ -204,7 +207,8 @@
             {
               "type": "audio.play",
               "sound": "wagner-etude",
-              "building": "forge"
+              "building": "forge",
+              "character": "wagner"
             }
           ],
           "announce": "🔥 Wagner a emporté la pierre-tonnerre à la forge pour l’étudier."
@@ -231,7 +235,8 @@
             {
               "type": "audio.play",
               "sound": "sylvain-signes",
-              "building": "foret"
+              "building": "foret",
+              "character": "sylvain"
             }
           ],
           "announce": "⛅ Des nuages lourds glissent sur la vallée. Sylvain trouve les oiseaux bien silencieux…"
@@ -248,7 +253,8 @@
             {
               "type": "audio.play",
               "sound": "maelis-conseil",
-              "building": "place"
+              "building": "place",
+              "character": "maelis"
             }
           ],
           "announce": "🗳️ **Le conseil de la pierre est ouvert sur la Place !** Rendre la pierre à la mine, ou la garder à la forge ? Une voix chacun, jusqu’à T+65."
@@ -265,7 +271,8 @@
             {
               "type": "audio.play",
               "sound": "agathe-recolte",
-              "building": "ferme"
+              "building": "ferme",
+              "character": "agathe"
             }
           ],
           "announce": "🌾 **Agathe sonne la dernière récolte !** 60 gerbes à rentrer avant l’orage (T+85). La moisson rapporte double."
@@ -357,12 +364,14 @@
                 {
                   "type": "audio.play",
                   "sound": "maelis-verdict-forge",
-                  "building": "place"
+                  "building": "place",
+                  "character": "maelis"
                 },
                 {
                   "type": "audio.play",
                   "sound": "roland-victoire",
-                  "building": "mine"
+                  "building": "mine",
+                  "character": "roland"
                 }
               ],
               "else": [
@@ -374,7 +383,8 @@
                 {
                   "type": "audio.play",
                   "sound": "maelis-verdict-mine",
-                  "building": "place"
+                  "building": "place",
+                  "character": "maelis"
                 }
               ]
             }
@@ -413,7 +423,8 @@
             {
               "type": "audio.play",
               "sound": "sylvain-vent",
-              "building": "foret"
+              "building": "foret",
+              "character": "sylvain"
             }
           ],
           "announce": "🌧️ **Le vent tourne.** La pluie tombe ; en forêt, on coupe moins vite. Au pont, la rivière gonflée regorge de poissons."
@@ -430,7 +441,8 @@
             {
               "type": "audio.play",
               "sound": "anselme-cloches",
-              "building": "eglise"
+              "building": "eglise",
+              "character": "anselme"
             }
           ],
           "announce": "🔔 **Les cloches sonnent l’alerte !** Mettez-vous à l’abri, le ciel n’a jamais été aussi noir."
@@ -471,7 +483,8 @@
                 {
                   "type": "audio.play",
                   "sound": "edgar-refuge-soupe",
-                  "building": "taverne"
+                  "building": "taverne",
+                  "character": "edgar"
                 }
               ],
               "else": [
@@ -483,19 +496,22 @@
                 {
                   "type": "audio.play",
                   "sound": "agathe-rate",
-                  "building": "ferme"
+                  "building": "ferme",
+                  "character": "agathe"
                 },
                 {
                   "type": "audio.play",
                   "sound": "edgar-refuge-cher",
-                  "building": "taverne"
+                  "building": "taverne",
+                  "character": "edgar"
                 }
               ]
             },
             {
               "type": "audio.play",
               "sound": "sylvain-fermeture",
-              "building": "foret"
+              "building": "foret",
+              "character": "sylvain"
             }
           ],
           "announce": {
@@ -541,12 +557,14 @@
                 {
                   "type": "audio.play",
                   "sound": "wagner-incendie",
-                  "building": "forge"
+                  "building": "forge",
+                  "character": "wagner"
                 },
                 {
                   "type": "audio.play",
                   "sound": "maelis-puits",
-                  "building": "place"
+                  "building": "place",
+                  "character": "maelis"
                 }
               ],
               "else": [
@@ -558,7 +576,8 @@
                 {
                   "type": "audio.play",
                   "sound": "roland-eboulement",
-                  "building": "mine"
+                  "building": "mine",
+                  "character": "roland"
                 }
               ]
             }
@@ -592,7 +611,8 @@
             {
               "type": "audio.play",
               "sound": "sylvain-craquement",
-              "building": "foret"
+              "building": "foret",
+              "character": "sylvain"
             }
           ],
           "announce": "🌳 Un craquement immense dans la vallée… Un grand chêne vient de céder, vers l’autre rive. Vers l’église."
@@ -705,7 +725,8 @@
             {
               "type": "audio.play",
               "sound": "anselme-eclats",
-              "building": "eglise"
+              "building": "eglise",
+              "character": "anselme"
             }
           ],
           "announce": {
@@ -764,17 +785,20 @@
             {
               "type": "audio.play",
               "sound": "anselme-chantier",
-              "building": "eglise"
+              "building": "eglise",
+              "character": "anselme"
             },
             {
               "type": "audio.play",
               "sound": "sylvain-chablis",
-              "building": "foret"
+              "building": "foret",
+              "character": "sylvain"
             },
             {
               "type": "audio.play",
               "sound": "wagner-ferrures",
-              "building": "forge"
+              "building": "forge",
+              "character": "wagner"
             }
           ],
           "announce": "⛪ **Le pont rouvre. Relevons le Royaume !** Un chêne a crevé la nef de l’église : le chantier est ouvert. Et il faut retrouver les 6 éclats de la pierre avant la messe."
@@ -808,7 +832,8 @@
             {
               "type": "audio.play",
               "sound": "maelis-etape",
-              "building": "place"
+              "building": "place",
+              "character": "maelis"
             }
           ],
           "announce": "📜 **Point d’étape de Maëlis :** chantier à {objective.eglise.chantier} %, arbre dégagé à {objective.eglise.arbre} %, éclats {var.eclats}/6. Plus que 35 minutes avant la messe !"
@@ -825,7 +850,8 @@
             {
               "type": "audio.play",
               "sound": "anselme-appel-messe",
-              "building": "eglise"
+              "building": "eglise",
+              "character": "anselme"
             }
           ],
           "announce": "🔔 **Dans dix minutes, le Père Anselme célèbre la messe de la Sainte Pelle.** Dernières livraisons !"
@@ -901,7 +927,8 @@
                     {
                       "type": "audio.play",
                       "sound": "anselme-messe-triomphe",
-                      "building": "eglise"
+                      "building": "eglise",
+                      "character": "anselme"
                     }
                   ],
                   "else": [
@@ -913,7 +940,8 @@
                     {
                       "type": "audio.play",
                       "sound": "anselme-messe-vide",
-                      "building": "eglise"
+                      "building": "eglise",
+                      "character": "anselme"
                     }
                   ]
                 }
@@ -936,7 +964,8 @@
                     {
                       "type": "audio.play",
                       "sound": "anselme-messe-parvis",
-                      "building": "eglise"
+                      "building": "eglise",
+                      "character": "anselme"
                     }
                   ],
                   "else": [
@@ -948,7 +977,8 @@
                     {
                       "type": "audio.play",
                       "sound": "anselme-messe-report",
-                      "building": "eglise"
+                      "building": "eglise",
+                      "character": "anselme"
                     }
                   ]
                 }
@@ -1007,7 +1037,8 @@
             {
               "type": "audio.play",
               "sound": "maelis-fin",
-              "building": "place"
+              "building": "place",
+              "character": "maelis"
             },
             {
               "type": "if",
@@ -1021,7 +1052,8 @@
                 {
                   "type": "audio.play",
                   "sound": "edgar-tournee-finale",
-                  "building": "taverne"
+                  "building": "taverne",
+                  "character": "edgar"
                 }
               ]
             }
@@ -1100,37 +1132,44 @@
             {
               "type": "audio.play",
               "sound": "maelis-panique",
-              "building": "place"
+              "building": "place",
+              "character": "maelis"
             },
             {
               "type": "audio.play",
               "sound": "edgar-panique",
-              "building": "taverne"
+              "building": "taverne",
+              "character": "edgar"
             },
             {
               "type": "audio.play",
               "sound": "roland-panique",
-              "building": "mine"
+              "building": "mine",
+              "character": "roland"
             },
             {
               "type": "audio.play",
               "sound": "wagner-panique",
-              "building": "forge"
+              "building": "forge",
+              "character": "wagner"
             },
             {
               "type": "audio.play",
               "sound": "sylvain-panique",
-              "building": "foret"
+              "building": "foret",
+              "character": "sylvain"
             },
             {
               "type": "audio.play",
               "sound": "agathe-panique",
-              "building": "ferme"
+              "building": "ferme",
+              "character": "agathe"
             },
             {
               "type": "audio.play",
               "sound": "anselme-panique",
-              "building": "eglise"
+              "building": "eglise",
+              "character": "anselme"
             },
             {
               "type": "audio.play",
@@ -4236,7 +4275,8 @@
           {
             "type": "audio.play",
             "sound": "edgar-aveu",
-            "building": "taverne"
+            "building": "taverne",
+            "character": "edgar"
           },
           {
             "type": "announce",
@@ -8764,7 +8804,8 @@
               {
                 "type": "audio.play",
                 "sound": "roland-sauve",
-                "building": "mine"
+                "building": "mine",
+                "character": "roland"
               }
             ],
             "announce": "🎉 **Roland est sauvé !** « De l’air ! Je vous dois une fière chandelle. »"
@@ -11241,7 +11282,8 @@
               {
                 "type": "audio.play",
                 "sound": "wagner-sauve",
-                "building": "forge"
+                "building": "forge",
+                "character": "wagner"
               }
             ],
             "announce": "🎉 **Le feu est éteint !** Wagner : « Roland avait raison, et je ne le lui dirai jamais. »"
@@ -18222,7 +18264,8 @@
               {
                 "type": "audio.play",
                 "sound": "agathe-reussi",
-                "building": "ferme"
+                "building": "ferme",
+                "character": "agathe"
               }
             ],
             "announce": "🌾 **La récolte est rentrée !** Le grenier d’Agathe est plein à craquer."
@@ -22227,6 +22270,123 @@
         },
         "volume": 0.5
       }
+    }
+  ],
+  "characters": [
+    {
+      "id": "maelis",
+      "name": "Maëlis",
+      "emoji": "📜",
+      "title": "Intendante",
+      "home": "place",
+      "moves": [
+        {
+          "when": {
+            "type": "variable",
+            "variable": "t",
+            "op": "gte",
+            "value": 165
+          },
+          "building": "eglise"
+        }
+      ]
+    },
+    {
+      "id": "edgar",
+      "name": "Edgar Brassebarbe",
+      "emoji": "🍺",
+      "title": "Tavernier",
+      "home": "taverne",
+      "moves": [
+        {
+          "when": {
+            "type": "variable",
+            "variable": "t",
+            "op": "gte",
+            "value": 165
+          },
+          "building": "eglise"
+        }
+      ]
+    },
+    {
+      "id": "roland",
+      "name": "Roland",
+      "emoji": "⛏️",
+      "title": "Mineur",
+      "home": "mine",
+      "moves": [
+        {
+          "when": {
+            "type": "variable",
+            "variable": "t",
+            "op": "gte",
+            "value": 165
+          },
+          "building": "eglise"
+        }
+      ]
+    },
+    {
+      "id": "wagner",
+      "name": "Wagner",
+      "emoji": "🔨",
+      "title": "Maître forgeron",
+      "home": "forge",
+      "moves": [
+        {
+          "when": {
+            "type": "variable",
+            "variable": "t",
+            "op": "gte",
+            "value": 165
+          },
+          "building": "eglise"
+        }
+      ]
+    },
+    {
+      "id": "sylvain",
+      "name": "Sylvain",
+      "emoji": "🌲",
+      "title": "Garde-forestier",
+      "home": "foret",
+      "moves": [
+        {
+          "when": {
+            "type": "variable",
+            "variable": "t",
+            "op": "gte",
+            "value": 165
+          },
+          "building": "eglise"
+        }
+      ]
+    },
+    {
+      "id": "agathe",
+      "name": "Agathe",
+      "emoji": "🌾",
+      "title": "Régisseuse",
+      "home": "ferme",
+      "moves": [
+        {
+          "when": {
+            "type": "variable",
+            "variable": "t",
+            "op": "gte",
+            "value": 165
+          },
+          "building": "eglise"
+        }
+      ]
+    },
+    {
+      "id": "anselme",
+      "name": "Père Anselme",
+      "emoji": "⛪",
+      "title": "Prêtre",
+      "home": "eglise"
     }
   ],
   "closure": {

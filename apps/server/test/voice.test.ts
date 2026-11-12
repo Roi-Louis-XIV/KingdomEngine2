@@ -87,26 +87,59 @@ test('planificateur : bâtiment occupé + audio configuré → présence avec id
   assert.deepEqual(desiredPresences({ ...args, occupancy: new Map() }), [], 'salon vide : aucune présence');
 });
 
-test('ambiance permanente : chaque bâtiment avec ambiance a sa présence, les bâtiments occupés passent en premier', async () => {
+test('personnages : un worker par PNJ présent si des joueurs sont là, le PNJ du lieu joue l’ambiance', async () => {
   const { readFileSync } = await import('node:fs');
   const { Engine } = await import('../../../packages/engine/src/index.ts');
   const { voiceNeed } = await import('../src/voice/planner.ts');
   const world = JSON.parse(readFileSync(new URL('../../../content/sainte-pelle/world.json', import.meta.url), 'utf8'));
-  assert.equal(world.settings.voiceAlways, true);
+  assert.ok(!world.settings.voiceAlways, 'la bêta : un worker ne vient que si des joueurs sont dans le vocal');
   const engine = new Engine(world);
   const channels = Object.fromEntries(world.buildings.map((b: { id: string }) => [b.id, { voice: `vc-${b.id}` }]));
-  assert.equal(voiceNeed(world, channels), 8, 'les 8 lieux de la bêta ont une ambiance : 8 Voice Workers');
-  const all = desiredPresences({ serverId: 's', guildId: 'g1', engine, channels, occupancy: new Map([['vc-forge', 1]]) });
-  assert.equal(all.length, 8, 'tous les salons, même vides');
-  assert.equal(all[0]!.building, 'forge', 'le bâtiment occupé d’abord');
-  assert.equal(all.find((p) => p.building === 'taverne')!.welcome, undefined, 'pas d’accueil dans un salon vide');
-  assert.equal(all.find((p) => p.building === 'place')!.ambience, 'place-calme');
-  // Pas assez de workers : le bâtiment occupé est servi.
-  const plan = pool(3).reconcile(all, 0);
-  assert.equal(plan.assign.length, 3);
-  assert.ok(plan.assign.some((a) => a.presence.building === 'forge'));
-  assert.equal(plan.unplaced.length, 5);
-  // Sans l'option : seulement les salons occupés.
-  world.settings.voiceAlways = false;
-  assert.deepEqual(desiredPresences({ serverId: 's', guildId: 'g1', engine: new Engine(world), channels, occupancy: new Map([['vc-forge', 1]]) }).map((p) => p.building), ['forge']);
+  const plan = (occupied: string[]) => desiredPresences({ serverId: 's', guildId: 'g1', engine, channels, occupancy: new Map(occupied.map((b) => [`vc-${b}`, 1])) });
+
+  assert.deepEqual(plan([]), [], 'personne dans les vocaux : aucun worker');
+  const taverne = plan(['taverne']);
+  assert.deepEqual(taverne.map((p) => [p.identity.name, p.holder, p.ambience]), [['Edgar Brassebarbe', true, 'taverne-calme']]);
+  assert.equal(taverne[0]!.welcome, 'edgar-bienvenue');
+  // Le pont n'a pas de personnage : le worker prend le nom du lieu et joue l'ambiance.
+  assert.deepEqual(plan(['pont']).map((p) => [p.identity.name, p.holder, p.ambience]), [['Vieux pont de Valbrume', true, 'pont-calme']]);
+  assert.equal(voiceNeed(engine, channels), 8, 'tous les vocaux occupés : 7 personnages + le pont');
+
+  // Messe : tous les PNJ rejoignent l'église ; on les voit dans son salon vocal, Anselme garde l'ambiance.
+  engine.setVariable('t', 170);
+  const messe = plan(['eglise', 'taverne']);
+  const eglise = messe.filter((p) => p.building === 'eglise');
+  assert.equal(eglise.length, 7, 'les 7 PNJ à l’église');
+  assert.deepEqual(eglise.filter((p) => p.holder).map((p) => p.identity.name), ['Père Anselme']);
+  assert.ok(eglise.filter((p) => !p.holder).every((p) => p.ambience === undefined), 'les invités ne jouent pas l’ambiance');
+  assert.deepEqual(messe.filter((p) => p.building === 'taverne').map((p) => [p.identity.name, p.holder]), [['À la Gueuse Cocue', true]], 'Edgar parti : la taverne garde son ambiance, au nom du lieu');
+  assert.equal(new Set(messe.map((p) => p.key)).size, messe.length, 'une présence par personnage');
+});
+
+test('personnages : un PNJ qui se déplace garde son worker, qui change de salon', async () => {
+  const p = pool(2);
+  const base = { guildId: 'g1', serverId: 's', building: 'forge', identity: { name: 'Wagner' }, volume: 0.6 };
+  const a = p.reconcile([{ ...base, key: 's:pnj:wagner', channelId: 'vc-forge', character: 'wagner', holder: true, ambience: 'forge-calme' }], 0);
+  const worker = a.assign[0]!.worker;
+  const b = p.reconcile([{ ...base, key: 's:pnj:wagner', channelId: 'vc-eglise', building: 'eglise', character: 'wagner', holder: false }], 1000);
+  assert.deepEqual(b.update.map((u) => [u.worker, u.presence.channelId]), [[worker, 'vc-eglise']], 'même worker, nouveau salon');
+  assert.equal(b.assign.length, 0);
+});
+
+test('personnages : le PNJ du lieu revient, la présence au nom du lieu part tout de suite (pas de double ambiance)', () => {
+  const p = pool(2);
+  const base = { guildId: 'g1', serverId: 's', channelId: 'vc-taverne', building: 'taverne', volume: 0.6, holder: true, ambience: 'taverne-calme' };
+  p.reconcile([{ ...base, key: 's:lieu:taverne', identity: { name: 'À la Gueuse Cocue' } }], 0);
+  const back = p.reconcile([{ ...base, key: 's:pnj:edgar', character: 'edgar', identity: { name: 'Edgar Brassebarbe' } }], 1000);
+  assert.deepEqual(back.release.map((r) => r.presenceKey), ['s:lieu:taverne']);
+  assert.equal(back.assign.length, 1);
+});
+
+test('ancien format (sans liste de personnages) : le PNJ de chaque bâtiment avec audio', () => {
+  const { engine } = makeEngine();
+  assert.ok(!engine.world.characters);
+  const [p] = desiredPresences({ serverId: 's', guildId: 'g1', engine, channels: { taverne: { voice: 'vc1' } }, occupancy: new Map([['vc1', 1]]) });
+  assert.equal(p!.identity.name, 'Edgar Brassebarbe');
+  assert.equal(p!.holder, true);
+  assert.equal(p!.character, 'npc:taverne');
 });
