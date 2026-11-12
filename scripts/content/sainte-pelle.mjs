@@ -1442,7 +1442,7 @@ const PANIC = { place: 'maelis-panique', taverne: 'edgar-panique', forge: 'wagne
 // ---------------------------------------------------------------------------
 // Répliques de vie : une phrase au hasard de temps en temps quand des joueurs sont avec le PNJ.
 // Clés « <pnj>-vie-<n> » ; jamais pendant la finale. Moments : VEILLE (T+0–35), SIGNES (35–85),
-// STORM (85–110), RELEVE (110–165), MESSE (165–182, tous à l'église) ; sans moment = tout le temps.
+// STORM (85–110), RELEVE (110–165), MESSE (165–182, tous à l'église) ; sans moment = tout le temps sauf la messe.
 // ---------------------------------------------------------------------------
 const VEILLE = T('lt', 35);
 const SIGNES = between(35, 85);
@@ -1450,7 +1450,8 @@ const RELEVE = between(110, 165);
 const MESSE = between(165, 182);
 const vie = (id, lines) => ({
   every: 75,
-  lines: lines.map(([when, text], i) => ({ sound: `${id}-vie-${i + 1}`, text, when: when ? all(when, not(v('acte', 'apocalypse'))) : not(v('acte', 'apocalypse')) })),
+  // Sans moment précis : partout sauf à la messe (on y parle de la messe) et jamais pendant la finale.
+  lines: lines.map(([when, text], i) => ({ sound: `${id}-vie-${i + 1}`, text, when: all(when ?? not(MESSE), not(v('acte', 'apocalypse'))) })),
 });
 const CHATTER = {
   maelis: vie('maelis', [
