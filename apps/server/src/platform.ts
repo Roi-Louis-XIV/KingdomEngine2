@@ -815,6 +815,20 @@ export class Platform {
     return { revision: res.revision };
   }
 
+  /**
+   * Met la dernière version d'un modèle en brouillon (le monde d'un serveur est une copie du modèle,
+   * qui ne suit pas ses évolutions). Rien n'est en ligne avant « Publier » ; l'ancienne version reste dans l'historique.
+   */
+  fromTemplate(serverId: string, account: Account, templateId: string): { revision: number; template: string } {
+    const s = this.server(serverId);
+    if (!s) throw new HttpError(404, 'Serveur introuvable.');
+    const world = this.template(templateId);
+    const current = this.contentRow(serverId, 'draft')?.revision ?? 0;
+    const res = this.saveDraft(serverId, account, { ...world, id: s.id, name: s.name }, current);
+    this.audit(serverId, account.id, 'content.template', `Dernière version du modèle « ${world.name} » mise en brouillon`);
+    return { revision: res.revision, template: world.name };
+  }
+
   // -------------------------------------------------------------------------
   // État, joueurs, activité, audit
   // -------------------------------------------------------------------------

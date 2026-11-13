@@ -73,6 +73,7 @@ export async function publishPage(main: HTMLElement) {
               ),
             ],
       ),
+      can('editor') ? await templateSection(s.id, s.template, d.dirty, () => void publishPage(main)) : null,
       h(
         'section',
         { class: 'block' },
@@ -117,6 +118,47 @@ export async function publishPage(main: HTMLElement) {
             ),
           ),
         ),
+      ),
+    ),
+  );
+}
+
+/** Reprendre la dernière version d'un modèle (le monde du serveur en est une copie qui ne le suit pas). */
+async function templateSection(serverId: string, current: string, dirty: boolean, refresh: () => void): Promise<HTMLElement> {
+  const templates = await get<{ id: string; name: string; description: string; buildings: number }[]>('/api/templates');
+  let chosen = templates.some((t) => t.id === current) ? current : (templates.find((t) => t.id !== 'vierge')?.id ?? '');
+  const mine = templates.find((t) => t.id === current);
+  return h(
+    'section',
+    { class: 'block' },
+    h('h2', null, 'Modèle du monde'),
+    h(
+      'p',
+      null,
+      mine ? ['Ton monde a été créé à partir du modèle ', h('b', null, `« ${mine.name} »`), '. '] : null,
+      'À la création, le modèle est copié : quand le modèle s’enrichit (nouvelles créatures, quêtes, lieux…), ton monde ne change pas tout seul. Ce bouton met la dernière version du modèle dans ton brouillon.',
+    ),
+    h('p', { class: 'muted' }, 'Les joueurs gardent leur progression, la Médiathèque garde tes sons. Tes propres modifications du contenu sont remplacées, mais ta version actuelle reste dans l’historique (bouton « Restaurer »). Rien ne change sur Discord avant « Publier ».'),
+    h(
+      'div',
+      { class: 'inline-form' },
+      h('select', { onchange: (e: Event) => (chosen = (e.target as HTMLSelectElement).value) }, templates.map((t) => h('option', { value: t.id, selected: t.id === chosen }, `${t.name} (${t.buildings} lieux)`))),
+      h(
+        'button',
+        {
+          class: 'btn',
+          onclick: async () => {
+            const t = templates.find((x) => x.id === chosen);
+            if (!t) return;
+            const msg = dirty ? `Ton brouillon actuel sera remplacé par le modèle « ${t.name} ». ` : '';
+            if (!(await confirmDialog('Reprendre le modèle ?', `${msg}Tu pourras tout vérifier (Tester), puis publier.`, 'Reprendre le modèle'))) return;
+            await post(`/api/servers/${serverId}/content/from-template`, { template: t.id });
+            state.draft = null;
+            toast(`Modèle « ${t.name} » mis en brouillon : vérifie-le puis publie.`);
+            refresh();
+          },
+        },
+        '🔄 Reprendre la dernière version du modèle',
       ),
     ),
   );

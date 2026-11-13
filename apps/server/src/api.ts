@@ -178,6 +178,11 @@ export function registerApi(router: Router, deps: ApiDeps) {
     return { version: res.version, discordSync };
   });
 
+  router.post('/api/servers/:id/content/from-template', (r) => {
+    const s = server(r, 'editor');
+    return platform.fromTemplate(s.id, me(r), String(r.body.template ?? s.template));
+  });
+
   router.post('/api/servers/:id/content/restore', (r) => {
     const s = server(r, 'editor');
     return platform.restore(s.id, me(r), Number(r.body.version));

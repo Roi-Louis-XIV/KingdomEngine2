@@ -203,6 +203,25 @@ test('médiathèque : import, lecture, sons manquants signalés', async () => {
   assert.equal(bad.status, 415);
 });
 
+test('modèle : reprendre la dernière version d’un modèle en brouillon, progression et ancienne version conservées', async () => {
+  const s = await louis.post('/api/servers', { name: 'Valbrume', template: 'vierge' });
+  const id = s.data.id;
+  assert.notEqual((await intrus.post(`/api/servers/${id}/content/from-template`, { template: 'sainte-pelle' })).status, 200, 'réservé aux éditeurs du serveur');
+  const r = await louis.post(`/api/servers/${id}/content/from-template`, { template: 'sainte-pelle' });
+  assert.equal(r.status, 200);
+  const d = await louis.get(`/api/servers/${id}/content/draft`);
+  assert.equal(d.data.world.id, id, 'le monde garde l’identifiant du serveur');
+  assert.equal(d.data.world.name, 'Valbrume', 'et son nom');
+  assert.ok(d.data.world.creatures.length > 0, 'le bestiaire du modèle est là');
+  assert.equal(d.data.issues.filter((i: any) => i.level === 'error').length, 0);
+  const pub = await louis.post(`/api/servers/${id}/content/publish`, { revision: d.data.revision, note: 'Modèle à jour' });
+  assert.equal(pub.status, 200);
+  const versions = await louis.get(`/api/servers/${id}/content`);
+  assert.deepEqual(versions.data.versions.map((v: any) => v.status), ['published', 'archived'], 'l’ancienne version reste restaurable');
+  assert.equal((await louis.post(`/api/servers/${id}/content/from-template`, { template: '../etc' })).status, 400);
+  await louis.del(`/api/servers/${id}`, { confirm: 'Valbrume' });
+});
+
 test('suppression d’un serveur : confirmation par le nom', async () => {
   const s = await louis.post('/api/servers', { name: 'Brouillon', template: 'vierge' });
   assert.equal((await louis.del(`/api/servers/${s.data.id}`, { confirm: 'brouillon' })).status, 400);
