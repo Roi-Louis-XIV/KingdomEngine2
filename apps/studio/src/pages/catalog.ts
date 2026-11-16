@@ -1,4 +1,4 @@
-import type { WorldDef } from '../../../../packages/engine/src/index.ts';
+import type { StatDef, WorldDef } from '../../../../packages/engine/src/index.ts';
 import { h, clear, field, selectField, toast, uniqueId } from '../ui.ts';
 import { can, draft, touch } from '../store.ts';
 import { conditionEditor, effectsEditor, soundField, textEditor, variableCondition } from '../editors.ts';
@@ -42,6 +42,9 @@ export async function catalogPage(main: HTMLElement, params: string[]) {
         listEditor(w.stats, 'statistique', () => ({ id: uniqueId('stat', w.stats.map((s) => s.id)), name: 'Nouvelle statistique', min: 0, max: 100, initial: 50, kind: 'gauge' as const }), (s) =>
           h(
             'div',
+            { class: 'form' },
+            h(
+            'div',
             { class: 'row-fields' },
             field(s, 'emoji', { label: 'Symbole' }, changed),
             field(s, 'name', { label: 'Nom' }, changed),
@@ -50,6 +53,8 @@ export async function catalogPage(main: HTMLElement, params: string[]) {
             field(s, 'min', { label: 'Minimum', type: 'number' }, changed),
             field(s, 'max', { label: 'Maximum', type: 'number' }, changed),
             field(s, 'initial', { label: 'Valeur de départ', type: 'number' }, changed),
+            ),
+            statExtras(s, changed, redraw),
           ),
           changed, redraw),
       );
@@ -416,5 +421,42 @@ function itemsTab(w: WorldDef, changed: () => void, redraw: () => void) {
       ),
     ),
     list,
+  );
+}
+
+/** Évolution automatique et paliers d'une statistique (ex. l'ivresse redescend et change le travail). */
+function statExtras(s: StatDef, changed: () => void, redraw: () => void): HTMLElement {
+  const drift = h(
+    'label',
+    { class: 'check' },
+    h('input', { type: 'checkbox', checked: !!s.drift, onchange: (e: Event) => ((e.target as HTMLInputElement).checked ? (s.drift = { amount: -5, everySec: 60 }) : delete s.drift, changed(), redraw()) }),
+    'Évolue toute seule avec le temps',
+  );
+  return h(
+    'div',
+    { class: 'stack stat-extras' },
+    drift,
+    s.drift
+      ? h('div', { class: 'row-fields' }, field(s.drift, 'amount', { label: 'De combien (négatif = redescend)', type: 'number' }, changed), field(s.drift, 'everySec', { label: 'Toutes les (secondes)', type: 'number', min: 5 }, changed))
+      : null,
+    h('div', null, h('b', null, 'Paliers'), h('p', { class: 'muted small' }, 'À partir d’un seuil, le travail des métiers change : rendement (1 = normal, 0,8 = −20 %, 1,1 = +10 %), risque de tout rater (0 à 1), ou plus de travail du tout. Le palier le plus haut atteint s’applique.')),
+    (s.levels ?? []).map((l, i) =>
+      h(
+        'div',
+        { class: 'card soft' },
+        h(
+          'div',
+          { class: 'row-fields' },
+          field(l, 'from', { label: 'À partir de', type: 'number' }, changed),
+          field(l, 'emoji', { label: 'Symbole' }, changed),
+          field(l, 'name', { label: 'Nom', placeholder: 'Éméché' }, changed),
+          field(l, 'yield', { label: 'Rendement', type: 'number', step: 0.05, min: 0 }, changed),
+          field(l, 'fumble', { label: 'Risque de tout rater', type: 'number', step: 0.05, min: 0, max: 1 }, changed),
+          h('button', { class: 'icon-btn', 'aria-label': 'Retirer ce palier', onclick: () => ((s.levels = s.levels!.filter((_, j) => j !== i)), s.levels.length || delete s.levels, changed(), redraw()) }, '×'),
+        ),
+        h('div', { class: 'row-fields' }, field(l, 'text', { label: 'Phrase pour le joueur', wide: true }, changed), h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!l.blocksWork, onchange: (e: Event) => ((e.target as HTMLInputElement).checked ? (l.blocksWork = true) : delete l.blocksWork, changed()) }), 'Plus de travail possible')),
+      ),
+    ),
+    h('button', { class: 'btn small', onclick: () => ((s.levels ??= []).push({ from: (s.levels.at(-1)?.from ?? 0) + 25, name: 'Nouveau palier' }), changed(), redraw()) }, '+ Ajouter un palier'),
   );
 }

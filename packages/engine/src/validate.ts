@@ -165,6 +165,17 @@ export function validateWorld(w: WorldDef): Issue[] {
   for (const it of w.items) it.consumable?.effects.forEach((a) => checkAction(`Objet ${it.id}`, a));
   for (const it of w.items) if (it.equipment?.saving && !stats.has(it.equipment.saving.stat)) err(`Objet ${it.id}`, `statistique inconnue : ${it.equipment.saving.stat}`);
 
+  for (const st of w.stats) {
+    const where = `Statistique ${st.id}`;
+    if (st.drift && (!(st.drift.everySec >= 5) || !Number.isFinite(st.drift.amount))) err(where, 'évolution automatique : au moins 5 secondes entre deux pas');
+    for (const l of st.levels ?? []) {
+      if (!l.name) err(where, 'palier sans nom');
+      if (l.yield !== undefined && !(l.yield >= 0)) err(where, `palier ${l.name} : rendement négatif`);
+      if (l.fumble !== undefined && (l.fumble < 0 || l.fumble > 1)) err(where, `palier ${l.name} : risque entre 0 et 1`);
+    }
+    const froms = (st.levels ?? []).map((l) => l.from);
+    if (new Set(froms).size !== froms.length) err(where, 'deux paliers commencent au même seuil');
+  }
   const creatures = ids(w.creatures ?? [], 'Bestiaire');
   for (const c of w.creatures ?? []) {
     const where = `Créature ${c.id}`;

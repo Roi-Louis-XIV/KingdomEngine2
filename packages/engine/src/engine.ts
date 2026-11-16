@@ -9,7 +9,7 @@
 import type { Action, Block, ButtonDef, CharacterDef, Id, Rule, ScreenDef, SoundCase, WorldDef, BuildingDef } from './model.ts';
 import type { RButton, RContainer, RenderedMessage, RTopLevel } from './components.ts';
 import { createInitialState, newPlayer, syncStructure, type SessionState, type WorldState } from './state.ts';
-import { type Ctx, type EngineEvent, RuleError, applyAction, describeChanges, evaluate, pickText } from './rules.ts';
+import { type Ctx, type EngineEvent, RuleError, applyAction, describeChanges, evaluate, pickText, driftStats } from './rules.ts';
 import { handleWidget, renderWidget, text, type WidgetEnv } from './widgets.ts';
 import { DEFAULT_TZ, describeSchedule, nextRun, rollWeather } from './clock.ts';
 import { dropExpiredQuest, questVisit } from './quests.ts';
@@ -326,6 +326,8 @@ export class Engine {
       if (st.nextRunAt === null) st.nextRunAt = nextRun(ev.schedule, ctx.now - 1, this.tz, st.startedAt);
       if (st.nextRunAt !== null && ctx.now >= st.nextRunAt) this.startEvent(ctx, ev, st);
     }
+    // Statistiques qui évoluent toutes seules (l'ivresse redescend…).
+    driftStats(this.world, draft, ctx.now);
     // Duels : défis sans réponse et tours non joués.
     if (draft.duels && Object.keys(draft.duels).length) expireDuels(ctx, ctx.now);
     const changed = before !== JSON.stringify(draft);

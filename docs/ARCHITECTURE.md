@@ -112,6 +112,12 @@ Détails techniques :
 - Le widget `quest.board` affiche les propositions (tirage reproductible : stables d’un affichage à l’autre, renouvelées après une quête, un abandon ou un nouveau tirage). Le joueur en choisit **une**. Le widget `player.sheet` montre endurance, ivresse, XP, niveau et la quête en cours, avec un bouton « Livrer » dans le bon bâtiment.
 - L’avancement passe par des **repères** émis par le moteur (activité récupérée, apport à un objectif, achat, dialogue, dés gagnés, objet consommé, réparation) ou par l’action `quest.tag`. Entrer dans un lieu compte pour les étapes « visiter ». Une quête dont la fenêtre se ferme est rendue sans pénalité.
 
+## Statistiques vivantes : évolution automatique et paliers
+
+- `StatDef.drift` `{ amount, everySec }` : la statistique bouge toute seule (ex. l’ivresse redescend de 5 toutes les 90 s), bornée par min et max. Appliqué par `Engine.tick()` (`driftStats` dans `rules.ts`), par pas, à partir du premier passage de l’horloge ; le compteur (`player.driftAt`) s’efface à la borne, donc rien n’est écrit quand il n’y a rien à faire.
+- `StatDef.levels` : paliers (`from`, nom, symbole, phrase). Le plus haut atteint s’applique au **travail d’un métier** (activités avec `job`) : `yield` multiplie les objets récoltés, `fumble` = risque de tout rater (tiré au lancement, l’effort est dépensé), `blocksWork` = plus d’activité de métier. Le palier s’affiche sur la fiche, en tête des tableaux d’activités et dans le message de récolte. Studio : Objets & règles › Statistiques.
+- Bêta : l’ivresse (Pompette 30 : +10 % ; Éméché 50 : −15 %, 10 % de maladresse ; Ivre 75 : −40 %, 25 % ; Ivre mort 100 : plus de travail). L’eau (−10), le jus (−5) et le cierge béni (−20) dessoûlent.
+
 ## Combat au tour par tour
 
 `packages/engine/src/combat.ts`, module `combat` et widget `combat.arena`, créatures dans `world.creatures` (Studio : Objets & règles › Bestiaire). **Retiré de la bêta Sainte Pelle** (décision de Louis, 16 novembre) : la primitive reste disponible pour d’autres mondes.

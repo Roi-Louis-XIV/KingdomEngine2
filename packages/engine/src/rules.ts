@@ -1,5 +1,5 @@
 /** Conditions expliquées, textes conditionnels, actions transactionnelles. */
-import type { Action, CompareOp, Condition, Id, Text, WorldDef, ModuleDef, BuildingDef } from './model.ts';
+import type { Action, CompareOp, Condition, Id, Text, WorldDef, ModuleDef, BuildingDef, StatDef, StatLevel } from './model.ts';
 import type { PlayerState, WorldState } from './state.ts';
 import { normalizePlayer, scopeKey } from './state.ts';
 import { compare, questTag } from './quests.ts';
@@ -555,4 +555,67 @@ export function describeChanges(ctx: Ctx, changes: Change[] = ctx.changes): stri
     }
   }
   return parts.join(' · ');
+}
+
+
+/** Paliers atteints par le joueur (un par statistique : le plus haut atteint). */
+export function activeLevels(world: WorldDef, player: PlayerState): { stat: StatDef; level: StatLevel }[] {
+  const out: { stat: StatDef; level: StatLevel }[] = [];
+  for (const def of world.stats) {
+    if (!def.levels?.length) continue;
+    const v = player.stats[def.id] ?? def.initial;
+    let best: StatLevel | undefined;
+    for (const l of def.levels) if (v >= l.from && (!best || l.from > best.from)) best = l;
+    if (best) out.push({ stat: def, level: best });
+  }
+  return out;
+}
+
+/** Résumé des effets d'un palier, en mots simples. */
+export function levelEffects(l: StatLevel): string {
+  const fx: string[] = [];
+  if (l.blocksWork) fx.push('impossible de travailler');
+  else {
+    if (l.yield !== undefined && l.yield !== 1) fx.push(`récoltes ${l.yield > 1 ? '+' : '−'}${Math.round(Math.abs(l.yield - 1) * 100)} %`);
+    if (l.fumble) fx.push(`${Math.round(l.fumble * 100)} % de risque de tout rater`);
+  }
+  return fx.join(' · ');
+}
+
+/** Ligne affichée au joueur pour un palier : « 🥴 Éméché : récoltes −20 % · 10 % de risque de tout rater ». */
+export function levelLine(l: StatLevel): string {
+  const fx = levelEffects(l);
+  return `${l.emoji ?? '•'} **${l.name}**${fx ? ` : ${fx}` : ''}${l.text ? `\n-# ${l.text}` : ''}`;
+}
+
+/**
+ * Évolution automatique des statistiques (StatDef.drift), appelée par Engine.tick().
+ * Un pas tous les `everySec` depuis le dernier ; arrivé à la borne, le compteur s'arrête (aucune écriture inutile).
+ */
+export function driftStats(world: WorldDef, state: WorldState, now: number): void {
+  const defs = world.stats.filter((d) => d.drift && d.drift.amount !== 0 && d.drift.everySec > 0);
+  if (!defs.length) return;
+  for (const p of Object.values(state.players)) {
+    for (const d of defs) {
+      const { amount, everySec } = d.drift!;
+      const v = p.stats[d.id] ?? d.initial;
+      const bound = amount < 0 ? d.min : (d.max ?? Infinity);
+      const atBound = amount < 0 ? v <= bound : v >= bound;
+      if (atBound) {
+        if (p.driftAt?.[d.id] !== undefined) delete p.driftAt[d.id];
+        continue;
+      }
+      const last = p.driftAt?.[d.id];
+      if (last === undefined) {
+        (p.driftAt ??= {})[d.id] = now;
+        continue;
+      }
+      const steps = Math.floor((now - last) / (everySec * 1000));
+      if (steps <= 0) continue;
+      const next = amount < 0 ? Math.max(bound, v + amount * steps) : Math.min(bound, v + amount * steps);
+      p.stats[d.id] = next;
+      if (next === bound) delete p.driftAt![d.id];
+      else p.driftAt![d.id] = last + steps * everySec * 1000;
+    }
+  }
 }

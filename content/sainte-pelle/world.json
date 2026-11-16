@@ -1270,7 +1270,43 @@
       "min": 0,
       "max": 100,
       "initial": 0,
-      "kind": "gauge"
+      "kind": "gauge",
+      "drift": {
+        "amount": -5,
+        "everySec": 90
+      },
+      "levels": [
+        {
+          "from": 30,
+          "name": "Pompette",
+          "emoji": "🙂",
+          "yield": 1.1,
+          "text": "Le courage liquide : tu as du cœur à l’ouvrage."
+        },
+        {
+          "from": 50,
+          "name": "Éméché",
+          "emoji": "🥴",
+          "yield": 0.85,
+          "fumble": 0.1,
+          "text": "Tu vois un peu double…"
+        },
+        {
+          "from": 75,
+          "name": "Ivre",
+          "emoji": "🤪",
+          "yield": 0.6,
+          "fumble": 0.25,
+          "text": "Le sol tangue dangereusement."
+        },
+        {
+          "from": 100,
+          "name": "Ivre mort",
+          "emoji": "😵",
+          "blocksWork": true,
+          "text": "Tu titubes : impossible de travailler. Bois de l’eau, allume un cierge béni ou attends que ça passe."
+        }
+      ]
     },
     {
       "id": "xp",
@@ -1389,6 +1425,11 @@
             "type": "stat.add",
             "stat": "energie",
             "amount": 5
+          },
+          {
+            "type": "stat.add",
+            "stat": "alcool",
+            "amount": -10
           }
         ]
       }
@@ -6132,6 +6173,11 @@
                   "type": "stat.add",
                   "stat": "energie",
                   "amount": 5
+                },
+                {
+                  "type": "stat.add",
+                  "stat": "alcool",
+                  "amount": -10
                 }
               ],
               "takeaway": {
@@ -6151,6 +6197,11 @@
                   "type": "stat.add",
                   "stat": "energie",
                   "amount": 8
+                },
+                {
+                  "type": "stat.add",
+                  "stat": "alcool",
+                  "amount": -5
                 }
               ]
             }

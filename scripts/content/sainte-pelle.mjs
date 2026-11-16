@@ -138,7 +138,18 @@ const shard = (n, label, found, when) =>
 const stats = [
   { id: 'ecus', name: 'Bourse', emoji: '💰', min: 0, initial: 0, kind: 'currency', unit: 'écus' },
   { id: 'energie', name: 'Endurance', emoji: '⚡', min: 0, max: 100, initial: 80, kind: 'gauge' },
-  { id: 'alcool', name: 'Ivresse', emoji: '🍺', min: 0, max: 100, initial: 0, kind: 'gauge' },
+  // Ivresse (demande de Louis du 16 novembre) : elle redescend toute seule (−5 toutes les 90 s, 50 → 0 en 15 min)
+  // et change le travail des métiers. Un verre ≈ 7 à 14 ; l'eau, le jus et le cierge béni font redescendre.
+  {
+    id: 'alcool', name: 'Ivresse', emoji: '🍺', min: 0, max: 100, initial: 0, kind: 'gauge',
+    drift: { amount: -5, everySec: 90 },
+    levels: [
+      { from: 30, name: 'Pompette', emoji: '🙂', yield: 1.1, text: 'Le courage liquide : tu as du cœur à l’ouvrage.' },
+      { from: 50, name: 'Éméché', emoji: '🥴', yield: 0.85, fumble: 0.1, text: 'Tu vois un peu double…' },
+      { from: 75, name: 'Ivre', emoji: '🤪', yield: 0.6, fumble: 0.25, text: 'Le sol tangue dangereusement.' },
+      { from: 100, name: 'Ivre mort', emoji: '😵', blocksWork: true, text: 'Tu titubes : impossible de travailler. Bois de l’eau, allume un cierge béni ou attends que ça passe.' },
+    ],
+  },
   { id: 'xp', name: 'XP', emoji: '⭐', min: 0, initial: 0, kind: 'value', unit: 'XP' },
   { id: 'a_vote', name: 'A voté', emoji: '🗳️', min: 0, max: 1, initial: 0, kind: 'value' },
 ];
@@ -1258,8 +1269,8 @@ const CRUS = 'Grands crus du Royaume';
     drink('vin_rouge', 'Vin rouge de Bordeaux (Sang du Lion)', '🍷', CRUS, 8, 6, 10),
     drink('vin_blanc', 'Vin blanc de Loire (Larme de la Princesse)', '🥂', CRUS, 7, 6, 9),
     drink('porto', 'Porto vieilli (Doux Poison des Seigneurs)', '🍷', CRUS, 9, 5, 12),
-    { id: 'eau', name: 'Eau fraîche', emoji: '💧', category: 'Sans alcool', stockItem: 'eau_potable', price: 2, effects: [stat('energie', 5)], takeaway: { item: 'gourde_eau', surcharge: 1 } },
-    { id: 'jus', name: 'Jus de pomme', emoji: '🍎', category: 'Sans alcool', stockItem: 'jus_pomme', price: 3, effects: [stat('energie', 8)] },
+    { id: 'eau', name: 'Eau fraîche', emoji: '💧', category: 'Sans alcool', stockItem: 'eau_potable', price: 2, effects: [stat('energie', 5), stat('alcool', -10)], takeaway: { item: 'gourde_eau', surcharge: 1 } },
+    { id: 'jus', name: 'Jus de pomme', emoji: '🍎', category: 'Sans alcool', stockItem: 'jus_pomme', price: 3, effects: [stat('energie', 8), stat('alcool', -5)] },
   ];
   const carte = taverne.modules.find((m) => m.id === 'carte');
   const snack = (id, name, emoji, price, energy) => ({ id, name, emoji, category: 'À grignoter avec ta bière', stockItem: id, price, effects: [stat('energie', energy)] });
@@ -1691,6 +1702,10 @@ for (const b of world.buildings)
       const i = ch.findIndex((x, k) => k > 0 && x.type === 'text' && x.text === statusLine && ch[k - 1].type === 'text' && !ch[k - 1].visibleIf && !x.visibleIf);
       if (i > 0) ch.splice(i - 1, 2, { type: 'text', text: joinText(ch[i - 1].text, statusLine) });
     }
+
+// L'eau dessoûle aussi quand on l'emporte dans sa gourde.
+const gourde = world.items.find((i) => i.id === 'gourde_eau');
+if (gourde?.consumable && !gourde.consumable.effects.some((e) => e.stat === 'alcool')) gourde.consumable.effects.push(stat('alcool', -10));
 
 // La Taverne V11 parle d'« Énergie » : même statistique, renommée « Endurance » pour la bêta.
 const json = JSON.stringify(world, null, 2).replaceAll('Énergie', 'Endurance');

@@ -24,6 +24,9 @@ import {
   jobProgress,
   pickText,
   contributeObjective,
+  activeLevels,
+  levelEffects,
+  levelLine,
 } from './rules.ts';
 import { STARS, abandonQuest, acceptQuest, currentOffers, findQuest, nextLevel, questDeliver, questLevel, questTag, rerollOffers, stepDone, stepTarget } from './quests.ts';
 import type { QuestDef } from './model.ts';
@@ -171,6 +174,9 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
         let line = `${def.emoji ?? ''} **${def.name} :** ${def.kind === 'currency' ? money(ctx, id, v) : v}`.trim();
         if (def.max !== undefined) line += `/${def.max}`;
         if (def.kind === 'gauge' && def.max) line += `  \`${gauge(v, def.max)}\``;
+        const lvl = activeLevels(ctx.world, p).find((x) => x.stat.id === id);
+        if (lvl) line += ` · ${levelLine(lvl.level).replace('\n', ' — ').replace('-# ', '')}`;
+        if (def.drift && v !== (def.drift.amount < 0 ? def.min : def.max)) line += `\n-# ${driftText(def.drift)}`;
         lines.push(line);
       }
       if (w.showModifier !== false) lines.push(modifierLine(env));
@@ -520,7 +526,9 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
 
     case 'activity.board': {
       const mod = findModule(ctx.building, w.activity, 'activity');
-      const children: RContainer['children'] = [text(`### ${mod.name}`)];
+      // Paliers qui changent le travail (ivresse…), rappelés en tête si une activité de métier est proposée.
+      const lv = mod.activities.some((x) => x.job) ? activeLevels(ctx.world, p).filter((x) => levelEffects(x.level)) : [];
+      const children: RContainer['children'] = [text([`### ${mod.name}`, ...lv.map((x) => levelLine(x.level))].join('\n'))];
       mod.activities.forEach((a, i) => {
         if (i > 0) children.push({ type: 'separator' });
         const key = activityKey(ctx, mod, a);
@@ -697,6 +705,9 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
         let line = `${def.emoji ?? ''} **${def.name} :** ${def.kind === 'currency' ? money(ctx, id, v) : v}`.trim();
         if (def.max !== undefined) line += `/${def.max}`;
         if (def.kind === 'gauge' && def.max) line += `  \`${gauge(v, def.max)}\``;
+        const lvl = activeLevels(ctx.world, p).find((x) => x.stat.id === id);
+        if (lvl) line += ` · ${levelLine(lvl.level).replace('\n', ' — ').replace('-# ', '')}`;
+        if (def.drift && v !== (def.drift.amount < 0 ? def.min : def.max)) line += `\n-# ${driftText(def.drift)}`;
         lines.push(line);
       }
       const sys = ctx.world.quests;
@@ -819,6 +830,11 @@ export function activityLock(ctx: Ctx, mod: ActivityModule, a: ActivityDef): { t
     const reason = custom && !v.reason.startsWith('il faut être') ? custom : v.reason;
     return { text: reason.charAt(0).toUpperCase() + reason.slice(1) };
   }
+  // Palier qui empêche de travailler (ivre mort…) : seulement pour le travail d'un métier.
+  if (a.job) {
+    const block = activeLevels(ctx.world, p).find((x) => x.level.blocksWork);
+    if (block) return { text: `${block.level.emoji ?? ''} ${block.level.name} : ${block.level.text ?? 'impossible de travailler pour l’instant'}`.trim() };
+  }
   if (a.maxConcurrent) {
     const key = activityKey(ctx, mod, a);
     const busy = Object.values(ctx.state.players).filter((o) => o.activities?.[key] && ctx.now < o.activities[key]!.endsAt).length;
@@ -845,12 +861,15 @@ function objectiveState(ctx: Ctx, module: Id) {
 }
 
 /** Applique les résultats tirés, avec les bonus actifs qui augmentent les objets reçus. */
-function claimActivity(ctx: Ctx, mod: ActivityModule, a: ActivityDef, results: number[]): string {
+function claimActivity(ctx: Ctx, mod: ActivityModule, a: ActivityDef, results: number[], fumble?: string): string {
   const p = ctx.player;
   const active = activeModifiers(p, ctx.now).filter((m) => a.boostedBy?.includes(m.id));
   const boost = active.reduce((s, m) => s + (findModifier(ctx.world, m.id)?.value ?? 0), 0);
   const mult = a.multipliers?.find((x) => evaluate(ctx, x.when).ok);
-  const factor = (1 + boost) * (mult?.factor ?? 1);
+  // Paliers (ivresse…) : rendement du travail de métier.
+  const levels = a.job ? activeLevels(ctx.world, p).filter((x) => x.level.yield !== undefined && x.level.yield !== 1) : [];
+  const levelFactor = levels.reduce((f, x) => f * x.level.yield!, 1);
+  const factor = (1 + boost) * (mult?.factor ?? 1) * levelFactor;
   const labels: string[] = [];
   const before = ctx.changes.length;
   for (const i of results) {
@@ -871,6 +890,8 @@ function claimActivity(ctx: Ctx, mod: ActivityModule, a: ActivityDef, results: n
   questTag(ctx, `activity:${ctx.building.id}/${a.id}`);
   let bonus = active.length ? ` (${active.map((m) => findModifier(ctx.world, m.id)?.emoji ?? '✨').join('')} bonus +${Math.round(boost * 100)} %)` : '';
   if (mult) bonus += ` (${mult.label ?? `rendement ×${mult.factor}`})`;
+  for (const { level } of levels) bonus += ` (${level.emoji ?? ''} ${level.name} : ${level.yield! > 1 ? '+' : '−'}${Math.round(Math.abs(level.yield! - 1) * 100)} %)`;
+  if (fumble) return `💫 **${a.emoji ?? ''} ${a.name}** : ${fumble}, tu t’emmêles les pinceaux… **rien récolté** cette fois.${fx ? ` · ${fx}` : ''}`;
   return `✅ **${a.emoji ?? ''} ${a.name}** : ${labels.join(', ') || 'terminé'}${fx ? ` · ${fx}` : ''}${bonus}`;
 }
 
@@ -930,6 +951,12 @@ function rollResults(a: ActivityDef, random: () => number, weights: number[] = a
     if (total > 0) out.push(idx);
   }
   return out;
+}
+
+/** « ↘️ redescend de 5 toutes les 90 s » (évolution automatique d'une statistique). */
+function driftText(d: { amount: number; everySec: number }): string {
+  const every = d.everySec === 60 ? 'chaque minute' : d.everySec % 60 === 0 ? `toutes les ${d.everySec / 60} minutes` : `toutes les ${d.everySec} s`;
+  return `${d.amount < 0 ? '↘️ redescend' : '↗️ remonte'} de ${Math.abs(d.amount)} ${every}`;
 }
 
 function modifierLine(env: WidgetEnv): string {
@@ -1184,16 +1211,21 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
         if (a.tool && tool) applyAction(ctx, { type: 'tool.wear', item: tool, amount: a.tool.wear });
         for (const c of activityCosts(ctx, a)) applyAction(ctx, c);
         // Le hasard est tiré au lancement (selon le lieu, le niveau et l'outil) : relancer l'interface ne change pas le résultat.
-        const results = rollResults(a, env.random, resultWeights(ctx, a));
-        if (!a.durationSec) return { notice: claimActivity(ctx, mod, a, results) };
-        p.activities[key] = { startedAt: ctx.now, endsAt: ctx.now + a.durationSec * 1000, results };
+        let results = rollResults(a, env.random, resultWeights(ctx, a));
+        // Maladresse (palier d'ivresse…) : l'effort est dépensé, rien n'est récolté. Tirée au lancement, comme le reste.
+        let fumble: string | undefined;
+        for (const { level } of a.job ? activeLevels(ctx.world, p) : [])
+          if (!fumble && level.fumble && env.random() < level.fumble) fumble = `${level.emoji ?? ''} ${level.name}`.trim();
+        if (fumble) results = [];
+        if (!a.durationSec) return { notice: claimActivity(ctx, mod, a, results, fumble) };
+        p.activities[key] = { startedAt: ctx.now, endsAt: ctx.now + a.durationSec * 1000, results, ...(fumble ? { fumble } : {}) };
         return { notice: `${a.emoji ?? '⏳'} **${a.name}** lancé(e) : retour dans ${duration(a.durationSec)}.` };
       }
       if (verb === 'claim') {
         const pending = p.activities[key];
         if (!pending) throw new RuleError('Rien à récupérer.');
         if (ctx.now < pending.endsAt) throw new RuleError(`⏳ Encore ${mmss(pending.endsAt - ctx.now)}.`);
-        return { notice: claimActivity(ctx, mod, a, pending.results) };
+        return { notice: claimActivity(ctx, mod, a, pending.results, pending.fumble) };
       }
       return {};
     }

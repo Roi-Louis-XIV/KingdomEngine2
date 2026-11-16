@@ -114,6 +114,25 @@ export interface StatDef {
   kind?: 'gauge' | 'currency' | 'value';
   /** Unité affichée après une valeur (« écus »). */
   unit?: string;
+  /** Évolution toute seule avec le temps (ex. l'ivresse redescend de 5 toutes les minutes), bornée par min et max. */
+  drift?: { amount: number; everySec: number };
+  /** Paliers : tant que la valeur atteint `from`, le palier le plus haut atteint s'applique à son travail. */
+  levels?: StatLevel[];
+}
+
+/** Palier d'une statistique (ex. ivresse « Éméché » à partir de 50) et ses effets sur les activités de métier. */
+export interface StatLevel {
+  from: number;
+  name: string;
+  emoji?: string;
+  /** Multiplie les objets récoltés (0.8 = −20 %, 1.1 = +10 %). */
+  yield?: number;
+  /** Chance (0 à 1) de tout rater : l'effort est dépensé, rien n'est récolté. */
+  fumble?: number;
+  /** Plus aucune activité de métier possible à ce palier. */
+  blocksWork?: boolean;
+  /** Phrase affichée au joueur (fiche, activités). */
+  text?: string;
 }
 
 export interface ItemDef {

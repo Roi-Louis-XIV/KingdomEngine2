@@ -378,3 +378,30 @@ test('la bêta n’a pas de combat (retiré à la demande de Louis le 16 novembr
   assert.ok(w.buildings.every((b) => b.modules.every((m) => m.type !== 'combat')));
   assert.ok(!w.stats.some((s) => s.id === 'sante' || s.id === 'gloire'));
 });
+
+test('ivresse : boire rend pompette puis éméché, l’eau dessoûle, ivre mort on ne travaille plus, ça redescend tout seul', () => {
+  const { engine, clock } = started();
+  minutes(engine, clock, 5);
+  const p = new Player(engine, 'louis', 'foret', 'Louis');
+  const st = engine.snapshot();
+  st.players.louis!.stats.alcool = 55;
+  const e = setup(st, clock).engine;
+  const f = new Player(e, 'louis', 'foret', 'Louis');
+  void p;
+  f.click('🎒 Mon inventaire');
+  assert.match(f.text, /🍺 \*\*Ivresse :\*\* 55\/100 .* · 🥴 \*\*Éméché\*\* : récoltes −15 % · 10 % de risque de tout rater/);
+  assert.match(f.text, /↘️ redescend de 5 toutes les 90 s/);
+  const s2 = e.snapshot();
+  s2.players.louis!.stats.alcool = 100;
+  const e2 = setup(s2, clock).engine;
+  const g = new Player(e2, 'louis', 'foret', 'Louis');
+  const places = g.buttons.filter((b) => !/inventaire|Actualiser|Parler|Échoppe/.test(b));
+  g.click(places[0]!);
+  assert.match(g.text, /🔒 😵 Ivre mort : Tu titubes : impossible de travailler/);
+  // −5 toutes les 90 s, comptées à partir du premier passage de l’horloge (à 45 s) : 2 pas en 4 min 30.
+  for (let i = 0; i < 6; i++) {
+    clock.advance(45);
+    e2.tick();
+  }
+  assert.equal(e2.player('louis')!.stats.alcool, 90);
+});
