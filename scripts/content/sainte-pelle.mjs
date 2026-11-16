@@ -124,10 +124,10 @@ const statusLine = '⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bour
 const PRELUDE = text('*🕯️ La fête de la Sainte Pelle n’a pas encore commencé. Le Roi donnera le signal.*', T('lt', 0));
 
 /** Éclat de la pierre-tonnerre à ramasser : une seule fois pour tout le village. */
-const shard = (n, label, found, when) =>
+const shard = (n, label, found, when, said) =>
   section(
     `**✨ ${label}**\n*Une lueur bleutée grésille…*`,
-    btn('Ramasser l’éclat', { when, actions: [set(`eclat${n}`, 'oui'), add('eclats', 1), xp(15), tag('eclat-trouve'), announce(`✨ **Éclat ${n}/6 retrouvé :** ${found}`)], onSuccess: { notice: `✨ **Éclat retrouvé !** ${found}\n+15 XP` } }, { emoji: '✨', style: 'primary' }),
+    btn('Ramasser l’éclat', { when, actions: [set(`eclat${n}`, 'oui'), add('eclats', 1), xp(15), tag('eclat-trouve'), ...(said ? [voice(...said)] : []), announce(`✨ **Éclat ${n}/6 retrouvé :** ${found}`)], onSuccess: { notice: `✨ **Éclat retrouvé !** ${found}\n+15 XP` } }, { emoji: '✨', style: 'primary' }),
     all(when, v(`eclat${n}`, 'non')),
   );
 
@@ -634,7 +634,7 @@ const foret = {
         PRELUDE,
         notice(),
         widget({ kind: 'activity.board', activity: 'bois', accent: FORET }),
-        shard(3, 'Au pied du grand chêne tombé', 'au pied du grand chêne tombé, en forêt.', from(110)),
+        shard(3, 'Au pied du grand chêne tombé', 'au pied du grand chêne tombé, en forêt.', from(110), ['sylvain-eclat', 'foret']),
         navRow('💬 Parler à Sylvain'),
       ],
     },
@@ -695,7 +695,7 @@ const ferme = {
         notice(),
         widget({ kind: 'objective.board', objective: 'recolte', accent: FERME }, from(55)),
         widget({ kind: 'activity.board', activity: 'travaux', accent: FERME }),
-        shard(4, 'Dans une botte de foin', 'dans une botte de foin de la ferme d’Agathe.', from(110)),
+        shard(4, 'Dans une botte de foin', 'dans une botte de foin de la ferme d’Agathe.', from(110), ['agathe-eclat', 'ferme']),
         navRow('💬 Parler à Agathe'),
       ],
     },
@@ -1399,7 +1399,7 @@ const q = (id, name, giver, difficulty, when, steps, o = {}) => ({ id, name, giv
 const visit = (id, label, building) => ({ id, kind: 'visit', label, building });
 const deliver = (id, label, item, qty, building) => ({ id, kind: 'deliver', label, item, qty, building });
 const count = (id, label, tags, target = 1) => ({ id, kind: 'count', label, tags: Array.isArray(tags) ? tags : [tags], target });
-const revealShard = (n, found) => ifThen(v(`eclat${n}`, 'non'), [set(`eclat${n}`, 'oui'), add('eclats', 1), announce(`✨ **Éclat ${n}/6 retrouvé :** ${found}`)]);
+const revealShard = (n, found, said) => ifThen(v(`eclat${n}`, 'non'), [set(`eclat${n}`, 'oui'), add('eclats', 1), ...(said ? [voice(...said)] : []), announce(`✨ **Éclat ${n}/6 retrouvé :** ${found}`)]);
 
 const quests = [
   q('q01', 'Premiers pas', 'Maëlis', 1, from(0), [{ id: 'lieux', kind: 'visit', label: 'Visiter 4 lieux différents', count: 4 }], { featured: true, description: 'Fais le tour du village : chaque lieu a son salon vocal.' }),
@@ -1427,7 +1427,7 @@ const quests = [
   q('q23', 'Ma voix compte', 'Maëlis', 2, between(45, 65), [count('roland', 'Écouter l’avis de Roland (mine)', 'dialogue:mine/avis'), count('wagner', 'Écouter l’avis de Wagner (forge)', 'dialogue:forge/avis'), count('vote', 'Voter au conseil de la pierre (Place)', 'vote')], { ordered: true }),
   q('q24', 'Bâcher les toits', 'Maëlis', 2, between(70, 85), [deliver('bois', 'Livrer 4 bûches sur la Place', 'buche', 4, 'place')]),
   q('q25', 'Pierres pour les murs', 'Père Anselme', 2, between(110, 170), [count('pierres', 'Apporter 8 pierres au chantier', 'objective:eglise/chantier:pierre', 8)]),
-  q('q26', 'Où sont tombés les éclats ?', 'Maëlis', 2, from(110), [count('temoins', 'Interroger 2 habitants sur la nuit de la tempête', ['dialogue:place/nuit', 'dialogue:mine/nuit', 'dialogue:forge/nuit', 'dialogue:foret/nuit', 'dialogue:ferme/nuit', 'dialogue:taverne/eclat'], 2)], { rewards: [revealShard(4, 'dans une botte de foin de la ferme d’Agathe.')] }),
+  q('q26', 'Où sont tombés les éclats ?', 'Maëlis', 2, from(110), [count('temoins', 'Interroger 2 habitants sur la nuit de la tempête', ['dialogue:place/nuit', 'dialogue:mine/nuit', 'dialogue:forge/nuit', 'dialogue:foret/nuit', 'dialogue:ferme/nuit', 'dialogue:taverne/eclat'], 2)], { rewards: [revealShard(4, 'dans une botte de foin de la ferme d’Agathe.', ['agathe-eclat', 'ferme'])] }),
   q('q27', 'La ferrure sacrée', 'Wagner', 3, between(110, 170), [count('forger', 'Forger 2 ferrures (Forgeron niv. 3)', 'activity:forge/ferrure', 2), count('livrer', 'Apporter 2 ferrures au chantier', 'objective:eglise/chantier:ferrure', 2)], { ordered: true, rewards: [give('titre_forgeron')] }),
   q('q28', 'Le banquet royal', 'Edgar', 3, from(0), [count('banquet', 'Cuisiner ou commander un Banquet royal', ['cook:taverne/royal', 'buy:taverne/royal'])], { rewards: [give('flasque_hydromel')] }),
   q('q29', 'Le cœur de la montagne', 'Roland', 3, from(25), [deliver('eclat', 'Trouver un éclat de pierre-tonnerre (galerie profonde) et le porter à Wagner', 'eclat', 1, 'forge')], { rewards: [give('eclat_poli')] }),
@@ -1463,10 +1463,16 @@ const MESSE = between(165, 182);
 const vie = (id, lines) => ({
   every: 75,
   // Sans moment précis : partout sauf à la messe (on y parle de la messe) et jamais pendant la finale.
-  lines: lines.map(([when, text], i) => ({ sound: `${id}-vie-${i + 1}`, text, when: all(when ?? not(MESSE), not(v('acte', 'apocalypse'))) })),
+  // Une 3e valeur donne la clé du son (répliques du document du scénario : « edgar-rumeur-pierre »…) ; sinon `${id}-vie-N`.
+  // Seules les lignes sans clé sont numérotées : ajouter une réplique nommée ne décale jamais les numéros existants.
+  lines: (() => {
+    let n = 0;
+    return lines.map(([when, text, key]) => ({ sound: key ?? `${id}-vie-${++n}`, text, when: all(when ?? not(MESSE), not(v('acte', 'apocalypse'))) }));
+  })(),
 });
 const CHATTER = {
   maelis: vie('maelis', [
+    [null, 'C’est noté dans mon registre. Le Royaume s’en souviendra… enfin, moi, je m’en souviendrai.', 'maelis-quete-finie'],
     [null, 'Le panneau des quêtes est à jour, servez-vous ! Il y a du travail pour tout le monde.'],
     [null, 'Quelqu’un a vu mon registre ? Je l’avais posé là… il y a cinq minutes.'],
     [VEILLE, 'Des lampions sur la fontaine, des guirlandes au balcon… cette année, la fête sera la plus belle de la vallée !'],
@@ -1479,6 +1485,8 @@ const CHATTER = {
     [MESSE, 'Je n’ai jamais vu l’église aussi pleine. Le Père Anselme va en pleurer de joie.'],
   ]),
   edgar: vie('edgar', [
+    [between(25, 85), 'Tu as entendu ? Roland a sorti un caillou qui crépite comme une bûche humide. Moi, je dis : un caillou qui fait du bruit, ça se met dans un tonneau et on n’en parle plus.', 'edgar-rumeur-pierre'],
+    [between(110, 150), 'Des éclats ? Quels éclats ? Moi, cette nuit-là, j’étais ici. Enfin, je crois. Il y avait de l’hydromel.', 'edgar-innocent'],
     [null, 'Une chope, l’ami ? La première fait soif, la deuxième fait du bien, la troisième… on verra bien !'],
     [null, 'Hé, toi ! Pas de chopes cassées dans mon établissement, hein ? Ou tu la paies en écus.'],
     [null, 'Ça sent bon le ragoût, pas vrai ? Recette de ma grand-mère. Enfin… de la grand-mère de quelqu’un.'],
@@ -1490,6 +1498,8 @@ const CHATTER = {
     [MESSE, 'Moi, à la messe ? Bah… pour une fois. Mais je garde un œil sur ma taverne d’ici.'],
   ]),
   roland: vie('roland', [
+    [between(25, 85), 'La galerie profonde est ouverte. Il y a peut-être d’autres éclats là-dessous. Prends ta pioche, et un casque, si t’en as un.', 'roland-galerie'],
+    [between(45, 65), 'Cette pierre, elle vient de la montagne, elle doit y retourner. Il y a des choses qu’on ne remonte pas, camarade.', 'roland-avis'],
     [null, 'Une galerie, ça s’écoute. Quand la roche se tait, c’est là qu’il faut s’inquiéter.'],
     [null, 'Ta pioche est émoussée, petit. Va voir Wagner avant de te casser le poignet.'],
     [VEILLE, 'Fête ou pas fête, la mine ne s’arrête jamais. Le fer ne se sort pas tout seul.'],
@@ -1500,6 +1510,7 @@ const CHATTER = {
     [MESSE, 'Même un vieux mineur sait quand il faut prier. Surtout aujourd’hui.'],
   ]),
   wagner: vie('wagner', [
+    [between(45, 65), 'Rendre ça à la terre ? Autant jeter de l’or dans la rivière. Laissez-moi l’étudier, je vous promets d’être prudent.', 'wagner-avis'],
     [null, 'Le fer ne ment jamais : chauffé trop vite, il casse ; chauffé avec patience, il dure cent ans.'],
     [null, 'Des lingots, j’ai besoin de lingots ! Qui me rapporte du minerai fondu ?'],
     [VEILLE, 'Pour la fête, je forge une cloche neuve. Enfin… si on me laisse travailler en paix.'],
@@ -1530,6 +1541,7 @@ const CHATTER = {
     [MESSE, 'Si on m’avait dit que je finirais la journée à l’église en tablier… Enfin, le Bon Dieu ne regarde pas les tabliers.'],
   ]),
   anselme: vie('anselme', [
+    [between(45, 65), 'Ce qui dort sous la montagne doit y dormir. Rendez cette pierre à la terre, je vous en prie.', 'anselme-avis'],
     [null, 'Que la paix soit sur cette maison… et sur ceux qui la font tenir debout.'],
     [null, 'Un cierge, mon enfant ? Il ne coûte presque rien et il éclaire beaucoup.'],
     [VEILLE, 'La Sainte Pelle a creusé ce village de ses mains. Ce soir, nous honorons sa mémoire.'],
@@ -1671,6 +1683,7 @@ const FINALE = [
   { when: v('apocalypse', 'attente'), sound: 'fin-attente', message: 'fin-rejoindre-aide', every: 20 },
   { when: v('acte', 'apocalypse'), sound: '' },
 ];
+const WELCOME = { ferme: 'agathe-accueil', eglise: 'anselme-accueil' };
 const AMBIENCES = {
   place: [[STORM, 'place-tempete'], [v('acte', 'veille'), 'place-fete'], [null, 'place-calme']],
   taverne: [[STORM, 'taverne-tempete'], [v('soiree', 'oui'), 'taverne-soiree'], [null, 'taverne-calme']],
@@ -1686,7 +1699,8 @@ for (const b of world.buildings) {
   if (!cases) throw new Error(`Ambiance manquante pour « ${b.id} »`);
 
   b.audio = {
-    ...(b.audio?.welcome ? { welcome: b.audio.welcome } : {}),
+    // Accueil dit quand quelqu'un arrive dans un lieu vide (première visite) : Edgar, Agathe, le Père Anselme.
+    ...((b.audio?.welcome ?? WELCOME[b.id]) ? { welcome: b.audio?.welcome ?? WELCOME[b.id] } : {}),
     ambience: { cases: [...FINALE, ...cases.map(([when, sound]) => (when ? { when, sound } : { sound }))] }, // la finale couvre tout le reste
     volume: b.audio?.volume ?? 0.5,
   };

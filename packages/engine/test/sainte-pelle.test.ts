@@ -405,3 +405,9 @@ test('ivresse : boire rend pompette puis éméché, l’eau dessoûle, ivre mort
   }
   assert.equal(e2.player('louis')!.stats.alcool, 90);
 });
+
+test('toutes les répliques du document du scénario sont jouées quelque part', () => {
+  const json = JSON.stringify(load());
+  for (const key of ['agathe-accueil', 'anselme-accueil', 'sylvain-eclat', 'agathe-eclat', 'maelis-quete-finie', 'edgar-rumeur-pierre', 'edgar-innocent', 'roland-galerie', 'roland-avis', 'wagner-avis', 'anselme-avis'])
+    assert.ok(json.includes(`"${key}"`), key);
+});
