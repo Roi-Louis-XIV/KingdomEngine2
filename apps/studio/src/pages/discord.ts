@@ -52,14 +52,14 @@ export async function discordPage(main: HTMLElement) {
                       (e.target as HTMLButtonElement).disabled = true;
                       try {
                         await post(`/api/servers/${s.id}/discord/provision`, {});
-                        toast('Salons créés ou vérifiés.');
+                        toast('Salons créés et rangés : chaque bâtiment a sa catégorie.');
                       } catch (err) {
                         toast((err as Error).message, 'error');
                       }
                       void draw();
                     },
                   },
-                  'Créer les salons manquants',
+                  'Créer ou ranger les salons (une catégorie par bâtiment)',
                 )
               : null,
             manager && d.guild.inGuild
