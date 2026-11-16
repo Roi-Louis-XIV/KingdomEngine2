@@ -195,6 +195,11 @@ export interface WorldDef {
   settings: {
     /** Nombre maximal de métiers exercés simultanément. */
     maxActiveJobs: number;
+    /**
+     * Il faut avoir pris un métier (action « job.join ») pour faire ses travaux (activités liées à ce métier).
+     * Sinon (défaut) : tout le monde peut faire tous les travaux et progresse dans le métier en travaillant.
+     */
+    jobsRequireJoin?: boolean;
     /** Fuseau horaire des programmations (défaut : Europe/Paris). */
     timezone?: string;
     /**

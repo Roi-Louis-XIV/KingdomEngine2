@@ -721,12 +721,15 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
       const eqt = equipmentTotals(ctx);
       if (eqt.attack || eqt.defense) lines.push(`⚔️ **Attaque :** ${eqt.attack} · 🛡️ **Défense :** ${eqt.defense}`);
       if (w.jobs && ctx.world.jobs.length) {
+        // Seuls les métiers déjà exercés apparaissent (le métier actuel en premier).
+        const done = ctx.world.jobs.filter((j) => p.jobs[j.id] || p.activeJobs.includes(j.id)).sort((a, b) => Number(p.activeJobs.includes(b.id)) - Number(p.activeJobs.includes(a.id)));
         lines.push('', '**🛠️ Métiers**');
-        for (const j of ctx.world.jobs) {
+        if (!done.length) lines.push('*Aucun métier exercé pour l’instant.*');
+        for (const j of done) {
           const prog = p.jobs[j.id] ?? { xp: 0, level: 1 };
           const max = j.maxLevel && prog.level >= j.maxLevel;
           const next = prog.level * j.xpPerLevel;
-          lines.push(`${j.emoji ?? '•'} ${j.name} · **niv. ${prog.level}**${max ? ' (maximum)' : ` · ${prog.xp}/${next} XP`}`);
+          lines.push(`${j.emoji ?? '•'} ${j.name} · **niv. ${prog.level}**${max ? ' (maximum)' : ` · ${prog.xp}/${next} XP`}${p.activeJobs.includes(j.id) ? ' · *métier actuel*' : ''}`);
         }
       }
       const q = findQuest(ctx, p.quest?.id);
@@ -829,6 +832,11 @@ export function activityLock(ctx: Ctx, mod: ActivityModule, a: ActivityDef): { t
     const custom = pickText(ctx, a.lockedText);
     const reason = custom && !v.reason.startsWith('il faut être') ? custom : v.reason;
     return { text: reason.charAt(0).toUpperCase() + reason.slice(1) };
+  }
+  // Métier à prendre d'abord (réglage du monde) : un seul métier à la fois, on démissionne pour en changer.
+  if (a.job && ctx.world.settings.jobsRequireJoin && !p.activeJobs.includes(a.job.id)) {
+    const job = findJob(ctx.world, a.job.id);
+    return { text: `Prends le métier ${job?.emoji ? job.emoji + ' ' : ''}${job?.name ?? a.job.id} pour faire ce travail` };
   }
   // Palier qui empêche de travailler (ivre mort…) : seulement pour le travail d'un métier.
   if (a.job) {

@@ -5,7 +5,8 @@
   "description": "Bêta KE4 : 3 heures pour 8 joueurs. Une pierre qui attire la foudre, une tempête, une église à relever. Lancez le scénario depuis la page En direct.",
   "settings": {
     "maxActiveJobs": 1,
-    "timezone": "Europe/Paris"
+    "timezone": "Europe/Paris",
+    "jobsRequireJoin": true
   },
   "events": [
     {
@@ -7924,6 +7925,19 @@
                   }
                 },
                 {
+                  "label": "📜 Démissionner",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "demission-brasseur"
+                    }
+                  },
+                  "style": "danger",
+                  "visibleIf": {
+                    "type": "hasJob",
+                    "job": "brasseur"
+                  }
+                },
+                {
                   "label": "🎒 Mon inventaire",
                   "rule": {
                     "onSuccess": {
@@ -8793,6 +8807,58 @@
             },
             {
               "type": "notice"
+            }
+          ]
+        },
+        {
+          "id": "demission-brasseur",
+          "name": "Démission (brasseur)",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 📜 Démission du métier de brasseur\n*« Tu lâches mes cuves ? Bon, la bière ne se brassera pas toute seule… » — Edgar*\n\n**Niveau conservé :** {player.level.brasseur} · **XP conservée :** {player.xp.brasseur}\n✅ Les brassins déjà lancés continuent.\n🔒 L’accès aux cuves est immédiatement retiré."
+                }
+              ],
+              "accent": 8936500
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Confirmer la démission",
+                  "rule": {
+                    "when": {
+                      "type": "hasJob",
+                      "job": "brasseur"
+                    },
+                    "actions": [
+                      {
+                        "type": "job.leave",
+                        "job": "brasseur"
+                      }
+                    ],
+                    "onSuccess": {
+                      "goto": "accueil",
+                      "notice": "📜 Démission enregistrée. Niveau et XP de brasseur conservés."
+                    },
+                    "onFailure": {
+                      "goto": "accueil"
+                    }
+                  },
+                  "style": "danger"
+                },
+                {
+                  "label": "Annuler",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                }
+              ]
             }
           ]
         }
@@ -10239,7 +10305,7 @@
                           "op": "eq",
                           "value": "eboulement"
                         },
-                        "text": "## ⛏️ Mine de Roland\n*🚨 La galerie s’est effondrée ! On entend Roland appeler à l’aide derrière les gravats.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n⛏️ **Mineur niveau {player.level.mineur}**/5 · {player.xp.mineur} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence par piocher du minerai ; chaque niveau ouvre des galeries plus riches."
+                        "text": "## ⛏️ Mine de Roland\n*🚨 La galerie s’est effondrée ! On entend Roland appeler à l’aide derrière les gravats.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       },
                       {
                         "when": {
@@ -10259,7 +10325,7 @@
                             }
                           ]
                         },
-                        "text": "## ⛏️ Mine de Roland\n*L’eau ruisselle sur les parois. Roland a fait remonter tout le monde : la mine est fermée pendant la tempête.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n⛏️ **Mineur niveau {player.level.mineur}**/5 · {player.xp.mineur} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence par piocher du minerai ; chaque niveau ouvre des galeries plus riches."
+                        "text": "## ⛏️ Mine de Roland\n*L’eau ruisselle sur les parois. Roland a fait remonter tout le monde : la mine est fermée pendant la tempête.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       },
                       {
                         "when": {
@@ -10268,7 +10334,7 @@
                           "op": "eq",
                           "value": "endommagee"
                         },
-                        "text": "## ⛏️ Mine de Roland\n*Les étais ont cédé par endroits. On travaille, mais prudemment.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n⛏️ **Mineur niveau {player.level.mineur}**/5 · {player.xp.mineur} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence par piocher du minerai ; chaque niveau ouvre des galeries plus riches."
+                        "text": "## ⛏️ Mine de Roland\n*Les étais ont cédé par endroits. On travaille, mais prudemment.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       },
                       {
                         "when": {
@@ -10288,12 +10354,31 @@
                             }
                           ]
                         },
-                        "text": "## ⛏️ Mine de Roland\n*Une lueur bleutée filtre depuis la galerie profonde, ouverte depuis la trouvaille de Roland.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n⛏️ **Mineur niveau {player.level.mineur}**/5 · {player.xp.mineur} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence par piocher du minerai ; chaque niveau ouvre des galeries plus riches."
+                        "text": "## ⛏️ Mine de Roland\n*Une lueur bleutée filtre depuis la galerie profonde, ouverte depuis la trouvaille de Roland.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       },
                       {
-                        "text": "## ⛏️ Mine de Roland\n*Le tintement des pioches résonne. Roland surveille ses galeries comme un berger ses moutons.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n⛏️ **Mineur niveau {player.level.mineur}**/5 · {player.xp.mineur} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence par piocher du minerai ; chaque niveau ouvre des galeries plus riches."
+                        "text": "## ⛏️ Mine de Roland\n*Le tintement des pioches résonne. Roland surveille ses galeries comme un berger ses moutons.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       }
                     ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "⛏️ **Tu es mineur** · niveau {player.level.mineur}/5 · {player.xp.mineur} XP",
+                  "visibleIf": {
+                    "type": "hasJob",
+                    "job": "mineur"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "⛏️ *Pour travailler ici, prends le métier de mineur.* Un seul métier à la fois.",
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob",
+                      "job": "mineur"
+                    }
                   }
                 }
               ],
@@ -10528,6 +10613,35 @@
             {
               "type": "buttons",
               "buttons": [
+                {
+                  "label": "⛏️ Devenir mineur",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "metier-mineur"
+                    }
+                  },
+                  "style": "success",
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob",
+                      "job": "mineur"
+                    }
+                  }
+                },
+                {
+                  "label": "📜 Démissionner",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "demission-mineur"
+                    }
+                  },
+                  "style": "danger",
+                  "visibleIf": {
+                    "type": "hasJob",
+                    "job": "mineur"
+                  }
+                },
                 {
                   "label": "💬 Parler à Roland",
                   "rule": {
@@ -11209,6 +11323,134 @@
                   "rule": {
                     "onSuccess": {
                       "goto": "echoppe-vente"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "metier-mineur",
+          "name": "Devenir mineur",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## ⛏️ Devenir mineur\n*« Une pioche, un casque, et du respect pour la montagne. Le reste, ça s’apprend. » — Roland*\n\n**Niveau retrouvé :** {player.level.mineur}/5 · **XP conservée :** {player.xp.mineur} (40 par niveau)\n**Le niveau ouvre les recettes :** chaque niveau ouvre des galeries plus riches (argent, or…).\n**Un seul métier à la fois** : pour en changer, démissionne là où tu l’exerces. Ton niveau est toujours conservé."
+                },
+                {
+                  "type": "text",
+                  "text": "⚠️ **Tu exerces déjà le métier {player.job}.** Va d’abord démissionner là où tu l’exerces.",
+                  "visibleIf": {
+                    "type": "all",
+                    "conditions": [
+                      {
+                        "type": "hasJob"
+                      },
+                      {
+                        "type": "not",
+                        "condition": {
+                          "type": "hasJob",
+                          "job": "mineur"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "accent": 5989488
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Devenir mineur",
+                  "rule": {
+                    "actions": [
+                      {
+                        "type": "job.join",
+                        "job": "mineur"
+                      }
+                    ],
+                    "onSuccess": {
+                      "goto": "accueil",
+                      "notice": "⛏️ Te voilà mineur ! Les travaux du métier sont ouverts."
+                    },
+                    "onFailure": {
+                      "goto": "accueil"
+                    }
+                  },
+                  "style": "success",
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob"
+                    }
+                  }
+                },
+                {
+                  "label": "Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "demission-mineur",
+          "name": "Démission (mineur)",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 📜 Démission du métier de mineur\n*« Déjà ? Bon… la porte reste ouverte. » — Roland*\n\n**Niveau conservé :** {player.level.mineur}/5 · **XP conservée :** {player.xp.mineur}\n✅ Les travaux déjà lancés continuent : tu pourras les récupérer.\n🔒 Les nouveaux travaux du métier te sont fermés jusqu’à ton retour."
+                }
+              ],
+              "accent": 5989488
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Confirmer la démission",
+                  "rule": {
+                    "when": {
+                      "type": "hasJob",
+                      "job": "mineur"
+                    },
+                    "actions": [
+                      {
+                        "type": "job.leave",
+                        "job": "mineur"
+                      }
+                    ],
+                    "onSuccess": {
+                      "goto": "accueil",
+                      "notice": "📜 Démission enregistrée. Ton niveau de mineur est conservé."
+                    },
+                    "onFailure": {
+                      "goto": "accueil"
+                    }
+                  },
+                  "style": "danger"
+                },
+                {
+                  "label": "Annuler",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
                     }
                   }
                 }
@@ -15148,7 +15390,7 @@
                           "op": "eq",
                           "value": "incendie"
                         },
-                        "text": "## 🔥 Forge du Dragon Noir\n*🚨 LE TOIT BRÛLE ! La foudre est tombée droit sur la pierre-tonnerre. Wagner hurle : « De l’eau ! »*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🔨 **Forgeron niveau {player.level.forgeron}**/5 · {player.xp.forgeron} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence à la **🔥 fonderie** : 2 minerais de fer (Mine) donnent un lingot. Chaque ouvrage fait progresser, et chaque niveau débloque de nouveaux objets du catalogue."
+                        "text": "## 🔥 Forge du Dragon Noir\n*🚨 LE TOIT BRÛLE ! La foudre est tombée droit sur la pierre-tonnerre. Wagner hurle : « De l’eau ! »*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       },
                       {
                         "when": {
@@ -15168,7 +15410,7 @@
                             }
                           ]
                         },
-                        "text": "## 🔥 Forge du Dragon Noir\n*Wagner a couvert le feu et barricadé la porte. Rien ne se forge pendant la tempête.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🔨 **Forgeron niveau {player.level.forgeron}**/5 · {player.xp.forgeron} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence à la **🔥 fonderie** : 2 minerais de fer (Mine) donnent un lingot. Chaque ouvrage fait progresser, et chaque niveau débloque de nouveaux objets du catalogue."
+                        "text": "## 🔥 Forge du Dragon Noir\n*Wagner a couvert le feu et barricadé la porte. Rien ne se forge pendant la tempête.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       },
                       {
                         "when": {
@@ -15177,7 +15419,7 @@
                           "op": "eq",
                           "value": "endommagee"
                         },
-                        "text": "## 🔥 Forge du Dragon Noir\n*Le toit n’est plus qu’une charpente noircie. Wagner fouille les cendres.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🔨 **Forgeron niveau {player.level.forgeron}**/5 · {player.xp.forgeron} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence à la **🔥 fonderie** : 2 minerais de fer (Mine) donnent un lingot. Chaque ouvrage fait progresser, et chaque niveau débloque de nouveaux objets du catalogue."
+                        "text": "## 🔥 Forge du Dragon Noir\n*Le toit n’est plus qu’une charpente noircie. Wagner fouille les cendres.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       },
                       {
                         "when": {
@@ -15197,12 +15439,31 @@
                             }
                           ]
                         },
-                        "text": "## 🔥 Forge du Dragon Noir\n*Sur l’enclume, une pierre bleutée grésille. Wagner la regarde comme un trésor.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🔨 **Forgeron niveau {player.level.forgeron}**/5 · {player.xp.forgeron} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence à la **🔥 fonderie** : 2 minerais de fer (Mine) donnent un lingot. Chaque ouvrage fait progresser, et chaque niveau débloque de nouveaux objets du catalogue."
+                        "text": "## 🔥 Forge du Dragon Noir\n*Sur l’enclume, une pierre bleutée grésille. Wagner la regarde comme un trésor.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       },
                       {
-                        "text": "## 🔥 Forge du Dragon Noir\n*Le foyer rugit. Wagner frappe le métal en cadence.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🔨 **Forgeron niveau {player.level.forgeron}**/5 · {player.xp.forgeron} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence à la **🔥 fonderie** : 2 minerais de fer (Mine) donnent un lingot. Chaque ouvrage fait progresser, et chaque niveau débloque de nouveaux objets du catalogue."
+                        "text": "## 🔥 Forge du Dragon Noir\n*Le foyer rugit. Wagner frappe le métal en cadence.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       }
                     ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "🔨 **Tu es forgeron** · niveau {player.level.forgeron}/5 · {player.xp.forgeron} XP",
+                  "visibleIf": {
+                    "type": "hasJob",
+                    "job": "forgeron"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "🔨 *Pour travailler ici, prends le métier de forgeron.* Un seul métier à la fois.",
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob",
+                      "job": "forgeron"
+                    }
                   }
                 }
               ],
@@ -15470,6 +15731,35 @@
             {
               "type": "buttons",
               "buttons": [
+                {
+                  "label": "🔨 Devenir forgeron",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "metier-forgeron"
+                    }
+                  },
+                  "style": "success",
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob",
+                      "job": "forgeron"
+                    }
+                  }
+                },
+                {
+                  "label": "📜 Démissionner",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "demission-forgeron"
+                    }
+                  },
+                  "style": "danger",
+                  "visibleIf": {
+                    "type": "hasJob",
+                    "job": "forgeron"
+                  }
+                },
                 {
                   "label": "💬 Parler à Wagner",
                   "rule": {
@@ -16266,6 +16556,134 @@
                   "rule": {
                     "onSuccess": {
                       "goto": "echoppe-vente"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "metier-forgeron",
+          "name": "Devenir forgeron",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🔨 Devenir forgeron\n*« Le feu ne pardonne rien. Toi non plus, tu ne pardonneras rien au métal. » — Wagner*\n\n**Niveau retrouvé :** {player.level.forgeron}/5 · **XP conservée :** {player.xp.forgeron} (40 par niveau)\n**Le niveau ouvre les recettes :** commence à la 🔥 fonderie (2 minerais de fer = 1 lingot) ; chaque niveau ouvre de nouveaux métaux et de nouveaux objets du catalogue.\n**Un seul métier à la fois** : pour en changer, démissionne là où tu l’exerces. Ton niveau est toujours conservé."
+                },
+                {
+                  "type": "text",
+                  "text": "⚠️ **Tu exerces déjà le métier {player.job}.** Va d’abord démissionner là où tu l’exerces.",
+                  "visibleIf": {
+                    "type": "all",
+                    "conditions": [
+                      {
+                        "type": "hasJob"
+                      },
+                      {
+                        "type": "not",
+                        "condition": {
+                          "type": "hasJob",
+                          "job": "forgeron"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "accent": 10107677
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Devenir forgeron",
+                  "rule": {
+                    "actions": [
+                      {
+                        "type": "job.join",
+                        "job": "forgeron"
+                      }
+                    ],
+                    "onSuccess": {
+                      "goto": "accueil",
+                      "notice": "🔨 Te voilà forgeron ! Les travaux du métier sont ouverts."
+                    },
+                    "onFailure": {
+                      "goto": "accueil"
+                    }
+                  },
+                  "style": "success",
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob"
+                    }
+                  }
+                },
+                {
+                  "label": "Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "demission-forgeron",
+          "name": "Démission (forgeron)",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 📜 Démission du métier de forgeron\n*« Déjà ? Bon… la porte reste ouverte. » — Wagner*\n\n**Niveau conservé :** {player.level.forgeron}/5 · **XP conservée :** {player.xp.forgeron}\n✅ Les travaux déjà lancés continuent : tu pourras les récupérer.\n🔒 Les nouveaux travaux du métier te sont fermés jusqu’à ton retour."
+                }
+              ],
+              "accent": 10107677
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Confirmer la démission",
+                  "rule": {
+                    "when": {
+                      "type": "hasJob",
+                      "job": "forgeron"
+                    },
+                    "actions": [
+                      {
+                        "type": "job.leave",
+                        "job": "forgeron"
+                      }
+                    ],
+                    "onSuccess": {
+                      "goto": "accueil",
+                      "notice": "📜 Démission enregistrée. Ton niveau de forgeron est conservé."
+                    },
+                    "onFailure": {
+                      "goto": "accueil"
+                    }
+                  },
+                  "style": "danger"
+                },
+                {
+                  "label": "Annuler",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
                     }
                   }
                 }
@@ -17611,7 +18029,7 @@
                           "op": "gte",
                           "value": 110
                         },
-                        "text": "## 🌲 Forêt de Sylvain\n*Des arbres couchés partout. Sylvain marque à la craie ceux qu’on peut débiter.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🪓 **Bûcheron niveau {player.level.bucheron}**/5 · {player.xp.bucheron} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Coupe du bois avec une hache ; chaque niveau ouvre des arbres plus durs."
+                        "text": "## 🌲 Forêt de Sylvain\n*Des arbres couchés partout. Sylvain marque à la craie ceux qu’on peut débiter.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       },
                       {
                         "when": {
@@ -17631,12 +18049,31 @@
                             }
                           ]
                         },
-                        "text": "## 🌲 Forêt de Sylvain\n*Le vent se lève. Les branches s’agitent ; Sylvain presse tout le monde.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🪓 **Bûcheron niveau {player.level.bucheron}**/5 · {player.xp.bucheron} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Coupe du bois avec une hache ; chaque niveau ouvre des arbres plus durs."
+                        "text": "## 🌲 Forêt de Sylvain\n*Le vent se lève. Les branches s’agitent ; Sylvain presse tout le monde.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       },
                       {
-                        "text": "## 🌲 Forêt de Sylvain\n*Les grands chênes bruissent. Sylvain, le garde-forestier, veille sur ses arbres.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🪓 **Bûcheron niveau {player.level.bucheron}**/5 · {player.xp.bucheron} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Coupe du bois avec une hache ; chaque niveau ouvre des arbres plus durs."
+                        "text": "## 🌲 Forêt de Sylvain\n*Les grands chênes bruissent. Sylvain, le garde-forestier, veille sur ses arbres.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       }
                     ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "🪓 **Tu es bûcheron** · niveau {player.level.bucheron}/5 · {player.xp.bucheron} XP",
+                  "visibleIf": {
+                    "type": "hasJob",
+                    "job": "bucheron"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "🪓 *Pour travailler ici, prends le métier de bûcheron.* Un seul métier à la fois.",
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob",
+                      "job": "bucheron"
+                    }
                   }
                 }
               ],
@@ -17792,6 +18229,35 @@
             {
               "type": "buttons",
               "buttons": [
+                {
+                  "label": "🪓 Devenir bûcheron",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "metier-bucheron"
+                    }
+                  },
+                  "style": "success",
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob",
+                      "job": "bucheron"
+                    }
+                  }
+                },
+                {
+                  "label": "📜 Démissionner",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "demission-bucheron"
+                    }
+                  },
+                  "style": "danger",
+                  "visibleIf": {
+                    "type": "hasJob",
+                    "job": "bucheron"
+                  }
+                },
                 {
                   "label": "💬 Parler à Sylvain",
                   "rule": {
@@ -18270,6 +18736,134 @@
                   "rule": {
                     "onSuccess": {
                       "goto": "echoppe-vente"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "metier-bucheron",
+          "name": "Devenir bûcheron",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🪓 Devenir bûcheron\n*« On coupe ce que la forêt veut bien donner. Pas un arbre de plus. » — Sylvain*\n\n**Niveau retrouvé :** {player.level.bucheron}/5 · **XP conservée :** {player.xp.bucheron} (40 par niveau)\n**Le niveau ouvre les recettes :** chaque niveau ouvre des arbres plus durs et du bois plus précieux.\n**Un seul métier à la fois** : pour en changer, démissionne là où tu l’exerces. Ton niveau est toujours conservé."
+                },
+                {
+                  "type": "text",
+                  "text": "⚠️ **Tu exerces déjà le métier {player.job}.** Va d’abord démissionner là où tu l’exerces.",
+                  "visibleIf": {
+                    "type": "all",
+                    "conditions": [
+                      {
+                        "type": "hasJob"
+                      },
+                      {
+                        "type": "not",
+                        "condition": {
+                          "type": "hasJob",
+                          "job": "bucheron"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "accent": 4156229
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Devenir bûcheron",
+                  "rule": {
+                    "actions": [
+                      {
+                        "type": "job.join",
+                        "job": "bucheron"
+                      }
+                    ],
+                    "onSuccess": {
+                      "goto": "accueil",
+                      "notice": "🪓 Te voilà bûcheron ! Les travaux du métier sont ouverts."
+                    },
+                    "onFailure": {
+                      "goto": "accueil"
+                    }
+                  },
+                  "style": "success",
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob"
+                    }
+                  }
+                },
+                {
+                  "label": "Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "demission-bucheron",
+          "name": "Démission (bûcheron)",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 📜 Démission du métier de bûcheron\n*« Déjà ? Bon… la porte reste ouverte. » — Sylvain*\n\n**Niveau conservé :** {player.level.bucheron}/5 · **XP conservée :** {player.xp.bucheron}\n✅ Les travaux déjà lancés continuent : tu pourras les récupérer.\n🔒 Les nouveaux travaux du métier te sont fermés jusqu’à ton retour."
+                }
+              ],
+              "accent": 4156229
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Confirmer la démission",
+                  "rule": {
+                    "when": {
+                      "type": "hasJob",
+                      "job": "bucheron"
+                    },
+                    "actions": [
+                      {
+                        "type": "job.leave",
+                        "job": "bucheron"
+                      }
+                    ],
+                    "onSuccess": {
+                      "goto": "accueil",
+                      "notice": "📜 Démission enregistrée. Ton niveau de bûcheron est conservé."
+                    },
+                    "onFailure": {
+                      "goto": "accueil"
+                    }
+                  },
+                  "style": "danger"
+                },
+                {
+                  "label": "Annuler",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
                     }
                   }
                 }
@@ -19467,7 +20061,7 @@
                             }
                           ]
                         },
-                        "text": "## 🌾 Ferme d’Agathe\n*Le ciel noircit. Agathe a sonné la dernière récolte : tout le monde aux champs !*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🌾 **Fermier niveau {player.level.fermier}**/5 · {player.xp.fermier} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Ramasse, moissonne, nourris les bêtes ; chaque niveau ouvre de nouveaux travaux."
+                        "text": "## 🌾 Ferme d’Agathe\n*Le ciel noircit. Agathe a sonné la dernière récolte : tout le monde aux champs !*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       },
                       {
                         "when": {
@@ -19476,12 +20070,31 @@
                           "op": "gte",
                           "value": 110
                         },
-                        "text": "## 🌾 Ferme d’Agathe\n*La grange a tenu bon. Agathe compte ses poules, une par une.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🌾 **Fermier niveau {player.level.fermier}**/5 · {player.xp.fermier} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Ramasse, moissonne, nourris les bêtes ; chaque niveau ouvre de nouveaux travaux."
+                        "text": "## 🌾 Ferme d’Agathe\n*La grange a tenu bon. Agathe compte ses poules, une par une.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       },
                       {
-                        "text": "## 🌾 Ferme d’Agathe\n*Les poules caquettent, le blé ondule. Agathe distribue des paniers.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🌾 **Fermier niveau {player.level.fermier}**/5 · {player.xp.fermier} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Ramasse, moissonne, nourris les bêtes ; chaque niveau ouvre de nouveaux travaux."
+                        "text": "## 🌾 Ferme d’Agathe\n*Les poules caquettent, le blé ondule. Agathe distribue des paniers.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       }
                     ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "🌾 **Tu es fermier** · niveau {player.level.fermier}/5 · {player.xp.fermier} XP",
+                  "visibleIf": {
+                    "type": "hasJob",
+                    "job": "fermier"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "🌾 *Pour travailler ici, prends le métier de fermier.* Un seul métier à la fois.",
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob",
+                      "job": "fermier"
+                    }
                   }
                 }
               ],
@@ -19626,6 +20239,35 @@
             {
               "type": "buttons",
               "buttons": [
+                {
+                  "label": "🌾 Devenir fermier",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "metier-fermier"
+                    }
+                  },
+                  "style": "success",
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob",
+                      "job": "fermier"
+                    }
+                  }
+                },
+                {
+                  "label": "📜 Démissionner",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "demission-fermier"
+                    }
+                  },
+                  "style": "danger",
+                  "visibleIf": {
+                    "type": "hasJob",
+                    "job": "fermier"
+                  }
+                },
                 {
                   "label": "💬 Parler à Agathe",
                   "rule": {
@@ -20026,6 +20668,134 @@
                   "rule": {
                     "onSuccess": {
                       "goto": "echoppe-vente"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "metier-fermier",
+          "name": "Devenir fermier",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🌾 Devenir fermier\n*« Des bras, enfin ! Les bottes sont à tes risques. » — Agathe*\n\n**Niveau retrouvé :** {player.level.fermier}/5 · **XP conservée :** {player.xp.fermier} (40 par niveau)\n**Le niveau ouvre les recettes :** chaque niveau ouvre de nouveaux travaux de la ferme.\n**Un seul métier à la fois** : pour en changer, démissionne là où tu l’exerces. Ton niveau est toujours conservé."
+                },
+                {
+                  "type": "text",
+                  "text": "⚠️ **Tu exerces déjà le métier {player.job}.** Va d’abord démissionner là où tu l’exerces.",
+                  "visibleIf": {
+                    "type": "all",
+                    "conditions": [
+                      {
+                        "type": "hasJob"
+                      },
+                      {
+                        "type": "not",
+                        "condition": {
+                          "type": "hasJob",
+                          "job": "fermier"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "accent": 11570479
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Devenir fermier",
+                  "rule": {
+                    "actions": [
+                      {
+                        "type": "job.join",
+                        "job": "fermier"
+                      }
+                    ],
+                    "onSuccess": {
+                      "goto": "accueil",
+                      "notice": "🌾 Te voilà fermier ! Les travaux du métier sont ouverts."
+                    },
+                    "onFailure": {
+                      "goto": "accueil"
+                    }
+                  },
+                  "style": "success",
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob"
+                    }
+                  }
+                },
+                {
+                  "label": "Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "demission-fermier",
+          "name": "Démission (fermier)",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 📜 Démission du métier de fermier\n*« Déjà ? Bon… la porte reste ouverte. » — Agathe*\n\n**Niveau conservé :** {player.level.fermier}/5 · **XP conservée :** {player.xp.fermier}\n✅ Les travaux déjà lancés continuent : tu pourras les récupérer.\n🔒 Les nouveaux travaux du métier te sont fermés jusqu’à ton retour."
+                }
+              ],
+              "accent": 11570479
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Confirmer la démission",
+                  "rule": {
+                    "when": {
+                      "type": "hasJob",
+                      "job": "fermier"
+                    },
+                    "actions": [
+                      {
+                        "type": "job.leave",
+                        "job": "fermier"
+                      }
+                    ],
+                    "onSuccess": {
+                      "goto": "accueil",
+                      "notice": "📜 Démission enregistrée. Ton niveau de fermier est conservé."
+                    },
+                    "onFailure": {
+                      "goto": "accueil"
+                    }
+                  },
+                  "style": "danger"
+                },
+                {
+                  "label": "Annuler",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
                     }
                   }
                 }
@@ -20684,7 +21454,7 @@
                           "op": "gte",
                           "value": 110
                         },
-                        "text": "## 🌉 Vieux pont de Valbrume\n*Le pont a tenu. Sur l’autre rive, l’église éventrée fait peine à voir.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🎣 **Pêcheur niveau {player.level.pecheur}**/5 · {player.xp.pecheur} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Pêche avec une canne ; chaque niveau ouvre de meilleurs coins."
+                        "text": "## 🌉 Vieux pont de Valbrume\n*Le pont a tenu. Sur l’autre rive, l’église éventrée fait peine à voir.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       },
                       {
                         "when": {
@@ -20704,12 +21474,31 @@
                             }
                           ]
                         },
-                        "text": "## 🌉 Vieux pont de Valbrume\n*La rivière gonfle et charrie des branches. Les poissons se pressent sous les arches.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🎣 **Pêcheur niveau {player.level.pecheur}**/5 · {player.xp.pecheur} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Pêche avec une canne ; chaque niveau ouvre de meilleurs coins."
+                        "text": "## 🌉 Vieux pont de Valbrume\n*La rivière gonfle et charrie des branches. Les poissons se pressent sous les arches.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       },
                       {
-                        "text": "## 🌉 Vieux pont de Valbrume\n*Le vieux pont enjambe la rivière. De l’autre côté, le clocher de la Sainte Pelle.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🎣 **Pêcheur niveau {player.level.pecheur}**/5 · {player.xp.pecheur} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Pêche avec une canne ; chaque niveau ouvre de meilleurs coins."
+                        "text": "## 🌉 Vieux pont de Valbrume\n*Le vieux pont enjambe la rivière. De l’autre côté, le clocher de la Sainte Pelle.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
                       }
                     ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "🎣 **Tu es pêcheur** · niveau {player.level.pecheur}/5 · {player.xp.pecheur} XP",
+                  "visibleIf": {
+                    "type": "hasJob",
+                    "job": "pecheur"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "🎣 *Pour travailler ici, prends le métier de pêcheur.* Un seul métier à la fois.",
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob",
+                      "job": "pecheur"
+                    }
                   }
                 }
               ],
@@ -20859,6 +21648,35 @@
             {
               "type": "buttons",
               "buttons": [
+                {
+                  "label": "🎣 Devenir pêcheur",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "metier-pecheur"
+                    }
+                  },
+                  "style": "success",
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob",
+                      "job": "pecheur"
+                    }
+                  }
+                },
+                {
+                  "label": "📜 Démissionner",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "demission-pecheur"
+                    }
+                  },
+                  "style": "danger",
+                  "visibleIf": {
+                    "type": "hasJob",
+                    "job": "pecheur"
+                  }
+                },
                 {
                   "label": "🛒 Échoppe",
                   "rule": {
@@ -21310,6 +22128,134 @@
                   "rule": {
                     "onSuccess": {
                       "goto": "echoppe-vente"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "metier-pecheur",
+          "name": "Devenir pêcheur",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🎣 Devenir pêcheur\n*« La rivière donne à ceux qui savent attendre. »*\n\n**Niveau retrouvé :** {player.level.pecheur}/5 · **XP conservée :** {player.xp.pecheur} (40 par niveau)\n**Le niveau ouvre les recettes :** chaque niveau ouvre de meilleurs coins de pêche.\n**Un seul métier à la fois** : pour en changer, démissionne là où tu l’exerces. Ton niveau est toujours conservé."
+                },
+                {
+                  "type": "text",
+                  "text": "⚠️ **Tu exerces déjà le métier {player.job}.** Va d’abord démissionner là où tu l’exerces.",
+                  "visibleIf": {
+                    "type": "all",
+                    "conditions": [
+                      {
+                        "type": "hasJob"
+                      },
+                      {
+                        "type": "not",
+                        "condition": {
+                          "type": "hasJob",
+                          "job": "pecheur"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "accent": 3894927
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Devenir pêcheur",
+                  "rule": {
+                    "actions": [
+                      {
+                        "type": "job.join",
+                        "job": "pecheur"
+                      }
+                    ],
+                    "onSuccess": {
+                      "goto": "accueil",
+                      "notice": "🎣 Te voilà pêcheur ! Les travaux du métier sont ouverts."
+                    },
+                    "onFailure": {
+                      "goto": "accueil"
+                    }
+                  },
+                  "style": "success",
+                  "visibleIf": {
+                    "type": "not",
+                    "condition": {
+                      "type": "hasJob"
+                    }
+                  }
+                },
+                {
+                  "label": "Retour",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "demission-pecheur",
+          "name": "Démission (pêcheur)",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 📜 Démission du métier de pêcheur\n*« Déjà ? Bon… la porte reste ouverte. »*\n\n**Niveau conservé :** {player.level.pecheur}/5 · **XP conservée :** {player.xp.pecheur}\n✅ Les travaux déjà lancés continuent : tu pourras les récupérer.\n🔒 Les nouveaux travaux du métier te sont fermés jusqu’à ton retour."
+                }
+              ],
+              "accent": 3894927
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "Confirmer la démission",
+                  "rule": {
+                    "when": {
+                      "type": "hasJob",
+                      "job": "pecheur"
+                    },
+                    "actions": [
+                      {
+                        "type": "job.leave",
+                        "job": "pecheur"
+                      }
+                    ],
+                    "onSuccess": {
+                      "goto": "accueil",
+                      "notice": "📜 Démission enregistrée. Ton niveau de pêcheur est conservé."
+                    },
+                    "onFailure": {
+                      "goto": "accueil"
+                    }
+                  },
+                  "style": "danger"
+                },
+                {
+                  "label": "Annuler",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
                     }
                   }
                 }

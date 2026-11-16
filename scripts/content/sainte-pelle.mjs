@@ -1717,22 +1717,78 @@ for (const b of world.buildings)
       if (i > 0) ch.splice(i - 1, 2, { type: 'text', text: joinText(ch[i - 1].text, statusLine) });
     }
 
-// Métier du lieu, rappelé sur l'accueil (demande de Louis : « comment on devient forgeron ? »).
-// Tout le monde exerce ces métiers : on progresse en travaillant, sans rien rejoindre (seul le brasseur se rejoint).
-const JOB_HINTS = {
-  mine: ['mineur', '⛏️', 'Mineur', 'Commence par piocher du minerai ; chaque niveau ouvre des galeries plus riches.'],
-  forge: ['forgeron', '🔨', 'Forgeron', 'Commence à la **🔥 fonderie** : 2 minerais de fer (Mine) donnent un lingot. Chaque ouvrage fait progresser, et chaque niveau débloque de nouveaux objets du catalogue.'],
-  foret: ['bucheron', '🪓', 'Bûcheron', 'Coupe du bois avec une hache ; chaque niveau ouvre des arbres plus durs.'],
-  ferme: ['fermier', '🌾', 'Fermier', 'Ramasse, moissonne, nourris les bêtes ; chaque niveau ouvre de nouveaux travaux.'],
-  pont: ['pecheur', '🎣', 'Pêcheur', 'Pêche avec une canne ; chaque niveau ouvre de meilleurs coins.'],
-};
-for (const [bid, [job, emoji, name, how]] of Object.entries(JOB_HINTS)) {
-  const b = world.buildings.find((x) => x.id === bid);
-  const home = b?.screens.find((x) => x.id === b.homeScreen);
-  const head = home?.blocks.find((x) => x.type === 'container');
-  const t = head?.children.find((x) => x.type === 'text');
-  if (!t) throw new Error(`Accueil sans en-tête : ${bid}`);
-  t.text = joinText(t.text, `${emoji} **${name} niveau {player.level.${job}}**/5 · {player.xp.${job}} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* ${how}`);
+// Métiers (règle de Louis, 16 novembre) : on PREND un métier pour faire ses travaux, et on DÉMISSIONNE avant
+// d'en prendre un autre (un seul à la fois). Le niveau est conservé ; il ouvre plus ou moins de recettes.
+// Même présentation qu'à la Taverne : écran « Devenir … », écran « Démission », boutons sur l'accueil.
+world.settings.jobsRequireJoin = true;
+const JOB_DESKS = [
+  { b: 'mine', job: 'mineur', emoji: '⛏️', who: 'Roland', name: 'mineur', quote: 'Une pioche, un casque, et du respect pour la montagne. Le reste, ça s’apprend.', unlocks: 'chaque niveau ouvre des galeries plus riches (argent, or…).' },
+  { b: 'forge', job: 'forgeron', emoji: '🔨', who: 'Wagner', name: 'forgeron', quote: 'Le feu ne pardonne rien. Toi non plus, tu ne pardonneras rien au métal.', unlocks: 'commence à la 🔥 fonderie (2 minerais de fer = 1 lingot) ; chaque niveau ouvre de nouveaux métaux et de nouveaux objets du catalogue.' },
+  { b: 'foret', job: 'bucheron', emoji: '🪓', who: 'Sylvain', name: 'bûcheron', quote: 'On coupe ce que la forêt veut bien donner. Pas un arbre de plus.', unlocks: 'chaque niveau ouvre des arbres plus durs et du bois plus précieux.' },
+  { b: 'ferme', job: 'fermier', emoji: '🌾', who: 'Agathe', name: 'fermier', quote: 'Des bras, enfin ! Les bottes sont à tes risques.', unlocks: 'chaque niveau ouvre de nouveaux travaux de la ferme.' },
+  { b: 'pont', job: 'pecheur', emoji: '🎣', who: null, name: 'pêcheur', quote: 'La rivière donne à ceux qui savent attendre.', unlocks: 'chaque niveau ouvre de meilleurs coins de pêche.' },
+];
+const hasJob = (job) => ({ type: 'hasJob', ...(job ? { job } : {}) });
+for (const d of JOB_DESKS) {
+  const b = world.buildings.find((x) => x.id === d.b);
+  const home = b.screens.find((x) => x.id === b.homeScreen);
+  const Name = d.name.charAt(0).toUpperCase() + d.name.slice(1);
+  b.screens.push(
+    {
+      id: `metier-${d.job}`,
+      name: `Devenir ${d.name}`,
+      blocks: [
+        box([
+          text(`## ${d.emoji} Devenir ${d.name}\n*« ${d.quote} »${d.who ? ` — ${d.who}` : ''}*\n\n**Niveau retrouvé :** {player.level.${d.job}}/5 · **XP conservée :** {player.xp.${d.job}} (40 par niveau)\n**Le niveau ouvre les recettes :** ${d.unlocks}\n**Un seul métier à la fois** : pour en changer, démissionne là où tu l’exerces. Ton niveau est toujours conservé.`),
+          text('⚠️ **Tu exerces déjà le métier {player.job}.** Va d’abord démissionner là où tu l’exerces.', all(hasJob(), not(hasJob(d.job)))),
+        ], b.accentColor),
+        notice(),
+        buttons([
+          btn(`Devenir ${d.name}`, { actions: [{ type: 'job.join', job: d.job }], onSuccess: { goto: b.homeScreen, notice: `${d.emoji} Te voilà ${d.name} ! Les travaux du métier sont ouverts.` }, onFailure: { goto: b.homeScreen } }, { style: 'success', visibleIf: not(hasJob()) }),
+          go('Retour', b.homeScreen),
+        ]),
+      ],
+    },
+    {
+      id: `demission-${d.job}`,
+      name: `Démission (${d.name})`,
+      blocks: [
+        box([text(`## 📜 Démission du métier de ${d.name}\n*« Déjà ? Bon… la porte reste ouverte. »${d.who ? ` — ${d.who}` : ''}*\n\n**Niveau conservé :** {player.level.${d.job}}/5 · **XP conservée :** {player.xp.${d.job}}\n✅ Les travaux déjà lancés continuent : tu pourras les récupérer.\n🔒 Les nouveaux travaux du métier te sont fermés jusqu’à ton retour.`)], b.accentColor),
+        buttons([
+          btn('Confirmer la démission', { when: hasJob(d.job), actions: [{ type: 'job.leave', job: d.job }], onSuccess: { goto: b.homeScreen, notice: `📜 Démission enregistrée. Ton niveau de ${d.name} est conservé.` }, onFailure: { goto: b.homeScreen } }, { style: 'danger' }),
+          go('Annuler', b.homeScreen),
+        ]),
+      ],
+    },
+  );
+  // Accueil : une ligne d'état du métier, et le bouton qui va avec.
+  const head = home.blocks.find((x) => x.type === 'container');
+  head.children.push(
+    text(`${d.emoji} **Tu es ${d.name}** · niveau {player.level.${d.job}}/5 · {player.xp.${d.job}} XP`, hasJob(d.job)),
+    text(`${d.emoji} *Pour travailler ici, prends le métier de ${d.name}.* Un seul métier à la fois.`, not(hasJob(d.job))),
+  );
+  const nav = [...home.blocks].reverse().find((x) => x.type === 'buttons');
+  nav.buttons.unshift(
+    go(`${d.emoji} Devenir ${d.name}`, `metier-${d.job}`, { style: 'success', visibleIf: not(hasJob(d.job)) }),
+    go('📜 Démissionner', `demission-${d.job}`, { style: 'danger', visibleIf: hasJob(d.job) }),
+  );
+}
+// Taverne : le brasseur peut aussi démissionner (le cuisinier le pouvait déjà).
+{
+  const home = taverne.screens.find((x) => x.id === 'accueil');
+  taverne.screens.push({
+    id: 'demission-brasseur',
+    name: 'Démission (brasseur)',
+    blocks: [
+      box([text('## 📜 Démission du métier de brasseur\n*« Tu lâches mes cuves ? Bon, la bière ne se brassera pas toute seule… » — Edgar*\n\n**Niveau conservé :** {player.level.brasseur} · **XP conservée :** {player.xp.brasseur}\n✅ Les brassins déjà lancés continuent.\n🔒 L’accès aux cuves est immédiatement retiré.')], 0x885c34),
+      buttons([
+        btn('Confirmer la démission', { when: hasJob('brasseur'), actions: [{ type: 'job.leave', job: 'brasseur' }], onSuccess: { goto: 'accueil', notice: '📜 Démission enregistrée. Niveau et XP de brasseur conservés.' }, onFailure: { goto: 'accueil' } }, { style: 'danger' }),
+        go('Annuler', 'accueil'),
+      ]),
+    ],
+  });
+  const row = home.blocks.find((x) => x.type === 'buttons' && x.buttons.some((y) => y.label === '📜 Démissionner'));
+  row.buttons.splice(row.buttons.findIndex((y) => y.label === '📜 Démissionner') + 1, 0, go('📜 Démissionner', 'demission-brasseur', { style: 'danger', visibleIf: hasJob('brasseur') }));
 }
 
 // L'eau dessoûle aussi quand on l'emporte dans sa gourde.

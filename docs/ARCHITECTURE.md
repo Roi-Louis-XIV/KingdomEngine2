@@ -112,6 +112,10 @@ Détails techniques :
 - Le widget `quest.board` affiche les propositions (tirage reproductible : stables d’un affichage à l’autre, renouvelées après une quête, un abandon ou un nouveau tirage). Le joueur en choisit **une**. Le widget `player.sheet` montre endurance, ivresse, XP, niveau et la quête en cours, avec un bouton « Livrer » dans le bon bâtiment.
 - L’avancement passe par des **repères** émis par le moteur (activité récupérée, apport à un objectif, achat, dialogue, dés gagnés, objet consommé, réparation) ou par l’action `quest.tag`. Entrer dans un lieu compte pour les étapes « visiter ». Une quête dont la fenêtre se ferme est rendue sans pénalité.
 
+## Métiers à prendre
+
+Réglage `settings.jobsRequireJoin` (Studio : Objets & règles › Règles générales) : une activité liée à un métier n’est possible que si le joueur a **pris** ce métier (`job.join`), dans la limite de `maxActiveJobs` ; il **démissionne** (`job.leave`) pour en changer, et garde niveau et XP. Le niveau ouvre les recettes (conditions `jobLevel`). La fiche du joueur ne montre que les métiers déjà exercés. Les travaux lancés avant une démission restent récupérables. Supervision : Studio › Joueurs (métier actuel, niveaux, inventaire, outils ; attribuer ou retirer un métier). Bêta : écrans « Devenir … » et « Démission » sur la Mine, la Forge, la Forêt, la Ferme, le Pont (et la Taverne pour cuisinier et brasseur).
+
 ## Sons fournis avec un modèle
 
 Les fichiers de `content/<modèle>/sons/<clé>.mp3` (ou .ogg, .wav…) voyagent avec le dépôt. La Médiathèque signale les sons manquants qui sont fournis (`bundled` dans `GET /api/servers/:id/audio`) et les importe d’un clic (`POST /api/servers/:id/audio/from-template`). « Reprendre la dernière version du modèle » les importe aussi. Un son déjà présent n’est jamais remplacé. Le type (voix, ambiance, bruitage) est déduit de l’usage dans le monde. Bêta Sainte Pelle : les 47 répliques d’Edgar, Roland et Wagner enregistrées par Louis le 16 novembre.

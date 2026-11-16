@@ -272,6 +272,12 @@ export async function catalogPage(main: HTMLElement, params: string[]) {
           h(
             'label',
             { class: 'check' },
+            h('input', { type: 'checkbox', checked: !!w.settings.jobsRequireJoin, onchange: (e: Event) => ((w.settings.jobsRequireJoin = (e.target as HTMLInputElement).checked || undefined), changed()) }),
+            'Il faut prendre un métier pour faire ses travaux (et démissionner pour en changer)',
+          ),
+          h(
+            'label',
+            { class: 'check' },
             h('input', { type: 'checkbox', checked: !!w.settings.voiceAlways, onchange: (e: Event) => ((w.settings.voiceAlways = (e.target as HTMLInputElement).checked || undefined), changed()) }),
             'Ambiance sonore permanente dans tous les salons vocaux',
           ),

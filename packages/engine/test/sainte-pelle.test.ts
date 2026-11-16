@@ -117,6 +117,7 @@ test('compter : activités, recharge, quête ordonnée', () => {
   new Player(s.engine, 'louis', 'place');
   const engine = withQuest(s.engine, s.clock, 'louis', 'q03');
   const f = new Player(engine, 'louis', 'foret');
+  f.click('🪓 Devenir bûcheron').click('Devenir bûcheron');
   f.click(/La lisière/);
   f.click('Lancer');
   s.clock.advance(80);
@@ -281,6 +282,7 @@ test('tous les écrans de tous les lieux respectent les limites Discord, à chaq
 test('métiers : les gestes avancés demandent un niveau, l’expérience s’affiche dans la fiche', () => {
   const { engine, clock } = started();
   const f = new Player(engine, 'louis', 'foret');
+  f.click('🪓 Devenir bûcheron').click('Devenir bûcheron');
   f.click(/La futaie de chênes/);
   assert.match(f.text, /🔒 Il faut être 🪓 Bûcheron niveau 2 pour aller là/);
   f.click(/La lisière/);
@@ -342,6 +344,7 @@ test('forge : on paie en lingots, l’arme rejoint l’inventaire, l’armure al
   const { engine, clock } = started();
   engine.adminApply('louis', undefined, [{ type: 'item.give', item: 'lingot_bronze', qty: 9 }]);
   const f = new Player(engine, 'louis', 'forge');
+  f.click('🔨 Devenir forgeron').click('Devenir forgeron');
   f.click(/Les armes du champ de bataille/);
   assert.match(f.text, /Épée longue du Chevalier[\s\S]*Il faut être 🔨 Forgeron niveau 2/);
   f.click('Lancer');
@@ -357,6 +360,7 @@ test('forge : on paie en lingots, l’arme rejoint l’inventaire, l’armure al
   assert.match(f.text, /⚔️ \*\*Attaque :\*\* 3 · 🛡️ \*\*Défense :\*\* 2/);
   assert.match(f.text, /Armes :\*\* 🗡️ Épée courte du Novice ×1 \[⚔️3\]/);
   // La cuirasse fait économiser 1 d'endurance par activité.
+  engine.adminApply('louis', undefined, [{ type: 'job.leave', job: 'forgeron' }, { type: 'job.join', job: 'bucheron' }]);
   const bois = new Player(engine, 'louis', 'foret');
   bois.click(/La lisière/);
   assert.match(bois.text, /Abattre un jeune arbre[\s\S]*?⚡ -4 endurance/);
@@ -393,6 +397,7 @@ test('ivresse : boire rend pompette puis éméché, l’eau dessoûle, ivre mort
   assert.match(f.text, /↘️ redescend de 5 toutes les 90 s/);
   const s2 = e.snapshot();
   s2.players.louis!.stats.alcool = 100;
+  s2.players.louis!.activeJobs = ['bucheron'];
   const e2 = setup(s2, clock).engine;
   const g = new Player(e2, 'louis', 'foret', 'Louis');
   const places = g.buttons.filter((b) => !/inventaire|Actualiser|Parler|Échoppe/.test(b));
@@ -412,8 +417,41 @@ test('toutes les répliques du document du scénario sont jouées quelque part',
     assert.ok(json.includes(`"${key}"`), key);
 });
 
-test('métiers : chaque lieu de travail rappelle le niveau du joueur et comment progresser (sans rien rejoindre)', () => {
-  const { engine } = started();
-  for (const [b, line] of [['forge', /🔨 \*\*Forgeron niveau 1\*\*\/5 · 0 XP \(40 par niveau\) — \*tout le monde peut travailler ici, sans rien rejoindre\.\* Commence à la \*\*🔥 fonderie\*\*/], ['mine', /⛏️ \*\*Mineur niveau 1\*\*/], ['foret', /🪓 \*\*Bûcheron niveau 1\*\*/], ['ferme', /🌾 \*\*Fermier niveau 1\*\*/], ['pont', /🎣 \*\*Pêcheur niveau 1\*\*/]] as const)
-    assert.match(new Player(engine, `j-${b}`, b).text, line, b);
+test('métiers : on prend un métier pour travailler, un seul à la fois, on démissionne pour en changer ; la fiche ne montre que les métiers exercés', () => {
+  const { engine, clock } = started();
+  minutes(engine, clock, 2);
+  const f = new Player(engine, 'louis', 'forge', 'Louis');
+  assert.match(f.text, /🔨 \*Pour travailler ici, prends le métier de forgeron\.\* Un seul métier à la fois\./);
+  // Sans le métier, les travaux sont fermés et disent pourquoi.
+  f.click('🔥 La fonderie');
+  assert.match(f.text, /🔒 Prends le métier 🔨 Forgeron pour faire ce travail/);
+  // La fiche : aucun métier exercé.
+  f.click('↩️ Retour à la forge').click('🎒 Mon inventaire');
+  assert.match(f.text, /\*\*🛠️ Métiers\*\*\n\*Aucun métier exercé pour l’instant\.\*/);
+  // Prendre le métier.
+  f.click('↩️ Retour').click('🔨 Devenir forgeron');
+  assert.match(f.text, /## 🔨 Devenir forgeron[\s\S]*Niveau retrouvé :\*\* 1\/5[\s\S]*Un seul métier à la fois/);
+  f.click('Devenir forgeron');
+  assert.match(f.text, /Te voilà forgeron/);
+  assert.match(f.text, /🔨 \*\*Tu es forgeron\*\* · niveau 1\/5 · 0 XP/);
+  assert.ok(f.buttons.includes('📜 Démissionner') && !f.buttons.includes('🔨 Devenir forgeron'));
+  f.click('🔥 La fonderie');
+  assert.doesNotMatch(f.text, /Prends le métier/);
+  // Un seul métier : à la Mine, impossible de devenir mineur tant qu'on est forgeron.
+  const m = new Player(engine, 'louis', 'mine', 'Louis');
+  m.click('⛏️ Devenir mineur');
+  assert.match(m.text, /⚠️ \*\*Tu exerces déjà le métier Forgeron\.\*\*/);
+  assert.ok(!m.buttons.includes('Devenir mineur'));
+  // Démission à la forge : le niveau est conservé, et le mineur devient possible.
+  engine.adminApply('louis', undefined, [{ type: 'job.xp', job: 'forgeron', amount: 45 }]);
+  const f2 = new Player(engine, 'louis', 'forge', 'Louis');
+  f2.click('📜 Démissionner');
+  assert.match(f2.text, /Démission du métier de forgeron[\s\S]*Niveau conservé :\*\* 2\/5/);
+  f2.click('Confirmer la démission');
+  assert.match(f2.text, /Démission enregistrée/);
+  m.refresh().click('Devenir mineur');
+  assert.deepEqual(engine.player('louis')!.activeJobs, ['mineur']);
+  m.click('🎒 Mon inventaire');
+  assert.match(m.text, /⛏️ Mineur · \*\*niv\. 1\*\* · 0\/40 XP · \*métier actuel\*\n🔨 Forgeron · \*\*niv\. 2\*\*/);
+  assert.doesNotMatch(m.text, /Bûcheron|Pêcheur|Fermier/);
 });
