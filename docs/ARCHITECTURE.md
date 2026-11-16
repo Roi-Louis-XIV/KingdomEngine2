@@ -112,6 +112,10 @@ Détails techniques :
 - Le widget `quest.board` affiche les propositions (tirage reproductible : stables d’un affichage à l’autre, renouvelées après une quête, un abandon ou un nouveau tirage). Le joueur en choisit **une**. Le widget `player.sheet` montre endurance, ivresse, XP, niveau et la quête en cours, avec un bouton « Livrer » dans le bon bâtiment.
 - L’avancement passe par des **repères** émis par le moteur (activité récupérée, apport à un objectif, achat, dialogue, dés gagnés, objet consommé, réparation) ou par l’action `quest.tag`. Entrer dans un lieu compte pour les étapes « visiter ». Une quête dont la fenêtre se ferme est rendue sans pénalité.
 
+## Sons fournis avec un modèle
+
+Les fichiers de `content/<modèle>/sons/<clé>.mp3` (ou .ogg, .wav…) voyagent avec le dépôt. La Médiathèque signale les sons manquants qui sont fournis (`bundled` dans `GET /api/servers/:id/audio`) et les importe d’un clic (`POST /api/servers/:id/audio/from-template`). « Reprendre la dernière version du modèle » les importe aussi. Un son déjà présent n’est jamais remplacé. Le type (voix, ambiance, bruitage) est déduit de l’usage dans le monde. Bêta Sainte Pelle : les 47 répliques d’Edgar, Roland et Wagner enregistrées par Louis le 16 novembre.
+
 ## Statistiques vivantes : évolution automatique et paliers
 
 - `StatDef.drift` `{ amount, everySec }` : la statistique bouge toute seule (ex. l’ivresse redescend de 5 toutes les 90 s), bornée par min et max. Appliqué par `Engine.tick()` (`driftStats` dans `rules.ts`), par pas, à partir du premier passage de l’horloge ; le compteur (`player.driftAt`) s’efface à la borne, donc rien n’est écrit quand il n’y a rien à faire.

@@ -588,6 +588,26 @@ export class Platform {
     return JSON.parse(readFileSync(path, 'utf8')) as WorldDef;
   }
 
+  /**
+   * Sons fournis avec les modèles (`content/<modèle>/sons/<clé>.mp3`…), pour les importer d'un clic dans une Médiathèque.
+   * Une clé présente dans plusieurs modèles : la première trouvée (ordre alphabétique des modèles).
+   */
+  templateSounds(only?: string): Map<string, { path: string; ext: string; template: string }> {
+    const out = new Map<string, { path: string; ext: string; template: string }>();
+    if (!existsSync(this.opts.contentDir)) return out;
+    const ids = only ? [only] : readdirSync(this.opts.contentDir).sort();
+    for (const id of ids) {
+      if (!/^[a-z0-9-]+$/.test(id)) continue;
+      const dir = join(this.opts.contentDir, id, 'sons');
+      if (!existsSync(dir)) continue;
+      for (const f of readdirSync(dir).sort()) {
+        const m = /^([a-z0-9-]+)\.(mp3|ogg|wav|opus|flac|m4a)$/.exec(f);
+        if (m && !out.has(m[1]!)) out.set(m[1]!, { path: join(dir, f), ext: `.${m[2]}`, template: id });
+      }
+    }
+    return out;
+  }
+
   roleOf(account: Account, serverId: string): ServerRole | undefined {
     if (account.platformRole === 'platform_admin') return 'owner';
     const r = this.db.prepare('SELECT role FROM access WHERE account_id = ? AND server_id = ?').get(account.id, serverId) as

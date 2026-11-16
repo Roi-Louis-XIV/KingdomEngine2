@@ -216,6 +216,21 @@ test('modèle : reprendre la dernière version d’un modèle en brouillon, prog
   assert.equal(d.data.issues.filter((i: any) => i.level === 'error').length, 0);
   const pub = await louis.post(`/api/servers/${id}/content/publish`, { revision: d.data.revision, note: 'Modèle à jour' });
   assert.equal(pub.status, 200);
+  // Sons fournis avec le modèle : arrivés avec « Reprendre le modèle », typés, jamais remplacés.
+  assert.ok(r.data.sounds >= 47, 'les sons fournis arrivent avec le modèle');
+  const audio = await louis.get(`/api/servers/${id}/audio`);
+  const edgar = audio.data.sounds.find((a: any) => a.key === 'edgar-vie-1');
+  assert.equal(edgar.kind, 'voice');
+  assert.ok(!audio.data.missing.includes('edgar-vie-1'));
+  assert.ok(audio.data.missing.includes('maelis-ouverture'), 'les sons pas encore enregistrés restent à faire');
+  assert.deepEqual(audio.data.bundled, []);
+  const f = await louis.get(`/api/servers/${id}/audio/roland-il-est-revenu/file`);
+  assert.equal(f.status, 200);
+  assert.equal((await louis.post(`/api/servers/${id}/audio/from-template`, {})).data.imported, 0, 'rien en double');
+  // Un son supprimé redevient « fourni » et se réimporte d'un clic, sans toucher aux autres.
+  await louis.del(`/api/servers/${id}/audio/wagner-vie-3`);
+  assert.deepEqual((await louis.get(`/api/servers/${id}/audio`)).data.bundled, ['wagner-vie-3']);
+  assert.deepEqual((await louis.post(`/api/servers/${id}/audio/from-template`, {})).data.keys, ['wagner-vie-3']);
   const versions = await louis.get(`/api/servers/${id}/content`);
   assert.deepEqual(versions.data.versions.map((v: any) => v.status), ['published', 'archived'], 'l’ancienne version reste restaurable');
   assert.equal((await louis.post(`/api/servers/${id}/content/from-template`, { template: '../etc' })).status, 400);

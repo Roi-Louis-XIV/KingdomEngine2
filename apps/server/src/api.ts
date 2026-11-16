@@ -1,5 +1,5 @@
 /** Routes de l'API du Studio. Chaque route vérifie le droit minimal sur le serveur concerné. */
-import { mkdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { copyFileSync, mkdirSync, rmSync, statSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { urgency, validateWorld, type Action, type WorldDef } from '../../../packages/engine/src/index.ts';
 import { FileReply, type Req, type Router } from './http.ts';
@@ -41,6 +41,20 @@ const AUDIO_TYPES: Record<string, string> = {
   'audio/aac': '.aac',
   'audio/webm': '.webm',
 };
+
+const EXT_MIME: Record<string, string> = { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.opus': 'audio/opus', '.flac': 'audio/flac', '.m4a': 'audio/mp4' };
+
+/** Type d'un son d'après son usage dans un monde : ambiance de lieu, réplique d'un personnage, ou bruitage. */
+function soundKind(w: WorldDef | undefined, key: string): 'ambience' | 'voice' | 'sfx' {
+  for (const b of w?.buildings ?? []) {
+    const amb = b.audio?.ambience;
+    if (amb === key || (typeof amb === 'object' && amb?.cases.some((c) => c.sound === key))) return 'ambience';
+    if (b.audio?.welcome === key) return 'voice';
+  }
+  if ((w?.characters ?? []).some((c) => c.chatter?.lines.some((l) => l.sound === key))) return 'voice';
+  if (new RegExp(`"type":"audio\\.play","sound":"${key}"[^}]*"character"`).test(JSON.stringify(w ?? {}))) return 'voice';
+  return 'sfx';
+}
 
 const attempts = new Map<string, { n: number; until: number }>();
 export function throttle(key: string) {
@@ -180,7 +194,10 @@ export function registerApi(router: Router, deps: ApiDeps) {
 
   router.post('/api/servers/:id/content/from-template', (r) => {
     const s = server(r, 'editor');
-    return platform.fromTemplate(s.id, me(r), String(r.body.template ?? s.template));
+    const res = platform.fromTemplate(s.id, me(r), String(r.body.template ?? s.template));
+    // Les sons fournis avec le modèle arrivent en même temps (seulement ceux qui manquent).
+    const sounds = ROLE_RANK[platform.roleOf(me(r), s.id) ?? 'viewer'] >= ROLE_RANK.manager ? importBundled(s.id, me(r)).length : 0;
+    return { ...res, sounds };
   });
 
   router.post('/api/servers/:id/content/restore', (r) => {
@@ -483,7 +500,43 @@ export function registerApi(router: Router, deps: ApiDeps) {
     for (const c of w?.creatures ?? []) Object.values(c.sounds ?? {}).forEach((k) => k && used.add(k));
     const list = platform.audioList(s.id);
     const have = new Set(list.map((a) => a.key));
-    return { sounds: list.map(({ file: _f, ...a }) => a), missing: [...used].filter((k) => !have.has(k)).sort() };
+    const missing = [...used].filter((k) => !have.has(k)).sort();
+    // Sons manquants déjà fournis avec un modèle : importables d'un clic.
+    const bundled = platform.templateSounds();
+    return { sounds: list.map(({ file: _f, ...a }) => a), missing, bundled: missing.filter((k) => bundled.has(k)) };
+  });
+
+  /** Importe les sons manquants fournis avec les modèles (sans jamais remplacer un son déjà importé). */
+  const importBundled = (serverId: string, account: Account, keys?: string[]) => {
+    // Brouillon d'abord (« Reprendre le modèle » vient d'y mettre le nouveau monde), puis la version publiée.
+    const worlds = [platform.draft(serverId)?.world, platform.published(serverId)?.world];
+    const kindOf = (key: string) => worlds.map((w) => soundKind(w, key)).find((k) => k !== 'sfx') ?? 'sfx';
+    const have = new Set(platform.audioList(serverId).map((a) => a.key));
+    const bundled = platform.templateSounds();
+    const dir = join(deps.audioDir, serverId);
+    mkdirSync(dir, { recursive: true });
+    const done: string[] = [];
+    for (const [key, src] of bundled) {
+      if (have.has(key) || (keys && !keys.includes(key))) continue;
+      const file = `${key}${src.ext}`;
+      copyFileSync(src.path, join(dir, file));
+      platform.db
+        .prepare('INSERT INTO audio (server_id, key, name, kind, file, mime, size, volume, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?) ON CONFLICT DO NOTHING')
+        .run(serverId, key, key, kindOf(key), file, EXT_MIME[src.ext] ?? 'audio/mpeg', statSync(src.path).size, Date.now());
+      done.push(key);
+    }
+    if (done.length) {
+      platform.audit(serverId, account.id, 'audio.template', `${done.length} son(s) fourni(s) avec le modèle importé(s)`);
+      deps.voice.refresh();
+    }
+    return done;
+  };
+
+  router.post('/api/servers/:id/audio/from-template', (r) => {
+    const s = server(r, 'manager');
+    const keys = Array.isArray(r.body.keys) ? r.body.keys.map(String) : undefined;
+    const imported = importBundled(s.id, me(r), keys);
+    return { imported: imported.length, keys: imported };
   });
 
   router.add(

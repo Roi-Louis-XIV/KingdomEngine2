@@ -524,3 +524,6 @@ a.card:hover, button.card:hover, .template:hover { transform: translateY(-2px); 
 .nav-link:hover .nav-icon { color: var(--paper); }
 .nav-icon { transition: color .15s ease, transform .15s ease; }
 .nav-link:hover .nav-icon { transform: translateX(1px); }
+/* Encadré d'action mis en avant (ex. sons fournis avec le modèle) */
+.callout { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; margin: 14px 0; padding: 14px 18px; border: 1px solid var(--line-2); border-left: 3px solid var(--accent, #34c27d); border-radius: 10px; background: rgba(52, 194, 125, .06); }
+.callout p { margin: 0; flex: 1 1 320px; }

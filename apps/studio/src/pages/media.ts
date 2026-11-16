@@ -1,5 +1,5 @@
 import { h, clear, toast, field, selectField, modal, slug } from '../ui.ts';
-import { api, del, get, put } from '../api.ts';
+import { api, del, get, post, put } from '../api.ts';
 import { can, server } from '../store.ts';
 
 const KINDS = [
@@ -15,7 +15,7 @@ export async function mediaPage(main: HTMLElement) {
   const page = h('div', { class: 'page' });
   main.append(page);
   const draw = async () => {
-    const { sounds, missing } = await get(`/api/servers/${s.id}/audio`);
+    const { sounds, missing, bundled = [] } = await get(`/api/servers/${s.id}/audio`);
     const manager = can('manager');
     const upload = (key = '') => {
       const f = { name: key, key, kind: 'ambience' };
@@ -64,9 +64,34 @@ export async function mediaPage(main: HTMLElement) {
         ? h(
             'section',
             { class: 'block' },
-            h('h2', null, 'Sons attendus par le contenu'),
+            h('h2', null, `Sons attendus par le contenu (${missing.length})`),
             h('p', { class: 'muted' }, 'Ces clés sont utilisées par tes bâtiments mais aucun fichier ne leur correspond. Le jeu fonctionne, en silence.'),
-            h('ul', { class: 'missing' }, missing.map((k: string) => h('li', null, h('code', null, k), manager ? h('button', { class: 'btn small', onclick: () => upload(k) }, 'Importer') : null))),
+            manager && bundled.length
+              ? h(
+                  'div',
+                  { class: 'callout' },
+                  h('p', null, h('b', null, `${bundled.length} de ces sons sont fournis avec le modèle.`), ' Un clic suffit pour les ajouter (les sons que tu as déjà importés ne sont jamais remplacés).'),
+                  h(
+                    'button',
+                    {
+                      class: 'btn primary',
+                      onclick: async (e: Event) => {
+                        (e.target as HTMLButtonElement).disabled = true;
+                        try {
+                          const r = await post<{ imported: number }>(`/api/servers/${s.id}/audio/from-template`, {});
+                          toast(`${r.imported} son${r.imported > 1 ? 's' : ''} importé${r.imported > 1 ? 's' : ''}.`);
+                          void draw();
+                        } catch (err) {
+                          toast((err as Error).message, 'error');
+                          (e.target as HTMLButtonElement).disabled = false;
+                        }
+                      },
+                    },
+                    `⬇️ Importer les ${bundled.length} sons fournis`,
+                  ),
+                )
+              : null,
+            h('ul', { class: 'missing' }, missing.map((k: string) => h('li', null, h('code', null, k), bundled.includes(k) ? h('span', { class: 'tag ok' }, 'fourni') : null, manager ? h('button', { class: 'btn small', onclick: () => upload(k) }, 'Importer') : null))),
           )
         : null,
       sounds.length
