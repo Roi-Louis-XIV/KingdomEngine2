@@ -6,6 +6,7 @@
  */
 import { Client, Events, GatewayIntentBits } from 'discord.js';
 import {
+  generateDependencyReport,
   createAudioPlayer,
   createAudioResource,
   entersState,
@@ -16,6 +17,7 @@ import {
   type VoiceConnection,
 } from '@discordjs/voice';
 import { Mixer } from './mixer.ts';
+import { joinFailure } from './diagnostics.ts';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -93,6 +95,15 @@ export class VoiceWorkers implements VoiceBridge {
   }
 
   async start(): Promise<void> {
+    // Ce qui est installé pour la voix (chiffrement, DAVE, Opus) : la première chose à lire si les workers n'entrent pas.
+    try {
+      const report = generateDependencyReport();
+      const pick = (section: string) => report.split(section)[1]?.split(/\n\n|\n[A-Z]/)[0]?.trim().replace(/\s*\n\s*/g, ', ') ?? '?';
+      console.log(`🎙️  Bibliothèques voix : chiffrement [${pick('Encryption Libraries')}] · DAVE [${pick('DAVE Protocol')}] · Opus [${pick('Opus Libraries')}]`);
+      if (!/davey:\s*\d/.test(report)) console.warn('⚠️  Module DAVE (@snazzah/davey) absent : Discord refusera les connexions vocales chiffrées. Lance « npm install » dans le dossier du programme.');
+    } catch {
+      /* rapport indisponible : rien de bloquant */
+    }
     for (const [key, l] of this.live) {
       const state = this.pool.workers.get(key)!;
       l.client.on(Events.ClientReady, (c) => {
@@ -202,7 +213,23 @@ export class VoiceWorkers implements VoiceBridge {
       if (!l.connection || l.presence?.channelId !== p.channelId) {
         l.connection?.destroy();
         l.connection = joinVoiceChannel({ channelId: p.channelId, guildId: p.guildId, adapterCreator: guild.voiceAdapterCreator, group: workerKey, selfDeaf: true });
-        await entersState(l.connection, VoiceConnectionStatus.Ready, 20_000);
+        // Dernier code de fermeture du serveur vocal de Discord (pour expliquer un échec).
+        let closeCode: number | undefined;
+        l.connection.on('stateChange', (_o, n) => {
+          if (n.status === VoiceConnectionStatus.Disconnected && 'closeCode' in n && typeof n.closeCode === 'number') closeCode = n.closeCode;
+        });
+        try {
+          await entersState(l.connection, VoiceConnectionStatus.Ready, 20_000);
+        } catch {
+          let perms: { has(p: bigint): boolean } | null = null;
+          try {
+            perms = guild.members.me?.permissionsIn(p.channelId) ?? null;
+          } catch {
+            // Salon invisible pour le worker : il n'est même pas dans son cache.
+            perms = { has: () => false };
+          }
+          throw new Error(joinFailure(closeCode, perms));
+        }
         l.player ??= this.createPlayer(l);
         l.connection.subscribe(l.player);
       }

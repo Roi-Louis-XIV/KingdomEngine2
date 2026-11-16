@@ -198,3 +198,15 @@ test('répliques de vie : selon le moment du scénario, seulement avec des joueu
   const vide = desiredPresences({ serverId: 's', guildId: 'g1', engine: always, channels, occupancy: new Map() });
   assert.ok(vide.length && vide.every((p) => p.chatter === undefined), 'salon vide : personne ne bavarde');
 });
+
+test('connexion vocale ratée : explication en français (droits, DAVE, délai)', async () => {
+  const { joinFailure } = await import('../src/voice/diagnostics.ts');
+  const perms = (...ok: bigint[]) => ({ has: (p: bigint) => ok.includes(p) });
+  const VIEW = 1n << 10n, CONNECT = 1n << 20n, SPEAK = 1n << 21n;
+  assert.match(joinFailure(undefined, perms()), /Ne voit pas le salon vocal.*Voix KingdomEngine/);
+  assert.match(joinFailure(undefined, perms(VIEW)), /se connecter/);
+  assert.match(joinFailure(undefined, perms(VIEW, CONNECT)), /parler/);
+  assert.match(joinFailure(4017, perms(VIEW, CONNECT, SPEAK)), /DAVE/);
+  assert.match(joinFailure(undefined, null), /impossible en 20 s :/);
+  assert.match(joinFailure(4000, perms(VIEW, CONNECT, SPEAK)), /code Discord 4000/);
+});
