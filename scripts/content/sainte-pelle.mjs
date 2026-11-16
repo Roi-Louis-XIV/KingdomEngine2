@@ -949,7 +949,7 @@ function addPlaces(b, o) {
   home.blocks = home.blocks.filter((x) => !(x.type === 'widget' && x.widget.kind === 'activity.board' && (o.remove ?? []).includes(x.widget.activity)));
   const nav = buttons(
     o.places.map((pl) =>
-      btn(`${pl.name}${pl.level > 1 ? ` · niv. ${pl.level}` : ''}`, { ...(pl.level > 1 || pl.when ? { when: pl.level > 1 ? (pl.when ? all(pl.when, lvl(o.job, pl.level)) : lvl(o.job, pl.level)) : pl.when } : {}), onSuccess: { goto: `lieu-${pl.id}` }, onFailure: { notice: pl.locked ?? `🔒 Il faut être ${o.jobLabel} niveau ${pl.level} pour aller là.` } }, { emoji: pl.emoji, style: 'primary' }),
+      btn(`${pl.name}${pl.level > 1 ? ` · niv. ${pl.level}` : ''}`, { ...(pl.level > 1 || pl.when ? { when: pl.level > 1 ? (pl.when ? all(pl.when, lvl(o.job, pl.level)) : lvl(o.job, pl.level)) : pl.when } : {}), onSuccess: { goto: `lieu-${pl.id}` }, onFailure: { notice: pl.locked ?? `🔒 Il faut être ${o.jobLabel} niveau ${pl.level} pour aller là.` } }, { emoji: pl.emoji, style: 'primary', ...(pl.level > 1 ? { visibleIf: lvl(o.job, pl.level) } : {}) }),
     ),
     o.visibleIf,
   );
@@ -1721,6 +1721,8 @@ for (const b of world.buildings)
 // d'en prendre un autre (un seul à la fois). Le niveau est conservé ; il ouvre plus ou moins de recettes.
 // Même présentation qu'à la Taverne : écran « Devenir … », écran « Démission », boutons sur l'accueil.
 world.settings.jobsRequireJoin = true;
+// Ce qui demande un niveau pas encore atteint n'apparaît pas (Louis : « si on n'a pas le niveau on ne doit pas les voir »).
+world.settings.hideAboveLevel = true;
 const JOB_DESKS = [
   { b: 'mine', job: 'mineur', emoji: '⛏️', who: 'Roland', name: 'mineur', quote: 'Une pioche, un casque, et du respect pour la montagne. Le reste, ça s’apprend.', unlocks: 'chaque niveau ouvre des galeries plus riches (argent, or…).' },
   { b: 'forge', job: 'forgeron', emoji: '🔨', who: 'Wagner', name: 'forgeron', quote: 'Le feu ne pardonne rien. Toi non plus, tu ne pardonneras rien au métal.', unlocks: 'commence à la 🔥 fonderie (2 minerais de fer = 1 lingot) ; chaque niveau ouvre de nouveaux métaux et de nouveaux objets du catalogue.' },

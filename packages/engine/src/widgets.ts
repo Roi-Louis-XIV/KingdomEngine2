@@ -27,6 +27,7 @@ import {
   activeLevels,
   levelEffects,
   levelLine,
+  levelTooLow,
 } from './rules.ts';
 import { STARS, abandonQuest, acceptQuest, currentOffers, findQuest, nextLevel, questDeliver, questLevel, questTag, rerollOffers, stepDone, stepTarget } from './quests.ts';
 import type { QuestDef } from './model.ts';
@@ -529,7 +530,10 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
       // Paliers qui changent le travail (ivresse…), rappelés en tête si une activité de métier est proposée.
       const lv = mod.activities.some((x) => x.job) ? activeLevels(ctx.world, p).filter((x) => levelEffects(x.level)) : [];
       const children: RContainer['children'] = [text([`### ${mod.name}`, ...lv.map((x) => levelLine(x.level))].join('\n'))];
-      mod.activities.forEach((a, i) => {
+      // Réglage du monde : ce qui demande un niveau pas encore atteint n'apparaît pas (sauf un travail déjà lancé).
+      const shown = mod.activities.filter((a) => !ctx.world.settings.hideAboveLevel || p.activities[activityKey(ctx, mod, a)] || !levelTooLow(ctx, a.when));
+      if (!shown.length) children.push(text('*Rien à ta portée ici pour l’instant : monte en niveau dans ce métier pour débloquer ces travaux.*'));
+      shown.forEach((a, i) => {
         if (i > 0) children.push({ type: 'separator' });
         const key = activityKey(ctx, mod, a);
         const pending = p.activities[key];

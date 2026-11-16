@@ -6,7 +6,8 @@
   "settings": {
     "maxActiveJobs": 1,
     "timezone": "Europe/Paris",
-    "jobsRequireJoin": true
+    "jobsRequireJoin": true,
+    "hideAboveLevel": true
   },
   "events": [
     {
@@ -10473,7 +10474,13 @@
                     }
                   },
                   "emoji": "⛓️",
-                  "style": "primary"
+                  "style": "primary",
+                  "visibleIf": {
+                    "type": "jobLevel",
+                    "job": "mineur",
+                    "op": "gte",
+                    "value": 2
+                  }
                 },
                 {
                   "label": "La galerie profonde · niv. 3",
@@ -10503,7 +10510,13 @@
                     }
                   },
                   "emoji": "🕳️",
-                  "style": "primary"
+                  "style": "primary",
+                  "visibleIf": {
+                    "type": "jobLevel",
+                    "job": "mineur",
+                    "op": "gte",
+                    "value": 3
+                  }
                 },
                 {
                   "label": "Le gouffre · niv. 4",
@@ -10522,7 +10535,13 @@
                     }
                   },
                   "emoji": "💎",
-                  "style": "primary"
+                  "style": "primary",
+                  "visibleIf": {
+                    "type": "jobLevel",
+                    "job": "mineur",
+                    "op": "gte",
+                    "value": 4
+                  }
                 }
               ],
               "visibleIf": {
@@ -18135,7 +18154,13 @@
                     }
                   },
                   "emoji": "🌳",
-                  "style": "primary"
+                  "style": "primary",
+                  "visibleIf": {
+                    "type": "jobLevel",
+                    "job": "bucheron",
+                    "op": "gte",
+                    "value": 2
+                  }
                 },
                 {
                   "label": "Le bois sombre · niv. 3",
@@ -18154,7 +18179,13 @@
                     }
                   },
                   "emoji": "🌲",
-                  "style": "primary"
+                  "style": "primary",
+                  "visibleIf": {
+                    "type": "jobLevel",
+                    "job": "bucheron",
+                    "op": "gte",
+                    "value": 3
+                  }
                 }
               ]
             },
@@ -21560,7 +21591,13 @@
                     }
                   },
                   "emoji": "🌉",
-                  "style": "primary"
+                  "style": "primary",
+                  "visibleIf": {
+                    "type": "jobLevel",
+                    "job": "pecheur",
+                    "op": "gte",
+                    "value": 2
+                  }
                 },
                 {
                   "label": "Les eaux profondes · niv. 3",
@@ -21579,7 +21616,13 @@
                     }
                   },
                   "emoji": "🌊",
-                  "style": "primary"
+                  "style": "primary",
+                  "visibleIf": {
+                    "type": "jobLevel",
+                    "job": "pecheur",
+                    "op": "gte",
+                    "value": 3
+                  }
                 }
               ]
             },

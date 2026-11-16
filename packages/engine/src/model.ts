@@ -200,6 +200,8 @@ export interface WorldDef {
      * Sinon (défaut) : tout le monde peut faire tous les travaux et progresse dans le métier en travaillant.
      */
     jobsRequireJoin?: boolean;
+    /** Cacher les travaux et recettes qui demandent un niveau de métier pas encore atteint (au lieu de les montrer verrouillés). */
+    hideAboveLevel?: boolean;
     /** Fuseau horaire des programmations (défaut : Europe/Paris). */
     timezone?: string;
     /**

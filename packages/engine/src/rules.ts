@@ -558,6 +558,17 @@ export function describeChanges(ctx: Ctx, changes: Change[] = ctx.changes): stri
 }
 
 
+/**
+ * La condition échoue-t-elle à cause d'un niveau de métier pas atteint ?
+ * (un « jobLevel » au premier niveau de la condition, ou dans un « all »). Sert à cacher ce qui est hors de portée.
+ */
+export function levelTooLow(ctx: Ctx, c: Condition | undefined): boolean {
+  if (!c) return false;
+  if (c.type === 'jobLevel') return !evaluate(ctx, c).ok;
+  if (c.type === 'all') return c.conditions.some((x) => levelTooLow(ctx, x));
+  return false;
+}
+
 /** Paliers atteints par le joueur (un par statistique : le plus haut atteint). */
 export function activeLevels(world: WorldDef, player: PlayerState): { stat: StatDef; level: StatLevel }[] {
   const out: { stat: StatDef; level: StatLevel }[] = [];

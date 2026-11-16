@@ -283,8 +283,8 @@ test('métiers : les gestes avancés demandent un niveau, l’expérience s’af
   const { engine, clock } = started();
   const f = new Player(engine, 'louis', 'foret');
   f.click('🪓 Devenir bûcheron').click('Devenir bûcheron');
-  f.click(/La futaie de chênes/);
-  assert.match(f.text, /🔒 Il faut être 🪓 Bûcheron niveau 2 pour aller là/);
+  // La futaie (niveau 2) n'apparaît qu'une fois le niveau atteint.
+  assert.ok(!f.buttons.some((b) => /futaie/i.test(b)));
   f.click(/La lisière/);
   for (let i = 0; i < 7; i++) {
     f.refresh().click('Lancer');
@@ -335,9 +335,11 @@ test('lieux de récolte : chances selon le lieu, le niveau et l’outil ; meille
   const after = p.refresh().text;
   assert.match(after, /Pioche de fer \(−1 durabilité · état 70\/70\)/);
   assert.match(after, /6 pierres 26 %/);
-  // Le gouffre exige une pioche de fer, et Mineur niveau 4.
-  p.click('↩️ Retour à l’entrée').click(/Le gouffre/);
-  assert.match(p.text, /Il faut être ⛏️ Mineur niveau 4/);
+  // Le gouffre exige Mineur niveau 4 : tant qu'on n'y est pas, il n'apparaît même pas.
+  p.click('↩️ Retour à l’entrée');
+  assert.ok(!p.buttons.some((b) => /gouffre/i.test(b)));
+  engine.adminApply('louis', undefined, [{ type: 'job.setLevel', job: 'mineur', level: 4 }]);
+  assert.ok(p.refresh().buttons.some((b) => /gouffre/i.test(b)));
 });
 
 test('forge : on paie en lingots, l’arme rejoint l’inventaire, l’armure allège l’effort', () => {
@@ -346,7 +348,9 @@ test('forge : on paie en lingots, l’arme rejoint l’inventaire, l’armure al
   const f = new Player(engine, 'louis', 'forge');
   f.click('🔨 Devenir forgeron').click('Devenir forgeron');
   f.click(/Les armes du champ de bataille/);
-  assert.match(f.text, /Épée longue du Chevalier[\s\S]*Il faut être 🔨 Forgeron niveau 2/);
+  // Pas le niveau : l'épée longue (niveau 2) n'apparaît pas ; l'épée courte (niveau 1), si.
+  assert.match(f.text, /Épée courte du Novice/);
+  assert.doesNotMatch(f.text, /Épée longue du Chevalier|Il faut être 🔨 Forgeron niveau/);
   f.click('Lancer');
   clock.advance(70);
   f.refresh().click('Récupérer');

@@ -278,6 +278,12 @@ export async function catalogPage(main: HTMLElement, params: string[]) {
           h(
             'label',
             { class: 'check' },
+            h('input', { type: 'checkbox', checked: !!w.settings.hideAboveLevel, onchange: (e: Event) => ((w.settings.hideAboveLevel = (e.target as HTMLInputElement).checked || undefined), changed()) }),
+            'Cacher les travaux et recettes qui demandent un niveau de métier pas encore atteint',
+          ),
+          h(
+            'label',
+            { class: 'check' },
             h('input', { type: 'checkbox', checked: !!w.settings.voiceAlways, onchange: (e: Event) => ((w.settings.voiceAlways = (e.target as HTMLInputElement).checked || undefined), changed()) }),
             'Ambiance sonore permanente dans tous les salons vocaux',
           ),
