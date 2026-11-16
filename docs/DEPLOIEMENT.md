@@ -47,6 +47,20 @@ sudo systemctl restart kingdomengineNext
 
 Ce fichier contient des secrets : il n’est lisible que par root et le service.
 
+### Voice Workers
+
+Chaque Voice Worker est un bot Discord à part : il rejoint un salon vocal et y joue l’ambiance et les répliques d’un personnage. 10 emplacements sont prévus (20 au maximum).
+
+1. **Créer l’application** (une par worker) : [Discord Developer Portal](https://discord.com/developers/applications) → *New Application* (ex. « KE Voix 1 ») → onglet **Bot** → *Reset Token* → copier le token. Aucune « intention privilégiée » n’est nécessaire.
+2. **Renseigner le token** sur le serveur :
+   ```sh
+   sudo bash /opt/kingdomengineNext/deploy/voice-workers.sh
+   ```
+   L’outil affiche les 10 emplacements, demande le numéro, puis le token (saisie masquée) ; l’Application ID est proposé automatiquement. Il redémarre le service à la fin. `… voice-workers.sh etat` affiche seulement l’état, sans jamais montrer les tokens.
+3. **Inviter les workers** : Studio › **Discord** › *Voice Workers* → bouton **Inviter** sur chaque ligne (droits : voir les salons, se connecter, parler).
+
+Ne jamais réutiliser un token de KingdomEngine 2 ni celui du bot principal : un même bot ne peut pas être connecté à deux endroits à la fois.
+
 ## 3. Accéder au Studio
 
 **Avec un nom de domaine (recommandé)** : HTTPS gratuit avec nginx et Let’s Encrypt.
