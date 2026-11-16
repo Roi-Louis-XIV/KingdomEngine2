@@ -10408,24 +10408,33 @@
               ],
               "accent": 5989488,
               "visibleIf": {
-                "type": "not",
-                "condition": {
-                  "type": "all",
-                  "conditions": [
-                    {
-                      "type": "variable",
-                      "variable": "t",
-                      "op": "gte",
-                      "value": 85
-                    },
-                    {
-                      "type": "variable",
-                      "variable": "t",
-                      "op": "lt",
-                      "value": 110
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "hasJob",
+                    "job": "mineur"
+                  },
+                  {
+                    "type": "not",
+                    "condition": {
+                      "type": "all",
+                      "conditions": [
+                        {
+                          "type": "variable",
+                          "variable": "t",
+                          "op": "gte",
+                          "value": 85
+                        },
+                        {
+                          "type": "variable",
+                          "variable": "t",
+                          "op": "lt",
+                          "value": 110
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             },
             {
@@ -10545,24 +10554,33 @@
                 }
               ],
               "visibleIf": {
-                "type": "not",
-                "condition": {
-                  "type": "all",
-                  "conditions": [
-                    {
-                      "type": "variable",
-                      "variable": "t",
-                      "op": "gte",
-                      "value": 85
-                    },
-                    {
-                      "type": "variable",
-                      "variable": "t",
-                      "op": "lt",
-                      "value": 110
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "hasJob",
+                    "job": "mineur"
+                  },
+                  {
+                    "type": "not",
+                    "condition": {
+                      "type": "all",
+                      "conditions": [
+                        {
+                          "type": "variable",
+                          "variable": "t",
+                          "op": "gte",
+                          "value": 85
+                        },
+                        {
+                          "type": "variable",
+                          "variable": "t",
+                          "op": "lt",
+                          "value": 110
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             },
             {
@@ -10776,6 +10794,10 @@
               "type": "all",
               "conditions": [
                 {
+                  "type": "hasJob",
+                  "job": "mineur"
+                },
+                {
                   "type": "not",
                   "condition": {
                     "type": "all",
@@ -10798,7 +10820,7 @@
               ]
             },
             "redirect": "accueil",
-            "notice": "🔒 Il faut être ⛏️ Mineur niveau 1."
+            "notice": "🔒 Réservé aux ⛏️ mineurs : prends le métier ici."
           },
           "blocks": [
             {
@@ -10861,6 +10883,10 @@
               "type": "all",
               "conditions": [
                 {
+                  "type": "hasJob",
+                  "job": "mineur"
+                },
+                {
                   "type": "not",
                   "condition": {
                     "type": "all",
@@ -10883,7 +10909,7 @@
               ]
             },
             "redirect": "accueil",
-            "notice": "🔒 Il faut être ⛏️ Mineur niveau 1."
+            "notice": "🔒 Réservé aux ⛏️ mineurs : prends le métier ici."
           },
           "blocks": [
             {
@@ -10946,6 +10972,10 @@
               "type": "all",
               "conditions": [
                 {
+                  "type": "hasJob",
+                  "job": "mineur"
+                },
+                {
                   "type": "jobLevel",
                   "job": "mineur",
                   "op": "gte",
@@ -10974,7 +11004,7 @@
               ]
             },
             "redirect": "accueil",
-            "notice": "🔒 Il faut être ⛏️ Mineur niveau 2."
+            "notice": "🔒 Réservé aux ⛏️ mineurs de niveau 2 : prends le métier ici."
           },
           "blocks": [
             {
@@ -11036,6 +11066,10 @@
             "when": {
               "type": "all",
               "conditions": [
+                {
+                  "type": "hasJob",
+                  "job": "mineur"
+                },
                 {
                   "type": "jobLevel",
                   "job": "mineur",
@@ -11134,6 +11168,10 @@
               "type": "all",
               "conditions": [
                 {
+                  "type": "hasJob",
+                  "job": "mineur"
+                },
+                {
                   "type": "jobLevel",
                   "job": "mineur",
                   "op": "gte",
@@ -11162,7 +11200,7 @@
               ]
             },
             "redirect": "accueil",
-            "notice": "🔒 Il faut être ⛏️ Mineur niveau 4."
+            "notice": "🔒 Réservé aux ⛏️ mineurs de niveau 4 : prends le métier ici."
           },
           "blocks": [
             {
@@ -15605,6 +15643,10 @@
                       "op": "eq",
                       "value": "endommagee"
                     }
+                  },
+                  {
+                    "type": "hasJob",
+                    "job": "forgeron"
                   }
                 ]
               }
@@ -15698,6 +15740,10 @@
                       "op": "eq",
                       "value": "endommagee"
                     }
+                  },
+                  {
+                    "type": "hasJob",
+                    "job": "forgeron"
                   }
                 ]
               }
@@ -15921,11 +15967,15 @@
                     "op": "eq",
                     "value": "endommagee"
                   }
+                },
+                {
+                  "type": "hasJob",
+                  "job": "forgeron"
                 }
               ]
             },
             "redirect": "accueil",
-            "notice": "La forge est fermée."
+            "notice": "🔒 La forge est fermée, ou tu n’es pas forgeron."
           },
           "blocks": [
             {
@@ -16015,11 +16065,15 @@
                     "op": "eq",
                     "value": "endommagee"
                   }
+                },
+                {
+                  "type": "hasJob",
+                  "job": "forgeron"
                 }
               ]
             },
             "redirect": "accueil",
-            "notice": "La forge est fermée."
+            "notice": "🔒 La forge est fermée, ou tu n’es pas forgeron."
           },
           "blocks": [
             {
@@ -16109,11 +16163,15 @@
                     "op": "eq",
                     "value": "endommagee"
                   }
+                },
+                {
+                  "type": "hasJob",
+                  "job": "forgeron"
                 }
               ]
             },
             "redirect": "accueil",
-            "notice": "La forge est fermée."
+            "notice": "🔒 La forge est fermée, ou tu n’es pas forgeron."
           },
           "blocks": [
             {
@@ -16203,11 +16261,15 @@
                     "op": "eq",
                     "value": "endommagee"
                   }
+                },
+                {
+                  "type": "hasJob",
+                  "job": "forgeron"
                 }
               ]
             },
             "redirect": "accueil",
-            "notice": "La forge est fermée."
+            "notice": "🔒 La forge est fermée, ou tu n’es pas forgeron."
           },
           "blocks": [
             {
@@ -16297,11 +16359,15 @@
                     "op": "eq",
                     "value": "endommagee"
                   }
+                },
+                {
+                  "type": "hasJob",
+                  "job": "forgeron"
                 }
               ]
             },
             "redirect": "accueil",
-            "notice": "La forge est fermée."
+            "notice": "🔒 La forge est fermée, ou tu n’es pas forgeron."
           },
           "blocks": [
             {
@@ -16391,11 +16457,15 @@
                     "op": "eq",
                     "value": "endommagee"
                   }
+                },
+                {
+                  "type": "hasJob",
+                  "job": "forgeron"
                 }
               ]
             },
             "redirect": "accueil",
-            "notice": "La forge est fermée."
+            "notice": "🔒 La forge est fermée, ou tu n’es pas forgeron."
           },
           "blocks": [
             {
@@ -18119,7 +18189,16 @@
                   "text": "**Où veux-tu aller ?** La lisière est pour tout le monde ; la futaie et le bois sombre se méritent.\n*Haches : bûcheron → fer → maître ou hache de guerre. La chasse demande un arc ou une arbalète.*"
                 }
               ],
-              "accent": 4156229
+              "accent": 4156229,
+              "visibleIf": {
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "hasJob",
+                    "job": "bucheron"
+                  }
+                ]
+              }
             },
             {
               "type": "buttons",
@@ -18187,7 +18266,16 @@
                     "value": 3
                   }
                 }
-              ]
+              ],
+              "visibleIf": {
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "hasJob",
+                    "job": "bucheron"
+                  }
+                ]
+              }
             },
             {
               "type": "section",
@@ -18442,10 +18530,15 @@
           "guard": {
             "when": {
               "type": "all",
-              "conditions": []
+              "conditions": [
+                {
+                  "type": "hasJob",
+                  "job": "bucheron"
+                }
+              ]
             },
             "redirect": "accueil",
-            "notice": "🔒 Il faut être 🪓 Bûcheron niveau 1."
+            "notice": "🔒 Réservé aux 🪓 bûcherons : prends le métier ici."
           },
           "blocks": [
             {
@@ -18508,6 +18601,10 @@
               "type": "all",
               "conditions": [
                 {
+                  "type": "hasJob",
+                  "job": "bucheron"
+                },
+                {
                   "type": "jobLevel",
                   "job": "bucheron",
                   "op": "gte",
@@ -18516,7 +18613,7 @@
               ]
             },
             "redirect": "accueil",
-            "notice": "🔒 Il faut être 🪓 Bûcheron niveau 2."
+            "notice": "🔒 Réservé aux 🪓 bûcherons de niveau 2 : prends le métier ici."
           },
           "blocks": [
             {
@@ -18579,6 +18676,10 @@
               "type": "all",
               "conditions": [
                 {
+                  "type": "hasJob",
+                  "job": "bucheron"
+                },
+                {
                   "type": "jobLevel",
                   "job": "bucheron",
                   "op": "gte",
@@ -18587,7 +18688,7 @@
               ]
             },
             "redirect": "accueil",
-            "notice": "🔒 Il faut être 🪓 Bûcheron niveau 3."
+            "notice": "🔒 Réservé aux 🪓 bûcherons de niveau 3 : prends le métier ici."
           },
           "blocks": [
             {
@@ -20152,7 +20253,16 @@
                   "text": "**Où veux-tu travailler ?** Les champs donnent les céréales de la brasserie, la basse-cour et le verger tout le reste."
                 }
               ],
-              "accent": 11570479
+              "accent": 11570479,
+              "visibleIf": {
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "hasJob",
+                    "job": "fermier"
+                  }
+                ]
+              }
             },
             {
               "type": "buttons",
@@ -20183,7 +20293,16 @@
                   "emoji": "🐔",
                   "style": "primary"
                 }
-              ]
+              ],
+              "visibleIf": {
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "hasJob",
+                    "job": "fermier"
+                  }
+                ]
+              }
             },
             {
               "type": "widget",
@@ -20452,10 +20571,15 @@
           "guard": {
             "when": {
               "type": "all",
-              "conditions": []
+              "conditions": [
+                {
+                  "type": "hasJob",
+                  "job": "fermier"
+                }
+              ]
             },
             "redirect": "accueil",
-            "notice": "🔒 Il faut être 🌾 Fermier niveau 1."
+            "notice": "🔒 Réservé aux 🌾 fermiers : prends le métier ici."
           },
           "blocks": [
             {
@@ -20516,10 +20640,15 @@
           "guard": {
             "when": {
               "type": "all",
-              "conditions": []
+              "conditions": [
+                {
+                  "type": "hasJob",
+                  "job": "fermier"
+                }
+              ]
             },
             "redirect": "accueil",
-            "notice": "🔒 Il faut être 🌾 Fermier niveau 1."
+            "notice": "🔒 Réservé aux 🌾 fermiers : prends le métier ici."
           },
           "blocks": [
             {
@@ -21556,7 +21685,16 @@
                   "text": "**Où veux-tu pêcher ?** Les gros poissons vivent loin de la berge.\n*Cannes : simple → renforcée → moulinet d’argent. La carpe dorée ne mord qu’aux meilleurs.*"
                 }
               ],
-              "accent": 3894927
+              "accent": 3894927,
+              "visibleIf": {
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "hasJob",
+                    "job": "pecheur"
+                  }
+                ]
+              }
             },
             {
               "type": "buttons",
@@ -21624,7 +21762,16 @@
                     "value": 3
                   }
                 }
-              ]
+              ],
+              "visibleIf": {
+                "type": "all",
+                "conditions": [
+                  {
+                    "type": "hasJob",
+                    "job": "pecheur"
+                  }
+                ]
+              }
             },
             {
               "type": "section",
@@ -21846,10 +21993,15 @@
           "guard": {
             "when": {
               "type": "all",
-              "conditions": []
+              "conditions": [
+                {
+                  "type": "hasJob",
+                  "job": "pecheur"
+                }
+              ]
             },
             "redirect": "accueil",
-            "notice": "🔒 Il faut être 🎣 Pêcheur niveau 1."
+            "notice": "🔒 Réservé aux 🎣 pêcheurs : prends le métier ici."
           },
           "blocks": [
             {
@@ -21912,6 +22064,10 @@
               "type": "all",
               "conditions": [
                 {
+                  "type": "hasJob",
+                  "job": "pecheur"
+                },
+                {
                   "type": "jobLevel",
                   "job": "pecheur",
                   "op": "gte",
@@ -21920,7 +22076,7 @@
               ]
             },
             "redirect": "accueil",
-            "notice": "🔒 Il faut être 🎣 Pêcheur niveau 2."
+            "notice": "🔒 Réservé aux 🎣 pêcheurs de niveau 2 : prends le métier ici."
           },
           "blocks": [
             {
@@ -21983,6 +22139,10 @@
               "type": "all",
               "conditions": [
                 {
+                  "type": "hasJob",
+                  "job": "pecheur"
+                },
+                {
                   "type": "jobLevel",
                   "job": "pecheur",
                   "op": "gte",
@@ -21991,7 +22151,7 @@
               ]
             },
             "redirect": "accueil",
-            "notice": "🔒 Il faut être 🎣 Pêcheur niveau 3."
+            "notice": "🔒 Réservé aux 🎣 pêcheurs de niveau 3 : prends le métier ici."
           },
           "blocks": [
             {

@@ -947,20 +947,22 @@ function addPlaces(b, o) {
   b.modules = b.modules.filter((m) => !(o.remove ?? []).includes(m.id));
   const home = b.screens.find((x) => x.id === b.homeScreen);
   home.blocks = home.blocks.filter((x) => !(x.type === 'widget' && x.widget.kind === 'activity.board' && (o.remove ?? []).includes(x.widget.activity)));
+  // Les coins de travail n'apparaissent qu'à ceux qui ont pris le métier (règle de Louis, 16 novembre).
+  const working = all(...[{ type: 'hasJob', job: o.job }, o.visibleIf].filter(Boolean));
   const nav = buttons(
     o.places.map((pl) =>
       btn(`${pl.name}${pl.level > 1 ? ` · niv. ${pl.level}` : ''}`, { ...(pl.level > 1 || pl.when ? { when: pl.level > 1 ? (pl.when ? all(pl.when, lvl(o.job, pl.level)) : lvl(o.job, pl.level)) : pl.when } : {}), onSuccess: { goto: `lieu-${pl.id}` }, onFailure: { notice: pl.locked ?? `🔒 Il faut être ${o.jobLabel} niveau ${pl.level} pour aller là.` } }, { emoji: pl.emoji, style: 'primary', ...(pl.level > 1 ? { visibleIf: lvl(o.job, pl.level) } : {}) }),
     ),
-    o.visibleIf,
+    working,
   );
   const at = home.blocks.findIndex((x) => x.type === 'notice') + 1;
-  home.blocks.splice(at, 0, box([text(o.intro)], b.accentColor, o.visibleIf), nav);
+  home.blocks.splice(at, 0, box([text(o.intro)], b.accentColor, working), nav);
   for (const pl of o.places) {
     b.modules.push({ type: 'activity', id: pl.id, name: `${pl.emoji} ${pl.name}`, activities: pl.activities });
     b.screens.push({
       id: `lieu-${pl.id}`,
       name: pl.name,
-      guard: { when: all(...[pl.level > 1 ? lvl(o.job, pl.level) : null, pl.when, o.visibleIf].filter(Boolean)), redirect: b.homeScreen, notice: pl.locked ?? `🔒 Il faut être ${o.jobLabel} niveau ${pl.level}.` },
+      guard: { when: all(...[{ type: 'hasJob', job: o.job }, pl.level > 1 ? lvl(o.job, pl.level) : null, pl.when, o.visibleIf].filter(Boolean)), redirect: b.homeScreen, notice: pl.locked ?? `🔒 Réservé aux ${o.jobLabel.toLowerCase()}s${pl.level > 1 ? ` de niveau ${pl.level}` : ''} : prends le métier ici.` },
       blocks: [
         box([text(`## ${pl.emoji} ${pl.name}\n*${pl.description}*`), text(statusLine)], b.accentColor),
         notice(),
@@ -1225,15 +1227,15 @@ forge.modules = forge.modules.filter((m) => m.id !== 'atelier');
   home.blocks.splice(
     at,
     0,
-    box([text('**🔨 Le catalogue du maître forgeron.** *Ici, le feu ne s’éteint jamais. Pas d’écus : on paie en lingots.* Chaque objet demande un niveau de forgeron.')], FORGE, all(notStorm, not(forgeDamaged))),
-    buttons(ateliers.map(([id, name]) => go(name, `atelier-${id}`, { style: 'primary' })), all(notStorm, not(forgeDamaged))),
+    box([text('**🔨 Le catalogue du maître forgeron.** *Ici, le feu ne s’éteint jamais. Pas d’écus : on paie en lingots.* Chaque objet demande un niveau de forgeron.')], FORGE, all(notStorm, not(forgeDamaged), { type: 'hasJob', job: 'forgeron' })),
+    buttons(ateliers.map(([id, name]) => go(name, `atelier-${id}`, { style: 'primary' })), all(notStorm, not(forgeDamaged), { type: 'hasJob', job: 'forgeron' })),
   );
   for (const [id, name, intro, acts] of ateliers) {
     forge.modules.push({ type: 'activity', id: `atelier-${id}`, name, activities: acts });
     forge.screens.push({
       id: `atelier-${id}`,
       name,
-      guard: { when: all(notStorm, not(forgeDamaged)), redirect: 'accueil', notice: 'La forge est fermée.' },
+      guard: { when: all(notStorm, not(forgeDamaged), { type: 'hasJob', job: 'forgeron' }), redirect: 'accueil', notice: '🔒 La forge est fermée, ou tu n’es pas forgeron.' },
       blocks: [box([text(`## ${name}\n*${intro}*`), text(statusLine)], FORGE), notice(), widget({ kind: 'activity.board', activity: `atelier-${id}`, accent: FORGE }), buttons([go('↩️ Retour à la forge', 'accueil'), go('🎒 Mon inventaire', 'inventaire'), go('🔄 Actualiser', `atelier-${id}`)])],
     });
   }

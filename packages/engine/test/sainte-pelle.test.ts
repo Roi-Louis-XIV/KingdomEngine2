@@ -328,6 +328,7 @@ test('serment : dotation une seule fois', () => {
 test('lieux de récolte : chances selon le lieu, le niveau et l’outil ; meilleur outil utilisé', () => {
   const { engine } = started();
   const p = new Player(engine, 'louis', 'mine');
+  p.click('⛏️ Devenir mineur').click('Devenir mineur');
   p.click(/Le carreau/);
   const before = p.text.match(/🎲 (.*)/)![1]!;
   assert.match(before, /4 pierres 70 % · 6 pierres 15 % · Un peu de cuivre 15 %/);
@@ -426,11 +427,16 @@ test('métiers : on prend un métier pour travailler, un seul à la fois, on dé
   minutes(engine, clock, 2);
   const f = new Player(engine, 'louis', 'forge', 'Louis');
   assert.match(f.text, /🔨 \*Pour travailler ici, prends le métier de forgeron\.\* Un seul métier à la fois\./);
-  // Sans le métier, les travaux sont fermés et disent pourquoi.
-  f.click('🔥 La fonderie');
-  assert.match(f.text, /🔒 Prends le métier 🔨 Forgeron pour faire ce travail/);
+  // Sans le métier, les menus de travail n'apparaissent pas (catalogue, fonderie)…
+  assert.ok(!f.buttons.includes('🔥 La fonderie'));
+  assert.doesNotMatch(f.text, /Le catalogue du maître forgeron/);
+  // … mais les services pour tous restent : réparer ses outils, l'échoppe, parler à Wagner.
+  assert.match(f.text, /Faire réparer tes outils/);
+  assert.ok(f.buttons.includes('🛒 Échoppe') && f.buttons.includes('💬 Parler à Wagner'));
+  // Même chose à la Mine : pas de galeries sans le métier de mineur.
+  assert.ok(!new Player(engine, 'louis', 'mine', 'Louis').buttons.some((b) => /carreau/i.test(b)));
   // La fiche : aucun métier exercé.
-  f.click('↩️ Retour à la forge').click('🎒 Mon inventaire');
+  f.refresh().click('🎒 Mon inventaire');
   assert.match(f.text, /\*\*🛠️ Métiers\*\*\n\*Aucun métier exercé pour l’instant\.\*/);
   // Prendre le métier.
   f.click('↩️ Retour').click('🔨 Devenir forgeron');
@@ -439,7 +445,9 @@ test('métiers : on prend un métier pour travailler, un seul à la fois, on dé
   assert.match(f.text, /Te voilà forgeron/);
   assert.match(f.text, /🔨 \*\*Tu es forgeron\*\* · niveau 1\/5 · 0 XP/);
   assert.ok(f.buttons.includes('📜 Démissionner') && !f.buttons.includes('🔨 Devenir forgeron'));
+  assert.match(f.text, /Le catalogue du maître forgeron/);
   f.click('🔥 La fonderie');
+  assert.match(f.text, /Fondre un lingot de fer/);
   assert.doesNotMatch(f.text, /Prends le métier/);
   // Un seul métier : à la Mine, impossible de devenir mineur tant qu'on est forgeron.
   const m = new Player(engine, 'louis', 'mine', 'Louis');
