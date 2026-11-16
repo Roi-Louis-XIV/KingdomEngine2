@@ -114,7 +114,7 @@ Détails techniques :
 
 ## Combat au tour par tour
 
-`packages/engine/src/combat.ts`, module `combat` et widget `combat.arena`, créatures dans `world.creatures` (Studio : Objets & règles › Bestiaire).
+`packages/engine/src/combat.ts`, module `combat` et widget `combat.arena`, créatures dans `world.creatures` (Studio : Objets & règles › Bestiaire). **Retiré de la bêta Sainte Pelle** (décision de Louis, 16 novembre) : la primitive reste disponible pour d’autres mondes.
 
 - **Chasse** : « Chercher un adversaire » tire une rencontre (poids et conditions), après le coût (endurance) et le repos. Chaque tour : le joueur attaque, se défend (dégâts reçus ×0,4, 35 % de chance de riposte), utilise un objet de soin ou fuit ; puis la créature riposte. La santé est une statistique : elle reste entamée. Victoire : récompenses, butin tiré ligne par ligne. Défaite : la santé remonte à la valeur prévue, pénalité appliquée sans bloquer (une perte impossible est ignorée). Soins payants facultatifs.
 - **Coup** : esquive possible ; dégâts = attaque × (0,8 à 1,2) − défense/2, au moins 1 ; critique 10 % (×1,5). Attaque et défense du joueur = base du module + équipement (meilleur objet de chaque emplacement).

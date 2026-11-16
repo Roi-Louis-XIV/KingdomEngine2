@@ -212,7 +212,7 @@ test('modèle : reprendre la dernière version d’un modèle en brouillon, prog
   const d = await louis.get(`/api/servers/${id}/content/draft`);
   assert.equal(d.data.world.id, id, 'le monde garde l’identifiant du serveur');
   assert.equal(d.data.world.name, 'Valbrume', 'et son nom');
-  assert.ok(d.data.world.creatures.length > 0, 'le bestiaire du modèle est là');
+  assert.equal(d.data.world.buildings.length, 8, 'les lieux du modèle sont là');
   assert.equal(d.data.issues.filter((i: any) => i.level === 'error').length, 0);
   const pub = await louis.post(`/api/servers/${id}/content/publish`, { revision: d.data.revision, note: 'Modèle à jour' });
   assert.equal(pub.status, 200);
