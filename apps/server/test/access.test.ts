@@ -99,6 +99,10 @@ test('serment : panneau dans les limites Discord, bouton sans état, salons rés
   assert.ok(isOath(OATH_ID) && !isOath(enterCustomId('place')));
   // Sans rôle d'habitant (pas de serment) : aucune restriction.
   assert.deepEqual(voiceOverwrites('guild', null, 'bot'), []);
+  // Rôle des Voice Workers : toujours autorisé à voir, rejoindre et parler (serment ou pas).
+  const [voix] = voiceOverwrites('guild', null, 'bot', [], 'role-voix');
+  assert.ok(voix!.id === 'role-voix' && voix!.type === 'role' && voix!.allow & P.ViewChannel && voix!.allow & P.Connect && voix!.allow & P.Speak);
+  assert.equal(voiceOverwrites('guild', 'habitant', 'bot', [], 'role-voix')[0]!.id, 'role-voix');
   const [everyone, role] = voiceOverwrites('guild', 'habitant', 'bot');
   assert.ok(everyone!.deny & P.ViewChannel && everyone!.deny & P.Connect);
   assert.ok(role!.allow & P.ViewChannel && role!.allow & P.Connect && role!.allow & P.Speak);

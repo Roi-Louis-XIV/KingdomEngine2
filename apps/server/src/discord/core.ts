@@ -205,7 +205,8 @@ export class CoreBot implements DiscordBridge {
     const known = this.channelsOf(serverId);
     const categories = this.platform.setting<Record<string, string>>(serverId, 'discord.categories', {});
     const role = oathRequired(world.onboarding) ? await this.ensurePlayerRole(g, serverId, world.onboarding.roleName) : null;
-    const gated = this.resolve(g, voiceOverwrites(g.roles.everyone.id, role?.id ?? null, this.client.user!.id, this.voiceBotIds()));
+    const voiceRole = await this.ensureVoiceRole(g, serverId);
+    const gated = this.resolve(g, voiceOverwrites(g.roles.everyone.id, role?.id ?? null, this.client.user!.id, this.voiceBotIds(), voiceRole));
     if (oathRequired(world.onboarding)) {
       // Catégorie d'accueil du monde, avec le salon du serment, visible de tous.
       const welcome = await this.ensureCategory(g, serverId, 'discord.category', `🏰 ${world.name}`, []);
@@ -230,6 +231,30 @@ export class CoreBot implements DiscordBridge {
 
   private resolve(_g: Guild, list: Overwrite[]): OverwriteResolvable[] {
     return list.map((o) => ({ id: o.id, type: o.type === 'role' ? 0 : 1, allow: o.allow, deny: o.deny }));
+  }
+
+  /**
+   * Rôle des Voice Workers (« 🎙️ Voix KingdomEngine ») : retrouvé ou créé, puis donné à chaque worker présent
+   * sur le serveur Discord. Il leur permet de voir et de rejoindre les salons des bâtiments, même réservés ou privés.
+   * Sans droit « Gérer les rôles » pour le bot principal : rien n'est bloqué, les autorisations par worker restent.
+   */
+  private async ensureVoiceRole(g: Guild, serverId: string): Promise<string | null> {
+    const name = '🎙️ Voix KingdomEngine';
+    try {
+      const known = this.platform.setting<string | null>(serverId, 'discord.voiceRole', null);
+      let role = (known && (await g.roles.fetch(known).catch(() => null))) || g.roles.cache.find((r) => r.name === name) || null;
+      const perms = PermissionFlagsBits.ViewChannel | PermissionFlagsBits.Connect | PermissionFlagsBits.Speak;
+      if (!role) role = await g.roles.create({ name, permissions: perms, mentionable: false, hoist: false, reason: 'KingdomEngine : rôle des Voice Workers' });
+      this.platform.setSetting(serverId, 'discord.voiceRole', role.id);
+      for (const id of this.voiceBotIds()) {
+        const m = await g.members.fetch(id).catch(() => null);
+        if (m && !m.roles.cache.has(role.id)) await m.roles.add(role, 'KingdomEngine : Voice Worker').catch((e) => console.warn(`Rôle des Voice Workers pour ${m.user.tag} :`, e.message));
+      }
+      return role.id;
+    } catch (e) {
+      console.warn('Rôle des Voice Workers :', (e as Error).message);
+      return null;
+    }
   }
 
   /** Rôle donné par le serment (retrouvé par son identifiant, sinon par son nom, sinon créé). */
@@ -289,12 +314,13 @@ export class CoreBot implements DiscordBridge {
     // Catégories et salons vocaux : réservés aux habitants si le monde demande un serment.
     if (force) {
       const roleId = oathRequired(ob) ? this.platform.setting<string | null>(serverId, 'discord.playerRole', null) : null;
-      const gated = this.resolve(g, voiceOverwrites(g.roles.everyone.id, roleId, this.client.user!.id, this.voiceBotIds()));
+      const voiceRole = await this.ensureVoiceRole(g, serverId);
+      const gated = this.resolve(g, voiceOverwrites(g.roles.everyone.id, roleId, this.client.user!.id, this.voiceBotIds(), voiceRole));
       const categories = this.platform.setting<Record<string, string>>(serverId, 'discord.categories', {});
       for (const b of engine.world.buildings)
         for (const id of [categories[b.id], channels[b.id]?.voice]) {
           const ch = id ? await g.channels.fetch(id).catch(() => null) : null;
-          if (ch && (ch.type === ChannelType.GuildCategory || ch.type === ChannelType.GuildVoice)) await this.gate(g, ch, gated, roleId).catch((e) => console.warn(`Permissions de ${b.id} :`, e.message));
+          if (ch && (ch.type === ChannelType.GuildCategory || ch.type === ChannelType.GuildVoice)) await this.gate(g, ch, gated, roleId, voiceRole).catch((e) => console.warn(`Permissions de ${b.id} :`, e.message));
         }
     }
     for (const b of engine.world.buildings) {
@@ -380,14 +406,15 @@ export class CoreBot implements DiscordBridge {
   }
 
   /** Applique les permissions « habitants seulement » (ou les retire) à une catégorie ou un salon vocal. */
-  private async gate(g: Guild, ch: CategoryChannel | VoiceChannel, gated: OverwriteResolvable[], roleId: string | null) {
+  private async gate(g: Guild, ch: CategoryChannel | VoiceChannel, gated: OverwriteResolvable[], roleId: string | null, voiceRole: string | null = null) {
     const cur = ch.permissionOverwrites.cache;
     const everyoneHidden = !!cur.get(g.roles.everyone.id)?.deny.has(PermissionFlagsBits.ViewChannel);
     const bots = this.voiceBotIds();
-    if (roleId ? everyoneHidden && cur.has(roleId) && bots.every((id) => cur.has(id)) : !everyoneHidden) return;
-    // Les autres permissions (rôles d'administration…) sont conservées.
+    const workersOk = !voiceRole || !!cur.get(voiceRole)?.allow.has(PermissionFlagsBits.Connect);
+    if (roleId ? everyoneHidden && cur.has(roleId) && workersOk && bots.every((id) => cur.has(id)) : !everyoneHidden && workersOk) return;
+    // Les autres permissions (rôles d'administration…) sont conservées ; sans serment, celles de @everyone aussi.
     const keep: OverwriteResolvable[] = [...cur.values()]
-      .filter((o) => o.id !== g.roles.everyone.id && o.id !== roleId && o.id !== this.client.user!.id && !bots.includes(o.id))
+      .filter((o) => (roleId ? o.id !== g.roles.everyone.id : true) && o.id !== roleId && o.id !== voiceRole && o.id !== this.client.user!.id && !bots.includes(o.id))
       .map((o) => ({ id: o.id, type: o.type, allow: o.allow.bitfield, deny: o.deny.bitfield }));
     await ch.permissionOverwrites.set([...gated, ...keep], 'KingdomEngine : accès réservé aux habitants');
   }

@@ -118,6 +118,7 @@ export async function discordPage(main: HTMLElement) {
             d.voiceAlways
               ? h('p', null, `Ambiance permanente : un Voice Worker reste dans chacun des ${d.voiceNeed} salons vocaux de bâtiments, sous le nom de son personnage. Il en faut ${d.voiceNeed} installés sur ce serveur.`)
               : h('p', null, 'Un Voice Worker joue l’ambiance d’un bâtiment occupé sous le nom de son personnage. Deux bâtiments occupés en même temps demandent deux workers installés.'),
+            h('p', { class: 'muted' }, 'Chaque worker invité reçoit le rôle « 🎙️ Voix KingdomEngine » : il voit et rejoint tous les salons des bâtiments, même privés. Dans Discord, laisse le rôle du bot principal au-dessus de ce rôle (Paramètres du serveur › Rôles).'),
             (() => {
               const installed = d.workers.filter((x: any) => x.installed && x.online).length;
               return d.voiceAlways && installed < d.voiceNeed

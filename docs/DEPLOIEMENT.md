@@ -57,7 +57,7 @@ Chaque Voice Worker est un bot Discord à part : il rejoint un salon vocal et y 
    sudo bash /opt/kingdomengineNext/deploy/voice-workers.sh
    ```
    L’outil affiche les 10 emplacements, demande le numéro, puis le token (saisie masquée) ; l’Application ID est proposé automatiquement. Il redémarre le service à la fin. `… voice-workers.sh etat` affiche seulement l’état, sans jamais montrer les tokens.
-3. **Inviter les workers** : Studio › **Discord** › *Voice Workers* → bouton **Inviter** sur chaque ligne (droits : voir les salons, se connecter, parler).
+3. **Inviter les workers** : Studio › **Discord** › *Voice Workers* → bouton **Inviter** sur chaque ligne (droits : voir les salons, se connecter, parler). Dès qu’un worker arrive sur le serveur Discord, le bot principal lui donne le rôle **🎙️ Voix KingdomEngine**, autorisé dans toutes les catégories et tous les salons vocaux des bâtiments (même sur un serveur privé ou avec serment). Le rôle du bot principal doit rester au-dessus de ce rôle.
 
 Ne jamais réutiliser un token de KingdomEngine 2 ni celui du bot principal : un même bot ne peut pas être connecté à deux endroits à la fois.
 

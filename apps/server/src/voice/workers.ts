@@ -104,7 +104,8 @@ export class VoiceWorkers implements VoiceBridge {
         // Un nouveau Voice Worker doit être autorisé dans les salons réservés aux habitants.
         this.onBotsChanged?.();
       });
-      l.client.on(Events.GuildCreate, (g) => (state.guilds.add(g.id), this.refresh()));
+      // Worker invité sur un serveur : le bot principal lui donne le rôle des Voice Workers et l'accès aux salons.
+      l.client.on(Events.GuildCreate, (g) => (state.guilds.add(g.id), this.refresh(), this.onBotsChanged?.()));
       l.client.on(Events.GuildDelete, (g) => (state.guilds.delete(g.id), this.refresh()));
       l.client.on(Events.Error, (e) => (state.error = e.message));
       l.client.on(Events.ShardDisconnect, () => ((state.online = false), this.refresh()));
