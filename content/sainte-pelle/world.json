@@ -10239,7 +10239,7 @@
                           "op": "eq",
                           "value": "eboulement"
                         },
-                        "text": "## ⛏️ Mine de Roland\n*🚨 La galerie s’est effondrée ! On entend Roland appeler à l’aide derrière les gravats.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## ⛏️ Mine de Roland\n*🚨 La galerie s’est effondrée ! On entend Roland appeler à l’aide derrière les gravats.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n⛏️ **Mineur niveau {player.level.mineur}**/5 · {player.xp.mineur} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence par piocher du minerai ; chaque niveau ouvre des galeries plus riches."
                       },
                       {
                         "when": {
@@ -10259,7 +10259,7 @@
                             }
                           ]
                         },
-                        "text": "## ⛏️ Mine de Roland\n*L’eau ruisselle sur les parois. Roland a fait remonter tout le monde : la mine est fermée pendant la tempête.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## ⛏️ Mine de Roland\n*L’eau ruisselle sur les parois. Roland a fait remonter tout le monde : la mine est fermée pendant la tempête.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n⛏️ **Mineur niveau {player.level.mineur}**/5 · {player.xp.mineur} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence par piocher du minerai ; chaque niveau ouvre des galeries plus riches."
                       },
                       {
                         "when": {
@@ -10268,7 +10268,7 @@
                           "op": "eq",
                           "value": "endommagee"
                         },
-                        "text": "## ⛏️ Mine de Roland\n*Les étais ont cédé par endroits. On travaille, mais prudemment.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## ⛏️ Mine de Roland\n*Les étais ont cédé par endroits. On travaille, mais prudemment.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n⛏️ **Mineur niveau {player.level.mineur}**/5 · {player.xp.mineur} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence par piocher du minerai ; chaque niveau ouvre des galeries plus riches."
                       },
                       {
                         "when": {
@@ -10288,10 +10288,10 @@
                             }
                           ]
                         },
-                        "text": "## ⛏️ Mine de Roland\n*Une lueur bleutée filtre depuis la galerie profonde, ouverte depuis la trouvaille de Roland.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## ⛏️ Mine de Roland\n*Une lueur bleutée filtre depuis la galerie profonde, ouverte depuis la trouvaille de Roland.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n⛏️ **Mineur niveau {player.level.mineur}**/5 · {player.xp.mineur} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence par piocher du minerai ; chaque niveau ouvre des galeries plus riches."
                       },
                       {
-                        "text": "## ⛏️ Mine de Roland\n*Le tintement des pioches résonne. Roland surveille ses galeries comme un berger ses moutons.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## ⛏️ Mine de Roland\n*Le tintement des pioches résonne. Roland surveille ses galeries comme un berger ses moutons.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n⛏️ **Mineur niveau {player.level.mineur}**/5 · {player.xp.mineur} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence par piocher du minerai ; chaque niveau ouvre des galeries plus riches."
                       }
                     ]
                   }
@@ -15148,7 +15148,7 @@
                           "op": "eq",
                           "value": "incendie"
                         },
-                        "text": "## 🔥 Forge du Dragon Noir\n*🚨 LE TOIT BRÛLE ! La foudre est tombée droit sur la pierre-tonnerre. Wagner hurle : « De l’eau ! »*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## 🔥 Forge du Dragon Noir\n*🚨 LE TOIT BRÛLE ! La foudre est tombée droit sur la pierre-tonnerre. Wagner hurle : « De l’eau ! »*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🔨 **Forgeron niveau {player.level.forgeron}**/5 · {player.xp.forgeron} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence à la **🔥 fonderie** : 2 minerais de fer (Mine) donnent un lingot. Chaque ouvrage fait progresser, et chaque niveau débloque de nouveaux objets du catalogue."
                       },
                       {
                         "when": {
@@ -15168,7 +15168,7 @@
                             }
                           ]
                         },
-                        "text": "## 🔥 Forge du Dragon Noir\n*Wagner a couvert le feu et barricadé la porte. Rien ne se forge pendant la tempête.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## 🔥 Forge du Dragon Noir\n*Wagner a couvert le feu et barricadé la porte. Rien ne se forge pendant la tempête.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🔨 **Forgeron niveau {player.level.forgeron}**/5 · {player.xp.forgeron} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence à la **🔥 fonderie** : 2 minerais de fer (Mine) donnent un lingot. Chaque ouvrage fait progresser, et chaque niveau débloque de nouveaux objets du catalogue."
                       },
                       {
                         "when": {
@@ -15177,7 +15177,7 @@
                           "op": "eq",
                           "value": "endommagee"
                         },
-                        "text": "## 🔥 Forge du Dragon Noir\n*Le toit n’est plus qu’une charpente noircie. Wagner fouille les cendres.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## 🔥 Forge du Dragon Noir\n*Le toit n’est plus qu’une charpente noircie. Wagner fouille les cendres.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🔨 **Forgeron niveau {player.level.forgeron}**/5 · {player.xp.forgeron} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence à la **🔥 fonderie** : 2 minerais de fer (Mine) donnent un lingot. Chaque ouvrage fait progresser, et chaque niveau débloque de nouveaux objets du catalogue."
                       },
                       {
                         "when": {
@@ -15197,10 +15197,10 @@
                             }
                           ]
                         },
-                        "text": "## 🔥 Forge du Dragon Noir\n*Sur l’enclume, une pierre bleutée grésille. Wagner la regarde comme un trésor.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## 🔥 Forge du Dragon Noir\n*Sur l’enclume, une pierre bleutée grésille. Wagner la regarde comme un trésor.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🔨 **Forgeron niveau {player.level.forgeron}**/5 · {player.xp.forgeron} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence à la **🔥 fonderie** : 2 minerais de fer (Mine) donnent un lingot. Chaque ouvrage fait progresser, et chaque niveau débloque de nouveaux objets du catalogue."
                       },
                       {
-                        "text": "## 🔥 Forge du Dragon Noir\n*Le foyer rugit. Wagner frappe le métal en cadence.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## 🔥 Forge du Dragon Noir\n*Le foyer rugit. Wagner frappe le métal en cadence.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🔨 **Forgeron niveau {player.level.forgeron}**/5 · {player.xp.forgeron} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Commence à la **🔥 fonderie** : 2 minerais de fer (Mine) donnent un lingot. Chaque ouvrage fait progresser, et chaque niveau débloque de nouveaux objets du catalogue."
                       }
                     ]
                   }
@@ -17611,7 +17611,7 @@
                           "op": "gte",
                           "value": 110
                         },
-                        "text": "## 🌲 Forêt de Sylvain\n*Des arbres couchés partout. Sylvain marque à la craie ceux qu’on peut débiter.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## 🌲 Forêt de Sylvain\n*Des arbres couchés partout. Sylvain marque à la craie ceux qu’on peut débiter.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🪓 **Bûcheron niveau {player.level.bucheron}**/5 · {player.xp.bucheron} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Coupe du bois avec une hache ; chaque niveau ouvre des arbres plus durs."
                       },
                       {
                         "when": {
@@ -17631,10 +17631,10 @@
                             }
                           ]
                         },
-                        "text": "## 🌲 Forêt de Sylvain\n*Le vent se lève. Les branches s’agitent ; Sylvain presse tout le monde.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## 🌲 Forêt de Sylvain\n*Le vent se lève. Les branches s’agitent ; Sylvain presse tout le monde.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🪓 **Bûcheron niveau {player.level.bucheron}**/5 · {player.xp.bucheron} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Coupe du bois avec une hache ; chaque niveau ouvre des arbres plus durs."
                       },
                       {
-                        "text": "## 🌲 Forêt de Sylvain\n*Les grands chênes bruissent. Sylvain, le garde-forestier, veille sur ses arbres.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## 🌲 Forêt de Sylvain\n*Les grands chênes bruissent. Sylvain, le garde-forestier, veille sur ses arbres.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🪓 **Bûcheron niveau {player.level.bucheron}**/5 · {player.xp.bucheron} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Coupe du bois avec une hache ; chaque niveau ouvre des arbres plus durs."
                       }
                     ]
                   }
@@ -19467,7 +19467,7 @@
                             }
                           ]
                         },
-                        "text": "## 🌾 Ferme d’Agathe\n*Le ciel noircit. Agathe a sonné la dernière récolte : tout le monde aux champs !*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## 🌾 Ferme d’Agathe\n*Le ciel noircit. Agathe a sonné la dernière récolte : tout le monde aux champs !*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🌾 **Fermier niveau {player.level.fermier}**/5 · {player.xp.fermier} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Ramasse, moissonne, nourris les bêtes ; chaque niveau ouvre de nouveaux travaux."
                       },
                       {
                         "when": {
@@ -19476,10 +19476,10 @@
                           "op": "gte",
                           "value": 110
                         },
-                        "text": "## 🌾 Ferme d’Agathe\n*La grange a tenu bon. Agathe compte ses poules, une par une.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## 🌾 Ferme d’Agathe\n*La grange a tenu bon. Agathe compte ses poules, une par une.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🌾 **Fermier niveau {player.level.fermier}**/5 · {player.xp.fermier} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Ramasse, moissonne, nourris les bêtes ; chaque niveau ouvre de nouveaux travaux."
                       },
                       {
-                        "text": "## 🌾 Ferme d’Agathe\n*Les poules caquettent, le blé ondule. Agathe distribue des paniers.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## 🌾 Ferme d’Agathe\n*Les poules caquettent, le blé ondule. Agathe distribue des paniers.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🌾 **Fermier niveau {player.level.fermier}**/5 · {player.xp.fermier} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Ramasse, moissonne, nourris les bêtes ; chaque niveau ouvre de nouveaux travaux."
                       }
                     ]
                   }
@@ -20684,7 +20684,7 @@
                           "op": "gte",
                           "value": 110
                         },
-                        "text": "## 🌉 Vieux pont de Valbrume\n*Le pont a tenu. Sur l’autre rive, l’église éventrée fait peine à voir.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## 🌉 Vieux pont de Valbrume\n*Le pont a tenu. Sur l’autre rive, l’église éventrée fait peine à voir.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🎣 **Pêcheur niveau {player.level.pecheur}**/5 · {player.xp.pecheur} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Pêche avec une canne ; chaque niveau ouvre de meilleurs coins."
                       },
                       {
                         "when": {
@@ -20704,10 +20704,10 @@
                             }
                           ]
                         },
-                        "text": "## 🌉 Vieux pont de Valbrume\n*La rivière gonfle et charrie des branches. Les poissons se pressent sous les arches.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## 🌉 Vieux pont de Valbrume\n*La rivière gonfle et charrie des branches. Les poissons se pressent sous les arches.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🎣 **Pêcheur niveau {player.level.pecheur}**/5 · {player.xp.pecheur} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Pêche avec une canne ; chaque niveau ouvre de meilleurs coins."
                       },
                       {
-                        "text": "## 🌉 Vieux pont de Valbrume\n*Le vieux pont enjambe la rivière. De l’autre côté, le clocher de la Sainte Pelle.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}"
+                        "text": "## 🌉 Vieux pont de Valbrume\n*Le vieux pont enjambe la rivière. De l’autre côté, le clocher de la Sainte Pelle.*\n⚡ **Endurance :** {player.stat.energie}/100 · 💰 **Bourse :** {player.stat.ecus} écus · ⭐ **XP :** {player.stat.xp}\n🌦️ **Météo :** {var.meteo.label}\n🎣 **Pêcheur niveau {player.level.pecheur}**/5 · {player.xp.pecheur} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* Pêche avec une canne ; chaque niveau ouvre de meilleurs coins."
                       }
                     ]
                   }

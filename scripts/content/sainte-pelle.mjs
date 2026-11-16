@@ -1717,6 +1717,24 @@ for (const b of world.buildings)
       if (i > 0) ch.splice(i - 1, 2, { type: 'text', text: joinText(ch[i - 1].text, statusLine) });
     }
 
+// Métier du lieu, rappelé sur l'accueil (demande de Louis : « comment on devient forgeron ? »).
+// Tout le monde exerce ces métiers : on progresse en travaillant, sans rien rejoindre (seul le brasseur se rejoint).
+const JOB_HINTS = {
+  mine: ['mineur', '⛏️', 'Mineur', 'Commence par piocher du minerai ; chaque niveau ouvre des galeries plus riches.'],
+  forge: ['forgeron', '🔨', 'Forgeron', 'Commence à la **🔥 fonderie** : 2 minerais de fer (Mine) donnent un lingot. Chaque ouvrage fait progresser, et chaque niveau débloque de nouveaux objets du catalogue.'],
+  foret: ['bucheron', '🪓', 'Bûcheron', 'Coupe du bois avec une hache ; chaque niveau ouvre des arbres plus durs.'],
+  ferme: ['fermier', '🌾', 'Fermier', 'Ramasse, moissonne, nourris les bêtes ; chaque niveau ouvre de nouveaux travaux.'],
+  pont: ['pecheur', '🎣', 'Pêcheur', 'Pêche avec une canne ; chaque niveau ouvre de meilleurs coins.'],
+};
+for (const [bid, [job, emoji, name, how]] of Object.entries(JOB_HINTS)) {
+  const b = world.buildings.find((x) => x.id === bid);
+  const home = b?.screens.find((x) => x.id === b.homeScreen);
+  const head = home?.blocks.find((x) => x.type === 'container');
+  const t = head?.children.find((x) => x.type === 'text');
+  if (!t) throw new Error(`Accueil sans en-tête : ${bid}`);
+  t.text = joinText(t.text, `${emoji} **${name} niveau {player.level.${job}}**/5 · {player.xp.${job}} XP (40 par niveau) — *tout le monde peut travailler ici, sans rien rejoindre.* ${how}`);
+}
+
 // L'eau dessoûle aussi quand on l'emporte dans sa gourde.
 const gourde = world.items.find((i) => i.id === 'gourde_eau');
 if (gourde?.consumable && !gourde.consumable.effects.some((e) => e.stat === 'alcool')) gourde.consumable.effects.push(stat('alcool', -10));

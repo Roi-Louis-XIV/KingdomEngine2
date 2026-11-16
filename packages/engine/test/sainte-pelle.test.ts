@@ -411,3 +411,9 @@ test('toutes les répliques du document du scénario sont jouées quelque part',
   for (const key of ['agathe-accueil', 'anselme-accueil', 'sylvain-eclat', 'agathe-eclat', 'maelis-quete-finie', 'edgar-rumeur-pierre', 'edgar-innocent', 'roland-galerie', 'roland-avis', 'wagner-avis', 'anselme-avis'])
     assert.ok(json.includes(`"${key}"`), key);
 });
+
+test('métiers : chaque lieu de travail rappelle le niveau du joueur et comment progresser (sans rien rejoindre)', () => {
+  const { engine } = started();
+  for (const [b, line] of [['forge', /🔨 \*\*Forgeron niveau 1\*\*\/5 · 0 XP \(40 par niveau\) — \*tout le monde peut travailler ici, sans rien rejoindre\.\* Commence à la \*\*🔥 fonderie\*\*/], ['mine', /⛏️ \*\*Mineur niveau 1\*\*/], ['foret', /🪓 \*\*Bûcheron niveau 1\*\*/], ['ferme', /🌾 \*\*Fermier niveau 1\*\*/], ['pont', /🎣 \*\*Pêcheur niveau 1\*\*/]] as const)
+    assert.match(new Player(engine, `j-${b}`, b).text, line, b);
+});
