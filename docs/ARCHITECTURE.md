@@ -178,3 +178,8 @@ Voir `packages/engine/src/model.ts`.
 - `apps/studio/src/mobile.ts` : sur un écran de moins de 760 px, le Studio passe en vue de supervision épurée. Elle a trois onglets en bas : Accueil (événement en cours, chiffres, activité récente), En direct (météo affichée, événements à lancer, arrêter, recommencer ou reprendre, avec confirmation) et Joueurs (liste, puis fiche en lecture seule : statistiques, métiers, équipement, sac).
 - Rien ne s'y modifie à part les événements : les pages de création et de réglage (bâtiments, météo, quêtes, objets, Discord…) affichent « À faire sur ordinateur ».
 - Le menu ⋯ permet de changer de serveur, d'afficher la version complète (choix mémorisé dans `localStorage` sous la clé `ke-vue`) ou de se déconnecter. En version complète sur un petit écran, le bouton « 📱 Version mobile » du menu revient à la vue mobile.
+
+## Demandes d'accès
+
+- Inscriptions fermées (`KINGDOM_ALLOW_REGISTRATION=0`, le réglage par défaut d'une installation) : une connexion Discord sans compte ne crée rien. Elle est enregistrée comme **demande d'accès** (table `access_requests`, migration 3) et la personne voit « Ta demande d'accès a bien été transmise ».
+- L'administrateur voit les demandes en haut de la page Administration, dans la page Comptes sur mobile (menu ⋯) et en badge (`/api/session` → `accessRequests`). « Créer son compte » crée un compte relié à ce Discord, sans mot de passe, et peut ouvrir un monde avec un rôle (`POST /api/admin/requests/:discordId/accept`). « Ignorer » efface la demande.

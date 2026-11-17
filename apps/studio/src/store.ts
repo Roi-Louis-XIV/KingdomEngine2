@@ -33,6 +33,8 @@ export const state = {
   firstRun: false,
   version: '',
   discordLogin: false,
+  /** Demandes d'accès en attente (administrateur de la plateforme seulement). */
+  accessRequests: 0,
   serverId: null as string | null,
   draft: null as null | { serverId: string; world: WorldDef; revision: number; basedOn: number | null; dirty: boolean; issues: Issue[] },
 };
@@ -55,6 +57,7 @@ export async function loadSession() {
   state.firstRun = s.firstRun;
   state.version = s.version;
   state.discordLogin = !!s.discordLogin;
+  state.accessRequests = s.accessRequests ?? 0;
   const saved = localStorage.getItem('kingdom.server');
   state.serverId = state.servers.find((x) => x.id === saved)?.id ?? state.servers[0]?.id ?? null;
 }

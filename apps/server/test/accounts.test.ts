@@ -138,13 +138,12 @@ let readToken = '';
 let draftToken = '';
 let publishToken = '';
 
-test('le Studio annonce la connexion Discord ; un compte Discord inconnu est refusé quand les inscriptions sont fermées', async () => {
+test('le Studio annonce la connexion Discord ; un compte Discord inconnu devient une demande d’accès quand les inscriptions sont fermées', async () => {
   await roi.post('/api/auth/register', { username: 'roi', password: 'motdepasse-solide' });
   assert.equal((await roi.get('/api/session')).data.discordLogin, true);
   const r = await new Client().discord('222222222222222222');
   assert.equal(r.status, 200);
-  assert.match(r.data, /erreur=/);
-  assert.match(decodeURIComponent(r.data), /Aucun compte KingdomEngine/);
+  assert.match(decodeURIComponent(r.data), /\?info=Ta demande d’accès a bien été transmise/);
 });
 
 test('connexion Discord : état lié au navigateur, usage unique', async () => {

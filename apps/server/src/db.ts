@@ -138,6 +138,18 @@ const MIGRATIONS: string[] = [
     expires_at INTEGER NOT NULL
   );
   `,
+  // 3 — demandes d'accès : connexions Discord refusées (inscriptions fermées), visibles par l'administrateur
+  `
+  CREATE TABLE access_requests (
+    discord_id TEXT PRIMARY KEY,
+    username TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    avatar_url TEXT,
+    first_at INTEGER NOT NULL,
+    last_at INTEGER NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 1
+  );
+  `,
 ];
 
 export type DB = DatabaseSync;

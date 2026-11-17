@@ -113,6 +113,8 @@ export function registerAccountApi(router: Router, deps: AccountApiDeps) {
       return redirectPage(created ? '/?info=' + encodeURIComponent('Bienvenue ! Ton compte a été créé avec Discord.') : `/${hash}`);
     } catch (e) {
       if (!(e instanceof HttpError)) console.error('Connexion Discord :', (e as Error).message);
+      // Inscriptions fermées : la demande d'accès est enregistrée, on l'annonce comme une information.
+      if (e instanceof HttpError && e.status === 403 && pending.mode === 'login') return redirectPage('/?info=' + encodeURIComponent(e.message));
       return fail((e as Error).message, pending.mode);
     }
   });

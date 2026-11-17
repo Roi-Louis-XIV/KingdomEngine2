@@ -152,7 +152,7 @@ function shell(active: string | null, mount: (main: HTMLElement) => void): HTMLE
     h(
       'div',
       { class: 'rail-foot' },
-      state.account?.platformRole === 'platform_admin' ? h('a', { href: '#/administration', class: `nav-link${active === 'administration' ? ' on' : ''}` }, h('span', { class: 'nav-icon' }, '♛'), 'Administration') : null,
+      state.account?.platformRole === 'platform_admin' ? h('a', { href: '#/administration', class: `nav-link${active === 'administration' ? ' on' : ''}` }, h('span', { class: 'nav-icon' }, '♛'), 'Administration', state.accessRequests ? h('span', { class: 'nav-badge', title: 'Demandes d’accès en attente' }, String(state.accessRequests)) : null) : null,
       h(
         'a',
         { class: `me${active === 'profil' ? ' on' : ''}`, href: '#/profil', 'aria-label': 'Mon profil', 'aria-current': active === 'profil' ? 'page' : null },

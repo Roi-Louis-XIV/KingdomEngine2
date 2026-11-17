@@ -93,6 +93,7 @@ export function registerApi(router: Router, deps: ApiDeps) {
     servers: r.account ? platform.serversFor(r.account) : [],
     version: deps.version,
     discordLogin: !!deps.discordOAuth,
+    accessRequests: r.account?.platformRole === 'platform_admin' ? platform.accessRequests().length : 0,
   }));
 
   registerAccountApi(router, {
@@ -612,7 +613,22 @@ export function registerApi(router: Router, deps: ApiDeps) {
       ffmpeg: v.ffmpeg,
       version: deps.version,
       registration: platform.opts.allowRegistration,
+      requests: platform.accessRequests(),
     };
+  });
+
+  // Demandes d'accès (connexions Discord refusées) : créer le compte, et donner l'accès à un monde si demandé.
+  router.post('/api/admin/requests/:did/accept', (r) => {
+    const a = admin(r);
+    const acc = platform.acceptAccessRequest(String(r.params.did));
+    platform.audit(null, a.id, 'account.create', `Compte ${acc.username} créé (demande d’accès Discord acceptée)`);
+    if (r.body.serverId && r.body.role) platform.setMember(String(r.body.serverId), a, acc.username, r.body.role);
+    return acc;
+  });
+  router.delete('/api/admin/requests/:did', (r) => {
+    admin(r);
+    platform.dismissAccessRequest(String(r.params.did));
+    return { ok: true };
   });
 
   router.post('/api/admin/accounts', (r) => {

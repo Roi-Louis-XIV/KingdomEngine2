@@ -386,14 +386,49 @@ export class Platform {
     let account = this.accountByDiscord(profile.id);
     let created = false;
     if (!account) {
-      if (!this.registrationOpen())
-        throw new HttpError(403, 'Aucun compte KingdomEngine n’est relié à ce compte Discord. Demande à un administrateur de t’ajouter, ou connecte-toi avec ton identifiant puis relie Discord depuis ton profil.');
+      if (!this.registrationOpen()) {
+        // Inscriptions fermées : la tentative devient une demande d'accès que l'administrateur voit et accepte en un geste.
+        this.recordAccessRequest(profile);
+        throw new HttpError(403, 'Ta demande d’accès a bien été transmise à l’administrateur de KingdomEngine. Reconnecte-toi avec Discord dès qu’il l’aura acceptée.');
+      }
       account = this.createAccount({ username: this.freeUsername(profile.username), displayName: profile.globalName || profile.username, discordId: profile.id });
       created = true;
     }
     this.refreshDiscordProfile(account.id, profile);
     const { token, maxAge } = this.openSession(account.id, remember, { ...meta, method: 'discord' });
     return { token, account: this.account(account.id)!, maxAge, created };
+  }
+
+  recordAccessRequest(p: DiscordProfile): void {
+    const now = this.now();
+    this.db
+      .prepare(
+        `INSERT INTO access_requests (discord_id, username, display_name, avatar_url, first_at, last_at) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(discord_id) DO UPDATE SET username = excluded.username, display_name = excluded.display_name, avatar_url = excluded.avatar_url, last_at = excluded.last_at, attempts = attempts + 1`,
+      )
+      .run(p.id, p.username, p.globalName || p.username, discordAvatar(p), now, now);
+  }
+
+  /** Demandes d'accès en attente (comptes Discord sans compte KingdomEngine), les plus récentes d'abord. */
+  accessRequests(): { discordId: string; username: string; displayName: string; avatarUrl: string | null; firstAt: number; lastAt: number; attempts: number }[] {
+    const rows = this.db
+      .prepare('SELECT * FROM access_requests r WHERE NOT EXISTS (SELECT 1 FROM accounts a WHERE a.discord_id = r.discord_id) ORDER BY last_at DESC')
+      .all() as { discord_id: string; username: string; display_name: string; avatar_url: string | null; first_at: number; last_at: number; attempts: number }[];
+    return rows.map((r) => ({ discordId: r.discord_id, username: r.username, displayName: r.display_name, avatarUrl: r.avatar_url, firstAt: r.first_at, lastAt: r.last_at, attempts: r.attempts }));
+  }
+
+  /** Accepte une demande : crée le compte relié à ce Discord (connexion par Discord, sans mot de passe). */
+  acceptAccessRequest(discordId: string): Account {
+    const req = this.accessRequests().find((x) => x.discordId === discordId);
+    if (!req) throw new HttpError(404, 'Demande introuvable ou déjà traitée.');
+    const account = this.createAccount({ username: this.freeUsername(req.username), displayName: req.displayName, discordId });
+    this.db.prepare('UPDATE accounts SET discord_name = ?, avatar_url = ? WHERE id = ?').run(req.username, req.avatarUrl, account.id);
+    this.dismissAccessRequest(discordId);
+    return this.account(account.id)!;
+  }
+
+  dismissAccessRequest(discordId: string): void {
+    this.db.prepare('DELETE FROM access_requests WHERE discord_id = ?').run(discordId);
   }
 
   /**

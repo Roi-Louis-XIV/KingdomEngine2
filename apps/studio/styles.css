@@ -612,3 +612,8 @@ body.mobile { background: var(--ink); }
 .m-empty-icon { font-size: 2.4rem; }
 .m-empty p { color: var(--muted); margin: 0 0 8px; }
 .warn-text { color: var(--brass); }
+.nav-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--brass); color: #000; font-size: .75rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.m-requests { position: relative; padding-right: 36px; border-color: var(--brass); background: rgba(224,176,79,.08); }
+.m-requests b { display: block; }
+.m-requests small { color: var(--muted); }
+.requests { border-color: var(--brass); }

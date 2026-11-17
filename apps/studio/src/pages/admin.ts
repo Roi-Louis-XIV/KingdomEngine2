@@ -77,6 +77,39 @@ export async function adminPage(main: HTMLElement) {
           } }, 'Détacher Discord') : null))))),
         ),
       ),
+      o.requests.length
+        ? h(
+            'section',
+            { class: 'block requests' },
+            h('h2', null, `Demandes d’accès (${o.requests.length})`),
+            h('p', { class: 'muted small' }, 'Ces personnes ont essayé de se connecter avec Discord, mais n’ont pas encore de compte (inscriptions fermées).'),
+            h(
+              'table',
+              { class: 'grid' },
+              h(
+                'tbody',
+                null,
+                o.requests.map((q: any) =>
+                  h(
+                    'tr',
+                    null,
+                    h('td', null, h('span', { class: 'who-cell' }, q.avatarUrl ? h('img', { src: q.avatarUrl, alt: '', class: 'avatar', referrerpolicy: 'no-referrer' }) : h('span', { class: 'avatar' }, q.displayName[0]), h('span', null, h('b', null, q.displayName), h('small', { class: 'muted' }, ` @${q.username}`)))),
+                    h('td', { class: 'muted', title: dateTime(q.lastAt) }, `${ago(q.lastAt)}${q.attempts > 1 ? ` · ${q.attempts} essais` : ''}`),
+                    h(
+                      'td',
+                      { class: 'r actions' },
+                      h('button', { class: 'btn small primary', onclick: () => acceptRequest(q, o.servers, () => void adminPage(main)) }, 'Créer son compte'),
+                      h('button', { class: 'btn small ghost', onclick: async () => {
+                        await del(`/api/admin/requests/${q.discordId}`).catch((e) => toast(e.message, 'error'));
+                        void adminPage(main);
+                      } }, 'Ignorer'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+        : null,
       h(
         'section',
         { class: 'block' },
@@ -139,6 +172,33 @@ export function grantAccess(a: { username: string; displayName: string }, server
       try {
         await put(`/api/servers/${f.server}/members`, { username: a.username, role: f.role });
         toast(`Accès donné à ${a.displayName}.`);
+        close();
+        await loadSession();
+        done();
+      } catch (e) {
+        toast((e as Error).message, 'error');
+      }
+    } }],
+  );
+}
+
+/** Accepte une demande d'accès : crée le compte relié à son Discord et, au choix, lui ouvre un monde. */
+export function acceptRequest(q: { discordId: string; displayName: string }, servers: { id: string; name: string }[], done: () => void) {
+  const f = { serverId: servers[0]?.id ?? '', role: 'viewer' };
+  modal(
+    `Créer le compte de ${q.displayName}`,
+    h(
+      'div',
+      { class: 'form' },
+      h('p', null, 'Il se connectera avec son compte Discord, sans mot de passe.'),
+      selectField('Lui donner accès à', f.serverId, [...servers.map((s) => ({ value: s.id, label: s.name })), { value: '', label: 'Aucun monde pour l’instant' }], (v) => (f.serverId = v)),
+      selectField('Rôle', f.role, ROLES, (v) => (f.role = v)),
+      h('p', { class: 'field-hint' }, 'Lecture suffit pour superviser. Gestionnaire permet aussi d’intervenir sur les joueurs et de piloter les événements.'),
+    ),
+    [{ label: 'Créer le compte', kind: 'primary', onclick: async (close) => {
+      try {
+        await post(`/api/admin/requests/${q.discordId}/accept`, f.serverId ? f : {});
+        toast(`Compte de ${q.displayName} créé.`);
         close();
         await loadSession();
         done();

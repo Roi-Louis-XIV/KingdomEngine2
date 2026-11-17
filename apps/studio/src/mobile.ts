@@ -5,10 +5,10 @@
  */
 import type { WorldDef } from '../../../packages/engine/src/index.ts';
 import { h, clear, toast, ago, initials, confirmDialog } from './ui.ts';
-import { get, post } from './api.ts';
+import { get, post, del } from './api.ts';
 import { state, server, can, selectServer } from './store.ts';
 import { stripMd } from './pages/overview.ts';
-import { isNew, grantAccess } from './pages/admin.ts';
+import { isNew, grantAccess, acceptRequest } from './pages/admin.ts';
 
 const VIEW_KEY = 'ke-vue';
 const narrow = matchMedia('(max-width: 760px)');
@@ -62,7 +62,7 @@ export function mobileApp(root: HTMLElement, name: string, params: string[], rer
           ),
         ]
       : null,
-    state.account!.platformRole === 'platform_admin' ? h('a', { class: 'm-menu-item', role: 'menuitem', href: '#/comptes' }, '👥 Comptes de la plateforme') : null,
+    state.account!.platformRole === 'platform_admin' ? h('a', { class: 'm-menu-item', role: 'menuitem', href: '#/comptes' }, '👥 Comptes de la plateforme', state.accessRequests ? h('span', { class: 'nav-badge' }, String(state.accessRequests)) : null) : null,
     h('button', { class: 'm-menu-item', role: 'menuitem', onclick: () => (setView('complete'), rerender()) }, '🖥️ Version complète (ordinateur)'),
     h(
       'button',
@@ -164,6 +164,9 @@ async function homePage(main: HTMLElement): Promise<Cleanup> {
         o.live?.weather ? h('span', { class: 'm-weather' }, o.live.weather.label) : null,
         h('span', { class: 'm-chevron', 'aria-hidden': 'true' }, '›'),
       ),
+      state.accessRequests
+        ? h('a', { class: 'm-card m-requests', href: '#/comptes' }, h('b', null, `👥 ${state.accessRequests} demande(s) d’accès`), h('small', null, 'Des personnes attendent que tu crées leur compte.'), h('span', { class: 'm-chevron', 'aria-hidden': 'true' }, '›'))
+        : null,
       h(
         'div',
         { class: 'm-stats' },
@@ -403,9 +406,37 @@ async function playerPage(main: HTMLElement, params: string[]): Promise<Cleanup>
 async function accountsPage(main: HTMLElement): Promise<Cleanup> {
   const draw = async () => {
     const o = await get<any>('/api/admin/overview');
+    state.accessRequests = o.requests.length;
     const fresh = o.accounts.filter(isNew).length;
     clear(
       main,
+      o.requests.length
+        ? [
+            h('h1', { class: 'm-h1' }, 'Demandes d’accès ', h('span', { class: 'm-count' }, String(o.requests.length))),
+            h('p', { class: 'm-muted' }, 'Connexions Discord refusées : ces personnes n’ont pas encore de compte.'),
+            h(
+              'ul',
+              { class: 'm-list' },
+              o.requests.map((q: any) =>
+                h(
+                  'li',
+                  null,
+                  h(
+                    'div',
+                    { class: 'm-row' },
+                    q.avatarUrl ? h('img', { src: q.avatarUrl, alt: '', class: 'avatar', referrerpolicy: 'no-referrer' }) : h('span', { class: 'avatar' }, initials(q.displayName)),
+                    h('span', { class: 'm-row-main' }, h('b', null, q.displayName), h('small', null, `@${q.username} · ${ago(q.lastAt)}${q.attempts > 1 ? ` · ${q.attempts} essais` : ''}`)),
+                    h('button', { class: 'btn small primary', onclick: () => acceptRequest(q, o.servers, () => void draw()) }, 'Créer'),
+                    h('button', { class: 'btn small ghost', 'aria-label': `Ignorer ${q.displayName}`, onclick: async () => {
+                      await del(`/api/admin/requests/${q.discordId}`).catch((e) => toast(e.message, 'error'));
+                      void draw();
+                    } }, '✕'),
+                  ),
+                ),
+              ),
+            ),
+          ]
+        : null,
       h('h1', { class: 'm-h1' }, 'Comptes ', h('span', { class: 'm-count' }, String(o.accounts.length))),
       h('p', { class: 'm-muted' }, fresh ? `${fresh} nouveau(x) cette semaine. Un compte sans monde ne voit rien tant que tu ne lui donnes pas l’accès.` : 'Un compte sans monde ne voit rien tant que tu ne lui donnes pas l’accès.'),
       h(

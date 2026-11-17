@@ -19,7 +19,7 @@ test('propriétaire Discord : relié au premier administrateur, qui se connecte 
   assert.equal(s.created, false);
   assert.equal(s.account.username, 'louis');
   assert.equal(s.account.platformRole, 'platform_admin');
-  assert.throws(() => p.loginWithDiscord({ id: '999999999999999999', username: 'inconnu' }, false), /Aucun compte KingdomEngine/);
+  assert.throws(() => p.loginWithDiscord({ id: '999999999999999999', username: 'inconnu' }, false), /demande d’accès a bien été transmise/);
 });
 
 test('propriétaire Discord : compte créé si aucun administrateur libre, promu s’il existait comme simple utilisateur', () => {
@@ -42,4 +42,25 @@ test('secours : un nouveau mot de passe aléatoire ouvre le compte et ferme les 
   assert.ok(pw.length >= 12);
   assert.equal(p.authenticate(old), undefined);
   assert.equal(p.login('louis', pw, false).account.id, a.id);
+});
+
+test('demandes d’accès : une connexion Discord refusée est visible par l’administrateur, qui crée le compte en un geste', () => {
+  const p = fresh();
+  p.createAccount({ username: 'louis', password: 'motdepasse1' });
+  const NARTOX = '987654321098765432';
+  assert.throws(() => p.loginWithDiscord({ id: NARTOX, username: 'nartox', globalName: 'Nartox', avatar: 'abc' }, false), /transmise/);
+  assert.throws(() => p.loginWithDiscord({ id: NARTOX, username: 'nartox', globalName: 'Nartox' }, false));
+  const [req] = p.accessRequests();
+  assert.equal(req!.displayName, 'Nartox');
+  assert.equal(req!.attempts, 2);
+  const acc = p.acceptAccessRequest(NARTOX);
+  assert.equal(acc.username, 'nartox');
+  assert.equal(p.accessRequests().length, 0, 'demande traitée');
+  const s = p.loginWithDiscord({ id: NARTOX, username: 'nartox', globalName: 'Nartox' }, false);
+  assert.equal(s.account.id, acc.id);
+  assert.equal(s.created, false);
+  // Ignorer une demande la retire de la liste.
+  assert.throws(() => p.loginWithDiscord({ id: '111111111111111111', username: 'curieux' }, false));
+  p.dismissAccessRequest('111111111111111111');
+  assert.equal(p.accessRequests().length, 0);
 });
