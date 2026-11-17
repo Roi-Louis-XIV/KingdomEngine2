@@ -172,3 +172,9 @@ Voir `packages/engine/src/model.ts`.
 - **Bâtiments** : modules génériques (`inventory`, `shop`, `buyback`, `production`, `dialogue`, `dice`) + écrans faits de blocs (texte, encadré, boutons, widgets de modules) + audio.
 - **Boutons** : règle *condition → actions → résultat*.
 - **Textes** : conditionnels, avec variables (`{player.stat.ecus}`, `{var.phase.label}`…).
+
+## Studio mobile
+
+- `apps/studio/src/mobile.ts` : sur un écran de moins de 760 px, le Studio passe en vue de supervision épurée. Elle a trois onglets en bas : Accueil (événement en cours, chiffres, activité récente), En direct (météo affichée, événements à lancer, arrêter, recommencer ou reprendre, avec confirmation) et Joueurs (liste, puis fiche en lecture seule : statistiques, métiers, équipement, sac).
+- Rien ne s'y modifie à part les événements : les pages de création et de réglage (bâtiments, météo, quêtes, objets, Discord…) affichent « À faire sur ordinateur ».
+- Le menu ⋯ permet de changer de serveur, d'afficher la version complète (choix mémorisé dans `localStorage` sous la clé `ke-vue`) ou de se déconnecter. En version complète sur un petit écran, le bouton « 📱 Version mobile » du menu revient à la vue mobile.

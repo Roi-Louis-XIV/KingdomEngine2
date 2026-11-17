@@ -137,7 +137,7 @@ export async function livePage(main: HTMLElement) {
                         e.durationMs ? e.steps.map((sp: any, i: number) => h('span', { class: `marker${i < e.stepsDone ? ' done' : ''}`, style: `left:${Math.min(100, (sp.afterMinutes * 60000 / e.durationMs) * 100)}%`, title: sp.name })) : null,
                       ),
                       h('div', { class: 'progress-legend' }, h('b', null, clock(elapsed)), e.durationMs ? h('span', { class: 'muted' }, ` sur ${clock(e.durationMs)} · reste ${clock(e.durationMs - elapsed)}`) : h('span', { class: 'muted' }, ' écoulées')),
-                      e.steps.length ? h('ol', { class: 'steps-mini' }, e.steps.map((sp: any, i: number) => h('li', { class: i < e.stepsDone ? 'done' : '' }, `${sp.afterMinutes} min — ${sp.name}`))) : null,
+                      e.steps.length ? h('ol', { class: 'steps-mini' }, e.steps.map((sp: any, i: number) => h('li', { class: i < e.stepsDone ? 'done' : '' }, `${Math.round(sp.afterMinutes)} min — ${sp.name}`))) : null,
                     )
                   : h(
                       'p',

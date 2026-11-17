@@ -16,6 +16,7 @@ import { adminPage } from './pages/admin.ts';
 import { livePage } from './pages/live.ts';
 import { eventsPage } from './pages/events.ts';
 import { profilePage } from './pages/profile.ts';
+import { wantsMobile, mobileApp, onNarrowChange, setView } from './mobile.ts';
 
 export type Page = (main: HTMLElement, params: string[]) => void | (() => void) | Promise<void | (() => void)>;
 
@@ -61,6 +62,13 @@ async function render() {
   cleanup = undefined;
   if (!state.account) return clear(root, authPage(() => void boot()));
   const r = route();
+  // Téléphone : vue épurée de supervision (le choix « version complète » est mémorisé).
+  if (wantsMobile() && state.servers.length && server() && r.name !== 'nouveau-serveur') {
+    document.body.classList.add('mobile');
+    cleanup = await mobileApp(root, r.name, r.params, () => void render());
+    return;
+  }
+  document.body.classList.remove('mobile');
   if (r.name === 'profil') return clear(root, shell('profil', async (main) => (cleanup = await profilePage(main))));
   if (r.name === 'nouveau-serveur' || !state.servers.length) return clear(root, shell(null, (main) => newServerPage(main, async (id) => (await loadSession(), selectServer(id), go('apercu')))));
   if (r.name === 'administration' && state.account.platformRole === 'platform_admin') return clear(root, shell('administration', (main) => adminPage(main)));
@@ -151,6 +159,7 @@ function shell(active: string | null, mount: (main: HTMLElement) => void): HTMLE
         accountAvatar(state.account!),
         h('span', null, h('b', null, state.account!.displayName), h('small', null, `Mon profil · KingdomEngine ${state.version}`)),
       ),
+      h('button', { class: 'btn ghost small only-narrow', onclick: () => (setView(null), void render()) }, '📱 Version mobile'),
       h('div', { class: 'rail-signature' }, h('span', null, 'Une création'), h('img', { src: '/assets/logo-payen-studio.png', alt: 'Payen Studio', width: 54, height: 44 })),
     ),
   );
@@ -230,6 +239,7 @@ setUnauthorizedHandler(() => {
   void render();
 });
 window.addEventListener('hashchange', () => void render());
+onNarrowChange(() => void render());
 window.addEventListener('beforeunload', (e) => {
   if (state.draft?.dirty) e.preventDefault();
 });
