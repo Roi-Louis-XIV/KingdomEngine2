@@ -3,7 +3,7 @@
  * (boutique, production, stocks, rachat, dialogue, dés, état du joueur).
  * Chaque widget = un rendu + un gestionnaire d'interactions.
  */
-import type { Action, ActivityDef, ActivityModule, Id, ShopOffer, WidgetDef, ProductionModule, Recipe, BuybackModule } from './model.ts';
+import type { Action, ActivityDef, ActivityModule, Id, ItemDef, ShopOffer, WidgetDef, ProductionModule, Recipe, BuybackModule } from './model.ts';
 import type { RButton, RContainer, RSelect, RSelectOption, RTopLevel, RText } from './components.ts';
 import type { SessionState } from './state.ts';
 import { scopeKey } from './state.ts';
@@ -347,7 +347,7 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
             text(
               `**📋 Détails**\n**Production :** ${recipe?.name ?? '?'} → ${Object.entries(recipe?.outputs ?? {})
                 .map(([it, q]) => `${itemName(ctx.world, it)} ×${q}`)
-                .join(', ')}\n**XP :** ${xp.start} au lancement · ${xp.collect} à la récupération\n*Tout titulaire du métier peut récupérer la production, même si son auteur a démissionné.*`,
+                .join(', ')}\n**XP :** ${xp.start} au lancement · ${xp.collect} à la récupération${recipe?.pay?.amount ? `\n**Paie :** ${money(ctx, recipe.pay.stat, recipe.pay.amount)} à la récupération` : ''}\n*Tout titulaire du métier peut récupérer la production, même si son auteur a démissionné.*`,
             ),
           );
         }
@@ -421,7 +421,7 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
           box(
             `### 🍳 Confirmer : ${chosen.name}\n**Durée :** ${chosen.durationSec}s · **Production :** ${Object.entries(chosen.outputs)
               .map(([it, q]) => `${q} ${findItem(ctx.world, it)?.name ?? it}`)
-              .join(', ')}\n**XP :** ${xp.start} au lancement, ${xp.collect} à la récupération.\n*Ingrédients prélevés à la confirmation.*`,
+              .join(', ')}\n**XP :** ${xp.start} au lancement, ${xp.collect} à la récupération.${chosen.pay?.amount ? `\n**Paie :** ${money(ctx, chosen.pay.stat, chosen.pay.amount)} à la récupération.` : ''}\n*Ingrédients prélevés à la confirmation.*`,
             0x36965e,
           ),
         );
@@ -722,8 +722,15 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
         const next = nextLevel(ctx);
         lines.push(`${xpDef?.emoji ?? '⭐'} **${xpDef?.name ?? 'XP'} :** ${xp}${level ? ` · ${level.emoji ? level.emoji + ' ' : ''}**${level.name}**` : ''}${next ? ` (prochain : ${next.name} à ${next.minXp})` : ''}`);
       }
-      const eqt = equipmentTotals(ctx);
-      if (eqt.attack || eqt.defense) lines.push(`⚔️ **Attaque :** ${eqt.attack} · 🛡️ **Défense :** ${eqt.defense}`);
+      // Équipement porté : le meilleur objet de chaque emplacement (décoratif sauf si le monde a des combats).
+      const worn = wornEquipment(ctx);
+      if (worn.length) {
+        lines.push('', '**🛡️ Équipement**');
+        for (const x of worn) lines.push(`${x.item.emoji ?? '•'} ${slotName(x.slot)} : **${x.item.name}**`);
+        const fights = hasCombat(ctx);
+        const eqt = equipmentTotals(ctx);
+        if (fights && (eqt.attack || eqt.defense)) lines.push(`⚔️ **Attaque :** ${eqt.attack} · 🛡️ **Défense :** ${eqt.defense}`);
+      }
       if (w.jobs && ctx.world.jobs.length) {
         // Seuls les métiers déjà exercés apparaissent (le métier actuel en premier).
         const done = ctx.world.jobs.filter((j) => p.jobs[j.id] || p.activeJobs.includes(j.id)).sort((a, b) => Number(p.activeJobs.includes(b.id)) - Number(p.activeJobs.includes(a.id)));
@@ -790,15 +797,19 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
 }
 
 /** Objets non consommables du joueur, regroupés par catégorie. */
+/** Le monde a-t-il des combats ? Sinon armes et armures sont décoratives (on n'affiche pas leurs valeurs). */
+const hasCombat = (ctx: Ctx) => ctx.world.buildings.some((b) => b.modules.some((m) => m.type === 'combat'));
+
 function inventoryLines(ctx: Ctx): string {
   const groups = new Map<string, string[]>();
+  const fights = hasCombat(ctx);
   for (const [id, q] of Object.entries(ctx.player.items)) {
     const def = findItem(ctx.world, id);
     if (!def || q <= 0 || def.consumable) continue;
     const cat = def.category ?? 'Objets';
     const dur = def.tool ? ` (${ctx.player.tools[id] ?? def.tool.maxDurability}/${def.tool.maxDurability})` : '';
     const eq = def.equipment;
-    const stats = eq ? [eq.attack ? `⚔️${eq.attack}` : '', eq.defense ? `🛡️${eq.defense}` : ''].filter(Boolean).join(' ') : '';
+    const stats = eq && fights ? [eq.attack ? `⚔️${eq.attack}` : '', eq.defense ? `🛡️${eq.defense}` : ''].filter(Boolean).join(' ') : '';
     (groups.get(cat) ?? groups.set(cat, []).get(cat)!).push(`${itemName(ctx.world, id)} ×${q}${dur}${stats ? ` [${stats}]` : ''}`);
   }
   if (!groups.size) return '**🧺 Sac :** *vide*';
@@ -965,10 +976,28 @@ function rollResults(a: ActivityDef, random: () => number, weights: number[] = a
   return out;
 }
 
+const SLOT_NAMES: Record<string, string> = { arme: 'Arme', tir: 'Arme de tir', armure: 'Armure', tete: 'Tête', bouclier: 'Bouclier', dos: 'Dos', mains: 'Mains', pieds: 'Pieds', bijou: 'Bijou', outil: 'Outil' };
+const slotName = (slot: string) => SLOT_NAMES[slot] ?? slot.charAt(0).toUpperCase() + slot.slice(1);
+
+/** Objets portés : le meilleur de chaque emplacement (attaque + défense, puis le plus cher), dans l'ordre des emplacements. */
+function wornEquipment(ctx: Ctx): { slot: string; item: ItemDef }[] {
+  const best = new Map<string, ItemDef>();
+  const score = (i: ItemDef) => (i.equipment?.attack ?? 0) + (i.equipment?.defense ?? 0) + (i.baseValue ?? 0) / 1000;
+  for (const [id, q] of Object.entries(ctx.player.items)) {
+    const item = q > 0 ? findItem(ctx.world, id) : undefined;
+    if (!item?.equipment) continue;
+    const cur = best.get(item.equipment.slot);
+    if (!cur || score(item) > score(cur)) best.set(item.equipment.slot, item);
+  }
+  const order = Object.keys(SLOT_NAMES);
+  return [...best].map(([slot, item]) => ({ slot, item })).sort((a, b) => (order.indexOf(a.slot) + 1 || 99) - (order.indexOf(b.slot) + 1 || 99));
+}
+
 /** « ↘️ redescend de 5 toutes les 90 s » (évolution automatique d'une statistique). */
-function driftText(d: { amount: number; everySec: number }): string {
+function driftText(d: { amount: number; everySec: number; restSec?: number }): string {
   const every = d.everySec === 60 ? 'chaque minute' : d.everySec % 60 === 0 ? `toutes les ${d.everySec / 60} minutes` : `toutes les ${d.everySec} s`;
-  return `${d.amount < 0 ? '↘️ redescend' : '↗️ remonte'} de ${Math.abs(d.amount)} ${every}`;
+  const rest = d.restSec ? ` au repos (après ${d.restSec % 60 === 0 ? `${d.restSec / 60} min` : `${d.restSec} s`} sans travailler)` : '';
+  return `${d.amount < 0 ? '↘️ redescend' : '↗️ remonte'} de ${Math.abs(d.amount)} ${every}${rest}`;
 }
 
 function modifierLine(env: WidgetEnv): string {
@@ -1110,12 +1139,14 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
         for (const [it, q] of Object.entries(recipe.outputs)) applyAction(ctx, { type: 'item.give', item: it, qty: q, inventory: prod.outputInventory });
         const xp = (recipe.xp ?? prod.xp).collect;
         if (prod.job && xp) applyAction(ctx, { type: 'job.xp', job: prod.job, amount: xp });
+        if (recipe.pay?.amount) applyAction(ctx, { type: 'stat.add', stat: recipe.pay.stat, amount: recipe.pay.amount });
         questTag(ctx, `production:${ctx.building.id}/${recipe.id}`);
       }
       const job = prod.job ? findJob(ctx.world, prod.job)?.name : '';
       const xp = recipe ? (recipe.xp ?? prod.xp).collect : 0;
+      const pay = recipe?.pay?.amount ? ` +${money(ctx, recipe.pay.stat, recipe.pay.amount)} de paie.` : '';
       return {
-        notice: `✅ ${recipe?.name ?? 'Production'} récupéré !${xp && job ? ` +${xp} XP ${job.toLowerCase()}.` : ''}${s.by !== ctx.playerId ? ` Lancé par <@${s.by}>.` : ''}`,
+        notice: `✅ ${recipe?.name ?? 'Production'} récupéré !${xp && job ? ` +${xp} XP ${job.toLowerCase()}.` : ''}${pay}${s.by !== ctx.playerId ? ` Lancé par <@${s.by}>.` : ''}`,
       };
     }
 

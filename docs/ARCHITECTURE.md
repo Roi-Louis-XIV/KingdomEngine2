@@ -124,7 +124,14 @@ Les fichiers de `content/<modèle>/sons/<clé>.mp3` (ou .ogg, .wav…) voyagent 
 
 - `StatDef.drift` `{ amount, everySec }` : la statistique bouge toute seule (ex. l’ivresse redescend de 5 toutes les 90 s), bornée par min et max. Appliqué par `Engine.tick()` (`driftStats` dans `rules.ts`), par pas, à partir du premier passage de l’horloge ; le compteur (`player.driftAt`) s’efface à la borne, donc rien n’est écrit quand il n’y a rien à faire.
 - `StatDef.levels` : paliers (`from`, nom, symbole, phrase). Le plus haut atteint s’applique au **travail d’un métier** (activités avec `job`) : `yield` multiplie les objets récoltés, `fumble` = risque de tout rater (tiré au lancement, l’effort est dépensé), `blocksWork` = plus d’activité de métier. Le palier s’affiche sur la fiche, en tête des tableaux d’activités et dans le message de récolte. Studio : Objets & règles › Statistiques.
+- `drift.restSec` : **repos**. Toute baisse de la statistique (`stat.add` négatif : travail, combat…) relance un délai (`player.restUntil`) pendant lequel elle n’évolue pas ; elle reprend ensuite à partir de la fin du repos. Bêta : l’endurance remonte de 2 par minute après 2 minutes sans travailler.
 - Bêta : l’ivresse (Pompette 30 : +10 % ; Éméché 50 : −15 %, 10 % de maladresse ; Ivre 75 : −40 %, 25 % ; Ivre mort 100 : plus de travail). L’eau (−10), le jus (−5) et le cierge béni (−20) dessoûlent.
+
+## Équipement et paie de production
+
+- La fiche du joueur (`player.sheet`) montre l’**équipement porté** : le meilleur objet de chaque emplacement possédé. Sans module `combat` dans le monde, armes et armures sont décoratives : ni attaque ni défense affichées (fiche et sac). Bêta : plus aucune armure n’économise d’endurance.
+- `Recipe.pay` `{ stat, amount }` : paie versée à celui qui récupère une fournée (cuisine, brasserie), affichée dans la confirmation et les détails du poste.
+- Bêta : `scripts/content/sainte-pelle.mjs` équilibre toutes les tâches de métier à la génération (difficulté = endurance × niveau × outil ou matière × durée ; 1 écu et 1 XP par point) et écrit le rapport `content/sainte-pelle/equilibrage.md`.
 
 ## Combat au tour par tour
 

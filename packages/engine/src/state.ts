@@ -18,6 +18,8 @@ export interface PlayerState {
   activities: Record<string, { startedAt: number; endsAt: number; results: number[]; fumble?: string }>;
   /** Dernier pas d'évolution automatique de chaque statistique (voir StatDef.drift). */
   driftAt?: Record<Id, number>;
+  /** Fin du repos nécessaire avant que la statistique recommence à évoluer seule (StatDef.drift.restSec). */
+  restUntil?: Record<Id, number>;
   /** Quête en cours (une seule à la fois). */
   quest?: { id: Id; since: number; progress: Record<Id, number>; seen?: Record<Id, Id[]> };
   /** Quêtes réussies (jamais reproposées). */

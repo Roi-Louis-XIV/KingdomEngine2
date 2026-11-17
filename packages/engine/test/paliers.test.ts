@@ -115,3 +115,32 @@ test('ivre mort : plus de travail de métier, le reste reste possible ; la fiche
   assert.equal(r.message ? 'rendu' : 'rien', 'rendu');
   assert.equal(p.engine.player('alice')!.items.bois ?? 0, 0);
 });
+
+test('repos : une statistique ne remonte qu’après un moment sans être dépensée (endurance)', () => {
+  const w = world();
+  w.stats[0]!.drift = { amount: 2, everySec: 60, restSec: 120 };
+  w.stats[0]!.initial = 50;
+  const clock = new Clock();
+  let n = 0;
+  const engine = new Engine(w, undefined, { now: clock.now, random: () => 0.5, newId: () => `s${++n}` });
+  const p = new Player(engine, 'alice', 'bois');
+  engine.tick();
+  clock.advance(60);
+  engine.tick();
+  assert.equal(engine.player('alice')!.stats.energie, 52, 'au repos : +2 par minute');
+  // Travailler dépense de l'endurance : le repos repart de zéro (2 min sans rien regagner).
+  p.click('Lancer');
+  assert.equal(engine.player('alice')!.stats.energie, 51);
+  clock.advance(119);
+  engine.tick();
+  assert.equal(engine.player('alice')!.stats.energie, 51);
+  clock.advance(1);
+  engine.tick();
+  clock.advance(60);
+  engine.tick();
+  assert.equal(engine.player('alice')!.stats.energie, 53, 'le repos fini, +2 par minute à nouveau');
+  // Plafonnée au maximum.
+  clock.advance(3600);
+  engine.tick();
+  assert.equal(engine.player('alice')!.stats.energie, 100);
+});

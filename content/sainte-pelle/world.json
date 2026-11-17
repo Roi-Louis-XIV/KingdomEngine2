@@ -1263,7 +1263,12 @@
       "min": 0,
       "max": 100,
       "initial": 80,
-      "kind": "gauge"
+      "kind": "gauge",
+      "drift": {
+        "amount": 2,
+        "everySec": 60,
+        "restSec": 120
+      }
     },
     {
       "id": "alcool",
@@ -2182,11 +2187,7 @@
       "category": "Armures",
       "equipment": {
         "slot": "armure",
-        "defense": 2,
-        "saving": {
-          "stat": "energie",
-          "amount": 1
-        }
+        "defense": 2
       }
     },
     {
@@ -2196,11 +2197,7 @@
       "category": "Armures",
       "equipment": {
         "slot": "armure",
-        "defense": 4,
-        "saving": {
-          "stat": "energie",
-          "amount": 1
-        }
+        "defense": 4
       }
     },
     {
@@ -2210,11 +2207,7 @@
       "category": "Armures",
       "equipment": {
         "slot": "armure",
-        "defense": 7,
-        "saving": {
-          "stat": "energie",
-          "amount": 2
-        }
+        "defense": 7
       }
     },
     {
@@ -2234,11 +2227,7 @@
       "category": "Armures",
       "equipment": {
         "slot": "armure",
-        "defense": 10,
-        "saving": {
-          "stat": "energie",
-          "amount": 3
-        }
+        "defense": 10
       }
     },
     {
@@ -2268,11 +2257,7 @@
       "category": "Accessoires",
       "equipment": {
         "slot": "mains",
-        "defense": 1,
-        "saving": {
-          "stat": "energie",
-          "amount": 1
-        }
+        "defense": 1
       }
     },
     {
@@ -2501,7 +2486,8 @@
       "id": "cuisinier",
       "name": "Cuisinier",
       "emoji": "👨‍🍳",
-      "xpPerLevel": 100
+      "xpPerLevel": 40,
+      "maxLevel": 5
     },
     {
       "id": "bucheron",
@@ -2542,7 +2528,8 @@
       "id": "brasseur",
       "name": "Brasseur",
       "emoji": "🍻",
-      "xpPerLevel": 100
+      "xpPerLevel": 40,
+      "maxLevel": 5
     }
   ],
   "onboarding": {
@@ -6498,6 +6485,14 @@
               },
               "outputs": {
                 "plat_soupe": 3
+              },
+              "xp": {
+                "start": 5,
+                "collect": 3
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 4
               }
             },
             {
@@ -6512,6 +6507,14 @@
               },
               "outputs": {
                 "plat_ragout": 4
+              },
+              "xp": {
+                "start": 7,
+                "collect": 4
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 6
               }
             },
             {
@@ -6526,6 +6529,14 @@
               },
               "outputs": {
                 "plat_pain": 2
+              },
+              "xp": {
+                "start": 7,
+                "collect": 4
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 6
               }
             },
             {
@@ -6541,6 +6552,14 @@
               },
               "outputs": {
                 "plat_festin": 6
+              },
+              "xp": {
+                "start": 20,
+                "collect": 14
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 17
               }
             },
             {
@@ -6555,6 +6574,14 @@
               },
               "outputs": {
                 "plat_royal": 8
+              },
+              "xp": {
+                "start": 31,
+                "collect": 21
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 26
               }
             },
             {
@@ -6570,6 +6597,14 @@
               },
               "outputs": {
                 "soupe_oignon": 4
+              },
+              "xp": {
+                "start": 7,
+                "collect": 4
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 5
               }
             },
             {
@@ -6584,6 +6619,14 @@
               },
               "outputs": {
                 "fromage_moines": 4
+              },
+              "xp": {
+                "start": 4,
+                "collect": 2
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 3
               }
             },
             {
@@ -6599,6 +6642,14 @@
               },
               "outputs": {
                 "pate_sanglier": 4
+              },
+              "xp": {
+                "start": 7,
+                "collect": 5
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 6
               }
             },
             {
@@ -6613,6 +6664,14 @@
               },
               "outputs": {
                 "saucisses": 4
+              },
+              "xp": {
+                "start": 5,
+                "collect": 4
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 4
               }
             },
             {
@@ -6628,6 +6687,14 @@
               },
               "outputs": {
                 "poulet_miel": 4
+              },
+              "xp": {
+                "start": 10,
+                "collect": 6
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 8
               }
             },
             {
@@ -6644,6 +6711,14 @@
               },
               "outputs": {
                 "assiette_bourreau": 3
+              },
+              "xp": {
+                "start": 15,
+                "collect": 10
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 12
               }
             }
           ],
@@ -7246,6 +7321,14 @@
               },
               "outputs": {
                 "cervoise": 8
+              },
+              "xp": {
+                "start": 5,
+                "collect": 4
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 4
               }
             },
             {
@@ -7261,6 +7344,14 @@
               },
               "outputs": {
                 "b86": 8
+              },
+              "xp": {
+                "start": 8,
+                "collect": 6
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 7
               }
             },
             {
@@ -7276,6 +7367,14 @@
               },
               "outputs": {
                 "pelican": 8
+              },
+              "xp": {
+                "start": 7,
+                "collect": 5
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 6
               }
             },
             {
@@ -7291,6 +7390,14 @@
               },
               "outputs": {
                 "blanche": 8
+              },
+              "xp": {
+                "start": 7,
+                "collect": 5
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 6
               }
             },
             {
@@ -7305,6 +7412,14 @@
               },
               "outputs": {
                 "hydromel": 6
+              },
+              "xp": {
+                "start": 10,
+                "collect": 6
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 8
               }
             },
             {
@@ -7321,6 +7436,14 @@
               },
               "outputs": {
                 "grimbergen_blonde": 8
+              },
+              "xp": {
+                "start": 14,
+                "collect": 9
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 11
               }
             },
             {
@@ -7337,6 +7460,14 @@
               },
               "outputs": {
                 "grimbergen_ambree": 8
+              },
+              "xp": {
+                "start": 14,
+                "collect": 9
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 11
               }
             },
             {
@@ -7352,6 +7483,14 @@
               },
               "outputs": {
                 "guinness": 8
+              },
+              "xp": {
+                "start": 14,
+                "collect": 9
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 11
               }
             },
             {
@@ -7367,6 +7506,14 @@
               },
               "outputs": {
                 "kriek": 8
+              },
+              "xp": {
+                "start": 14,
+                "collect": 9
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 11
               }
             },
             {
@@ -7382,6 +7529,14 @@
               },
               "outputs": {
                 "vin_epice": 6
+              },
+              "xp": {
+                "start": 7,
+                "collect": 5
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 6
               }
             },
             {
@@ -7398,6 +7553,14 @@
               },
               "outputs": {
                 "chouffe": 8
+              },
+              "xp": {
+                "start": 20,
+                "collect": 14
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 17
               }
             },
             {
@@ -7414,6 +7577,14 @@
               },
               "outputs": {
                 "tripel": 8
+              },
+              "xp": {
+                "start": 20,
+                "collect": 14
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 17
               }
             },
             {
@@ -7429,6 +7600,14 @@
               },
               "outputs": {
                 "duvel": 8
+              },
+              "xp": {
+                "start": 20,
+                "collect": 14
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 17
               }
             },
             {
@@ -7444,6 +7623,14 @@
               },
               "outputs": {
                 "hydromel_baies": 6
+              },
+              "xp": {
+                "start": 18,
+                "collect": 12
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 15
               }
             },
             {
@@ -7457,6 +7644,14 @@
               },
               "outputs": {
                 "vin_rouge": 6
+              },
+              "xp": {
+                "start": 11,
+                "collect": 7
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 9
               }
             },
             {
@@ -7470,6 +7665,14 @@
               },
               "outputs": {
                 "vin_blanc": 6
+              },
+              "xp": {
+                "start": 11,
+                "collect": 7
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 9
               }
             },
             {
@@ -7484,6 +7687,14 @@
               },
               "outputs": {
                 "porto": 5
+              },
+              "xp": {
+                "start": 17,
+                "collect": 12
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 14
               }
             },
             {
@@ -7498,6 +7709,14 @@
               },
               "outputs": {
                 "whisky": 5
+              },
+              "xp": {
+                "start": 24,
+                "collect": 16
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 20
               }
             },
             {
@@ -7513,6 +7732,14 @@
               },
               "outputs": {
                 "absinthe": 4
+              },
+              "xp": {
+                "start": 20,
+                "collect": 14
+              },
+              "pay": {
+                "stat": "ecus",
+                "amount": 17
               }
             }
           ]
@@ -9185,7 +9412,7 @@
               ],
               "job": {
                 "id": "mineur",
-                "xp": 6
+                "xp": 7
               },
               "boostedBy": [
                 "mine",
@@ -9426,7 +9653,7 @@
               ],
               "job": {
                 "id": "mineur",
-                "xp": 7
+                "xp": 8
               },
               "boostedBy": [
                 "mine",
@@ -9446,12 +9673,12 @@
               "results": [
                 {
                   "weight": 55,
-                  "label": "2 cuivres",
+                  "label": "3 cuivres",
                   "actions": [
                     {
                       "type": "item.give",
                       "item": "minerai_cuivre",
-                      "qty": 2
+                      "qty": 3
                     }
                   ]
                 },
@@ -9473,12 +9700,12 @@
                 },
                 {
                   "weight": 10,
-                  "label": "3 cuivres",
+                  "label": "4 cuivres",
                   "actions": [
                     {
                       "type": "item.give",
                       "item": "minerai_cuivre",
-                      "qty": 3
+                      "qty": 4
                     }
                   ],
                   "bonus": [
@@ -9587,7 +9814,7 @@
               ],
               "job": {
                 "id": "mineur",
-                "xp": 7
+                "xp": 8
               },
               "boostedBy": [
                 "mine",
@@ -9607,12 +9834,12 @@
               "results": [
                 {
                   "weight": 60,
-                  "label": "2 étains",
+                  "label": "3 étains",
                   "actions": [
                     {
                       "type": "item.give",
                       "item": "minerai_etain",
-                      "qty": 2
+                      "qty": 3
                     }
                   ]
                 },
@@ -9634,12 +9861,12 @@
                 },
                 {
                   "weight": 10,
-                  "label": "3 étains",
+                  "label": "4 étains",
                   "actions": [
                     {
                       "type": "item.give",
                       "item": "minerai_etain",
-                      "qty": 3
+                      "qty": 4
                     }
                   ],
                   "bonus": [
@@ -9733,7 +9960,7 @@
               ],
               "job": {
                 "id": "mineur",
-                "xp": 9
+                "xp": 13
               },
               "boostedBy": [
                 "mine",
@@ -9753,23 +9980,23 @@
               "results": [
                 {
                   "weight": 60,
-                  "label": "2 fers",
-                  "actions": [
-                    {
-                      "type": "item.give",
-                      "item": "minerai",
-                      "qty": 2
-                    }
-                  ]
-                },
-                {
-                  "weight": 15,
                   "label": "3 fers",
                   "actions": [
                     {
                       "type": "item.give",
                       "item": "minerai",
                       "qty": 3
+                    }
+                  ]
+                },
+                {
+                  "weight": 15,
+                  "label": "4 fers",
+                  "actions": [
+                    {
+                      "type": "item.give",
+                      "item": "minerai",
+                      "qty": 4
                     }
                   ],
                   "bonus": [
@@ -9914,7 +10141,7 @@
               ],
               "job": {
                 "id": "mineur",
-                "xp": 14
+                "xp": 22
               },
               "boostedBy": [
                 "mine",
@@ -9939,7 +10166,7 @@
                     {
                       "type": "item.give",
                       "item": "minerai",
-                      "qty": 4
+                      "qty": 6
                     }
                   ]
                 },
@@ -9950,7 +10177,7 @@
                     {
                       "type": "item.give",
                       "item": "minerai_argent",
-                      "qty": 2
+                      "qty": 3
                     }
                   ]
                 },
@@ -9999,7 +10226,7 @@
                     {
                       "type": "item.give",
                       "item": "minerai",
-                      "qty": 2
+                      "qty": 3
                     },
                     {
                       "type": "item.give",
@@ -10117,7 +10344,7 @@
               ],
               "job": {
                 "id": "mineur",
-                "xp": 18
+                "xp": 33
               },
               "boostedBy": [
                 "mine",
@@ -10146,12 +10373,12 @@
                 },
                 {
                   "weight": 35,
-                  "label": "2 argents",
+                  "label": "4 argents",
                   "actions": [
                     {
                       "type": "item.give",
                       "item": "minerai_argent",
-                      "qty": 2
+                      "qty": 4
                     }
                   ]
                 },
@@ -11921,7 +12148,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 9
+                "xp": 6
               },
               "rolls": 1,
               "results": [
@@ -12000,7 +12227,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 9
+                "xp": 6
               },
               "rolls": 1,
               "results": [
@@ -12090,7 +12317,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 12
+                "xp": 10
               },
               "rolls": 1,
               "results": [
@@ -12180,7 +12407,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 15
+                "xp": 14
               },
               "rolls": 1,
               "results": [
@@ -12270,7 +12497,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 15
+                "xp": 14
               },
               "rolls": 1,
               "results": [
@@ -12361,7 +12588,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 9
+                "xp": 6
               },
               "rolls": 1,
               "results": [
@@ -12445,7 +12672,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 9
+                "xp": 6
               },
               "rolls": 1,
               "results": [
@@ -12540,7 +12767,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 12
+                "xp": 10
               },
               "rolls": 1,
               "results": [
@@ -12635,7 +12862,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 12
+                "xp": 10
               },
               "rolls": 1,
               "results": [
@@ -12730,7 +12957,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 15
+                "xp": 14
               },
               "rolls": 1,
               "results": [
@@ -12825,7 +13052,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 18
+                "xp": 20
               },
               "rolls": 1,
               "results": [
@@ -12911,7 +13138,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 9
+                "xp": 6
               },
               "rolls": 1,
               "results": [
@@ -13001,7 +13228,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 12
+                "xp": 10
               },
               "rolls": 1,
               "results": [
@@ -13096,7 +13323,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 15
+                "xp": 14
               },
               "rolls": 1,
               "results": [
@@ -13186,7 +13413,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 15
+                "xp": 14
               },
               "rolls": 1,
               "results": [
@@ -13276,7 +13503,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 15
+                "xp": 14
               },
               "rolls": 1,
               "results": [
@@ -13371,7 +13598,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 21
+                "xp": 32
               },
               "rolls": 1,
               "results": [
@@ -13457,7 +13684,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 9
+                "xp": 6
               },
               "rolls": 1,
               "results": [
@@ -13536,7 +13763,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 9
+                "xp": 6
               },
               "rolls": 1,
               "results": [
@@ -13626,7 +13853,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 12
+                "xp": 10
               },
               "rolls": 1,
               "results": [
@@ -13716,7 +13943,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 12
+                "xp": 10
               },
               "rolls": 1,
               "results": [
@@ -13811,7 +14038,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 15
+                "xp": 14
               },
               "rolls": 1,
               "results": [
@@ -13901,7 +14128,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 15
+                "xp": 14
               },
               "rolls": 1,
               "results": [
@@ -13991,7 +14218,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 15
+                "xp": 14
               },
               "rolls": 1,
               "results": [
@@ -14086,7 +14313,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 18
+                "xp": 20
               },
               "rolls": 1,
               "results": [
@@ -14172,7 +14399,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 9
+                "xp": 6
               },
               "rolls": 1,
               "results": [
@@ -14262,7 +14489,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 12
+                "xp": 10
               },
               "rolls": 1,
               "results": [
@@ -14352,7 +14579,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 12
+                "xp": 10
               },
               "rolls": 1,
               "results": [
@@ -14447,7 +14674,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 18
+                "xp": 23
               },
               "rolls": 1,
               "results": [
@@ -14542,7 +14769,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 21
+                "xp": 35
               },
               "rolls": 1,
               "results": [
@@ -14633,7 +14860,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 9
+                "xp": 6
               },
               "rolls": 1,
               "results": [
@@ -14712,7 +14939,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 9
+                "xp": 6
               },
               "rolls": 1,
               "results": [
@@ -14802,7 +15029,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 12
+                "xp": 10
               },
               "rolls": 1,
               "results": [
@@ -14892,7 +15119,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 12
+                "xp": 10
               },
               "rolls": 1,
               "results": [
@@ -14982,7 +15209,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 15
+                "xp": 14
               },
               "rolls": 1,
               "results": [
@@ -15061,7 +15288,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 9
+                "xp": 6
               },
               "rolls": 1,
               "results": [
@@ -15151,7 +15378,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 12
+                "xp": 10
               },
               "rolls": 1,
               "results": [
@@ -15241,7 +15468,7 @@
               ],
               "job": {
                 "id": "forgeron",
-                "xp": 15
+                "xp": 14
               },
               "rolls": 1,
               "results": [
@@ -15398,11 +15625,11 @@
             "minerai": 4,
             "minerai_cuivre": 3,
             "minerai_etain": 3,
-            "lingot": 10,
-            "lingot_bronze": 7,
-            "lingot_argent": 15,
-            "lingot_or": 30,
-            "ferrure": 24,
+            "lingot": 14,
+            "lingot_bronze": 12,
+            "lingot_argent": 26,
+            "lingot_or": 44,
+            "ferrure": 42,
             "buche": 2
           },
           "emptyFactor": 1.5,
@@ -17055,23 +17282,23 @@
               "results": [
                 {
                   "weight": 80,
-                  "label": "2 bûches",
-                  "actions": [
-                    {
-                      "type": "item.give",
-                      "item": "buche",
-                      "qty": 2
-                    }
-                  ]
-                },
-                {
-                  "weight": 20,
                   "label": "3 bûches",
                   "actions": [
                     {
                       "type": "item.give",
                       "item": "buche",
                       "qty": 3
+                    }
+                  ]
+                },
+                {
+                  "weight": 20,
+                  "label": "4 bûches",
+                  "actions": [
+                    {
+                      "type": "item.give",
+                      "item": "buche",
+                      "qty": 4
                     }
                   ],
                   "bonus": [
@@ -17229,12 +17456,12 @@
                 {
                   "type": "stat.add",
                   "stat": "energie",
-                  "amount": -3
+                  "amount": -4
                 }
               ],
               "job": {
                 "id": "bucheron",
-                "xp": 3
+                "xp": 4
               },
               "rolls": 1,
               "results": [
@@ -17316,12 +17543,12 @@
                 {
                   "type": "stat.add",
                   "stat": "energie",
-                  "amount": -3
+                  "amount": -6
                 }
               ],
               "job": {
                 "id": "bucheron",
-                "xp": 3
+                "xp": 6
               },
               "rolls": 1,
               "results": [
@@ -17472,7 +17699,7 @@
               ],
               "job": {
                 "id": "bucheron",
-                "xp": 9
+                "xp": 10
               },
               "boostedBy": [
                 "bois",
@@ -17623,7 +17850,7 @@
               ],
               "job": {
                 "id": "bucheron",
-                "xp": 8
+                "xp": 7
               },
               "rolls": 1,
               "results": [
@@ -17685,12 +17912,12 @@
                 {
                   "type": "stat.add",
                   "stat": "energie",
-                  "amount": -5
+                  "amount": -8
                 }
               ],
               "job": {
                 "id": "bucheron",
-                "xp": 8
+                "xp": 12
               },
               "boostedBy": [
                 "bois",
@@ -17781,7 +18008,7 @@
               ],
               "job": {
                 "id": "bucheron",
-                "xp": 14
+                "xp": 19
               },
               "tool": {
                 "item": "arc_court",
@@ -17799,7 +18026,7 @@
                     {
                       "type": "item.give",
                       "item": "viande",
-                      "qty": 3
+                      "qty": 5
                     }
                   ]
                 },
@@ -17810,7 +18037,7 @@
                     {
                       "type": "item.give",
                       "item": "volaille",
-                      "qty": 2
+                      "qty": 3
                     }
                   ]
                 },
@@ -17875,7 +18102,7 @@
               ],
               "job": {
                 "id": "bucheron",
-                "xp": 16
+                "xp": 19
               },
               "tool": {
                 "item": "arbalete_guerre",
@@ -17957,12 +18184,12 @@
                 {
                   "type": "stat.add",
                   "stat": "energie",
-                  "amount": -4
+                  "amount": -6
                 }
               ],
               "job": {
                 "id": "bucheron",
-                "xp": 8
+                "xp": 10
               },
               "rolls": 1,
               "results": [
@@ -19217,7 +19444,7 @@
                     {
                       "type": "item.give",
                       "item": "gerbe",
-                      "qty": 2
+                      "qty": 5
                     }
                   ]
                 }
@@ -19289,12 +19516,12 @@
                 {
                   "type": "stat.add",
                   "stat": "energie",
-                  "amount": -5
+                  "amount": -6
                 }
               ],
               "job": {
                 "id": "fermier",
-                "xp": 5
+                "xp": 6
               },
               "rolls": 1,
               "results": [
@@ -19462,12 +19689,12 @@
                 {
                   "type": "stat.add",
                   "stat": "energie",
-                  "amount": -6
+                  "amount": -7
                 }
               ],
               "job": {
                 "id": "fermier",
-                "xp": 10
+                "xp": 12
               },
               "rolls": 1,
               "results": [
@@ -19538,7 +19765,7 @@
                 {
                   "type": "stat.add",
                   "stat": "energie",
-                  "amount": -2
+                  "amount": -6
                 },
                 {
                   "type": "item.take",
@@ -19548,7 +19775,7 @@
               ],
               "job": {
                 "id": "fermier",
-                "xp": 2
+                "xp": 7
               },
               "rolls": 1,
               "results": [
@@ -19619,7 +19846,7 @@
               ],
               "job": {
                 "id": "fermier",
-                "xp": 4
+                "xp": 3
               },
               "rolls": 1,
               "results": [
@@ -19683,7 +19910,7 @@
               ],
               "job": {
                 "id": "fermier",
-                "xp": 5
+                "xp": 4
               },
               "rolls": 1,
               "results": [
@@ -19748,12 +19975,12 @@
                 {
                   "type": "stat.add",
                   "stat": "energie",
-                  "amount": -4
+                  "amount": -10
                 }
               ],
               "job": {
                 "id": "fermier",
-                "xp": 5
+                "xp": 10
               },
               "rolls": 1,
               "results": [
@@ -19839,7 +20066,7 @@
               ],
               "job": {
                 "id": "fermier",
-                "xp": 8
+                "xp": 7
               },
               "rolls": 1,
               "results": [
@@ -19910,12 +20137,12 @@
                 {
                   "type": "stat.add",
                   "stat": "energie",
-                  "amount": -4
+                  "amount": -7
                 }
               ],
               "job": {
                 "id": "fermier",
-                "xp": 6
+                "xp": 9
               },
               "rolls": 1,
               "results": [
@@ -19991,7 +20218,7 @@
               ],
               "job": {
                 "id": "fermier",
-                "xp": 8
+                "xp": 7
               },
               "rolls": 1,
               "results": [
@@ -21049,12 +21276,12 @@
                 {
                   "type": "stat.add",
                   "stat": "energie",
-                  "amount": -3
+                  "amount": -5
                 }
               ],
               "job": {
                 "id": "pecheur",
-                "xp": 5
+                "xp": 6
               },
               "tool": {
                 "item": "canne",
@@ -21170,12 +21397,12 @@
                 {
                   "type": "stat.add",
                   "stat": "energie",
-                  "amount": -6
+                  "amount": -9
                 }
               ],
               "job": {
                 "id": "pecheur",
-                "xp": 10
+                "xp": 15
               },
               "tool": {
                 "item": "canne",
@@ -21268,7 +21495,7 @@
               ],
               "job": {
                 "id": "pecheur",
-                "xp": 9
+                "xp": 8
               },
               "tool": {
                 "item": "canne",
@@ -21386,7 +21613,7 @@
               ],
               "job": {
                 "id": "pecheur",
-                "xp": 14
+                "xp": 15
               },
               "tool": {
                 "item": "canne_renforcee",
@@ -21410,12 +21637,12 @@
                 },
                 {
                   "weight": 35,
-                  "label": "Deux truites",
+                  "label": "Trois truites",
                   "actions": [
                     {
                       "type": "item.give",
                       "item": "truite",
-                      "qty": 2
+                      "qty": 3
                     }
                   ]
                 },

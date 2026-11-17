@@ -115,7 +115,15 @@ export interface StatDef {
   /** Unité affichée après une valeur (« écus »). */
   unit?: string;
   /** Évolution toute seule avec le temps (ex. l'ivresse redescend de 5 toutes les minutes), bornée par min et max. */
-  drift?: { amount: number; everySec: number };
+  drift?: {
+    amount: number;
+    everySec: number;
+    /**
+     * Repos : l'évolution ne reprend qu'après ce délai (secondes) sans que la statistique ait baissé
+     * (ex. l'endurance remonte seulement quand on ne travaille pas).
+     */
+    restSec?: number;
+  };
   /** Paliers : tant que la valeur atteint `from`, le palier le plus haut atteint s'applique à son travail. */
   levels?: StatLevel[];
 }
@@ -558,6 +566,8 @@ export interface Recipe {
   inputs: Record<Id, number>;
   outputs: Record<Id, number>;
   xp?: { start: number; collect: number };
+  /** Paie versée à celui qui récupère la fournée (salaire de l'établissement). */
+  pay?: { stat: Id; amount: number };
 }
 
 /** Postes de production partagés (marmites, forges…) avec cuisson minutée. */

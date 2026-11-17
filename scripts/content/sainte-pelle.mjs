@@ -137,7 +137,8 @@ const shard = (n, label, found, when, said) =>
 
 const stats = [
   { id: 'ecus', name: 'Bourse', emoji: '💰', min: 0, initial: 0, kind: 'currency', unit: 'écus' },
-  { id: 'energie', name: 'Endurance', emoji: '⚡', min: 0, max: 100, initial: 80, kind: 'gauge' },
+  // L'endurance remonte seule au repos (Louis, 17 novembre) : +2 par minute après 2 minutes sans travailler.
+  { id: 'energie', name: 'Endurance', emoji: '⚡', min: 0, max: 100, initial: 80, kind: 'gauge', drift: { amount: 2, everySec: 60, restSec: 120 } },
   // Ivresse (demande de Louis du 16 novembre) : elle redescend toute seule (−5 toutes les 90 s, 50 → 0 en 15 min)
   // et change le travail des métiers. Un verre ≈ 7 à 14 ; l'eau, le jus et le cierge béni font redescendre.
   {
@@ -835,7 +836,8 @@ const has = (item) => ({ type: 'tool', item });
 const anyTool = (...ids) => any(...ids.map(has));
 const item = (id, name, emoji, category, extra = {}) => ({ id, name, emoji, category, ...extra });
 const equip = (slot, o) => ({ equipment: { slot, ...o } });
-const saving = (n) => ({ saving: { stat: 'energie', amount: n } });
+// Bêta : armes et armures sont purement décoratives (Louis, 17 novembre) ; elles s'affichent dans la fiche du joueur.
+const saving = () => ({});
 
 // Le Royaume V11 servait « bière » et « vin » génériques : remplacés par la carte de la Gueuse Cocue.
 for (const id of ['biere', 'vin']) items.splice(items.findIndex((i) => i.id === id), 1);
@@ -1798,6 +1800,103 @@ for (const d of JOB_DESKS) {
 // L'eau dessoûle aussi quand on l'emporte dans sa gourde.
 const gourde = world.items.find((i) => i.id === 'gourde_eau');
 if (gourde?.consumable && !gourde.consumable.effects.some((e) => e.stat === 'alcool')) gourde.consumable.effects.push(stat('alcool', -10));
+
+// ── Équilibrage (Louis, 17 novembre) : les gains suivent la difficulté de la tâche ──
+// Difficulté = endurance × niveau requis (+35 % par niveau) × outil ou matière (+15 %) × durée (+10 % par minute au-delà de la première).
+// Une tâche rapporte en moyenne 1 écu (valeur de rachat) et 1 XP par point de difficulté ; la matière consommée est déduite.
+// Cuisine et brasserie : pas d'endurance, la difficulté vient des ingrédients ; l'XP vaut 2 × difficulté et une paie est versée.
+// Le rapport complet est écrit dans content/sainte-pelle/equilibrage.md (relu par Louis et ses testeurs).
+const NUMBERS = ['zéro', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix', 'onze', 'douze'];
+const balance = (() => {
+  const price = {};
+  for (const b of world.buildings) for (const m of b.modules) if (m.type === 'buyback') for (const [k, v] of Object.entries(m.prices)) price[k] = Math.max(price[k] ?? 0, v);
+  const lvlOf = (c) => (!c ? 1 : c.type === 'jobLevel' ? c.value : c.type === 'all' ? Math.max(1, ...c.conditions.map(lvlOf)) : 1);
+  const levelF = (l) => 1 + 0.35 * (l - 1);
+  const timeF = (sec) => 1 + 0.1 * Math.max(0, sec / 60 - 1);
+  const itemName = (id) => world.items.find((i) => i.id === id)?.name ?? id;
+  const rows = [];
+  const value = (a) => {
+    const tot = a.results.reduce((t, r) => t + (r.weight ?? 1), 0);
+    return a.results.reduce((t, r) => t + ((r.weight ?? 1) / tot) * (r.actions ?? []).filter((x) => x.type === 'item.give').reduce((u, x) => u + x.qty * (price[x.item] ?? 0), 0), 0);
+  };
+  const forgeIngots = world.buildings.find((b) => b.id === 'forge')?.modules.find((m) => m.type === 'buyback');
+  for (const b of world.buildings) {
+    for (const m of b.modules) {
+      if (m.type !== 'activity') continue;
+      const placeGuard = b.screens.find((x) => x.id === `lieu-${m.id}`)?.guard?.when;
+      for (const a of m.activities) {
+        if (!a.job) continue;
+        const energyCost = a.costs.find((c) => c.type === 'stat.add' && c.stat === 'energie');
+        let energy = -(energyCost?.amount ?? 0);
+        const takes = a.costs.filter((c) => c.type === 'item.take');
+        const level = Math.max(lvlOf(a.when), lvlOf(placeGuard));
+        const needs = a.tool || takes.length;
+        const factor = levelF(level) * (needs ? 1.15 : 1) * timeF(a.durationSec || 0);
+        const energyBefore = energy;
+        let diff = Math.max(1, energy) * factor;
+        const cost = takes.reduce((t, c) => t + c.qty * (price[c.item] ?? 0), 0);
+        const before = value(a) - cost;
+        const gives = a.results.flatMap((r) => (r.actions ?? []).filter((x) => x.type === 'item.give'));
+        const priced = gives.some((x) => price[x.item]);
+        if (m.id === 'atelier-fonderie' && forgeIngots && gives.length === 1) {
+          // Fonderie : le lingot se revend au prix de ses minerais + le travail.
+          forgeIngots.prices[gives[0].item] = price[gives[0].item] = Math.round(cost / gives[0].qty + diff / gives[0].qty);
+        } else if (priced && before > 0) {
+          // Trop payé pour l'effort : la tâche demande plus d'endurance (on ne réduit pas les récoltes).
+          if (energyCost && before > diff * 1.2) {
+            energy = Math.min(12, Math.round((energy * before) / diff));
+            energyCost.amount = -energy;
+            diff = energy * factor;
+          }
+          // Pas assez payé : on récolte davantage.
+          const k = (diff + cost) / (before + cost);
+          // (Les trouvailles uniques — une pépite, UN DIAMANT — restent uniques ; le libellé suit la nouvelle quantité.)
+          if (k > 1.2)
+            for (const r of a.results)
+              for (const x of r.actions ?? []) {
+                if (x.type !== 'item.give' || !price[x.item] || x.qty < 2) continue;
+                const old = x.qty;
+                x.qty = Math.round(old * k);
+                r.label = r.label.replace(new RegExp(`^(${old}|${NUMBERS[old]})(?= )`, 'i'), (w) => (/^\d/.test(w) ? String(x.qty) : w[0] === w[0].toUpperCase() ? NUMBERS[x.qty][0].toUpperCase() + NUMBERS[x.qty].slice(1) : NUMBERS[x.qty]));
+              }
+        }
+        a.job.xp = Math.round(diff);
+        const after = value(a) - cost;
+        rows.push({ job: a.job.id, place: m.name.replace(/^\S+\s/, ''), name: a.name, level, energy: energy === energyBefore ? energy : `${energyBefore} → ${energy}`, tool: a.tool ? itemName(a.tool.item) : takes.map((c) => `${c.qty} ${itemName(c.item)}`).join(' + ') || '—', diff, xp: a.job.xp, before, after, priced: priced || m.id === 'atelier-fonderie' });
+      }
+    }
+    for (const m of b.modules) {
+      if (m.type !== 'production') continue;
+      for (const r of m.recipes) {
+        const n = Object.values(r.inputs).reduce((t, q) => t + q, 0);
+        const diff = n * levelF(r.level) * timeF(r.durationSec);
+        const xp = Math.round(2 * diff);
+        r.xp = { start: Math.round(xp * 0.6), collect: xp - Math.round(xp * 0.6) };
+        r.pay = { stat: 'ecus', amount: Math.round(diff) };
+        rows.push({ job: m.job, place: m.name.replace(/^\S+\s/, ''), name: r.name, level: r.level, energy: 0, tool: Object.entries(r.inputs).map(([i, q]) => `${q} ${itemName(i)}`).join(' + '), diff, xp, before: 0, after: r.pay.amount, priced: true, prod: true });
+      }
+    }
+  }
+  for (const j of world.jobs) if (j.id === 'cuisinier' || j.id === 'brasseur') Object.assign(j, { xpPerLevel: 40, maxLevel: 5 });
+  return rows;
+})();
+{
+  const jobName = Object.fromEntries(world.jobs.map((j) => [j.id, j.name]));
+  const f = (n) => (Math.round(n * 10) / 10).toString().replace('.', ',');
+  const md = [
+    '# Équilibrage des métiers — La Nuit de la Sainte Pelle',
+    '',
+    '*Fichier généré par `scripts/content/sainte-pelle.mjs` : ne pas modifier à la main.*',
+    '',
+    'Difficulté = endurance × niveau requis (+35 % par niveau) × outil ou matière (+15 %) × durée (+10 % par minute au-delà de la première).',
+    'Chaque tâche rapporte en moyenne **1 écu et 1 XP par point de difficulté** (matière consommée déduite). Cuisine et brasserie : 2 XP par point et une paie.',
+    '',
+    '| Métier | Lieu | Tâche | Niveau | Endurance | Outil ou matière | Difficulté | XP | Écus avant | Écus après |',
+    '|---|---|---|---|---|---|---|---|---|---|',
+    ...balance.sort((x, y) => (jobName[x.job] ?? '').localeCompare(jobName[y.job] ?? '') || x.level - y.level).map((r) => `| ${jobName[r.job] ?? r.job} | ${r.place} | ${r.name} | ${r.level} | ${r.energy || '—'} | ${r.tool} | ${f(r.diff)} | ${r.xp} | ${r.prod ? '0' : r.priced ? f(r.before) : '—'} | ${r.priced ? f(r.after) + (r.prod ? ' (paie)' : '') : '—'} |`),
+  ].join('\n');
+  writeFileSync(new URL('content/sainte-pelle/equilibrage.md', root), md + '\n');
+}
 
 // La Taverne V11 parle d'« Énergie » : même statistique, renommée « Endurance » pour la bêta.
 const json = JSON.stringify(world, null, 2).replaceAll('Énergie', 'Endurance');

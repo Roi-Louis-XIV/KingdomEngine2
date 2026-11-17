@@ -449,7 +449,7 @@ function statExtras(s: StatDef, changed: () => void, redraw: () => void): HTMLEl
     { class: 'stack stat-extras' },
     drift,
     s.drift
-      ? h('div', { class: 'row-fields' }, field(s.drift, 'amount', { label: 'De combien (négatif = redescend)', type: 'number' }, changed), field(s.drift, 'everySec', { label: 'Toutes les (secondes)', type: 'number', min: 5 }, changed))
+      ? h('div', { class: 'row-fields' }, field(s.drift, 'amount', { label: 'De combien (négatif = redescend)', type: 'number' }, changed), field(s.drift, 'everySec', { label: 'Toutes les (secondes)', type: 'number', min: 5 }, changed), field(s.drift, 'restSec', { label: 'Seulement au repos : après (secondes sans baisser, vide = toujours)', type: 'number', min: 0 }, changed))
       : null,
     h('div', null, h('b', null, 'Paliers'), h('p', { class: 'muted small' }, 'À partir d’un seuil, le travail des métiers change : rendement (1 = normal, 0,8 = −20 %, 1,1 = +10 %), risque de tout rater (0 à 1), ou plus de travail du tout. Le palier le plus haut atteint s’applique.')),
     (s.levels ?? []).map((l, i) =>

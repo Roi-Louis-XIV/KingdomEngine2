@@ -343,7 +343,7 @@ test('lieux de récolte : chances selon le lieu, le niveau et l’outil ; meille
   assert.ok(p.refresh().buttons.some((b) => /gouffre/i.test(b)));
 });
 
-test('forge : on paie en lingots, l’arme rejoint l’inventaire, l’armure allège l’effort', () => {
+test('forge : on paie en lingots, l’arme rejoint l’inventaire et le profil (décoratives en bêta)', () => {
   const { engine, clock } = started();
   engine.adminApply('louis', undefined, [{ type: 'item.give', item: 'lingot_bronze', qty: 9 }]);
   const f = new Player(engine, 'louis', 'forge');
@@ -362,13 +362,15 @@ test('forge : on paie en lingots, l’arme rejoint l’inventaire, l’armure al
   f.refresh().click('Récupérer');
   assert.equal(f.state.items.cuirasse_cuir, 1);
   f.click('🎒 Mon inventaire');
-  assert.match(f.text, /⚔️ \*\*Attaque :\*\* 3 · 🛡️ \*\*Défense :\*\* 2/);
-  assert.match(f.text, /Armes :\*\* 🗡️ Épée courte du Novice ×1 \[⚔️3\]/);
-  // La cuirasse fait économiser 1 d'endurance par activité.
+  // Décoratives : visibles dans le profil (meilleur objet par emplacement) et le sac, sans valeurs de combat.
+  assert.match(f.text, /\*\*🛡️ Équipement\*\*\n🗡️ Arme : \*\*Épée courte du Novice\*\*\n🦺 Armure : \*\*Cuirasse de cuir renforcé\*\*/);
+  assert.match(f.text, /Armes :\*\* 🗡️ Épée courte du Novice ×1(?! \[)/);
+  assert.doesNotMatch(f.text, /Attaque :|\[⚔️/);
+  // La cuirasse ne fait plus économiser d'endurance.
   engine.adminApply('louis', undefined, [{ type: 'job.leave', job: 'forgeron' }, { type: 'job.join', job: 'bucheron' }]);
   const bois = new Player(engine, 'louis', 'foret');
   bois.click(/La lisière/);
-  assert.match(bois.text, /Abattre un jeune arbre[\s\S]*?⚡ -4 endurance/);
+  assert.match(bois.text, /Abattre un jeune arbre[\s\S]*?⚡ -5 endurance/);
 });
 
 test('taverne : la carte de la Gueuse Cocue et la brasserie', () => {

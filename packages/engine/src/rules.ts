@@ -299,6 +299,11 @@ export function applyAction(ctx: Ctx, a: Action): void {
       const after = clampStat(ctx, a.stat, before + a.amount);
       p.stats[a.stat] = after;
       ctx.changes.push({ kind: 'stat', stat: a.stat, before, after });
+      // Dépense d'une statistique « au repos » (endurance…) : le repos recommence à zéro.
+      if (a.amount < 0 && def.drift?.restSec) {
+        (p.restUntil ??= {})[a.stat] = ctx.now + def.drift.restSec * 1000;
+        if (p.driftAt) delete p.driftAt[a.stat];
+      }
       return;
     }
     case 'stat.set': {
@@ -615,6 +620,13 @@ export function driftStats(world: WorldDef, state: WorldState, now: number): voi
       if (atBound) {
         if (p.driftAt?.[d.id] !== undefined) delete p.driftAt[d.id];
         continue;
+      }
+      // Repos pas encore terminé : rien ne bouge. Terminé : on compte à partir de sa fin.
+      const rest = p.restUntil?.[d.id];
+      if (rest !== undefined) {
+        if (rest > now) continue;
+        delete p.restUntil![d.id];
+        (p.driftAt ??= {})[d.id] = rest;
       }
       const last = p.driftAt?.[d.id];
       if (last === undefined) {

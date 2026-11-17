@@ -339,6 +339,7 @@ export function validateWorld(w: WorldDef): Issue[] {
           if (m.job && !jobs.has(m.job)) err(where, `métier inconnu : ${m.job}`);
           if (m.stationCount < 1) err(where, 'au moins un poste est nécessaire');
           for (const r of m.recipes) {
+            if (r.pay && (!stats.has(r.pay.stat) || !(r.pay.amount >= 0))) err(where, `paie invalide pour ${r.id}`);
             Object.keys(r.inputs).forEach((i) => checkItem(`${where} › ${r.id}`, i));
             Object.keys(r.outputs).forEach((i) => checkItem(`${where} › ${r.id}`, i));
             if (r.durationSec <= 0) err(`${where} › ${r.id}`, 'durée nulle');
