@@ -144,3 +144,25 @@ test('repos : une statistique ne remonte qu’après un moment sans être dépen
   engine.tick();
   assert.equal(engine.player('alice')!.stats.energie, 100);
 });
+
+test('travaux menés de front : limités par le réglage du monde', () => {
+  const w = world();
+  w.settings.maxActivities = 2;
+  const mod = w.buildings[0]!.modules[0] as Extract<WorldDef['buildings'][number]['modules'][number], { type: 'activity' }>;
+  const base = mod.activities[0]!;
+  mod.activities = ['a', 'b', 'c'].map((id) => ({ ...base, id, name: `Tâche ${id}`, durationSec: 60 }));
+  const clock = new Clock();
+  let n = 0;
+  const engine = new Engine(w, undefined, { now: clock.now, random: () => 0.5, newId: () => `s${++n}` });
+  const p = new Player(engine, 'alice', 'bois');
+  p.click('Lancer').click('Lancer');
+  assert.equal(Object.keys(engine.player('alice')!.activities).length, 2);
+  assert.match(p.text, /2 travaux à la fois au maximum : attends qu’un se termine/);
+  p.click('Lancer');
+  assert.equal(Object.keys(engine.player('alice')!.activities).length, 2, 'refusé : déjà deux travaux');
+  // Le premier fini (même pas encore récupéré), la place se libère.
+  clock.advance(60);
+  p.refresh().click('Lancer');
+  assert.equal(Object.keys(engine.player('alice')!.activities).length, 3);
+  assert.deepEqual(validateRendered(p.message), []);
+});

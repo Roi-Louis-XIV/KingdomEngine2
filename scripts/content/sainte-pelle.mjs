@@ -1880,6 +1880,51 @@ const balance = (() => {
   for (const j of world.jobs) if (j.id === 'cuisinier' || j.id === 'brasseur') Object.assign(j, { xpPerLevel: 40, maxLevel: 5 });
   return rows;
 })();
+// ── Durée pour atteindre le niveau 5 (Louis, 17 novembre) : environ 1 heure de travail dans le métier ──
+// Deux travaux à la fois au maximum (sinon on lance tout un lieu d'un coup et les durées ne comptent plus).
+// On simule un joueur assidu qui enchaîne, à chaque niveau, les deux travaux qui rapportent le plus d'XP à la minute
+// (plus les petits gestes à recharge) ; cuisine et brasserie : deux postes. L'XP par niveau en découle.
+world.settings.maxActivities = 2;
+const LEVEL5_MINUTES = 60;
+const ENDURANCE_PER_MIN = 6;
+const pace = (() => {
+  const lvlOf = (c) => (!c ? 1 : c.type === 'jobLevel' ? c.value : c.type === 'all' ? Math.max(1, ...c.conditions.map(lvlOf)) : 1);
+  const tasks = {};
+  for (const b of world.buildings)
+    for (const m of b.modules) {
+      if (m.type === 'activity') {
+        const g = b.screens.find((x) => x.id === `lieu-${m.id}`)?.guard?.when;
+        for (const a of m.activities)
+          if (a.job)
+            (tasks[a.job.id] ??= []).push({ lvl: Math.max(lvlOf(a.when), lvlOf(g)), sec: a.durationSec || 0, cd: a.cooldownSec || 0, xp: a.job.xp, en: -(a.costs.find((c) => c.stat === 'energie')?.amount ?? 0), takes: a.costs.some((c) => c.type === 'item.take') });
+      }
+      if (m.type === 'production') for (const r of m.recipes) (tasks[m.job] ??= []).push({ lvl: r.level, sec: r.durationSec + 15, cd: 0, xp: r.xp.start + r.xp.collect, en: 0 });
+    }
+  const out = {};
+  for (const job of world.jobs) {
+    const list = tasks[job.id] ?? [];
+    // XP par minute à chaque niveau (1 à 4).
+    const rates = [1, 2, 3, 4].map((L) => {
+      const ok = list.filter((t) => t.lvl <= L);
+      const perMin = (t) => ({ xp: (t.xp / Math.max(t.sec, t.cd)) * 60, en: (t.en / Math.max(t.sec, t.cd)) * 60 });
+      const timed = ok.filter((t) => t.sec > 0).map(perMin).sort((x, y) => y.xp - x.xp).slice(0, 2);
+      // Petits gestes à recharge, sauf ceux qui consomment une récolte (moudre : on n'a pas le grain pour en faire à la chaîne).
+      const quick = ok.filter((t) => !t.sec && t.cd && !t.takes).map(perMin);
+      const all = [...timed, ...quick];
+      const xp = all.reduce((u, x) => u + x.xp, 0);
+      const en = all.reduce((u, x) => u + x.en, 0);
+      // L'endurance se reprend en mangeant : on compte au plus ENDURANCE_PER_MIN points dépensés par minute.
+      return en > ENDURANCE_PER_MIN ? (xp * ENDURANCE_PER_MIN) / en : xp;
+    });
+    if (!rates[0]) continue;
+    // Il faut niveau × XP par niveau pour passer au suivant : temps = Σ L × per / rate(L) = 60 min.
+    const per = Math.max(20, Math.round(LEVEL5_MINUTES / rates.reduce((u, r, i) => u + (i + 1) / r, 0) / 5) * 5);
+    Object.assign(job, { xpPerLevel: per, maxLevel: 5 });
+    out[job.id] = { per, minutes: rates.map((r, i) => ((i + 1) * per) / r) };
+  }
+  return out;
+})();
+
 {
   const jobName = Object.fromEntries(world.jobs.map((j) => [j.id, j.name]));
   const f = (n) => (Math.round(n * 10) / 10).toString().replace('.', ',');
@@ -1890,6 +1935,16 @@ const balance = (() => {
     '',
     'Difficulté = endurance × niveau requis (+35 % par niveau) × outil ou matière (+15 %) × durée (+10 % par minute au-delà de la première).',
     'Chaque tâche rapporte en moyenne **1 écu et 1 XP par point de difficulté** (matière consommée déduite). Cuisine et brasserie : 2 XP par point et une paie.',
+    '',
+    '## Temps pour atteindre le niveau 5',
+    '',
+    `Deux travaux à la fois au maximum. Temps d’un joueur assidu qui enchaîne les meilleurs travaux de son niveau, endurance dépensée au plus ${ENDURANCE_PER_MIN} points par minute (le temps de manger), objectif ${LEVEL5_MINUTES} min.`,
+    '',
+    '| Métier | XP par niveau | Niv. 1 → 2 | Niv. 2 → 3 | Niv. 3 → 4 | Niv. 4 → 5 | Total |',
+    '|---|---|---|---|---|---|---|',
+    ...Object.entries(pace).map(([id, x]) => `| ${jobName[id]} | ${x.per} × niveau | ${x.minutes.map((m) => `${Math.round(m)} min`).join(' | ')} | ${Math.round(x.minutes.reduce((u, m) => u + m, 0))} min |`),
+    '',
+    '## Gains par tâche',
     '',
     '| Métier | Lieu | Tâche | Niveau | Endurance | Outil ou matière | Difficulté | XP | Écus avant | Écus après |',
     '|---|---|---|---|---|---|---|---|---|---|',

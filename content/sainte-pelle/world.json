@@ -7,7 +7,8 @@
     "maxActiveJobs": 1,
     "timezone": "Europe/Paris",
     "jobsRequireJoin": true,
-    "hideAboveLevel": true
+    "hideAboveLevel": true,
+    "maxActivities": 2
   },
   "events": [
     {
@@ -2486,28 +2487,28 @@
       "id": "cuisinier",
       "name": "Cuisinier",
       "emoji": "👨‍🍳",
-      "xpPerLevel": 40,
+      "xpPerLevel": 110,
       "maxLevel": 5
     },
     {
       "id": "bucheron",
       "name": "Bûcheron",
       "emoji": "🪓",
-      "xpPerLevel": 40,
+      "xpPerLevel": 50,
       "maxLevel": 5
     },
     {
       "id": "mineur",
       "name": "Mineur",
       "emoji": "⛏️",
-      "xpPerLevel": 40,
+      "xpPerLevel": 60,
       "maxLevel": 5
     },
     {
       "id": "forgeron",
       "name": "Forgeron",
       "emoji": "🔨",
-      "xpPerLevel": 40,
+      "xpPerLevel": 65,
       "maxLevel": 5
     },
     {
@@ -2521,14 +2522,14 @@
       "id": "pecheur",
       "name": "Pêcheur",
       "emoji": "🎣",
-      "xpPerLevel": 40,
+      "xpPerLevel": 60,
       "maxLevel": 5
     },
     {
       "id": "brasseur",
       "name": "Brasseur",
       "emoji": "🍻",
-      "xpPerLevel": 40,
+      "xpPerLevel": 95,
       "maxLevel": 5
     }
   ],

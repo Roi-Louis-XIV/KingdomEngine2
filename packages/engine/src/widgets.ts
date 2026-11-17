@@ -858,6 +858,16 @@ export function activityLock(ctx: Ctx, mod: ActivityModule, a: ActivityDef): { t
     const block = activeLevels(ctx.world, p).find((x) => x.level.blocksWork);
     if (block) return { text: `${block.level.emoji ?? ''} ${block.level.name} : ${block.level.text ?? 'impossible de travailler pour l’instant'}`.trim() };
   }
+  // Travaux menés de front : limités par le réglage du monde (les durées comptent vraiment).
+  const max = ctx.world.settings.maxActivities;
+  if (a.job && a.durationSec > 0 && max) {
+    const own = activityKey(ctx, mod, a);
+    const running = Object.entries(p.activities).filter(([k, x]) => k !== own && ctx.now < x.endsAt);
+    if (running.length >= max) {
+      const next = Math.min(...running.map(([, x]) => x.endsAt));
+      return { text: max === 1 ? 'Un travail à la fois : termine celui en cours' : `${max} travaux à la fois au maximum : attends qu’un se termine`, until: next };
+    }
+  }
   if (a.maxConcurrent) {
     const key = activityKey(ctx, mod, a);
     const busy = Object.values(ctx.state.players).filter((o) => o.activities?.[key] && ctx.now < o.activities[key]!.endsAt).length;

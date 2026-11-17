@@ -286,7 +286,9 @@ test('métiers : les gestes avancés demandent un niveau, l’expérience s’af
   // La futaie (niveau 2) n'apparaît qu'une fois le niveau atteint.
   assert.ok(!f.buttons.some((b) => /futaie/i.test(b)));
   f.click(/La lisière/);
-  for (let i = 0; i < 7; i++) {
+  // L'XP par niveau est calculée par le générateur (environ 1 h pour le niveau 5) : on travaille jusqu'au niveau 2.
+  const per = engine.world.jobs.find((j) => j.id === 'bucheron')!.xpPerLevel;
+  for (let i = 0; i < 40 && (f.state.jobs.bucheron?.level ?? 1) < 2; i++) {
     f.refresh().click('Lancer');
     clock.advance(61);
     f.refresh().click('Récupérer');
@@ -296,7 +298,7 @@ test('métiers : les gestes avancés demandent un niveau, l’expérience s’af
   f.refresh().click('↩️ Retour à l’entrée').click(/La futaie de chênes/);
   assert.match(f.text, /Abattre un chêne/);
   f.refresh().click('🎒 Mon inventaire');
-  assert.match(f.text, /🪓 Bûcheron · \*\*niv\. 2\*\* · 42\/80 XP/);
+  assert.match(f.text, new RegExp(`🪓 Bûcheron · \\*\\*niv\\. 2\\*\\* · ${f.state.jobs.bucheron!.xp}/${2 * per} XP`));
 });
 
 test('échoppes : acheter un outil, revendre ses ressources', () => {
@@ -457,7 +459,7 @@ test('métiers : on prend un métier pour travailler, un seul à la fois, on dé
   assert.match(m.text, /⚠️ \*\*Tu exerces déjà le métier Forgeron\.\*\*/);
   assert.ok(!m.buttons.includes('Devenir mineur'));
   // Démission à la forge : le niveau est conservé, et le mineur devient possible.
-  engine.adminApply('louis', undefined, [{ type: 'job.xp', job: 'forgeron', amount: 45 }]);
+  engine.adminApply('louis', undefined, [{ type: 'job.xp', job: 'forgeron', amount: engine.world.jobs.find((j) => j.id === 'forgeron')!.xpPerLevel + 5 }]);
   const f2 = new Player(engine, 'louis', 'forge', 'Louis');
   f2.click('📜 Démissionner');
   assert.match(f2.text, /Démission du métier de forgeron[\s\S]*Niveau conservé :\*\* 2\/5/);
@@ -466,6 +468,7 @@ test('métiers : on prend un métier pour travailler, un seul à la fois, on dé
   m.refresh().click('Devenir mineur');
   assert.deepEqual(engine.player('louis')!.activeJobs, ['mineur']);
   m.click('🎒 Mon inventaire');
-  assert.match(m.text, /⛏️ Mineur · \*\*niv\. 1\*\* · 0\/40 XP · \*métier actuel\*\n🔨 Forgeron · \*\*niv\. 2\*\*/);
+  const perMineur = engine.world.jobs.find((j) => j.id === 'mineur')!.xpPerLevel;
+  assert.ok(m.text.includes(`⛏️ Mineur · **niv. 1** · 0/${perMineur} XP · *métier actuel*\n🔨 Forgeron · **niv. 2**`), m.text);
   assert.doesNotMatch(m.text, /Bûcheron|Pêcheur|Fermier/);
 });

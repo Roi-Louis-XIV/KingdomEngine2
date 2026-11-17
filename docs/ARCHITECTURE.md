@@ -131,6 +131,8 @@ Les fichiers de `content/<modèle>/sons/<clé>.mp3` (ou .ogg, .wav…) voyagent 
 
 - La fiche du joueur (`player.sheet`) montre l’**équipement porté** : le meilleur objet de chaque emplacement possédé. Sans module `combat` dans le monde, armes et armures sont décoratives : ni attaque ni défense affichées (fiche et sac). Bêta : plus aucune armure n’économise d’endurance.
 - `Recipe.pay` `{ stat, amount }` : paie versée à celui qui récupère une fournée (cuisine, brasserie), affichée dans la confirmation et les détails du poste.
+- `settings.maxActivities` : nombre de travaux de métier (avec durée) qu’un joueur mène de front, tous lieux confondus ; un travail fini mais pas encore récupéré libère sa place. Sans ce réglage, on peut lancer tout un lieu d’un coup et les durées ne comptent plus. Bêta : 2.
+- Bêta : l’XP par niveau de chaque métier est calculée par le générateur pour qu’un joueur assidu atteigne le niveau 5 en environ 1 heure (deux travaux de front, 6 points d’endurance dépensés par minute au plus).
 - Bêta : `scripts/content/sainte-pelle.mjs` équilibre toutes les tâches de métier à la génération (difficulté = endurance × niveau × outil ou matière × durée ; 1 écu et 1 XP par point) et écrit le rapport `content/sainte-pelle/equilibrage.md`.
 
 ## Combat au tour par tour

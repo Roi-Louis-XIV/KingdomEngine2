@@ -5,6 +5,22 @@
 Difficulté = endurance × niveau requis (+35 % par niveau) × outil ou matière (+15 %) × durée (+10 % par minute au-delà de la première).
 Chaque tâche rapporte en moyenne **1 écu et 1 XP par point de difficulté** (matière consommée déduite). Cuisine et brasserie : 2 XP par point et une paie.
 
+## Temps pour atteindre le niveau 5
+
+Deux travaux à la fois au maximum. Temps d’un joueur assidu qui enchaîne les meilleurs travaux de son niveau, endurance dépensée au plus 6 points par minute (le temps de manger), objectif 60 min.
+
+| Métier | XP par niveau | Niv. 1 → 2 | Niv. 2 → 3 | Niv. 3 → 4 | Niv. 4 → 5 | Total |
+|---|---|---|---|---|---|---|
+| Cuisinier | 110 × niveau | 9 min | 16 min | 15 min | 19 min | 59 min |
+| Bûcheron | 50 × niveau | 8 min | 14 min | 17 min | 23 min | 61 min |
+| Mineur | 60 × niveau | 9 min | 15 min | 17 min | 18 min | 59 min |
+| Forgeron | 65 × niveau | 9 min | 16 min | 16 min | 17 min | 58 min |
+| Fermier | 40 × niveau | 7 min | 12 min | 18 min | 24 min | 60 min |
+| Pêcheur | 60 × niveau | 10 min | 14 min | 16 min | 21 min | 61 min |
+| Brasseur | 95 × niveau | 10 min | 13 min | 16 min | 21 min | 60 min |
+
+## Gains par tâche
+
 | Métier | Lieu | Tâche | Niveau | Endurance | Outil ou matière | Difficulté | XP | Écus avant | Écus après |
 |---|---|---|---|---|---|---|---|---|---|
 | Brasseur | Brasserie | Cervoise médiévale | 1 | — | 2 Orge + 2 Eau | 4,4 | 9 | 0 | 4 (paie) |
