@@ -220,7 +220,7 @@ export class Platform {
 
   listAccounts(): (Account & { servers: number })[] {
     const rows = this.db
-      .prepare('SELECT a.*, (SELECT COUNT(*) FROM access x WHERE x.account_id = a.id) AS servers FROM accounts a ORDER BY a.id')
+      .prepare('SELECT a.*, (SELECT COUNT(*) FROM access x WHERE x.account_id = a.id) AS servers FROM accounts a ORDER BY a.id DESC')
       .all() as (AccountRow & { servers: number })[];
     return rows.map((r) => ({ ...toAccount(r), servers: r.servers }));
   }

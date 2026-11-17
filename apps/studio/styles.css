@@ -611,3 +611,4 @@ body.mobile { background: var(--ink); }
 .m-empty { margin: 8vh auto 0; max-width: 360px; text-align: center; display: flex; flex-direction: column; gap: 10px; }
 .m-empty-icon { font-size: 2.4rem; }
 .m-empty p { color: var(--muted); margin: 0 0 8px; }
+.warn-text { color: var(--brass); }

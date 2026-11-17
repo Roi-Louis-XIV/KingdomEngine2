@@ -8,6 +8,7 @@ import { h, clear, toast, ago, initials, confirmDialog } from './ui.ts';
 import { get, post } from './api.ts';
 import { state, server, can, selectServer } from './store.ts';
 import { stripMd } from './pages/overview.ts';
+import { isNew, grantAccess } from './pages/admin.ts';
 
 const VIEW_KEY = 'ke-vue';
 const narrow = matchMedia('(max-width: 760px)');
@@ -61,6 +62,7 @@ export function mobileApp(root: HTMLElement, name: string, params: string[], rer
           ),
         ]
       : null,
+    state.account!.platformRole === 'platform_admin' ? h('a', { class: 'm-menu-item', role: 'menuitem', href: '#/comptes' }, '👥 Comptes de la plateforme') : null,
     h('button', { class: 'm-menu-item', role: 'menuitem', onclick: () => (setView('complete'), rerender()) }, '🖥️ Version complète (ordinateur)'),
     h(
       'button',
@@ -106,6 +108,7 @@ export function mobileApp(root: HTMLElement, name: string, params: string[], rer
     ),
   );
   clear(root, h('div', { class: 'm-app' }, top, main, tabs));
+  if (name === 'comptes' && state.account!.platformRole === 'platform_admin') return accountsPage(main).catch((e) => void clear(main, h('p', { class: 'm-error' }, (e as Error).message)));
   if (!tab) return Promise.resolve(desktopOnly(main, rerender));
   const page = name === 'joueur' ? playerPage : TABS.find((t) => t.route === tab)!.page;
   return page(main, params).catch((e) => void clear(main, h('p', { class: 'm-error' }, (e as Error).message)));
@@ -392,4 +395,44 @@ async function playerPage(main: HTMLElement, params: string[]): Promise<Cleanup>
   };
   await draw();
   return poll(main, draw, 10000);
+}
+
+// ───────────────────────── Comptes (administrateur) ─────────────────────────
+
+/** Comptes de la plateforme, les plus récents en haut, avec « Donner l'accès » à un monde. */
+async function accountsPage(main: HTMLElement): Promise<Cleanup> {
+  const draw = async () => {
+    const o = await get<any>('/api/admin/overview');
+    const fresh = o.accounts.filter(isNew).length;
+    clear(
+      main,
+      h('h1', { class: 'm-h1' }, 'Comptes ', h('span', { class: 'm-count' }, String(o.accounts.length))),
+      h('p', { class: 'm-muted' }, fresh ? `${fresh} nouveau(x) cette semaine. Un compte sans monde ne voit rien tant que tu ne lui donnes pas l’accès.` : 'Un compte sans monde ne voit rien tant que tu ne lui donnes pas l’accès.'),
+      h(
+        'ul',
+        { class: 'm-list' },
+        o.accounts.map((a: any) =>
+          h(
+            'li',
+            null,
+            h(
+              'div',
+              { class: 'm-row' },
+              a.avatarUrl ? h('img', { src: a.avatarUrl, alt: '', class: 'avatar', referrerpolicy: 'no-referrer' }) : h('span', { class: 'avatar' }, initials(a.displayName)),
+              h(
+                'span',
+                { class: 'm-row-main' },
+                h('b', null, a.displayName, isNew(a) ? h('span', { class: 'tag ok' }, 'Nouveau') : null),
+                h('small', null, `${a.discordName ? `Discord · ${a.discordName}` : a.username} · créé ${ago(a.createdAt)}`),
+                h('small', { class: a.servers ? '' : 'warn-text' }, a.servers ? `${a.servers} monde(s)` : 'Aucun monde'),
+              ),
+              o.servers.length && a.platformRole !== 'platform_admin' ? h('button', { class: 'btn small primary', onclick: () => grantAccess(a, o.servers, () => void draw()) }, 'Accès') : null,
+            ),
+          ),
+        ),
+      ),
+    );
+  };
+  await draw();
+  return poll(main, draw, 15000);
 }

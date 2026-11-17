@@ -1,6 +1,16 @@
-import { h, clear, toast, field, modal, dateTime } from '../ui.ts';
+import { h, clear, toast, field, modal, dateTime, selectField, ago } from '../ui.ts';
 import { del, get, post, put } from '../api.ts';
-import { state } from '../store.ts';
+import { state, loadSession } from '../store.ts';
+
+const WEEK = 7 * 24 * 3600 * 1000;
+export const isNew = (a: { createdAt: number }) => Date.now() - a.createdAt < WEEK;
+
+const ROLES = [
+  { value: 'viewer', label: 'Lecture — consulter' },
+  { value: 'editor', label: 'Éditeur — modifier et publier le contenu' },
+  { value: 'manager', label: 'Gestionnaire — en plus : joueurs, Discord, sons' },
+  { value: 'owner', label: 'Propriétaire — en plus : accès et suppression' },
+];
 
 /** Administration de la plateforme : comptes, mondes, connexions Discord. */
 export async function adminPage(main: HTMLElement) {
@@ -71,6 +81,7 @@ export async function adminPage(main: HTMLElement) {
         'section',
         { class: 'block' },
         h('h2', null, `Comptes (${o.accounts.length})`),
+        h('p', { class: 'muted small' }, o.accounts.filter(isNew).length ? `${o.accounts.filter(isNew).length} compte(s) créé(s) cette semaine, en haut de la liste. Pour qu’une personne voie un monde, donne-lui l’accès.` : 'Les comptes les plus récents sont en haut. Pour qu’une personne voie un monde, donne-lui l’accès.'),
         h(
           'table',
           { class: 'grid' },
@@ -82,14 +93,15 @@ export async function adminPage(main: HTMLElement) {
               h(
                 'tr',
                 null,
-                h('td', null, a.displayName, h('small', { class: 'muted' }, ` ${a.username}`)),
+                h('td', null, a.displayName, h('small', { class: 'muted' }, ` ${a.username}`), isNew(a) ? h('span', { class: 'tag ok' }, 'Nouveau') : null),
                 h('td', null, [a.discordId ? `Discord${a.discordName ? ` · ${a.discordName}` : ''}` : null, a.hasPassword ? 'mot de passe' : null].filter(Boolean).join(' + ') || '—', a.lastLoginAt ? h('small', { class: 'muted' }, ` · ${dateTime(a.lastLoginAt)}`) : null),
                 h('td', null, a.platformRole === 'platform_admin' ? h('span', { class: 'tag ok' }, 'Administrateur') : 'Utilisateur'),
-                h('td', null, String(a.servers)),
-                h('td', null, dateTime(a.createdAt)),
+                h('td', null, a.servers ? String(a.servers) : h('span', { class: 'warn-text' }, 'aucun')),
+                h('td', { title: dateTime(a.createdAt) }, ago(a.createdAt)),
                 h(
                   'td',
                   { class: 'r actions' },
+                  o.servers.length && a.platformRole !== 'platform_admin' ? h('button', { class: 'btn small primary', onclick: () => grantAccess(a, o.servers, () => void adminPage(main)) }, 'Donner l’accès') : null,
                   h('button', { class: 'btn small', onclick: () => {
                     const pw = prompt(`Nouveau mot de passe pour ${a.username} (8 caractères minimum) :`);
                     if (pw) void post(`/api/admin/accounts/${a.id}/password`, { password: pw }).then(() => toast('Mot de passe réinitialisé.')).catch((e) => toast(e.message, 'error'));
@@ -108,5 +120,31 @@ export async function adminPage(main: HTMLElement) {
         ),
       ),
     ),
+  );
+}
+
+/** Donne à un compte l'accès à un monde (rôle au choix), sans passer par les paramètres du monde. */
+export function grantAccess(a: { username: string; displayName: string }, servers: { id: string; name: string }[], done: () => void) {
+  const f = { server: servers[0]!.id, role: 'viewer' };
+  modal(
+    `Donner l’accès à ${a.displayName}`,
+    h(
+      'div',
+      { class: 'form' },
+      selectField('Monde', f.server, servers.map((s) => ({ value: s.id, label: s.name })), (v) => (f.server = v)),
+      selectField('Rôle', f.role, ROLES, (v) => (f.role = v)),
+      h('p', { class: 'field-hint' }, 'Lecture suffit pour superviser. Gestionnaire permet aussi d’intervenir sur les joueurs et de piloter les événements.'),
+    ),
+    [{ label: 'Donner l’accès', kind: 'primary', onclick: async (close) => {
+      try {
+        await put(`/api/servers/${f.server}/members`, { username: a.username, role: f.role });
+        toast(`Accès donné à ${a.displayName}.`);
+        close();
+        await loadSession();
+        done();
+      } catch (e) {
+        toast((e as Error).message, 'error');
+      }
+    } }],
   );
 }
