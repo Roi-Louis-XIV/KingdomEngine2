@@ -183,3 +183,15 @@ Voir `packages/engine/src/model.ts`.
 
 - Inscriptions fermées (`KINGDOM_ALLOW_REGISTRATION=0`, le réglage par défaut d'une installation) : une connexion Discord sans compte ne crée rien. Elle est enregistrée comme **demande d'accès** (table `access_requests`, migration 3) et la personne voit « Ta demande d'accès a bien été transmise ».
 - L'administrateur voit les demandes en haut de la page Administration, dans la page Comptes sur mobile (menu ⋯) et en badge (`/api/session` → `accessRequests`). « Créer son compte » crée un compte relié à ce Discord, sans mot de passe, et peut ouvrir un monde avec un rôle (`POST /api/admin/requests/:discordId/accept`). « Ignorer » efface la demande.
+
+## Simulation de la soirée (joueurs virtuels)
+
+- `scripts/simulation/soiree.ts` joue la bêta entière (T+0 à T+176) avec des joueurs virtuels qui passent par les **vrais écrans** du moteur : prendre un métier, travailler, récupérer, manger à la Taverne, acheter, revendre, livrer aux objectifs, voter, puiser de l'eau, dégager l'arbre et assembler la charpente. `ui.ts` sait aller sur n'importe quel écran en « cliquant » un bouton qui y mène.
+- Arguments : métiers (un par joueur, séparés par des virgules), issue du vote (`forge` ou `mine`), efficacité (0 à 1 : part des passages où le joueur agit), graine. `TRAVEL=2` compte 30 s pour changer de lieu. Sortie : objectifs réussis et à quelle minute, niveaux, écus, faims.
+- Le 23 novembre (bêta à 7 joueurs), elle a révélé et fait corriger :
+  - l'eau sans source (les recettes puisent désormais des seaux du puits, rachetés par Edgar) ;
+  - le minerai introuvable pour le forgeron (en vente à la mine et à la forge) ;
+  - des prix d'échoppe inférieurs au rachat (argent infini) ;
+  - la hausse d'endurance des récoltes qui nourrissent la Taverne ;
+  - un niveau 5 atteint en 25 minutes au lieu d'une heure (`SIM_FACTOR` dans le générateur).
+- Résultat à 7 comme à 8 joueurs, avec un métier chacun : tous les objectifs collectifs réussissent, même à 60 % d'efficacité. Sans aucun bûcheron, mineur, fermier ou cuisinier, l'objectif qui dépend de ce métier échoue (les joueurs virtuels ne changent jamais de métier).

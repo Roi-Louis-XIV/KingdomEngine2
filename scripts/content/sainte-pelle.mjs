@@ -278,7 +278,7 @@ const place = {
       type: 'activity',
       id: 'puits',
       name: '🪣 Le puits',
-      activities: [activity('seau', 'Remplir un seau', '🪣', { duration: 0, cooldown: 10, energy: 1, label: 'Seau rempli', actions: [give('seau')], description: 'L’eau du puits sert partout : taverne, ferme… et en cas d’incendie.' })],
+      activities: [activity('seau', 'Remplir un seau', '🪣', { duration: 0, cooldown: 10, energy: 1, label: 'Seau rempli', actions: [give('seau')], description: 'L’eau du puits sert partout : Edgar rachète les seaux pour sa cuisine et sa brasserie, et en cas d’incendie…' })],
     },
     objective('fete', '🎉 Préparer la fête', { buche: 30, poisson: 15, pain_emballe: 10, gamelle_soupe: 10 }, {
       description: 'Le bûcher, le banquet : tout doit être prêt pour **T+60**.',
@@ -1801,6 +1801,58 @@ for (const d of JOB_DESKS) {
 const gourde = world.items.find((i) => i.id === 'gourde_eau');
 if (gourde?.consumable && !gourde.consumable.effects.some((e) => e.stat === 'alcool')) gourde.consumable.effects.push(stat('alcool', -10));
 
+// L'eau de la Taverne vient du puits de la Place (simulation du 23 novembre : sans source d'eau, cuisine et brasserie
+// s'arrêtaient au bout de 15 fournées et le village mourait de faim). Les recettes et le verre d'eau puisent dans les
+// seaux de la réserve ; Edgar rachète les seaux qu'on lui apporte.
+for (const m of world.buildings.find((b) => b.id === 'taverne').modules) {
+  if (m.type === 'production')
+    for (const r of m.recipes)
+      if (r.inputs.eau) {
+        r.inputs.seau = (r.inputs.seau ?? 0) + r.inputs.eau;
+        delete r.inputs.eau;
+      }
+  if (m.type === 'inventory' && m.id === 'reserve') {
+    m.initial.seau = (m.initial.eau ?? 0) + (m.initial.eau_potable ?? 0);
+    delete m.initial.eau;
+    delete m.initial.eau_potable;
+    if (m.targets) {
+      m.targets.seau = (m.targets.eau ?? 0) + (m.targets.eau_potable ?? 0);
+      delete m.targets.eau;
+      delete m.targets.eau_potable;
+    }
+  }
+  if (m.type === 'buyback') {
+    delete m.prices.eau;
+    delete m.prices.eau_potable;
+    m.prices.seau = 2;
+  }
+  if (m.type === 'shop') for (const o of m.offers) if (o.stockItem === 'eau_potable') o.stockItem = 'seau';
+}
+// Le forgeron achète à la forge le minerai que les mineurs y revendent (simulation du 23 novembre : sans cela,
+// la fonderie était inutilisable et les ferrures du chantier impossibles, un joueur n'ayant qu'un métier).
+{
+  const forge = world.buildings.find((b) => b.id === 'forge');
+  const shop = forge.modules.find((m) => m.type === 'shop' && m.id === 'echoppe');
+  const etal = forge.modules.find((m) => m.type === 'inventory' && m.id === 'etal');
+  const buy = forge.modules.find((m) => m.type === 'buyback');
+  Object.assign(etal.initial, { minerai: 8, minerai_cuivre: 4, minerai_etain: 4 });
+  // Les mineurs revendent surtout à Roland : son échoppe propose aussi le minerai aux forgerons.
+  const mine = world.buildings.find((b) => b.id === 'mine');
+  const mineShop = mine.modules.find((m) => m.type === 'shop' && m.id === 'echoppe');
+  const mineBuy = mine.modules.find((m) => m.type === 'buyback');
+  for (const id of ['minerai', 'minerai_cuivre', 'minerai_etain', 'minerai_argent', 'minerai_or']) {
+    const it = world.items.find((i) => i.id === id);
+    if (!mineShop.offers.some((o) => o.stockItem === id))
+      mineShop.offers.push({ id, name: it.name, emoji: it.emoji, category: 'Minerai', stockItem: id, price: Math.ceil((mineBuy.prices[id] ?? it.baseValue ?? 4) * 1.5), effects: [], takeaway: { item: id, surcharge: 0 } });
+  }
+  for (const id of ['minerai', 'minerai_cuivre', 'minerai_etain', 'minerai_argent', 'minerai_or']) {
+    const it = world.items.find((i) => i.id === id);
+    buy.prices[id] ??= it.baseValue ?? 4;
+    if (!shop.offers.some((o) => o.stockItem === id))
+      shop.offers.unshift({ id, name: it.name, emoji: it.emoji, category: 'Minerai', stockItem: id, price: Math.ceil(buy.prices[id] * 1.5), effects: [], takeaway: { item: id, surcharge: 0 } });
+  }
+}
+
 // ── Équilibrage (Louis, 17 novembre) : les gains suivent la difficulté de la tâche ──
 // Difficulté = endurance × niveau requis (+35 % par niveau) × outil ou matière (+15 %) × durée (+10 % par minute au-delà de la première).
 // Une tâche rapporte en moyenne 1 écu (valeur de rachat) et 1 XP par point de difficulté ; la matière consommée est déduite.
@@ -1819,6 +1871,8 @@ const balance = (() => {
     const tot = a.results.reduce((t, r) => t + (r.weight ?? 1), 0);
     return a.results.reduce((t, r) => t + ((r.weight ?? 1) / tot) * (r.actions ?? []).filter((x) => x.type === 'item.give').reduce((u, x) => u + x.qty * (price[x.item] ?? 0), 0), 0);
   };
+  const tavernBuys = new Set(Object.keys(world.buildings.find((b) => b.id === 'taverne').modules.find((m) => m.type === 'buyback').prices));
+  const forgeShop = world.buildings.find((b) => b.id === 'forge')?.modules.find((m) => m.type === 'shop' && m.id === 'echoppe');
   const forgeIngots = world.buildings.find((b) => b.id === 'forge')?.modules.find((m) => m.type === 'buyback');
   for (const b of world.buildings) {
     for (const m of b.modules) {
@@ -1839,11 +1893,14 @@ const balance = (() => {
         const gives = a.results.flatMap((r) => (r.actions ?? []).filter((x) => x.type === 'item.give'));
         const priced = gives.some((x) => price[x.item]);
         if (m.id === 'atelier-fonderie' && forgeIngots && gives.length === 1) {
-          // Fonderie : le lingot se revend au prix de ses minerais + le travail.
-          forgeIngots.prices[gives[0].item] = price[gives[0].item] = Math.round(cost / gives[0].qty + diff / gives[0].qty);
+          // Fonderie : le lingot se revend au prix que le forgeron a payé ses minerais à l'échoppe + le travail.
+          const paid = takes.reduce((t, c) => t + c.qty * (forgeShop?.offers.find((o) => o.stockItem === c.item)?.price ?? price[c.item] ?? 0), 0);
+          forgeIngots.prices[gives[0].item] = price[gives[0].item] = Math.round(paid / gives[0].qty + diff / gives[0].qty);
         } else if (priced && before > 0) {
           // Trop payé pour l'effort : la tâche demande plus d'endurance (on ne réduit pas les récoltes).
-          if (energyCost && before > diff * 1.2) {
+          // Sauf les ingrédients de la Taverne : la cuisine doit rester nourrie (simulation du 23 novembre).
+          const feedsTavern = gives.some((x) => tavernBuys.has(x.item));
+          if (energyCost && before > diff * 1.2 && !feedsTavern) {
             energy = Math.min(12, Math.round((energy * before) / diff));
             energyCost.amount = -energy;
             diff = energy * factor;
@@ -1878,6 +1935,13 @@ const balance = (() => {
     }
   }
   for (const j of world.jobs) if (j.id === 'cuisinier' || j.id === 'brasseur') Object.assign(j, { xpPerLevel: 40, maxLevel: 5 });
+  // Pas d'argent infini : une échoppe vend toujours plus cher que son rachat le plus généreux (étal vide : ×1,5).
+  for (const b of world.buildings) {
+    const bb = b.modules.find((m) => m.type === 'buyback');
+    if (!bb) continue;
+    const top = (id) => (bb.prices[id] ?? 0) * (bb.emptyFactor ?? 1);
+    for (const m of b.modules) if (m.type === 'shop') for (const o of m.offers) if (o.stockItem && bb.prices[o.stockItem] && o.price <= top(o.stockItem)) o.price = Math.floor(top(o.stockItem)) + 1;
+  }
   return rows;
 })();
 // ── Durée pour atteindre le niveau 5 (Louis, 17 novembre) : environ 1 heure de travail dans le métier ──
@@ -1887,6 +1951,9 @@ const balance = (() => {
 world.settings.maxActivities = 2;
 const LEVEL5_MINUTES = 60;
 const ENDURANCE_PER_MIN = 6;
+// Temps mesuré jusqu'au niveau 5 par la simulation (joueurs à 60 %) → facteur pour viser 60 min.
+// bûcheron 27 min, fermier 27, mineur 28, pêcheur 42, cuisinier 46, brasseur 118, forgeron > 100 (bloqué au niv. 4).
+const SIM_FACTOR = { bucheron: 2.2, fermier: 2.2, mineur: 2.1, pecheur: 1.4, cuisinier: 1.3, brasseur: 0.5, forgeron: 0.55 };
 const pace = (() => {
   const lvlOf = (c) => (!c ? 1 : c.type === 'jobLevel' ? c.value : c.type === 'all' ? Math.max(1, ...c.conditions.map(lvlOf)) : 1);
   const tasks = {};
@@ -1918,7 +1985,10 @@ const pace = (() => {
     });
     if (!rates[0]) continue;
     // Il faut niveau × XP par niveau pour passer au suivant : temps = Σ L × per / rate(L) = 60 min.
-    const per = Math.max(20, Math.round(LEVEL5_MINUTES / rates.reduce((u, r, i) => u + (i + 1) / r, 0) / 5) * 5);
+    const model = LEVEL5_MINUTES / rates.reduce((u, r, i) => u + (i + 1) / r, 0);
+    // Correction mesurée en jouant la soirée entière avec 7 joueurs virtuels à 60 % d'efficacité
+    // (simulation du 23 novembre) : les repas abondants accélèrent la récolte, l'argent freine le forgeron.
+    const per = Math.max(20, Math.round((model * (SIM_FACTOR[job.id] ?? 1)) / 5) * 5);
     Object.assign(job, { xpPerLevel: per, maxLevel: 5 });
     out[job.id] = { per, minutes: rates.map((r, i) => ((i + 1) * per) / r) };
   }
@@ -1938,11 +2008,11 @@ const pace = (() => {
     '',
     '## Temps pour atteindre le niveau 5',
     '',
-    `Deux travaux à la fois au maximum. Temps d’un joueur assidu qui enchaîne les meilleurs travaux de son niveau, endurance dépensée au plus ${ENDURANCE_PER_MIN} points par minute (le temps de manger), objectif ${LEVEL5_MINUTES} min.`,
+    `Objectif ${LEVEL5_MINUTES} min pour un joueur assidu, deux travaux à la fois au maximum. L’XP par niveau est calculée puis corrigée par la simulation de la soirée entière (7 joueurs virtuels à 60 % d’efficacité, ${'`'}SIM_FACTOR${'`'} dans le générateur).`,
     '',
-    '| Métier | XP par niveau | Niv. 1 → 2 | Niv. 2 → 3 | Niv. 3 → 4 | Niv. 4 → 5 | Total |',
-    '|---|---|---|---|---|---|---|',
-    ...Object.entries(pace).map(([id, x]) => `| ${jobName[id]} | ${x.per} × niveau | ${x.minutes.map((m) => `${Math.round(m)} min`).join(' | ')} | ${Math.round(x.minutes.reduce((u, m) => u + m, 0))} min |`),
+    '| Métier | XP par niveau |',
+    '|---|---|',
+    ...Object.entries(pace).map(([id, x]) => `| ${jobName[id]} | ${x.per} × niveau |`),
     '',
     '## Gains par tâche',
     '',

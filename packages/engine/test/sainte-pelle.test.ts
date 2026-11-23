@@ -472,3 +472,33 @@ test('métiers : on prend un métier pour travailler, un seul à la fois, on dé
   assert.ok(m.text.includes(`⛏️ Mineur · **niv. 1** · 0/${perMineur} XP · *métier actuel*\n🔨 Forgeron · **niv. 2**`), m.text);
   assert.doesNotMatch(m.text, /Bûcheron|Pêcheur|Fermier/);
 });
+
+test('économie jouable (simulation du 23 novembre) : eau du puits, minerai pour le forgeron, pas d’argent infini', () => {
+  const w = load();
+  const tav = w.buildings.find((b) => b.id === 'taverne')!;
+  // Toute matière d'une recette de la Taverne a une source : récoltée, vendue dans une échoppe, ou brassée/cuisinée.
+  const harvested = new Set<string>();
+  for (const b of w.buildings)
+    for (const m of b.modules) {
+      if (m.type === 'activity') for (const a of m.activities) for (const r of a.results) for (const x of r.actions ?? []) if (x.type === 'item.give') harvested.add(x.item);
+      if (m.type === 'shop') for (const o of m.offers) if (o.takeaway) harvested.add(o.takeaway.item); // en vente dans une échoppe
+    }
+  for (const m of tav.modules)
+    if (m.type === 'production')
+      for (const r of m.recipes) for (const it of Object.keys(r.inputs)) assert.ok(harvested.has(it) || tav.modules.some((p) => p.type === 'production' && p.recipes.some((o) => it in o.outputs)), `${r.id} : « ${it} » n'a aucune source`);
+  assert.ok(harvested.has('seau'), 'le puits donne des seaux');
+  const rachat = tav.modules.find((m) => m.type === 'buyback')!;
+  assert.ok(rachat.type === 'buyback' && rachat.prices.seau, 'Edgar rachète les seaux');
+  // Le forgeron trouve du minerai à acheter (à la mine et à la forge).
+  for (const id of ['mine', 'forge']) {
+    const shop = w.buildings.find((b) => b.id === id)!.modules.find((m) => m.type === 'shop' && m.id === 'echoppe')!;
+    assert.ok(shop.type === 'shop' && shop.offers.some((o) => o.stockItem === 'minerai'), `minerai en vente : ${id}`);
+  }
+  // Aucune échoppe ne vend moins cher que son propre rachat le plus généreux.
+  for (const b of w.buildings) {
+    const bb = b.modules.find((m) => m.type === 'buyback');
+    if (!bb || bb.type !== 'buyback') continue;
+    for (const m of b.modules)
+      if (m.type === 'shop') for (const o of m.offers) if (o.stockItem && bb.prices[o.stockItem]) assert.ok(o.price > bb.prices[o.stockItem]! * (bb.emptyFactor ?? 1), `${b.id}/${o.stockItem} : vendu ${o.price}, racheté jusqu'à ${bb.prices[o.stockItem]! * (bb.emptyFactor ?? 1)}`);
+  }
+});
