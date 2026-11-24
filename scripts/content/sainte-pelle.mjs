@@ -1862,6 +1862,16 @@ for (const m of world.buildings.find((b) => b.id === 'taverne').modules) {
   }
 }
 
+// Bruitages de travail (Louis, 25 novembre) : quand un travail commence, son bruit part dans le salon vocal du lieu
+// (tous ceux qui y sont l'entendent). Un son pas encore importé ne joue simplement pas.
+const WORK_SOUNDS = [
+  ['foret', /^Abattre|^Débiter/, 'foret-hache'],
+  ['mine', /^Tailler|^Piocher|^Gratter|^Extraire|^Creuser|^Descendre dans le gouffre/, 'mine-pioche'],
+];
+for (const [bid, re, sound] of WORK_SOUNDS)
+  for (const m of world.buildings.find((b) => b.id === bid).modules)
+    if (m.type === 'activity') for (const a of m.activities) if (re.test(a.name)) a.costs.push({ type: 'audio.play', sound });
+
 // ── Équilibrage (Louis, 17 novembre) : les gains suivent la difficulté de la tâche ──
 // Difficulté = endurance × niveau requis (+35 % par niveau) × outil ou matière (+15 %) × durée (+10 % par minute au-delà de la première).
 // Une tâche rapporte en moyenne 1 écu (valeur de rachat) et 1 XP par point de difficulté ; la matière consommée est déduite.

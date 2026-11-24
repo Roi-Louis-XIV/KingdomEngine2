@@ -501,3 +501,11 @@ test('économie jouable (simulation du 23 novembre) : eau du puits, minerai pour
       if (m.type === 'shop') for (const o of m.offers) if (o.stockItem && bb.prices[o.stockItem]) assert.ok(o.price > bb.prices[o.stockItem]! * (bb.emptyFactor ?? 1), `${b.id}/${o.stockItem} : vendu ${o.price}, racheté jusqu'à ${bb.prices[o.stockItem]! * (bb.emptyFactor ?? 1)}`);
   }
 });
+
+test('bruitages de travail : la hache en forêt, la pioche à la mine, au lancement du travail', () => {
+  const w = load();
+  const sounds = (bid: string) =>
+    w.buildings.find((b) => b.id === bid)!.modules.flatMap((m) => (m.type === 'activity' ? m.activities : [])).filter((a) => a.costs.some((c) => c.type === 'audio.play')).map((a) => a.costs.find((c) => c.type === 'audio.play')!);
+  assert.ok(sounds('foret').length >= 3 && sounds('foret').every((c) => c.type === 'audio.play' && c.sound === 'foret-hache'));
+  assert.ok(sounds('mine').length >= 5 && sounds('mine').every((c) => c.type === 'audio.play' && c.sound === 'mine-pioche'));
+});

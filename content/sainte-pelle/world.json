@@ -9364,6 +9364,10 @@
                   "type": "stat.add",
                   "stat": "energie",
                   "amount": -6
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "mine-pioche"
                 }
               ],
               "job": {
@@ -9605,6 +9609,10 @@
                   "type": "stat.add",
                   "stat": "energie",
                   "amount": -7
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "mine-pioche"
                 }
               ],
               "job": {
@@ -9766,6 +9774,10 @@
                   "type": "stat.add",
                   "stat": "energie",
                   "amount": -7
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "mine-pioche"
                 }
               ],
               "job": {
@@ -9912,6 +9924,10 @@
                   "type": "stat.add",
                   "stat": "energie",
                   "amount": -8
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "mine-pioche"
                 }
               ],
               "job": {
@@ -10093,6 +10109,10 @@
                   "type": "stat.add",
                   "stat": "energie",
                   "amount": -10
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "mine-pioche"
                 }
               ],
               "job": {
@@ -10296,6 +10316,10 @@
                   "type": "stat.add",
                   "stat": "energie",
                   "amount": -12
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "mine-pioche"
                 }
               ],
               "job": {
@@ -17349,6 +17373,10 @@
                   "type": "stat.add",
                   "stat": "energie",
                   "amount": -5
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "foret-hache"
                 }
               ],
               "job": {
@@ -17786,6 +17814,10 @@
                   "type": "stat.add",
                   "stat": "energie",
                   "amount": -6
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "foret-hache"
                 }
               ],
               "job": {
@@ -18004,6 +18036,10 @@
                   "type": "stat.add",
                   "stat": "energie",
                   "amount": -8
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "foret-hache"
                 }
               ],
               "job": {
