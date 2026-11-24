@@ -403,3 +403,13 @@ test('audio : ambiance selon la phase et son déclenché par un achat', () => {
   const r2 = engine.interact('alice', p.button('Confirmer l’achat').customId);
   assert.deepEqual(r2.events, []);
 });
+
+test('bruitage de fournée : la marmite se fait entendre au lancement', () => {
+  const w = loadWorld();
+  const cuisine = w.buildings.find((b) => b.id === 'taverne')!.modules.find((m) => m.type === 'production' && m.id === 'cuisine')!;
+  if (cuisine.type === 'production') cuisine.startSound = 'taverne-marmite';
+  const { engine } = makeEngine(w);
+  const a = hire(new Player(engine, 'alice'));
+  a.click('Cuisiner').choose(/recette réalisable/, 'soupe').click('Lancer la production');
+  assert.deepEqual(a.lastEvents.filter((e) => e.type === 'audio.play').map((e) => [e.sound, e.building]), [['taverne-marmite', 'taverne']]);
+});

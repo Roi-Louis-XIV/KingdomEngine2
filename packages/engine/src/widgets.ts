@@ -1180,6 +1180,7 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
         for (const [it, q] of Object.entries(recipe.inputs)) applyAction(ctx, { type: 'item.take', item: it, qty: q, inventory: prod.inputInventory });
         stations[pick.station] = { recipe: recipe.id, by: ctx.playerId, startedAt: ctx.now, endsAt: ctx.now + recipe.durationSec * 1000 };
         questTag(ctx, `cook:${ctx.building.id}/${recipe.id}`);
+        if (prod.startSound) applyAction(ctx, { type: 'audio.play', sound: prod.startSound });
         const xp = (recipe.xp ?? prod.xp).start;
         if (prod.job && xp) applyAction(ctx, { type: 'job.xp', job: prod.job, amount: xp });
         pick.station = -1;

@@ -488,7 +488,7 @@ function moduleEditor(w: WorldDef, b: BuildingDef, m: ModuleDef, changed: () => 
       return h(
         'div',
         { class: 'form' },
-        h('div', { class: 'row-fields' }, name, field(m, 'stationName', { label: 'Nom d’un poste', placeholder: 'Marmite' }, changed), field(m, 'stationCount', { label: 'Nombre de postes', type: 'number', min: 1, max: 10 }, changed), field(m.labels, 'start', { label: 'Bouton de lancement', placeholder: 'Lancer' }, changed)),
+        h('div', { class: 'row-fields' }, name, field(m, 'stationName', { label: 'Nom d’un poste', placeholder: 'Marmite' }, changed), field(m, 'stationCount', { label: 'Nombre de postes', type: 'number', min: 1, max: 10 }, changed), field(m.labels, 'start', { label: 'Bouton de lancement', placeholder: 'Lancer' }, changed), soundField(m, 'startSound', 'Bruitage au lancement (salon vocal)', sounds, changed)),
         h(
           'div',
           { class: 'row-fields' },

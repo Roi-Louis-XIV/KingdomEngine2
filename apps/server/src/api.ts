@@ -499,6 +499,8 @@ export function registerApi(router: Router, deps: ApiDeps) {
     // Sons des combats : modules et créatures.
     for (const b of w?.buildings ?? []) for (const m of b.modules) if (m.type === 'combat') Object.values(m.sounds ?? {}).forEach((k) => k && used.add(k));
     for (const c of w?.creatures ?? []) Object.values(c.sounds ?? {}).forEach((k) => k && used.add(k));
+    // Bruitages de lancement des fournées (marmite, brassin…).
+    for (const b of w?.buildings ?? []) for (const m of b.modules) if (m.type === 'production' && m.startSound) used.add(m.startSound);
     const list = platform.audioList(s.id);
     const have = new Set(list.map((a) => a.key));
     const missing = [...used].filter((k) => !have.has(k)).sort();

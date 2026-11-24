@@ -508,4 +508,11 @@ test('bruitages de travail : la hache en forêt, la pioche à la mine, au lancem
     w.buildings.find((b) => b.id === bid)!.modules.flatMap((m) => (m.type === 'activity' ? m.activities : [])).filter((a) => a.costs.some((c) => c.type === 'audio.play')).map((a) => a.costs.find((c) => c.type === 'audio.play')!);
   assert.ok(sounds('foret').length >= 3 && sounds('foret').every((c) => c.type === 'audio.play' && c.sound === 'foret-hache'));
   assert.ok(sounds('mine').length >= 5 && sounds('mine').every((c) => c.type === 'audio.play' && c.sound === 'mine-pioche'));
+  const keys = (bid: string) => new Set(sounds(bid).map((c) => (c.type === 'audio.play' ? c.sound : '')));
+  assert.deepEqual([...keys('ferme')], ['ferme-faux']);
+  assert.deepEqual([...keys('pont')], ['pont-ligne']);
+  assert.deepEqual([...keys('forge')].sort(), ['forge-fonte', 'forge-marteau']);
+  // À la Taverne, lancer une fournée fait bouillir la marmite dans le salon vocal.
+  const tav = w.buildings.find((b) => b.id === 'taverne')!.modules.filter((m) => m.type === 'production');
+  assert.deepEqual(tav.map((m) => (m.type === 'production' ? m.startSound : '')).sort(), ['taverne-brassin', 'taverne-marmite']);
 });

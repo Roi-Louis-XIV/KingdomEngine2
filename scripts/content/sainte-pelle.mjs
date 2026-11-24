@@ -1864,13 +1864,27 @@ for (const m of world.buildings.find((b) => b.id === 'taverne').modules) {
 
 // Bruitages de travail (Louis, 25 novembre) : quand un travail commence, son bruit part dans le salon vocal du lieu
 // (tous ceux qui y sont l'entendent). Un son pas encore importé ne joue simplement pas.
+// [lieu, module (ou null pour tous), travaux concernés, son]
 const WORK_SOUNDS = [
-  ['foret', /^Abattre|^Débiter/, 'foret-hache'],
-  ['mine', /^Tailler|^Piocher|^Gratter|^Extraire|^Creuser|^Descendre dans le gouffre/, 'mine-pioche'],
+  ['foret', null, /^Abattre|^Débiter/, 'foret-hache'],
+  ['mine', null, /^Tailler|^Piocher|^Gratter|^Extraire|^Creuser|^Descendre dans le gouffre/, 'mine-pioche'],
+  ['ferme', null, /^Moissonner/, 'ferme-faux'],
+  ['pont', null, /^Pêcher/, 'pont-ligne'],
+  ['forge', 'atelier-fonderie', /^Fondre/, 'forge-fonte'],
+  ['forge', /^atelier-/, /./, 'forge-marteau'], // tout ce qui se forge (ferrure comprise)
 ];
-for (const [bid, re, sound] of WORK_SOUNDS)
-  for (const m of world.buildings.find((b) => b.id === bid).modules)
-    if (m.type === 'activity') for (const a of m.activities) if (re.test(a.name)) a.costs.push({ type: 'audio.play', sound });
+for (const b of world.buildings)
+  for (const m of b.modules) {
+    if (m.type !== 'activity') continue;
+    for (const a of m.activities) {
+      if (a.costs.some((c) => c.type === 'audio.play')) continue; // le premier bruitage qui correspond gagne
+      const hit = WORK_SOUNDS.find(([bid, mod, re]) => bid === b.id && (mod === null || (typeof mod === 'string' ? mod === m.id : mod.test(m.id))) && re.test(a.name));
+      if (hit) a.costs.push({ type: 'audio.play', sound: hit[3] });
+    }
+  }
+// À la Taverne : la marmite qui bout quand on lance un plat, le brassin quand on lance une bière.
+for (const m of world.buildings.find((b) => b.id === 'taverne').modules)
+  if (m.type === 'production') m.startSound = m.id === 'cuisine' ? 'taverne-marmite' : 'taverne-brassin';
 
 // ── Équilibrage (Louis, 17 novembre) : les gains suivent la difficulté de la tâche ──
 // Difficulté = endurance × niveau requis (+35 % par niveau) × outil ou matière (+15 %) × durée (+10 % par minute au-delà de la première).

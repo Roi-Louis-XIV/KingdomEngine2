@@ -585,6 +585,8 @@ export interface ProductionModule {
   outputInventory: Id;
   /** XP par défaut : au lancement (préparateur) et à la récupération. */
   xp: { start: number; collect: number };
+  /** Bruitage joué dans le salon vocal du lieu quand une fournée est lancée (marmite, brassin…). */
+  startSound?: Id;
   recipes: Recipe[];
   /** Libellés des boutons de poste (par défaut : Lancer / Détails / Récupérer). */
   labels?: { start?: string; details?: string; collect?: string };

@@ -6680,7 +6680,8 @@
           ],
           "labels": {
             "start": "Cuisiner"
-          }
+          },
+          "startSound": "taverne-marmite"
         },
         {
           "type": "dialogue",
@@ -7698,7 +7699,8 @@
                 "amount": 17
               }
             }
-          ]
+          ],
+          "startSound": "taverne-brassin"
         },
         {
           "type": "inventory",
@@ -12189,6 +12191,10 @@
                   "type": "item.take",
                   "item": "minerai_etain",
                   "qty": 1
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-fonte"
                 }
               ],
               "job": {
@@ -12268,6 +12274,10 @@
                   "type": "item.take",
                   "item": "minerai",
                   "qty": 2
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-fonte"
                 }
               ],
               "job": {
@@ -12358,6 +12368,10 @@
                   "type": "item.take",
                   "item": "minerai_argent",
                   "qty": 2
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-fonte"
                 }
               ],
               "job": {
@@ -12448,6 +12462,10 @@
                   "type": "item.take",
                   "item": "minerai_or",
                   "qty": 2
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-fonte"
                 }
               ],
               "job": {
@@ -12538,6 +12556,10 @@
                   "type": "item.take",
                   "item": "lingot",
                   "qty": 2
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -12629,6 +12651,10 @@
                   "type": "item.take",
                   "item": "buche",
                   "qty": 1
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -12713,6 +12739,10 @@
                   "type": "item.take",
                   "item": "buche",
                   "qty": 1
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -12808,6 +12838,10 @@
                   "type": "item.take",
                   "item": "buche",
                   "qty": 1
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -12903,6 +12937,10 @@
                   "type": "item.take",
                   "item": "buche",
                   "qty": 1
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -12998,6 +13036,10 @@
                   "type": "item.take",
                   "item": "buche",
                   "qty": 1
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -13093,6 +13135,10 @@
                   "type": "item.take",
                   "item": "lingot_or",
                   "qty": 1
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -13179,6 +13225,10 @@
                   "type": "item.take",
                   "item": "lingot_bronze",
                   "qty": 4
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -13269,6 +13319,10 @@
                   "type": "item.take",
                   "item": "lingot",
                   "qty": 6
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -13364,6 +13418,10 @@
                   "type": "item.take",
                   "item": "lingot_argent",
                   "qty": 2
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -13454,6 +13512,10 @@
                   "type": "item.take",
                   "item": "lingot",
                   "qty": 7
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -13544,6 +13606,10 @@
                   "type": "item.take",
                   "item": "lingot_argent",
                   "qty": 4
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -13639,6 +13705,10 @@
                   "type": "item.take",
                   "item": "diamant",
                   "qty": 1
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -13725,6 +13795,10 @@
                   "type": "item.take",
                   "item": "lingot_bronze",
                   "qty": 5
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -13804,6 +13878,10 @@
                   "type": "item.take",
                   "item": "lingot",
                   "qty": 2
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -13894,6 +13972,10 @@
                   "type": "item.take",
                   "item": "lingot",
                   "qty": 3
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -13984,6 +14066,10 @@
                   "type": "item.take",
                   "item": "lingot",
                   "qty": 3
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -14079,6 +14165,10 @@
                   "type": "item.take",
                   "item": "lingot_argent",
                   "qty": 2
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -14169,6 +14259,10 @@
                   "type": "item.take",
                   "item": "lingot",
                   "qty": 8
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -14259,6 +14353,10 @@
                   "type": "item.take",
                   "item": "lingot_argent",
                   "qty": 2
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -14354,6 +14452,10 @@
                   "type": "item.take",
                   "item": "lingot_or",
                   "qty": 1
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -14440,6 +14542,10 @@
                   "type": "item.take",
                   "item": "lingot_bronze",
                   "qty": 5
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -14530,6 +14636,10 @@
                   "type": "item.take",
                   "item": "lingot",
                   "qty": 4
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -14620,6 +14730,10 @@
                   "type": "item.take",
                   "item": "lingot",
                   "qty": 8
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -14715,6 +14829,10 @@
                   "type": "item.take",
                   "item": "lingot_argent",
                   "qty": 3
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -14810,6 +14928,10 @@
                   "type": "item.take",
                   "item": "diamant",
                   "qty": 2
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -14901,6 +15023,10 @@
                   "type": "item.take",
                   "item": "buche",
                   "qty": 1
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -14980,6 +15106,10 @@
                   "type": "item.take",
                   "item": "lingot_bronze",
                   "qty": 2
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -15070,6 +15200,10 @@
                   "type": "item.take",
                   "item": "lingot",
                   "qty": 3
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -15160,6 +15294,10 @@
                   "type": "item.take",
                   "item": "lingot_argent",
                   "qty": 1
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -15250,6 +15388,10 @@
                   "type": "item.take",
                   "item": "lingot_argent",
                   "qty": 2
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -15329,6 +15471,10 @@
                   "type": "item.take",
                   "item": "lingot",
                   "qty": 1
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -15419,6 +15565,10 @@
                   "type": "item.take",
                   "item": "lingot_argent",
                   "qty": 1
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -15509,6 +15659,10 @@
                   "type": "item.take",
                   "item": "lingot_or",
                   "qty": 1
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "forge-marteau"
                 }
               ],
               "job": {
@@ -19556,6 +19710,10 @@
                   "type": "stat.add",
                   "stat": "energie",
                   "amount": -5
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "ferme-faux"
                 }
               ],
               "job": {
@@ -19644,6 +19802,10 @@
                   "type": "stat.add",
                   "stat": "energie",
                   "amount": -5
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "ferme-faux"
                 }
               ],
               "job": {
@@ -21404,6 +21566,10 @@
                   "type": "stat.add",
                   "stat": "energie",
                   "amount": -5
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "pont-ligne"
                 }
               ],
               "job": {
@@ -21525,6 +21691,10 @@
                   "type": "stat.add",
                   "stat": "energie",
                   "amount": -9
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "pont-ligne"
                 }
               ],
               "job": {
@@ -21618,6 +21788,10 @@
                   "type": "stat.add",
                   "stat": "energie",
                   "amount": -5
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "pont-ligne"
                 }
               ],
               "job": {
@@ -21736,6 +21910,10 @@
                   "type": "stat.add",
                   "stat": "energie",
                   "amount": -7
+                },
+                {
+                  "type": "audio.play",
+                  "sound": "pont-ligne"
                 }
               ],
               "job": {

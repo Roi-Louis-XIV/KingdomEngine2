@@ -75,9 +75,11 @@ export class Player {
     if (!b) throw new Error(`Bouton « ${label} » introuvable. Disponibles : ${all.map((x) => x.label).join(' | ')}`);
     return b;
   }
+  lastEvents: { type: string; sound?: string; building?: string }[] = [];
   click(label: string | RegExp) {
     const r = this.engine.interact(this.id, this.button(label).customId);
     this.lastPrivate = r.private;
+    this.lastEvents = r.events ?? [];
     if (r.message) this.message = r.message;
     return this;
   }
