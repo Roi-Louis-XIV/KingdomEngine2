@@ -1451,9 +1451,19 @@ const quests = [
 const step = (afterMinutes, name, actions, text) => ({ afterMinutes, name, actions: [set('t', afterMinutes), ...actions], ...(text ? { announce: text } : {}) });
 
 const BUILDING_IDS = ['place', 'taverne', 'mine', 'forge', 'foret', 'ferme', 'pont', 'eglise'];
-// Répliques de panique des PNJ pendant l'apocalypse (le pont n'a pas de PNJ : seulement le cri).
-// (Roland ne panique pas : c'est lui qui crie « Il est revenu ! » avant de s'enfuir.)
-const PANIC = { place: 'maelis-panique', taverne: 'edgar-panique', forge: 'wagner-panique', foret: 'sylvain-panique', ferme: 'agathe-panique', eglise: 'anselme-panique' };
+// Minutage de la bande finale (produit par scripts/content/sainte-pelle-finale.mjs), arrondi au pas du monde (5 s).
+const FINALE_TIMING = (() => {
+  try {
+    return JSON.parse(readFileSync(new URL('../../content/sainte-pelle/sons/finale-apocalypse.json', import.meta.url), 'utf8'));
+  } catch {
+    return { duration: 42, cry: 27, voices: [{ at: 3.6 }, { at: 9 }] };
+  }
+})();
+const tick5 = (sec) => Math.ceil(sec / 5) * 5;
+const FINALE_ROLAND_GONE = tick5(FINALE_TIMING.voices[1]?.at ?? 9);
+const FINALE_CRY = tick5(FINALE_TIMING.cry);
+const FINALE_SILENCE_END = tick5(FINALE_TIMING.duration + 3); // 3 s de silence total après le cri
+
 
 // ---------------------------------------------------------------------------
 // Répliques de vie : une phrase au hasard de temps en temps quand des joueurs sont avec le PNJ.
@@ -1591,15 +1601,14 @@ const scenario = {
       ifThen(v('eglise_ok', 'oui'), [ifThen(v('eclats', 6, 'gte'), [set('fin', 'triomphe'), voice('anselme-messe-triomphe', 'eglise')], [set('fin', 'sans_ame'), voice('anselme-messe-vide', 'eglise')])], [ifThen(v('eclats', 6, 'gte'), [set('fin', 'parvis'), voice('anselme-messe-parvis', 'eglise')], [set('fin', 'report'), voice('anselme-messe-report', 'eglise')])]),
     ], cases([v('fin', 'triomphe'), '🔔 **VALBRUME TRIOMPHANTE !** Messe dans la nef rebâtie ; les éclats de la pierre sont rendus à la terre au pied de l’autel. La montagne se tait, les cloches sonnent dans toute la vallée !'], [v('fin', 'sans_ame'), '⚡ **La pierre gronde encore.** Messe dans l’église neuve, mais des éclats manquent toujours. Cette nuit, on entendra encore la montagne grésiller…'], [v('fin', 'parvis'), '🙏 **La messe sur le parvis.** Messe en plein air devant les échafaudages ; les éclats réunis sont rendus à la terre. Le chantier continuera.'], [null, '🌧️ **La messe reportée.** Le Père Anselme prie depuis le pont, devant une église en ruine. Le chantier continue la semaine prochaine.'])),
     step(180, 'Fin de séance', [set('acte', 'fin'), voice('maelis-fin', 'place'), ifThen(v('fin', 'triomphe'), [voice('edgar-tournee-finale', 'taverne')])], cases([v('fete', 'reussie'), '🎉 **Le banquet de la Sainte Pelle est servi !** Le tableau d’honneur est sur la Place. Profitez de la fête…'], [null, '🔔 **La fête s’achève à Valbrume.** Le tableau d’honneur est sur la Place. Profitez de ces derniers instants…'])),
-    // Finale de la bêta, à la seconde près (le monde avance toutes les 5 s) :
-    //   T+182:00  la bête pousse son cri dans tous les lieux, puis silence total (le cri dure 10 s au plus)
-    //   T+182:15  Roland hurle « Il est revenu ! »… et s'enfuit aussitôt sa phrase finie
-    //   T+182:20  les autres PNJ hurlent de panique
-    //   T+182:40  tous partis : le monde se ferme, musique d'attente + message « rejoignez le salon d'aide » en boucle
-    step(182, 'Le cri de la bête', [set('acte', 'apocalypse'), set('apocalypse', 'cri'), ...BUILDING_IDS.map((b) => voice('monstre-cri', b))]),
-    step(182 + 15 / 60, 'Il est revenu !', [set('apocalypse', 'revenu'), voice('roland-il-est-revenu', 'eglise')]),
-    step(182 + 20 / 60, 'La panique', [set('apocalypse', 'panique'), ...Object.entries(PANIC).map(([b, sound]) => voice(sound, b))]),
-    step(182 + 40 / 60, 'Le silence retombe', [set('apocalypse', 'attente'), set('monde', 'ferme')], '👹 **UN HURLEMENT INHUMAIN A DÉCHIRÉ LA NUIT SUR VALBRUME.** Les habitants ont fui, plus rien ne bouge…\n\n🔔 **La bêta est terminée — merci à tous !** Rejoignez {salon.aide} pour le récap de votre aventure, et n’oubliez pas d’envoyer votre fiche de retour.'),
+    // Finale de la bêta (Louis, 25 novembre) : une seule bande, mixée à l'avance par scripts/content/sainte-pelle-finale.mjs
+    // et jouée en même temps dans tous les lieux (le monde n'avance que toutes les 5 s, trop gros pour décaler des voix) :
+    //   grondement de la montagne → Roland « Il est revenu ! » → les PNJ paniquent en se chevauchant légèrement
+    //   → le cri du monstre coupe tout → silence → musique d'attente et message du narrateur, en boucle.
+    step(182, 'Le grondement', [set('acte', 'apocalypse'), set('apocalypse', 'revenu'), ...BUILDING_IDS.map((b) => voice('finale-apocalypse', b))]),
+    step(182 + FINALE_ROLAND_GONE / 60, 'La panique', [set('apocalypse', 'panique')]), // Roland s'enfuit, sa phrase finie
+    step(182 + FINALE_CRY / 60, 'Le cri de la bête', [set('apocalypse', 'cri')]),
+    step(182 + FINALE_SILENCE_END / 60, 'Le silence retombe', [set('apocalypse', 'attente'), set('monde', 'ferme')], '👹 **UN HURLEMENT INHUMAIN A DÉCHIRÉ LA NUIT SUR VALBRUME.** Les habitants ont fui, plus rien ne bouge…\n\n🔔 **La bêta est terminée — merci à tous !** Rejoignez {salon.aide} pour le récap de votre aventure, et n’oubliez pas d’envoyer votre fiche de retour.'),
   ],
   onEnd: [],
   announce: { start: '🔔 **La fête de la Sainte Pelle commence à Valbrume !** Rendez-vous sur la Place du village : Maëlis vous attend avec le panneau des quêtes.' },

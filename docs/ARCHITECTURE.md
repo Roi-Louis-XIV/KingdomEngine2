@@ -195,3 +195,8 @@ Voir `packages/engine/src/model.ts`.
   - la hausse d'endurance des récoltes qui nourrissent la Taverne ;
   - un niveau 5 atteint en 25 minutes au lieu d'une heure (`SIM_FACTOR` dans le générateur).
 - Résultat à 7 comme à 8 joueurs, avec un métier chacun : tous les objectifs collectifs réussissent, même à 60 % d'efficacité. Sans aucun bûcheron, mineur, fermier ou cuisinier, l'objectif qui dépend de ce métier échoue (les joueurs virtuels ne changent jamais de métier).
+
+## Bande finale de la bêta
+
+- `scripts/content/sainte-pelle-finale.mjs` (ffmpeg) mixe la séquence d'horreur en un seul fichier, `content/sainte-pelle/sons/finale-apocalypse.mp3` : grondement synthétisé, puis Roland et les six autres PNJ qui paniquent en se chevauchant légèrement (voix harmonisées, réparties à gauche et à droite), puis le cri du monstre qui coupe tout. Son minutage est écrit dans `finale-apocalypse.json` et le générateur s'en sert pour placer les étapes (au pas de 5 s du monde) : la panique (Roland s'enfuit), le cri, puis 3 s de silence avant la musique d'attente et le message du narrateur.
+- À relancer si une des voix sources (`*-panique`, `roland-il-est-revenu`, `monstre-cri`) est réenregistrée, puis régénérer le monde.

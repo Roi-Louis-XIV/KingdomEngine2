@@ -222,7 +222,7 @@ test('modèle : reprendre la dernière version d’un modèle en brouillon, prog
   const edgar = audio.data.sounds.find((a: any) => a.key === 'edgar-vie-1');
   assert.equal(edgar.kind, 'voice');
   assert.ok(!audio.data.missing.includes('edgar-vie-1'));
-  assert.ok(audio.data.missing.includes('maelis-ouverture'), 'les sons pas encore enregistrés restent à faire');
+  assert.ok(audio.data.missing.includes('place-calme'), 'les sons pas encore enregistrés restent à faire');
   assert.deepEqual(audio.data.bundled, []);
   const f = await louis.get(`/api/servers/${id}/audio/roland-il-est-revenu/file`);
   assert.equal(f.status, 200);

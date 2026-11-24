@@ -1,0 +1,34 @@
+{
+  "duration": 41.38,
+  "cry": 26.67,
+  "voices": [
+    {
+      "key": "roland-il-est-revenu",
+      "at": 3.6
+    },
+    {
+      "key": "maelis-panique",
+      "at": 7
+    },
+    {
+      "key": "edgar-panique",
+      "at": 9.82
+    },
+    {
+      "key": "agathe-panique",
+      "at": 12.41
+    },
+    {
+      "key": "wagner-panique",
+      "at": 15.84
+    },
+    {
+      "key": "sylvain-panique",
+      "at": 18.63
+    },
+    {
+      "key": "anselme-panique",
+      "at": 22.33
+    }
+  ]
+}

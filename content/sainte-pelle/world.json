@@ -1085,7 +1085,7 @@
         },
         {
           "afterMinutes": 182,
-          "name": "Le cri de la bête",
+          "name": "Le grondement",
           "actions": [
             {
               "type": "variable.set",
@@ -1100,132 +1100,90 @@
             {
               "type": "variable.set",
               "variable": "apocalypse",
-              "value": "cri"
+              "value": "revenu"
             },
             {
               "type": "audio.play",
-              "sound": "monstre-cri",
+              "sound": "finale-apocalypse",
               "building": "place"
             },
             {
               "type": "audio.play",
-              "sound": "monstre-cri",
+              "sound": "finale-apocalypse",
               "building": "taverne"
             },
             {
               "type": "audio.play",
-              "sound": "monstre-cri",
+              "sound": "finale-apocalypse",
               "building": "mine"
             },
             {
               "type": "audio.play",
-              "sound": "monstre-cri",
+              "sound": "finale-apocalypse",
               "building": "forge"
             },
             {
               "type": "audio.play",
-              "sound": "monstre-cri",
+              "sound": "finale-apocalypse",
               "building": "foret"
             },
             {
               "type": "audio.play",
-              "sound": "monstre-cri",
+              "sound": "finale-apocalypse",
               "building": "ferme"
             },
             {
               "type": "audio.play",
-              "sound": "monstre-cri",
+              "sound": "finale-apocalypse",
               "building": "pont"
             },
             {
               "type": "audio.play",
-              "sound": "monstre-cri",
+              "sound": "finale-apocalypse",
               "building": "eglise"
             }
           ]
         },
         {
-          "afterMinutes": 182.25,
-          "name": "Il est revenu !",
-          "actions": [
-            {
-              "type": "variable.set",
-              "variable": "t",
-              "value": 182.25
-            },
-            {
-              "type": "variable.set",
-              "variable": "apocalypse",
-              "value": "revenu"
-            },
-            {
-              "type": "audio.play",
-              "sound": "roland-il-est-revenu",
-              "building": "eglise",
-              "character": "roland"
-            }
-          ]
-        },
-        {
-          "afterMinutes": 182.33333333333334,
+          "afterMinutes": 182.16666666666666,
           "name": "La panique",
           "actions": [
             {
               "type": "variable.set",
               "variable": "t",
-              "value": 182.33333333333334
+              "value": 182.16666666666666
             },
             {
               "type": "variable.set",
               "variable": "apocalypse",
               "value": "panique"
-            },
-            {
-              "type": "audio.play",
-              "sound": "maelis-panique",
-              "building": "place",
-              "character": "maelis"
-            },
-            {
-              "type": "audio.play",
-              "sound": "edgar-panique",
-              "building": "taverne",
-              "character": "edgar"
-            },
-            {
-              "type": "audio.play",
-              "sound": "wagner-panique",
-              "building": "forge",
-              "character": "wagner"
-            },
-            {
-              "type": "audio.play",
-              "sound": "sylvain-panique",
-              "building": "foret",
-              "character": "sylvain"
-            },
-            {
-              "type": "audio.play",
-              "sound": "agathe-panique",
-              "building": "ferme",
-              "character": "agathe"
-            },
-            {
-              "type": "audio.play",
-              "sound": "anselme-panique",
-              "building": "eglise",
-              "character": "anselme"
             }
           ]
         },
         {
-          "afterMinutes": 182.66666666666666,
+          "afterMinutes": 182.5,
+          "name": "Le cri de la bête",
+          "actions": [
+            {
+              "type": "variable.set",
+              "variable": "t",
+              "value": 182.5
+            },
+            {
+              "type": "variable.set",
+              "variable": "apocalypse",
+              "value": "cri"
+            }
+          ]
+        },
+        {
+          "afterMinutes": 182.75,
           "name": "Le silence retombe",
           "actions": [
             {
               "type": "variable.set",
               "variable": "t",
-              "value": 182.66666666666666
+              "value": 182.75
             },
             {
               "type": "variable.set",

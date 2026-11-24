@@ -186,7 +186,8 @@ test('vote, verdict, incendie, urgence maîtrisée, éclats retrouvés et fin tr
   assert.match(place.click('🏅 Tableau d’honneur').text, /Tableau d’honneur/);
   assert.equal(engine.ambienceFor('taverne'), 'taverne-calme');
 
-  // Finale, toutes les 5 s comme sur le serveur : cri partout, silence, « Il est revenu ! », panique, attente.
+  // Finale, toutes les 5 s comme sur le serveur : une bande unique (grondement, PNJ qui paniquent, cri) dans tous les lieux,
+  // silence, puis musique d'attente et message du narrateur.
   const timeline: { at: number; e: { type: string; building?: string; sound?: string; character?: string; text?: string } }[] = [];
   const start = clock.now();
   for (let i = 0; i < 60 && engine.variables.monde !== 'ferme'; i++) {
@@ -198,15 +199,13 @@ test('vote, verdict, incendie, urgence maîtrisée, éclats retrouvés et fin tr
   assert.equal(engine.variables.monde, 'ferme');
   const sounds = timeline.filter((x) => x.e.type === 'audio.play');
   const BUILDINGS = ['place', 'taverne', 'mine', 'forge', 'foret', 'ferme', 'pont', 'eglise'];
-  const cri = sounds.filter((x) => x.e.sound === 'monstre-cri');
-  assert.deepEqual(cri.map((x) => x.e.building).sort(), [...BUILDINGS].sort(), 'le cri dans tous les lieux');
-  assert.ok(cri.every((x) => !x.e.character), 'le cri est un son du lieu, pas une réplique');
-  const revenu = sounds.find((x) => x.e.sound === 'roland-il-est-revenu')!;
-  assert.equal(revenu.e.character, 'roland');
-  assert.ok(revenu.at - cri[0]!.at >= 15 && revenu.at - cri[0]!.at <= 20, `le cri, 5 s de silence, puis Roland (${revenu.at - cri[0]!.at} s)`);
-  const panique = sounds.filter((x) => x.e.sound!.endsWith('-panique'));
-  assert.deepEqual(panique.map((x) => x.e.character).sort(), ['agathe', 'anselme', 'edgar', 'maelis', 'sylvain', 'wagner']);
-  assert.ok(panique.every((x) => x.at > revenu.at), 'les autres hurlent après Roland');
+  const bande = sounds.filter((x) => x.e.sound === 'finale-apocalypse');
+  assert.deepEqual(bande.map((x) => x.e.building).sort(), [...BUILDINGS].sort(), 'la bande finale dans tous les lieux');
+  assert.ok(bande.every((x) => !x.e.character && x.at === bande[0]!.at), 'au même instant, comme un son du lieu');
+  assert.ok(!sounds.some((x) => /-panique$|^monstre-cri$/.test(x.e.sound!)), 'plus de répliques séparées : tout est dans la bande');
+  const timing = JSON.parse(readFileSync(new URL('../../../content/sainte-pelle/sons/finale-apocalypse.json', import.meta.url), 'utf8'));
+  const fermeAt = timeline.find((x) => x.e.type === 'announce' && x.e.text?.includes('{salon.aide}'))!.at;
+  assert.ok(fermeAt - bande[0]!.at >= timing.duration + 3, `la musique d'attente vient après la bande et 3 s de silence (${fermeAt - bande[0]!.at} s)`);
   // Silence total entre le cri et l'attente, puis musique d'attente + message en boucle partout.
   for (const b of BUILDINGS) {
     assert.equal(engine.ambienceCase(b)?.sound, 'fin-attente');
