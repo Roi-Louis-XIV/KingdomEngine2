@@ -858,14 +858,22 @@ export function activityLock(ctx: Ctx, mod: ActivityModule, a: ActivityDef): { t
     const block = activeLevels(ctx.world, p).find((x) => x.level.blocksWork);
     if (block) return { text: `${block.level.emoji ?? ''} ${block.level.name} : ${block.level.text ?? 'impossible de travailler pour l’instant'}`.trim() };
   }
-  // Travaux menés de front : limités par le réglage du monde (les durées comptent vraiment).
+  // Travaux menés de front (réglage du monde) : un travail demande d'être sur place, on ne peut pas être partout.
+  // Toute activité qui dure compte (métier ou chantier commun) ; les productions (cuisine, brassage) cuisent seules et n'en font pas partie.
   const max = ctx.world.settings.maxActivities;
-  if (a.job && a.durationSec > 0 && max) {
+  if (a.durationSec > 0 && max) {
     const own = activityKey(ctx, mod, a);
     const running = Object.entries(p.activities).filter(([k, x]) => k !== own && ctx.now < x.endsAt);
     if (running.length >= max) {
       const next = Math.min(...running.map(([, x]) => x.endsAt));
-      return { text: max === 1 ? 'Un travail à la fois : termine celui en cours' : `${max} travaux à la fois au maximum : attends qu’un se termine`, until: next };
+      if (max > 1) return { text: `${max} travaux à la fois au maximum : attends qu’un se termine`, until: next };
+      const [key, x] = running[0]!;
+      const [bid, mid, aid] = key.split('/');
+      const b = ctx.world.buildings.find((y) => y.id === bid);
+      const m = b?.modules.find((y) => y.id === mid);
+      const what = m?.type === 'activity' ? m.activities.find((y) => y.id === aid) : undefined;
+      const where = b && b.id !== ctx.building.id ? ` (${b.name})` : '';
+      return { text: `Tu es déjà occupé·e${what ? ` : ${what.emoji ? what.emoji + ' ' : ''}${what.name}${where}` : ''}. Libre dans ${mmss(x.endsAt - ctx.now)}`, until: x.endsAt };
     }
   }
   if (a.maxConcurrent) {

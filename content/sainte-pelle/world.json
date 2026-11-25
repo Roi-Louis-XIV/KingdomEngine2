@@ -8,7 +8,7 @@
     "timezone": "Europe/Paris",
     "jobsRequireJoin": true,
     "hideAboveLevel": true,
-    "maxActivities": 2
+    "maxActivities": 1
   },
   "events": [
     {
@@ -2452,14 +2452,14 @@
       "id": "bucheron",
       "name": "Bûcheron",
       "emoji": "🪓",
-      "xpPerLevel": 115,
+      "xpPerLevel": 90,
       "maxLevel": 5
     },
     {
       "id": "mineur",
       "name": "Mineur",
       "emoji": "⛏️",
-      "xpPerLevel": 130,
+      "xpPerLevel": 115,
       "maxLevel": 5
     },
     {
@@ -2473,14 +2473,14 @@
       "id": "fermier",
       "name": "Fermier",
       "emoji": "🌾",
-      "xpPerLevel": 115,
+      "xpPerLevel": 70,
       "maxLevel": 5
     },
     {
       "id": "pecheur",
       "name": "Pêcheur",
       "emoji": "🎣",
-      "xpPerLevel": 80,
+      "xpPerLevel": 65,
       "maxLevel": 5
     },
     {

@@ -210,7 +210,10 @@ export interface WorldDef {
     jobsRequireJoin?: boolean;
     /** Cacher les travaux et recettes qui demandent un niveau de métier pas encore atteint (au lieu de les montrer verrouillés). */
     hideAboveLevel?: boolean;
-    /** Nombre maximum de travaux de métier menés en même temps par un joueur (sans réglage : illimité). */
+    /**
+     * Nombre maximum de travaux (activités qui durent) menés en même temps par un joueur (sans réglage : illimité).
+     * 1 = on ne peut être qu'à un seul endroit. Les productions (qui cuisent seules) ne comptent pas.
+     */
     maxActivities?: number;
     /** Fuseau horaire des programmations (défaut : Europe/Paris). */
     timezone?: string;

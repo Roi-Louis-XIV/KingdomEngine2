@@ -1978,15 +1978,16 @@ const balance = (() => {
   return rows;
 })();
 // ── Durée pour atteindre le niveau 5 (Louis, 17 novembre) : environ 1 heure de travail dans le métier ──
-// Deux travaux à la fois au maximum (sinon on lance tout un lieu d'un coup et les durées ne comptent plus).
-// On simule un joueur assidu qui enchaîne, à chaque niveau, les deux travaux qui rapportent le plus d'XP à la minute
-// (plus les petits gestes à recharge) ; cuisine et brasserie : deux postes. L'XP par niveau en découle.
-world.settings.maxActivities = 2;
+// Un seul travail à la fois (Louis, 25 novembre : « on ne peut être qu'à un seul endroit ») ; les productions
+// de la taverne cuisent seules et n'en font pas partie. On simule un joueur assidu qui enchaîne, à chaque niveau,
+// le travail qui rapporte le plus d'XP à la minute (plus les petits gestes à recharge). L'XP par niveau en découle.
+world.settings.maxActivities = 1;
 const LEVEL5_MINUTES = 60;
 const ENDURANCE_PER_MIN = 6;
 // Temps mesuré jusqu'au niveau 5 par la simulation (joueurs à 60 %) → facteur pour viser 60 min.
-// bûcheron 27 min, fermier 27, mineur 28, pêcheur 42, cuisinier 46, brasseur 118, forgeron > 100 (bloqué au niv. 4).
-const SIM_FACTOR = { bucheron: 2.2, fermier: 2.2, mineur: 2.1, pecheur: 1.4, cuisinier: 1.3, brasseur: 0.5, forgeron: 0.55 };
+// Mesure du 25 novembre (un seul travail à la fois, 4 graines) avec les facteurs précédents :
+// bûcheron 70 min, mineur 70, fermier 85, pêcheur 58, cuisinier 76, forgeron 52 ; brasseur niveau 2-3 (métier d'appoint).
+const SIM_FACTOR = { bucheron: 1.9, fermier: 1.7, mineur: 1.8, pecheur: 1.45, cuisinier: 1.3, brasseur: 0.5, forgeron: 0.63 };
 const pace = (() => {
   const lvlOf = (c) => (!c ? 1 : c.type === 'jobLevel' ? c.value : c.type === 'all' ? Math.max(1, ...c.conditions.map(lvlOf)) : 1);
   const tasks = {};
@@ -1998,7 +1999,7 @@ const pace = (() => {
           if (a.job)
             (tasks[a.job.id] ??= []).push({ lvl: Math.max(lvlOf(a.when), lvlOf(g)), sec: a.durationSec || 0, cd: a.cooldownSec || 0, xp: a.job.xp, en: -(a.costs.find((c) => c.stat === 'energie')?.amount ?? 0), takes: a.costs.some((c) => c.type === 'item.take') });
       }
-      if (m.type === 'production') for (const r of m.recipes) (tasks[m.job] ??= []).push({ lvl: r.level, sec: r.durationSec + 15, cd: 0, xp: r.xp.start + r.xp.collect, en: 0 });
+      if (m.type === 'production') for (const r of m.recipes) (tasks[m.job] ??= []).push({ lvl: r.level, sec: r.durationSec + 15, cd: 0, xp: r.xp.start + r.xp.collect, en: 0, prod: true });
     }
   const out = {};
   for (const job of world.jobs) {
@@ -2007,7 +2008,9 @@ const pace = (() => {
     const rates = [1, 2, 3, 4].map((L) => {
       const ok = list.filter((t) => t.lvl <= L);
       const perMin = (t) => ({ xp: (t.xp / Math.max(t.sec, t.cd)) * 60, en: (t.en / Math.max(t.sec, t.cd)) * 60 });
-      const timed = ok.filter((t) => t.sec > 0).map(perMin).sort((x, y) => y.xp - x.xp).slice(0, 2);
+      const best = (l, n) => l.map(perMin).sort((x, y) => y.xp - x.xp).slice(0, n);
+      // Travaux sur place : un à la fois. Productions (cuisine, brasserie) : deux postes qui cuisent seuls.
+      const timed = [...best(ok.filter((t) => t.sec > 0 && !t.prod), world.settings.maxActivities), ...best(ok.filter((t) => t.prod), 2)];
       // Petits gestes à recharge, sauf ceux qui consomment une récolte (moudre : on n'a pas le grain pour en faire à la chaîne).
       const quick = ok.filter((t) => !t.sec && t.cd && !t.takes).map(perMin);
       const all = [...timed, ...quick];
@@ -2041,7 +2044,7 @@ const pace = (() => {
     '',
     '## Temps pour atteindre le niveau 5',
     '',
-    `Objectif ${LEVEL5_MINUTES} min pour un joueur assidu, deux travaux à la fois au maximum. L’XP par niveau est calculée puis corrigée par la simulation de la soirée entière (7 joueurs virtuels à 60 % d’efficacité, ${'`'}SIM_FACTOR${'`'} dans le générateur).`,
+    `Objectif ${LEVEL5_MINUTES} min pour un joueur assidu, un seul travail à la fois (les productions de la taverne cuisent seules). L’XP par niveau est calculée puis corrigée par la simulation de la soirée entière (7 joueurs virtuels à 60 % d’efficacité, ${'`'}SIM_FACTOR${'`'} dans le générateur).`,
     '',
     '| Métier | XP par niveau |',
     '|---|---|',

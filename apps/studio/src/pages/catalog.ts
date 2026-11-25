@@ -269,7 +269,7 @@ export async function catalogPage(main: HTMLElement, params: string[]) {
           field(w, 'name', { label: 'Nom du monde' }, changed),
           field(w, 'description', { label: 'Description', type: 'textarea' }, changed),
           field(w.settings, 'maxActiveJobs', { label: 'Métiers exercés en même temps', type: 'number', min: 1, max: 10 }, changed),
-          field(w.settings, 'maxActivities', { label: 'Travaux menés de front par joueur (vide = illimité)', type: 'number', min: 1, max: 20 }, changed),
+          field(w.settings, 'maxActivities', { label: 'Travaux menés de front par joueur (1 = un seul endroit à la fois ; vide = illimité ; les productions ne comptent pas)', type: 'number', min: 1, max: 20 }, changed),
           h(
             'label',
             { class: 'check' },

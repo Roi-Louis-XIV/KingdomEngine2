@@ -7,16 +7,16 @@ Chaque tâche rapporte en moyenne **1 écu et 1 XP par point de difficulté** (m
 
 ## Temps pour atteindre le niveau 5
 
-Objectif 60 min pour un joueur assidu, deux travaux à la fois au maximum. L’XP par niveau est calculée puis corrigée par la simulation de la soirée entière (7 joueurs virtuels à 60 % d’efficacité, `SIM_FACTOR` dans le générateur).
+Objectif 60 min pour un joueur assidu, un seul travail à la fois (les productions de la taverne cuisent seules). L’XP par niveau est calculée puis corrigée par la simulation de la soirée entière (7 joueurs virtuels à 60 % d’efficacité, `SIM_FACTOR` dans le générateur).
 
 | Métier | XP par niveau |
 |---|---|
 | Cuisinier | 145 × niveau |
-| Bûcheron | 115 × niveau |
-| Mineur | 130 × niveau |
+| Bûcheron | 90 × niveau |
+| Mineur | 115 × niveau |
 | Forgeron | 35 × niveau |
-| Fermier | 115 × niveau |
-| Pêcheur | 80 × niveau |
+| Fermier | 70 × niveau |
+| Pêcheur | 65 × niveau |
 | Brasseur | 45 × niveau |
 
 ## Gains par tâche

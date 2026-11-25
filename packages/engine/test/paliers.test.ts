@@ -166,3 +166,26 @@ test('travaux menés de front : limités par le réglage du monde', () => {
   assert.equal(Object.keys(engine.player('alice')!.activities).length, 3);
   assert.deepEqual(validateRendered(p.message), []);
 });
+
+test('un seul travail à la fois (maxActivities = 1) : on ne peut être qu’à un seul endroit', () => {
+  const w = world();
+  w.settings.maxActivities = 1;
+  const mod = w.buildings[0]!.modules[0] as Extract<WorldDef['buildings'][number]['modules'][number], { type: 'activity' }>;
+  const base = mod.activities[0]!;
+  mod.activities = ['a', 'b'].map((id) => ({ ...base, id, name: `Tâche ${id}`, durationSec: 60 }));
+  // Un chantier sans métier compte aussi : on y est en personne.
+  mod.activities.push({ ...base, id: 'c', name: 'Chantier', durationSec: 60, job: undefined });
+  const clock = new Clock();
+  let n = 0;
+  const engine = new Engine(w, undefined, { now: clock.now, random: () => 0.5, newId: () => `s${++n}` });
+  const p = new Player(engine, 'alice', 'bois');
+  p.click('Lancer');
+  assert.equal(Object.keys(engine.player('alice')!.activities).length, 1);
+  assert.equal((p.text.match(/Tu es déjà occupé·e : 🪓 Tâche a\. Libre dans 01:00/g) ?? []).length, 2, 'l’autre tâche et le chantier sont bloqués');
+  p.click('Lancer');
+  assert.equal(Object.keys(engine.player('alice')!.activities).length, 1, 'refusé : déjà au travail');
+  clock.advance(60);
+  p.refresh().click('Lancer');
+  assert.equal(Object.keys(engine.player('alice')!.activities).length, 2);
+  assert.deepEqual(validateRendered(p.message), []);
+});
