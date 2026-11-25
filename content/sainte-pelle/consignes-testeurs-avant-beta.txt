@@ -1,0 +1,138 @@
+=====================================================================
+  KINGDOMENGINE 4 - BÊTA « LA NUIT DE LA SAINTE PELLE »
+  FICHE DE PRÉPARATION DES TESTEURS
+=====================================================================
+
+Bienvenue à Valbrume !
+
+Cette fiche sert uniquement à préparer votre matériel et votre accès.
+Vous n'avez rien à apprendre sur l'histoire ni sur les mécaniques : le
+but est de découvrir le Royaume par vous-mêmes.
+
+Date : à confirmer par l'organisation
+Début prévu : 20 h 30 (selon la date retenue)
+Rendez-vous technique : 20 h 15, soit 15 minutes avant
+Durée : environ 3 heures
+Lieu : serveur Discord de bêta (lien transmis par l'organisation)
+
+=====================================================================
+  1. MATÉRIEL ET ACCÈS - À FAIRE AVANT LA SOIRÉE
+=====================================================================
+
+[ ] Je dispose d'un ordinateur de préférence, d'une connexion Internet
+    stable et d'un navigateur récent.
+[ ] L'application Discord est installée, à jour, et je suis connecté
+    avec le compte qui participera à la bêta.
+[ ] Mon casque ou mes écouteurs fonctionnent. Je privilégie un casque
+    pour bien profiter des ambiances et éviter les échos.
+[ ] Mon microphone fonctionne et mon volume est adapté.
+[ ] J'ai accès au serveur de bêta (ou je sais où récupérer le lien).
+[ ] Je sais où ouvrir KingdomWeb lorsque l'organisation donnera le lien.
+[ ] Mes notifications personnelles et fenêtres confidentielles sont
+    masquées pour éviter de les montrer pendant un enregistrement.
+[ ] Je peux garder à portée de main la fiche de retour qui sera fournie.
+
+IMPORTANT : ne commencez pas le serment, les quêtes ou les actions de jeu
+avant le signal de lancement. Certaines découvertes sont prévues pour
+être vécues tous ensemble.
+
+=====================================================================
+  2. ENREGISTREMENT D'ÉCRAN - SI VOUS ÊTES VOLONTAIRE
+=====================================================================
+
+Les vidéos sont très utiles pour comprendre les problèmes sans vous
+interrompre au milieu de l'expérience. Prévenez l'organisation en amont
+si vous ne pouvez pas enregistrer.
+
+Sur ordinateur, OBS Studio est recommandé (un outil équivalent convient).
+
+[ ] J'ai installé et ouvert OBS avant le jour du test.
+[ ] J'ai ajouté une capture de fenêtre ou d'écran montrant KingdomWeb et
+    les interactions Discord utiles.
+[ ] J'ai configuré l'audio pour entendre, dans l'enregistrement, les
+    ambiances, les voix des PNJ, les bruitages et Discord.
+[ ] J'ai activé mon microphone dans la capture si cela est convenu.
+[ ] J'ai effectué un enregistrement d'essai de 30 secondes.
+[ ] J'ai regardé et écouté le fichier pour vérifier l'image ET le son.
+[ ] Je sais où OBS enregistrera mes vidéos.
+[ ] J'ai prévu suffisamment d'espace libre sur mon disque (environ
+    10 à 15 Go conseillés pour trois heures, selon la qualité choisie).
+
+Réglages simples suggérés pour OBS :
+- 1920 x 1080, 30 images/seconde ; 1280 x 720 si l'ordinateur peine.
+- Qualité modérée pour éviter de ralentir Discord ou KingdomWeb.
+- Enregistrement local, de préférence en MKV pour limiter le risque de
+  perdre toute la vidéo en cas d'arrêt brutal ; remux possible ensuite.
+- Faire impérativement un test de lecture avant la vraie séance.
+
+Respect de chacun :
+- Tous les participants doivent être informés à l'avance des captures
+  pouvant contenir leurs voix et être d'accord avec ce principe.
+- Si une personne ne souhaite pas être enregistrée, prévenez
+  l'organisation afin de convenir d'une solution.
+- Ne diffusez pas la séance en direct et ne publiez pas les vidéos.
+- Évitez de capturer des messages privés ou d'autres données personnelles.
+- Les vidéos servent au retour interne sur la bêta ; les modalités de
+  dépôt et de conservation seront précisées par l'organisation.
+
+Si vous n'enregistrez pas : aucun problème. Signalez simplement l'heure
+approximative des bugs et, si possible, prenez une capture d'écran.
+
+=====================================================================
+  3. LE JOUR J - AVANT 20 H 30
+=====================================================================
+
+[ ] Je suis présent sur le serveur de bêta vers 20 h 15.
+[ ] Je rejoins le salon d'accueil indiqué par l'organisation.
+[ ] Je vérifie mon casque, mon microphone et mon volume Discord.
+[ ] Si je filme : OBS est prêt, le dossier d'enregistrement est connu,
+    et un dernier test audio a été effectué.
+[ ] Mon navigateur est ouvert et je suis les liens donnés à l'accueil.
+[ ] Je suis prêt à écouter la présentation et les règles avant de jouer.
+
+Si un problème technique survient, contactez l'organisation dans le
+salon d'assistance prévu à cet effet. N'essayez pas de résoudre un bug
+en supprimant des éléments ou en réinitialisant votre compte.
+
+=====================================================================
+  4. PENDANT LA BÊTA
+=====================================================================
+
+- Jouez naturellement : explorez, discutez, expérimentez, coopérez.
+- Ne cherchez pas à « réussir le test » : vos hésitations sont utiles.
+- Notez brièvement l'heure et le lieu quand un bug ou une incompréhension
+  se produit. Ajoutez le minutage de la vidéo si vous en avez une.
+- N'interrompez pas toute la partie pour remplir un long questionnaire.
+- Respectez les autres joueurs et évitez de dévoiler des informations
+  obtenues en dehors du jeu.
+- Les annonces de l'organisation priment en cas de souci technique.
+
+=====================================================================
+  5. À LA FIN DE LA SÉANCE
+=====================================================================
+
+[ ] J'arrête l'enregistrement, si j'en ai réalisé un, et je vérifie
+    que le fichier est lisible.
+[ ] Je termine la « fiche-testeur.txt » fournie par l'organisation.
+[ ] Je mentionne l'heure ou le minutage des passages vidéo utiles.
+[ ] Je dépose la fiche et, si applicable, les vidéos selon les
+    instructions de l'organisation, sans les publier publiquement.
+[ ] Je peux partager à chaud mon moment préféré, mon plus gros blocage
+    et une amélioration prioritaire.
+
+=====================================================================
+  6. EN CAS DE PROBLÈME AVANT LA BÊTA
+=====================================================================
+
+Merci de prévenir l'organisation le plus tôt possible si :
+- vous ne pouvez pas accéder au serveur Discord ;
+- votre micro, votre casque ou les sons Discord ne fonctionnent pas ;
+- KingdomWeb ne s'ouvre pas sur votre appareil ;
+- votre enregistrement vidéo ne fonctionne pas ou est impossible ;
+- vous risquez d'arriver en retard ou d'être absent.
+
+Vous n'avez besoin ni de connaître le scénario ni de préparer un
+personnage à l'avance. Le Royaume s'occupera de vous accueillir.
+
+À très bientôt dans Valbrume !
+=====================================================================
