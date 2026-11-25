@@ -31,6 +31,22 @@ const level = (b: Buffer) => {
   for (const x of s) sum += Math.abs(x);
   return sum / s.length;
 };
+/**
+ * Attend que ffmpeg ait fini de décoder les répliques et bruitages en file (machine lente ou chargée :
+ * un délai fixe ne suffit pas toujours), et l'ambiance.
+ */
+async function decoded(m: Mixer, timeoutMs = 10_000) {
+  type T = { size: number; done: boolean };
+  const t = m as unknown as { voices: T[]; effects: T[]; ambience?: { track: T } };
+  // Prêt : fini de décoder, ou au moins 0,4 s d'avance (au-delà d'une seconde, ffmpeg est mis en pause).
+  const ready = (x: T) => x.done || x.size >= FRAME_BYTES * 20;
+  const end = Date.now() + timeoutMs;
+  while (Date.now() < end) {
+    const ok = [...t.voices, ...t.effects].every(ready) && (!t.ambience || ready(t.ambience.track));
+    if (ok) return;
+    await wait(20);
+  }
+}
 async function frames(m: Mixer, n: number) {
   const out: number[] = [];
   for (let i = 0; i < n; i++) {
@@ -50,12 +66,13 @@ test('mixeur : ambiance en boucle + réplique par-dessus, puis la suivante, puis
   assert.equal(level(m.nextFrame()), 0, 'silence tant qu’il n’y a rien');
   m.setAmbience(amb, 1);
   await wait(300);
+  await decoded(m);
   const ambOnly = (await frames(m, 20)).reduce((x, y) => x + y) / 20;
   assert.ok(ambOnly > 1000, `ambiance audible (${ambOnly})`);
   m.say(a, 1);
   m.say(b, 1);
   assert.ok(m.speaking);
-  await wait(300);
+  await decoded(m);
   const both = await frames(m, 15);
   assert.ok(both.every((x) => x > ambOnly * 1.15), 'réplique mixée par-dessus l’ambiance, sans la couper');
   // 0,4 s + 0,4 s de répliques = 40 trames : après ~60 trames, il ne reste que l'ambiance (bouclée au-delà de 0,5 s).
@@ -86,11 +103,11 @@ test('mixeur : les bruitages se superposent sans attendre la réplique en cours 
   const m = new Mixer(FFMPEG);
   t.after(() => m.destroy());
   m.say(tone(dir, 'voix', 440, 2), 1);
-  await wait(300);
+  await decoded(m);
   const voice = (await frames(m, 10)).reduce((x, y) => x + y) / 10;
   m.effect(tone(dir, 'hache1', 660, 0.4), 1);
   m.effect(tone(dir, 'hache2', 880, 0.4), 1);
-  await wait(300);
+  await decoded(m);
   const all = (await frames(m, 10)).reduce((x, y) => x + y) / 10;
   assert.ok(all > voice * 1.4, `bruitages joués tout de suite, par-dessus la réplique (${voice} → ${all})`);
   assert.ok(m.speaking, 'la réplique continue');
