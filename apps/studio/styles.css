@@ -363,6 +363,7 @@ textarea.code { font-family: var(--mono); font-size: .82rem; line-height: 1.45; 
 .d-h1 { font-size: 1.5em; font-weight: 700; color: #f2f3f5; display: block; }
 .d-h2 { font-size: 1.25em; font-weight: 700; color: #f2f3f5; display: block; }
 .d-h3 { font-size: 1.05em; font-weight: 700; color: #f2f3f5; display: block; }
+.d-sub { font-size: 0.8em; color: #949ba4; display: block; }
 .d-mention { background: rgba(88,101,242,.3); color: #dee0fc; border-radius: 3px; padding: 0 2px; }
 .d-ts { background: #3a3c42; border-radius: 3px; padding: 0 2px; }
 .d-section { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; }

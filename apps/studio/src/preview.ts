@@ -21,7 +21,10 @@ function md(src: string, names: Map<string, string>): string {
     .split('\n')
     .map((line) => {
       const m = /^(#{1,3}) (.*)$/.exec(line);
-      return m ? `<span class="d-h${m[1]!.length}">${inline(m[2]!)}</span>` : inline(line);
+      if (m) return `<span class="d-h${m[1]!.length}">${inline(m[2]!)}</span>`;
+      // Petit texte gris de Discord (« -# … »).
+      const sub = /^-# (.*)$/.exec(line);
+      return sub ? `<span class="d-sub">${inline(sub[1]!)}</span>` : inline(line);
     })
     .join('\n');
 }

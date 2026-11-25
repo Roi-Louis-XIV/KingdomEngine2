@@ -129,71 +129,70 @@ export function rollingDiceDuel(state: WorldState, building: Id, mod: DiceDuelMo
   return d ? { a: nameOf(state, d.challenger), b: nameOf(state, d.target), pot: d.stake * 2, until: finalAt(d) } : undefined;
 }
 
-/** Nom pour le tableau (police à chasse fixe) : lettres simples seulement, pour garder les cases alignées. */
-const plain = (name: string, max: number) => (name.replace(/[^\p{L}\p{N} '._-]/gu, '').replace(/[^\u0000-\u024f]/g, '').trim() || 'Joueur').slice(0, max);
-const center = (s: string, n: number) => {
-  const left = Math.floor((n - s.length) / 2);
-  return ' '.repeat(Math.max(0, left)) + s + ' '.repeat(Math.max(0, n - s.length - left));
-};
 const total = (x: number[]) => x.reduce((a, b) => a + b, 0);
+/** Dé en grand : chiffre encadré (1️⃣ … 9️⃣), sinon le nombre en gras. */
+const face = (n: number) => (n >= 0 && n <= 9 ? `${n}️⃣` : `**${n}**`);
 
-/** Panneau en direct d'un duel : deux cases côte à côte, compte à rebours, dés, total, vainqueur. */
-function livePanel(env: DiceDuelEnv, mod: DiceDuelModule, d: DiceDuelState, accent?: number): RContainer {
+/**
+ * Panneau en direct d'un duel : un bandeau (titre, mise, cagnotte, compte à rebours ou verdict),
+ * puis une case par joueur, l'une sous l'autre (Discord n'a pas de colonnes) : nom, dés en grand, total.
+ * La case du vainqueur passe en or.
+ */
+function livePanel(env: DiceDuelEnv, mod: DiceDuelModule, d: DiceDuelState): RTopLevel[] {
   const { ctx } = env;
   const now = ctx.now;
   const rounds = d.rounds ?? [];
   const start = (d.acceptedAt ?? 0) + COUNTDOWN_MS;
-  const nameA = nameOf(ctx.state, d.challenger);
-  const nameB = nameOf(ctx.state, d.target);
-  const W = 15; // largeur d'une case, bords compris
-  const box2 = (inner: [string, string], gap = '  ') => `│${center(inner[0], W - 2)}│${gap}│${center(inner[1], W - 2)}│`;
-  let dice: [string, string];
-  let sums: [string, string];
-  let marks: [string, string] = ['', ''];
-  let status: string;
+  const names = [nameOf(ctx.state, d.challenger), nameOf(ctx.state, d.target)] as const;
+  const head = `### 🔴 EN DIRECT · ${mod.emoji ?? '🎲'} ${mod.name}\n**${names[0]}** ⚔️ **${names[1]}**\n-# Mise ${money(ctx, mod.currency, d.stake)} chacun · 💰 Cagnotte ${money(ctx, mod.currency, d.stake * 2)}`;
+  const RED = 0xc0392b;
+  const GOLD = 0xe0b04f;
+  const GREY = 0x4f545c;
+  const BLUE = 0x3b6ea5;
+  const card = (i: 0 | 1, dice: string, sum: string, accent: number, tag = '') => ({
+    type: 'container' as const,
+    accent,
+    children: [text(`${i === 0 ? '🟥' : '🟦'} **${names[i]}**${tag}\n# ${dice}\n${sum}`)],
+  });
   if (now < start) {
     // Compte à rebours, une image par seconde.
     const left = Math.ceil((start - now) / 1000);
     env.wake(start - (left - 1) * 1000);
-    dice = ['[?]  [?]', '[?]  [?]'];
-    sums = ['...', '...'];
-    status = `⏳ **Les dés roulent… ${left}**`;
-  } else {
-    const shown = Math.min(rounds.length - 1, Math.floor((now - start) / TIE_MS));
-    const r = rounds[shown]!;
-    dice = [r.a.map((n) => `[${n}]`).join(' '), r.b.map((n) => `[${n}]`).join(' ')];
-    sums = [`Total ${total(r.a)}`, `Total ${total(r.b)}`];
-    if (shown < rounds.length - 1) {
-      env.wake(start + (shown + 1) * TIE_MS);
-      status = `🤝 **Égalité à ${total(r.a)} !** Relance automatique…`;
-    } else {
-      env.wake(finalAt(d) + SHOW_MS);
-      const aWins = d.winner === d.challenger;
-      marks = aWins ? ['★ GAGNANT ★', ''] : ['', '★ GAGNANT ★'];
-      const ties = rounds.length - 1;
-      status = `🏆 **${aWins ? nameA : nameB}** remporte la cagnotte de **${money(ctx, mod.currency, d.stake * 2)}** !${ties ? `\n-# ${ties} égalité${ties > 1 ? 's' : ''} avant le lancer décisif.` : ''}`;
-    }
+    const hidden = Array.from({ length: mod.dice }, () => '🎲').join(' ');
+    return [
+      { type: 'container', accent: RED, children: [text(`${head}\n# ⏳ ${left}…`)] },
+      card(0, hidden, '-# Les dés roulent…', RED),
+      card(1, hidden, '-# Les dés roulent…', BLUE),
+    ];
   }
-  const line = '─'.repeat(W - 2);
-  const board = [
-    `${center(plain(nameA, W), W)}  ${center(plain(nameB, W), W)}`,
-    `┌${line}┐  ┌${line}┐`,
-    box2(dice, 'VS'),
-    box2(sums),
-    `└${line}┘  └${line}┘`,
-    `${center(marks[0], W)}  ${center(marks[1], W)}`.trimEnd(),
-  ]
-    .filter((x) => x.trim() || x === '')
-    .join('\n');
-  const header = `### 🔴 EN DIRECT · ${mod.emoji ?? '🎲'} ${mod.name}\n**${nameA}** contre **${nameB}** · mise **${money(ctx, mod.currency, d.stake)}** chacun · 💰 cagnotte **${money(ctx, mod.currency, d.stake * 2)}**`;
-  return { type: 'container', accent: now < finalAt(d) ? 0xc0392b : (accent ?? 0xc9a227), children: [text(header), text('```\n' + board + '\n```'), text(status)] };
+  const shown = Math.min(rounds.length - 1, Math.floor((now - start) / TIE_MS));
+  const r = rounds[shown]!;
+  const dice = (x: number[]) => x.map(face).join(' ');
+  if (shown < rounds.length - 1) {
+    env.wake(start + (shown + 1) * TIE_MS);
+    return [
+      { type: 'container', accent: RED, children: [text(`${head}\n## 🤝 Égalité à ${total(r.a)} ! On relance…`)] },
+      card(0, dice(r.a), `**Total : ${total(r.a)}**`, GREY),
+      card(1, dice(r.b), `**Total : ${total(r.b)}**`, GREY),
+    ];
+  }
+  env.wake(finalAt(d) + SHOW_MS);
+  const aWins = d.winner === d.challenger;
+  const ties = rounds.length - 1;
+  const winner = names[aWins ? 0 : 1];
+  const verdict = `## 🏆 ${winner} remporte ${money(ctx, mod.currency, d.stake * 2)} !${ties ? `\n-# Après ${ties} égalité${ties > 1 ? 's' : ''} et relance${ties > 1 ? 's' : ''}.` : ''}`;
+  return [
+    { type: 'container', accent: GOLD, children: [text(`${head.replace('🔴 EN DIRECT', '🏁 TERMINÉ')}\n${verdict}`)] },
+    card(0, dice(r.a), `**Total : ${total(r.a)}**${aWins ? ' · 👑 **Vainqueur**' : ''}`, aWins ? GOLD : GREY, aWins ? ' 🏆' : ''),
+    card(1, dice(r.b), `**Total : ${total(r.b)}**${aWins ? '' : ' · 👑 **Vainqueur**'}`, aWins ? GREY : GOLD, aWins ? '' : ' 🏆'),
+  ];
 }
 
 /** Panneaux en direct seuls (écran des jeux : les spectateurs suivent le duel). */
-export function renderDiceDuelLive(env: DiceDuelEnv, mod: DiceDuelModule, accent?: number): RTopLevel[] {
+export function renderDiceDuelLive(env: DiceDuelEnv, mod: DiceDuelModule, _accent?: number): RTopLevel[] {
   return liveDiceDuels(env.ctx.state, env.ctx.building.id, mod, env.ctx.now)
     .slice(0, 2)
-    .map((d) => livePanel(env, mod, d, accent));
+    .flatMap((d) => livePanel(env, mod, d));
 }
 
 export function renderDiceDuel(env: DiceDuelEnv, mod: DiceDuelModule, accent?: number): RTopLevel[] {
@@ -204,7 +203,7 @@ export function renderDiceDuel(env: DiceDuelEnv, mod: DiceDuelModule, accent?: n
   const st = env.local(() => ({ opponent: '', stake: 0 }));
   const out: RTopLevel[] = [];
   const lives = liveDiceDuels(ctx.state, ctx.building.id, mod, ctx.now).slice(0, 2);
-  out.push(...lives.map((d) => livePanel(env, mod, d, accent)));
+  out.push(...lives.flatMap((d) => livePanel(env, mod, d)));
   const watching = lives.some((d) => d.challenger === ctx.playerId || d.target === ctx.playerId);
   const rules = `### ${mod.emoji ?? '⚔️'} ${mod.name}\nChacun mise la même somme et lance ${mod.dice} dé${mod.dice > 1 ? 's' : ''} : le plus gros total remporte les deux mises. En cas d’égalité, on relance.\n-# Les mises sont prélevées seulement quand l’adversaire accepte.`;
   const lines = [rules];
