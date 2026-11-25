@@ -24,7 +24,10 @@ export interface Presence {
   message?: { sound: string; every: number };
   /** Répliques de vie du personnage disponibles maintenant (une au hasard, en moyenne toutes les `every` s). */
   chatter?: { every: number; sounds: string[] };
+  /** Phrase d'accueil du lieu (dite par le personnage qui y habite). */
   welcome?: string;
+  /** Saluer quand le salon passe de vide à occupé : l'accueil, sinon une réplique de vie du moment. */
+  greet?: boolean;
   volume: number;
 }
 
@@ -75,7 +78,7 @@ export class VoicePool {
       const p = wanted.get(w.presence.key);
       if (p && w.online) {
         w.wantedAt = now;
-        if (p.ambience !== w.presence.ambience || p.channelId !== w.presence.channelId || p.identity.name !== w.presence.identity.name || p.volume !== w.presence.volume || p.holder !== w.presence.holder || p.building !== w.presence.building || JSON.stringify(p.message) !== JSON.stringify(w.presence.message) || JSON.stringify(p.chatter) !== JSON.stringify(w.presence.chatter)) {
+        if (p.ambience !== w.presence.ambience || p.channelId !== w.presence.channelId || p.identity.name !== w.presence.identity.name || p.volume !== w.presence.volume || p.holder !== w.presence.holder || p.greet !== w.presence.greet || p.welcome !== w.presence.welcome || p.building !== w.presence.building || JSON.stringify(p.message) !== JSON.stringify(w.presence.message) || JSON.stringify(p.chatter) !== JSON.stringify(w.presence.chatter)) {
           w.presence = p;
           plan.update.push({ worker: w.key, presence: p });
         }

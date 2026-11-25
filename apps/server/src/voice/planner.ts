@@ -60,12 +60,14 @@ export function desiredPresences(input: {
         identity: { name: c.name, avatarUrl: c.home === b.id ? b.npc?.avatarUrl : undefined },
         ambience: holder ? ambience : undefined,
         message: holder ? message : undefined,
-        welcome: holder ? welcome : undefined,
+        // L'accueil du lieu est dit par celui qui y habite ; un visiteur salue avec une de ses répliques.
+        welcome: holder && c.home === b.id ? welcome : undefined,
+        greet: holder && occupied,
         volume,
       });
     });
     if (!here.length && b.audio)
-      out.push({ occupied, key: buildingKey(serverId, b.id), guildId, channelId: voice, serverId, building: b.id, holder: true, identity: { name: b.name }, ambience, message, welcome, volume });
+      out.push({ occupied, key: buildingKey(serverId, b.id), guildId, channelId: voice, serverId, building: b.id, holder: true, identity: { name: b.name }, ambience, message, welcome, greet: occupied, volume });
   }
   // Bâtiments occupés d'abord (et, dans un bâtiment, celui qui joue l'ambiance) : ils sont servis en priorité.
   return out.sort((a, b) => Number(b.occupied) - Number(a.occupied) || Number(b.holder) - Number(a.holder)).map(({ occupied: _, ...p }) => p);

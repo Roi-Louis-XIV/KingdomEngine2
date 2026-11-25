@@ -226,3 +226,20 @@ test('variantes de sons : une prise au hasard, jamais la même deux fois de suit
   assert.equal(one.pick('x', ['x-1']), 'x-1');
   assert.equal(one.pick('x', ['x-1']), 'x-1', 'une seule prise : on la rejoue');
 });
+
+test('voix : le personnage salue quand le premier joueur entre, pas à chaque arrivée', async () => {
+  const { desiredPresences } = await import('../src/voice/planner.ts');
+  const { Engine } = await import('../../../packages/engine/src/index.ts');
+  const { readFileSync } = await import('node:fs');
+  const w = JSON.parse(readFileSync(new URL('../../../content/sainte-pelle/world.json', import.meta.url), 'utf8'));
+  const engine = new Engine(w);
+  const channels = Object.fromEntries(w.buildings.map((b: any) => [b.id, { voice: `v-${b.id}` }]));
+  const at = (n: number) => desiredPresences({ serverId: 's', guildId: 'g', engine, channels, occupancy: new Map([['v-mine', n]]) });
+  const roland = at(1).find((p) => p.building === 'mine' && p.holder)!;
+  assert.equal(roland.character, 'roland');
+  assert.equal(roland.greet, true, 'salon occupé : il salue');
+  assert.equal(roland.welcome, 'roland-accueil');
+  // Un deuxième joueur : la présence ne change pas, donc pas de nouveau salut.
+  assert.deepEqual(at(2).find((p) => p.building === 'mine' && p.holder), roland);
+  for (const b of ['place', 'mine', 'forge', 'foret', 'ferme', 'eglise', 'taverne']) assert.ok(w.buildings.find((x: any) => x.id === b).audio?.welcome, `accueil à ${b}`);
+});

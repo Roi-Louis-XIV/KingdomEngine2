@@ -4,7 +4,7 @@
  * Chaque worker mixe l'ambiance et les répliques (mixer.ts) : on parle par-dessus le fond sonore.
  * L'allocation est décidée par VoicePool (testé) ; ce fichier applique ses décisions sur Discord.
  */
-import { VariantPicker } from './variants.ts';
+import { VariantPicker, isProvided } from './variants.ts';
 import { Client, Events, GatewayIntentBits } from 'discord.js';
 import {
   generateDependencyReport,
@@ -238,6 +238,7 @@ export class VoiceWorkers implements VoiceBridge {
         l.player ??= this.createPlayer(l);
         l.connection.subscribe(l.player);
       }
+      const before = l.presence;
       l.presence = p;
       const ambience = this.soundPath(p.serverId, p.ambience);
       if (ambience) this.mixer(l).setAmbience(ambience, p.volume);
@@ -245,10 +246,8 @@ export class VoiceWorkers implements VoiceBridge {
         l.mixer.setAmbience(undefined, p.volume);
         l.mixer.endWhenIdle = true;
       }
-      if (fresh && p.welcome) {
-        const welcome = this.soundPath(p.serverId, p.welcome);
-        if (welcome) this.mixer(l).say(welcome, p.volume);
-      }
+      // Le premier joueur arrive (salon vide jusque-là) : le personnage salue une fois, pas à chaque arrivée.
+      if (p.greet && (fresh || !before?.greet)) this.greet(l, p);
       this.repeatMessage(l, p);
       this.scheduleChatter(l);
     } catch (e) {
@@ -257,6 +256,21 @@ export class VoiceWorkers implements VoiceBridge {
       l.connection?.destroy();
       l.connection = undefined;
     }
+  }
+
+  /** Salut d'arrivée : la phrase d'accueil du lieu, sinon une réplique de vie du moment (au hasard). */
+  private greet(l: Live, p: Presence) {
+    let path = this.soundPath(p.serverId, p.welcome, true);
+    if (!path && p.chatter?.sounds.length) {
+      const have = new Set(this.platform.audioList(p.serverId).map((a) => a.key));
+      const sounds = p.chatter.sounds.filter((k) => isProvided(k, have));
+      const pick = sounds[Math.floor(Math.random() * sounds.length)];
+      if (pick) {
+        path = this.soundPath(p.serverId, pick);
+        if (l.chatter) l.chatter.last = pick;
+      }
+    }
+    if (path && l.connection) this.mixer(l).say(path, p.volume);
   }
 
   /**

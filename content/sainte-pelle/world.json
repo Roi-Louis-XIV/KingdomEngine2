@@ -5501,6 +5501,7 @@
         }
       ],
       "audio": {
+        "welcome": "maelis-accueil",
         "ambience": {
           "cases": [
             {
@@ -11791,6 +11792,7 @@
         }
       ],
       "audio": {
+        "welcome": "roland-accueil",
         "ambience": {
           "cases": [
             {
@@ -17278,6 +17280,7 @@
         }
       ],
       "audio": {
+        "welcome": "wagner-accueil",
         "ambience": {
           "cases": [
             {
@@ -17354,6 +17357,7 @@
       },
       "homeScreen": "accueil",
       "audio": {
+        "welcome": "sylvain-accueil",
         "ambience": {
           "cases": [
             {

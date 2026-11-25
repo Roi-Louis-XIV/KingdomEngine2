@@ -1696,7 +1696,9 @@ const FINALE = [
   { when: v('apocalypse', 'attente'), sound: 'fin-attente', message: 'fin-rejoindre-aide', every: 20 },
   { when: v('acte', 'apocalypse'), sound: '' },
 ];
-const WELCOME = { ferme: 'agathe-accueil', eglise: 'anselme-accueil' };
+// Phrase dite par le personnage du lieu quand le premier joueur entre dans le salon vocal (pas à chaque arrivée).
+// Tant qu'elle n'est pas enregistrée, il salue avec une de ses répliques de vie du moment.
+const WELCOME = { place: 'maelis-accueil', mine: 'roland-accueil', forge: 'wagner-accueil', foret: 'sylvain-accueil', ferme: 'agathe-accueil', eglise: 'anselme-accueil' };
 const AMBIENCES = {
   place: [[STORM, 'place-tempete'], [v('acte', 'veille'), 'place-fete'], [null, 'place-calme']],
   taverne: [[STORM, 'taverne-tempete'], [v('soiree', 'oui'), 'taverne-soiree'], [null, 'taverne-calme']],
