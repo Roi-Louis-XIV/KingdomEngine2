@@ -228,12 +228,21 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
       const shop = findModule(ctx.building, w.shop, 'shop');
       const f = env.ui(`catalog:${shop.id}`, () => ({ category: 'Toutes', bonus: 'Tous' }));
       const out: RTopLevel[] = [];
+      // Pas de « Toutes » : une catégorie à la fois, la première par défaut (sinon la liste est immense).
+      const cats = shopCategories(shop);
+      const filtering = w.filters !== false && cats.length > 1;
+      if (!filtering) f.category = 'Toutes';
+      else if (!cats.includes(f.category)) {
+        // Par défaut : la première catégorie où il y a quelque chose à acheter.
+        const stock = inventoryOf(ctx, shop.inventory);
+        f.category = cats.find((c) => shop.offers.some((o) => (o.category || OTHER) === c && (stock[o.stockItem] ?? 0) > 0)) ?? cats[0]!;
+      }
       if (w.filters !== false) {
-        const cats = ['Toutes', ...new Set(shop.offers.map((o) => o.category).filter((c): c is string => !!c))];
-        out.push({
-          type: 'row',
-          items: [select(env.id('cat'), '📂 Filtrer par catégorie…', cats.map((c) => ({ label: c, value: c, default: c === f.category })))],
-        });
+        if (filtering)
+          out.push({
+            type: 'row',
+            items: [select(env.id('cat'), '📂 Catégorie…', cats.map((c) => ({ label: c, value: c, default: c === f.category })))],
+          });
         const mods = [...new Set(shop.offers.map(offerModifier).filter((m): m is Id => !!m))];
         if (mods.length)
           out.push({
@@ -254,7 +263,7 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
       const lines: string[] = [];
       const options: RSelectOption[] = [];
       for (const o of shop.offers) {
-        if (f.category !== 'Toutes' && o.category !== f.category) continue;
+        if (f.category !== 'Toutes' && (o.category || OTHER) !== f.category) continue;
         const mod = offerModifier(o);
         if (f.bonus !== 'Tous' && (mod ?? 'aucun') !== f.bonus) continue;
         const qty = inv[o.stockItem] ?? 0;
@@ -837,6 +846,12 @@ const duration = (sec: number) => (sec < 60 ? `${sec} s` : sec % 60 ? `${Math.fl
 export const activityKey = (ctx: Ctx, mod: ActivityModule, a: ActivityDef) => `${ctx.building.id}/${mod.id}/${a.id}`;
 
 /** Raison pour laquelle une activité ne peut pas être lancée, ou null. */
+const OTHER = 'Autres';
+/** Catégories d'une boutique, dans l'ordre des articles (« Autres » pour ceux qui n'en ont pas). */
+function shopCategories(shop: { offers: { category?: string }[] }): string[] {
+  return [...new Set(shop.offers.map((o) => o.category || OTHER))];
+}
+
 export function activityLock(ctx: Ctx, mod: ActivityModule, a: ActivityDef): { text: string; until?: number } | null {
   const p = ctx.player;
   const until = p.cooldowns[activityKey(ctx, mod, a)];

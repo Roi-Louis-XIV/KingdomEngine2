@@ -92,7 +92,16 @@ export class Player {
     return s.options;
   }
   choose(placeholder: RegExp, value: string) {
-    const s = walk(this.message).selects.find((x) => placeholder.test(x.placeholder));
+    let s = walk(this.message).selects.find((x) => placeholder.test(x.placeholder));
+    // Boutique filtrée par catégorie (une seule à la fois) : on parcourt les catégories pour trouver l'article.
+    const cat = walk(this.message).selects.find((x) => /^📂 Catégorie/.test(x.placeholder));
+    if (cat && !placeholder.test(cat.placeholder) && !s?.options.some((o) => o.value === value))
+      for (const c of cat.options) {
+        const r = this.engine.interact(this.id, walk(this.message).selects.find((x) => /^📂 Catégorie/.test(x.placeholder))!.customId, [c.value]);
+        if (r.message) this.message = r.message;
+        s = walk(this.message).selects.find((x) => placeholder.test(x.placeholder));
+        if (s?.options.some((o) => o.value === value)) break;
+      }
     if (!s) throw new Error(`Menu ${placeholder} introuvable. Texte :\n${this.text}`);
     if (!s.options.some((o) => o.value === value)) throw new Error(`Option ${value} absente : ${s.options.map((o) => o.value)}`);
     const r = this.engine.interact(this.id, s.customId, [value]);

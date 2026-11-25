@@ -151,7 +151,7 @@ test('concurrence : deux cuisiniers visent la même marmite, un seul réussit', 
 test('comptoir : achat sur place avec effets avant → après', () => {
   const { engine } = makeEngine();
   const p = new Player(engine, 'alice');
-  p.click('Boissons');
+  p.click('Boissons').choose(/Catégorie/, 'Bières');
   assert.match(p.text, /Chope de bière\*\* — 8 écus · 🎒 \+1 écus/);
   assert.match(p.text, /⚡ \+5 énergie · 🍺 \+10 alcoolémie/);
   p.choose(/Choisir un article/, 'biere');
@@ -203,6 +203,7 @@ test('repas : la carte se remplit grâce aux cuisiniers ; plats sur place unique
   const p = new Player(engine, 'alice');
   p.click('Repas');
   assert.ok(!p.hasSelect(/Choisir un article/), 'aucun plat disponible au départ');
+  p.choose(/Catégorie/, 'Festins');
   assert.match(p.text, /Festin du Royaume\*\* — 18 écus · sur place uniquement/);
 
   const chef = hire(new Player(engine, 'chef'));
@@ -219,11 +220,13 @@ test('repas : la carte se remplit grâce aux cuisiniers ; plats sur place unique
 test('filtres du catalogue par catégorie et par bonus', () => {
   const { engine } = makeEngine();
   const p = new Player(engine, 'alice');
-  p.click('Boissons').choose(/catégorie/, 'Sans alcool');
+  // Pas de « Toutes » : une catégorie à la fois, la première par défaut (petite liste).
+  p.click('Boissons');
+  assert.deepEqual(p.options(/Catégorie/).map((o) => o.value), ['Sans alcool', 'Bières', 'Spiritueux', 'Vins']);
   assert.deepEqual(p.options(/Choisir un article/).map((o) => o.value), ['eau', 'jus']);
   p.choose(/bonus/, 'xp');
   assert.match(p.text, /Aucun article pour ces filtres/);
-  p.choose(/catégorie/, 'Toutes');
+  p.choose(/Catégorie/, 'Vins');
   assert.deepEqual(p.options(/Choisir un article/).map((o) => o.value), ['vin']);
 });
 
