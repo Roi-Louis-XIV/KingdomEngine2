@@ -371,6 +371,11 @@ export interface QuestSystem {
   rerollMinutes: number;
   /** Récompenses par difficulté, ajoutées à celles de la quête. */
   rewards?: Partial<Record<'1' | '2' | '3', Action[]>>;
+  /**
+   * Récompense à récupérer au panneau des quêtes : la quête réussie reste affichée « terminée » (fiche, panneau)
+   * jusqu'à ce que le joueur vienne la chercher. Sinon (défaut) : récompense donnée dès la dernière étape.
+   */
+  claimAtBoard?: boolean;
   quests: QuestDef[];
 }
 

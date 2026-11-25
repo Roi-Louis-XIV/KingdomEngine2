@@ -108,6 +108,8 @@ Détails techniques :
 
 ## Quêtes personnelles
 
+- `quests.claimAtBoard` : la quête réussie n’est pas payée tout de suite. Elle reste affichée « terminée » (fiche du joueur, panneau) avec un rappel d’aller au panneau des quêtes ; le bouton « 🎁 Récupérer ma récompense » donne les récompenses et libère le panneau. Elle compte comme réussie dès la dernière étape (conditions, tirages). Bêta : activé.
+- Boutiques : le filtre de catégorie n’a pas d’option « Toutes » ; une catégorie à la fois, par défaut la première qui a du stock (articles sans catégorie : « Autres »).
 - `world.quests` : statistique d’XP, niveaux (chances ★ / ★★ / ★★★), nombre de propositions, délai de nouveau tirage, récompenses par difficulté, liste des quêtes (fenêtre de disponibilité, étapes, récompenses propres).
 - Le widget `quest.board` affiche les propositions (tirage reproductible : stables d’un affichage à l’autre, renouvelées après une quête, un abandon ou un nouveau tirage). Le joueur en choisit **une**. Le widget `player.sheet` montre endurance, ivresse, XP, niveau et la quête en cours, avec un bouton « Livrer » dans le bon bâtiment.
 - L’avancement passe par des **repères** émis par le moteur (activité récupérée, apport à un objectif, achat, dialogue, dés gagnés, objet consommé, réparation) ou par l’action `quest.tag`. Entrer dans un lieu compte pour les étapes « visiter ». Une quête dont la fenêtre se ferme est rendue sans pénalité.

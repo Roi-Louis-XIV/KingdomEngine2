@@ -29,7 +29,7 @@ import {
   levelLine,
   levelTooLow,
 } from './rules.ts';
-import { STARS, abandonQuest, acceptQuest, currentOffers, findQuest, nextLevel, questDeliver, questLevel, questTag, rerollOffers, stepDone, stepTarget } from './quests.ts';
+import { STARS, abandonQuest, acceptQuest, claimQuest, currentOffers, findQuest, nextLevel, questDeliver, questLevel, questTag, rerollOffers, stepDone, stepTarget } from './quests.ts';
 import type { QuestDef } from './model.ts';
 import { equipmentTotals, handleCombat, renderCombat, renderCombatSummary } from './combat.ts';
 
@@ -684,6 +684,12 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
       const sys = ctx.world.quests;
       if (!sys) return [box('⚠️ Aucune quête n’est configurée dans ce monde.')];
       const current = findQuest(ctx, p.quest?.id);
+      if (current && p.quest?.done) {
+        return [
+          box(`### ${w.title ?? '📜 Panneau des quêtes'}\n🏆 **Quête terminée !** Ta récompense t’attend.\n\n${questCard(env, current, true)}`, w.accent),
+          { type: 'row', items: [button(env.id('claim'), 'Récupérer ma récompense', 'success', '🎁')] },
+        ];
+      }
       if (current) {
         return [
           box(`### ${w.title ?? '📜 Panneau des quêtes'}\nTu mènes déjà une quête. Termine-la avant d’en choisir une autre.\n\n${questCard(env, current, true)}`, w.accent),
@@ -753,7 +759,7 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
         }
       }
       const q = findQuest(ctx, p.quest?.id);
-      lines.push('', q ? questCard(env, q, true) : '📜 *Aucune quête en cours : passe au panneau des quêtes de la Place.*');
+      lines.push('', q && p.quest?.done ? `🏆 **Quête terminée : ${q.emoji ?? '📜'} ${q.name}**\n🎁 Va récupérer ta récompense au panneau des quêtes de la Place.` : q ? questCard(env, q, true) : '📜 *Aucune quête en cours : passe au panneau des quêtes de la Place.*');
       const out: RTopLevel[] = [box(lines.join('\n'), w.accent)];
       if (q) {
         const btns = q.steps
@@ -1379,6 +1385,7 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
         const q = acceptQuest(ctx, arg);
         return { notice: `📜 Quête acceptée : **${q.name}** ${STARS[q.difficulty]}. Tu la retrouves dans « Mon inventaire », dans chaque bâtiment.` };
       }
+      if (verb === 'claim') return { notice: claimQuest(ctx) };
       if (verb === 'abandon') {
         const q = abandonQuest(ctx);
         return { notice: q ? `Quête **${q.name}** abandonnée. Choisis-en une autre.` : 'Aucune quête en cours.' };

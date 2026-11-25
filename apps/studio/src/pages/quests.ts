@@ -142,6 +142,7 @@ export async function questsPage(main: HTMLElement) {
         { class: 'block' },
         h('h2', null, 'Le panneau'),
         h('div', { class: 'row-fields' }, selectField('Statistique d’XP', sys.xpStat, opts.stats(w), (v) => ((sys.xpStat = v), changed())), field(sys, 'offers', { label: 'Quêtes proposées', type: 'number', min: 1, max: 5 }, changed), field(sys, 'rerollMinutes', { label: 'Délai entre deux nouveaux tirages (min)', type: 'number', min: 0 }, changed)),
+        h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!sys.claimAtBoard, onchange: (e: Event) => ((sys.claimAtBoard = (e.target as HTMLInputElement).checked || undefined), changed()) }), 'Récompense à récupérer au panneau des quêtes (la quête réussie reste affichée « terminée » jusque-là)'),
         h('p', { class: 'muted' }, 'Pour afficher le panneau, ajoute le widget « Panneau des quêtes » à un écran (par exemple sur la place du village). La fiche du joueur (widget « Fiche du joueur ») montre la quête en cours et le bouton Livrer.'),
       ),
       h(

@@ -1654,6 +1654,8 @@ const world = {
     xpStat: 'xp',
     offers: 4,
     rerollMinutes: 15,
+    // Quête réussie : affichée « terminée » jusqu'à ce que le joueur vienne chercher sa récompense à la Place (Louis, 25 novembre).
+    claimAtBoard: true,
     levels: [
       { name: 'Habitant', emoji: '🏠', minXp: 0, weights: [70, 30, 0] },
       { name: 'Compagnon', emoji: '🛠️', minXp: 100, weights: [30, 50, 20] },

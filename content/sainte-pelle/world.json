@@ -2946,6 +2946,7 @@
     "xpStat": "xp",
     "offers": 4,
     "rerollMinutes": 15,
+    "claimAtBoard": true,
     "levels": [
       {
         "name": "Habitant",

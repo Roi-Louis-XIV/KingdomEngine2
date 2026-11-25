@@ -97,6 +97,7 @@ export function acceptQuest(ctx: Ctx, id: Id): QuestDef {
 }
 
 export function abandonQuest(ctx: Ctx): QuestDef | undefined {
+  if (ctx.player.quest?.done) throw new RuleError('Ta quête est réussie : récupère plutôt ta récompense.');
   const q = findQuest(ctx, ctx.player.quest?.id);
   ctx.player.quest = undefined;
   ctx.player.questDraws = (ctx.player.questDraws ?? 0) + 1;
@@ -114,7 +115,7 @@ export function rerollOffers(ctx: Ctx) {
 
 /** Quête en cours devenue indisponible (fin de sa fenêtre) : rendue sans pénalité. */
 export function dropExpiredQuest(ctx: Ctx): QuestDef | undefined {
-  if (!ctx.player.quest) return undefined;
+  if (!ctx.player.quest || ctx.player.quest.done) return undefined;
   const q = findQuest(ctx, ctx.player.quest.id);
   if (q && evaluate(ctx, q.when).ok) return undefined;
   ctx.player.quest = undefined;
@@ -195,20 +196,42 @@ export function questDeliver(ctx: Ctx, stepId: Id): string {
 }
 
 function completeIfDone(ctx: Ctx, q: QuestDef) {
-  if (!q.steps.every((s) => stepDone(ctx, s))) return;
+  if (ctx.player.quest?.done || !q.steps.every((s) => stepDone(ctx, s))) return;
   const p = ctx.player;
-  const sys = ctx.world.quests!;
-  const before = ctx.changes.length;
-  p.quest = undefined;
   p.questsDone.push(q.id);
   p.questDraws = (p.questDraws ?? 0) + 1;
+  if (ctx.world.quests!.claimAtBoard) {
+    // Réussie, mais la récompense attend au panneau : la quête reste affichée jusque-là.
+    p.quest!.done = true;
+    const msg = pickText(ctx, q.success);
+    ctx.notes?.push(`🏆 **Quête terminée : ${q.name}** ${STARS[q.difficulty]}${msg ? `\n${msg}` : ''}\n🎁 Va récupérer ta récompense au panneau des quêtes de la Place.`);
+    return;
+  }
+  p.quest = undefined;
+  const gains = giveRewards(ctx, q);
+  const msg = pickText(ctx, q.success);
+  ctx.notes?.push(`🏆 **Quête réussie : ${q.name}** ${STARS[q.difficulty]}${msg ? `\n${msg}` : ''}${gains ? `\n${gains}` : ''}\nRetourne au panneau des quêtes de la Place pour en choisir une nouvelle.`);
+}
+
+/** Récompenses de la quête (difficulté + propres) ; renvoie le résumé des gains. */
+function giveRewards(ctx: Ctx, q: QuestDef): string {
+  const sys = ctx.world.quests!;
+  const before = ctx.changes.length;
   for (const a of [...(sys.rewards?.[String(q.difficulty) as '1' | '2' | '3'] ?? []), ...q.rewards]) applyAction(ctx, a);
-  const gains = ctx.changes
+  return ctx.changes
     .slice(before)
     .map((c) => (c.kind === 'stat' ? `+${c.after - c.before} ${ctx.world.stats.find((x) => x.id === c.stat)?.name ?? c.stat}` : c.kind === 'item' && c.delta > 0 && !c.inventory ? `+${c.delta} ${itemName(ctx.world, c.item)}` : ''))
-    .filter(Boolean);
-  const msg = pickText(ctx, q.success);
-  ctx.notes?.push(`🏆 **Quête réussie : ${q.name}** ${STARS[q.difficulty]}${msg ? `\n${msg}` : ''}${gains.length ? `\n${gains.join(' · ')}` : ''}\nRetourne au panneau des quêtes de la Place pour en choisir une nouvelle.`);
+    .filter(Boolean)
+    .join(' · ');
+}
+
+/** Récupérer au panneau la récompense d'une quête réussie (claimAtBoard). */
+export function claimQuest(ctx: Ctx): string {
+  const q = findQuest(ctx, ctx.player.quest?.id);
+  if (!q || !ctx.player.quest?.done) throw new RuleError('Aucune récompense à récupérer.');
+  ctx.player.quest = undefined;
+  const gains = giveRewards(ctx, q);
+  return `🎁 Récompense de **${q.name}** récupérée !${gains ? ` ${gains}` : ''} Choisis ta prochaine quête.`;
 }
 
 export const compare = (op: CompareOp, a: number, b: number) =>

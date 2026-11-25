@@ -79,22 +79,33 @@ test('« Mon inventaire » : endurance, ivresse, XP, niveau, quête au-dessus du
   assert.match(t, /Outils :\*\* 🪓 Hache de bûcheron ×1 \(40\/40\)/);
 });
 
-test('quête réussie : récompenses, message, retour obligatoire au panneau', () => {
+test('quête réussie : affichée terminée jusqu’à la récompense récupérée au panneau de la Place', () => {
   const { engine } = started();
   const p = new Player(engine, 'louis', 'place');
   p.click('Choisir');
   new Player(engine, 'louis', 'taverne');
   new Player(engine, 'louis', 'mine');
   const last = new Player(engine, 'louis', 'forge');
-  assert.match(last.text, /Quête réussie : Premiers pas/);
-  assert.match(last.text, /Retourne au panneau des quêtes/);
-  assert.equal(last.state.stats.ecus, 15);
-  assert.equal(last.state.stats.xp, 10);
+  assert.match(last.text, /Quête terminée : Premiers pas/);
+  assert.match(last.text, /Va récupérer ta récompense au panneau des quêtes de la Place/);
+  assert.equal(last.state.stats.ecus, 0, 'pas encore de récompense');
   assert.deepEqual(last.state.questsDone, ['q01']);
-  // Au panneau : nouvelles propositions, jamais la quête déjà faite.
+  // Tant qu'elle n'est pas récupérée, la fiche le rappelle, dans chaque bâtiment.
+  const sac = new Player(engine, 'louis', 'mine').click('🎒 Mon inventaire');
+  assert.match(sac.text, /🏆 \*\*Quête terminée : .*Premiers pas\*\*\n🎁 Va récupérer ta récompense/);
+  // Au panneau : la récompense d'abord, pas de nouvelle quête ni d'abandon.
   const back = new Player(engine, 'louis', 'place');
-  assert.doesNotMatch(back.text, /Premiers pas/);
+  assert.ok(!back.buttons.includes('Choisir'));
+  assert.ok(!back.buttons.some((b) => /Abandonner/.test(b)));
+  back.click('Récupérer ma récompense');
+  assert.match(back.text, /Récompense de \*\*Premiers pas\*\* récupérée/);
+  assert.equal(back.state.stats.ecus, 15);
+  assert.equal(back.state.stats.xp, 10);
+  assert.equal(back.state.quest, undefined);
+  // Nouvelles propositions, jamais la quête déjà faite.
+  assert.doesNotMatch(back.text, /Premiers pas\*\* ★/);
   assert.equal(back.buttons.filter((b) => b === 'Choisir').length, 4);
+  assert.deepEqual(validateRendered(back.message), []);
 });
 
 test('livrer depuis l’inventaire du bon bâtiment', () => {
@@ -108,7 +119,7 @@ test('livrer depuis l’inventaire du bon bâtiment', () => {
   p.click('🎒 Mon inventaire');
   p.click(/^Livrer : /);
   assert.match(p.text, /Livré : 4 🥚 Œuf frais/);
-  assert.match(p.text, /Quête réussie : Œufs frais/);
+  assert.match(p.text, /Quête terminée : Œufs frais/);
   assert.equal(p.state.items.oeuf, 1);
 });
 
@@ -131,8 +142,9 @@ test('compter : activités, recharge, quête ordonnée', () => {
   pl.choose(/Choisir ce que tu apportes/, 'buche');
   pl.click(/^Tout|×4/);
   pl.click(/^Apporter/);
-  assert.match(pl.text, /Quête réussie : Le bois du bûcher/);
-  assert.match(pl.text, /\+\d+ XP/);
+  assert.match(pl.text, /Quête terminée : Le bois du bûcher/);
+  const board = new Player(engine, 'louis', 'place').click(/Récupérer ma récompense/);
+  assert.match(board.text, /récupérée ! .*\+\d+ XP/);
 });
 
 test('vote, verdict, incendie, urgence maîtrisée, éclats retrouvés et fin triomphante', () => {

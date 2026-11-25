@@ -21,7 +21,8 @@ export interface PlayerState {
   /** Fin du repos nécessaire avant que la statistique recommence à évoluer seule (StatDef.drift.restSec). */
   restUntil?: Record<Id, number>;
   /** Quête en cours (une seule à la fois). */
-  quest?: { id: Id; since: number; progress: Record<Id, number>; seen?: Record<Id, Id[]> };
+  /** Quête en cours ; `done` : réussie, récompense à récupérer au panneau (QuestSystem.claimAtBoard). */
+  quest?: { id: Id; since: number; progress: Record<Id, number>; seen?: Record<Id, Id[]>; done?: boolean };
   /** Quêtes réussies (jamais reproposées). */
   questsDone: Id[];
   /** Compteur de tirages : les propositions du panneau en dépendent (stables d'un affichage à l'autre). */
