@@ -503,6 +503,7 @@ export function registerApi(router: Router, deps: ApiDeps) {
     for (const c of w?.creatures ?? []) Object.values(c.sounds ?? {}).forEach((k) => k && used.add(k));
     // Bruitages de lancement des fournées (marmite, brassin…).
     for (const b of w?.buildings ?? []) for (const m of b.modules) if (m.type === 'production' && m.startSound) used.add(m.startSound);
+    for (const b of w?.buildings ?? []) for (const m of b.modules) if (m.type === 'diceDuel' && m.sound) used.add(m.sound);
     const list = platform.audioList(s.id);
     const have = new Set(list.map((a) => a.key));
     // Un son est fourni tel quel ou en variantes numérotées (« foret-hache-1 », « -2 »…), tirées au hasard au jeu.

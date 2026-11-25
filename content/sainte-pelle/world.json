@@ -7252,6 +7252,25 @@
           ]
         },
         {
+          "type": "diceDuel",
+          "id": "duel",
+          "name": "Duel",
+          "emoji": "⚔️",
+          "dice": 2,
+          "faces": 6,
+          "currency": "ecus",
+          "stakes": [
+            5,
+            10,
+            20,
+            50,
+            100
+          ],
+          "expireSec": 30,
+          "screen": "duel",
+          "sound": "taverne-des"
+        },
+        {
           "type": "production",
           "id": "brasserie",
           "name": "Brasserie",
@@ -7917,6 +7936,22 @@
                         "goto": "repas"
                       }
                     }
+                  }
+                },
+                {
+                  "type": "separator"
+                },
+                {
+                  "type": "section",
+                  "text": "**🎲 Jeux**\nLes dés d’Edgar · ⚔️ Duel entre joueurs (mises en écus)",
+                  "button": {
+                    "label": "Jeux",
+                    "rule": {
+                      "onSuccess": {
+                        "goto": "jeux"
+                      }
+                    },
+                    "emoji": "🎲"
                   }
                 },
                 {
@@ -8629,10 +8664,10 @@
                   }
                 },
                 {
-                  "label": "← Accueil",
+                  "label": "← Jeux",
                   "rule": {
                     "onSuccess": {
-                      "goto": "accueil"
+                      "goto": "jeux"
                     }
                   }
                 }
@@ -8746,6 +8781,119 @@
                   "rule": {
                     "onSuccess": {
                       "goto": "accueil"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "jeux",
+          "name": "Jeux",
+          "blocks": [
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "## 🎲 Les jeux de la Taverne\n*Des chopes qui claquent, des dés qui roulent sur le bois.*"
+                }
+              ],
+              "accent": 5401938
+            },
+            {
+              "type": "notice"
+            },
+            {
+              "type": "container",
+              "children": [
+                {
+                  "type": "section",
+                  "text": "**🎲 Les dés d’Edgar**\nContre Edgar, pour le plaisir : aucune mise.",
+                  "button": {
+                    "label": "Jouer",
+                    "rule": {
+                      "onSuccess": {
+                        "goto": "des"
+                      }
+                    },
+                    "emoji": "🎲"
+                  }
+                },
+                {
+                  "type": "separator"
+                },
+                {
+                  "type": "section",
+                  "text": "**⚔️ Duel**\nContre un autre joueur présent dans le salon : chacun mise la même somme, 2 dés chacun, le plus gros total rafle tout.",
+                  "button": {
+                    "label": "Jouer au Duel",
+                    "rule": {
+                      "onSuccess": {
+                        "goto": "duel"
+                      }
+                    },
+                    "emoji": "⚔️",
+                    "style": "success"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "↩️ Retour à la Taverne",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "accueil"
+                    }
+                  }
+                },
+                {
+                  "label": "🎒 Mon inventaire",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "inventaire"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "duel",
+          "name": "Duel",
+          "blocks": [
+            {
+              "type": "notice"
+            },
+            {
+              "type": "widget",
+              "widget": {
+                "kind": "diceDuel",
+                "diceDuel": "duel",
+                "accent": 8936500
+              }
+            },
+            {
+              "type": "buttons",
+              "buttons": [
+                {
+                  "label": "↩️ Jeux",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "jeux"
+                    }
+                  }
+                },
+                {
+                  "label": "🔄 Actualiser",
+                  "rule": {
+                    "onSuccess": {
+                      "goto": "duel"
                     }
                   }
                 }

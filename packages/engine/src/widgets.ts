@@ -29,6 +29,7 @@ import {
   levelLine,
   levelTooLow,
 } from './rules.ts';
+import { renderDiceDuel, handleDiceDuel } from './diceduel.ts';
 import { STARS, abandonQuest, acceptQuest, claimQuest, currentOffers, findQuest, nextLevel, questDeliver, questLevel, questTag, rerollOffers, stepDone, stepTarget } from './quests.ts';
 import type { QuestDef } from './model.ts';
 import { equipmentTotals, handleCombat, renderCombat, renderCombatSummary } from './combat.ts';
@@ -804,6 +805,9 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
       return out;
     }
 
+    case 'diceDuel':
+      return renderDiceDuel(env, findModule(ctx.building, w.diceDuel, 'diceDuel'), w.accent);
+
     case 'combat.arena':
       return w.openScreen
         ? renderCombatSummary(env, findModule(ctx.building, w.combat, 'combat'), w.openLabel)
@@ -1375,6 +1379,9 @@ export function handleWidget(env: WidgetEnv, w: WidgetDef, verb: string, arg: st
       }
       return {};
     }
+
+    case 'diceDuel':
+      return handleDiceDuel(env, findModule(ctx.building, w.diceDuel, 'diceDuel'), verb, arg, values);
 
     case 'combat.arena':
       if (verb === 'open' && w.openScreen) return { goto: w.openScreen };

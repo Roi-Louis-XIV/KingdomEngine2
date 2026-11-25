@@ -33,6 +33,8 @@ export interface PlayerState {
   fight?: FightState;
   /** Résultat du dernier duel (affiché dans l'arène). */
   lastDuel?: string;
+  /** Dernier résultat de duel de dés (affiché un moment aux deux joueurs). */
+  lastDiceDuel?: { text: string; at: number };
   /** Instant où le joueur a prêté serment (dotation versée une seule fois). */
   oathAt?: number;
 }
@@ -110,6 +112,18 @@ export interface WorldState {
   events: Record<Id, EventRunState>;
   /** Duels en cours ou proposés. */
   duels?: Record<Id, DuelState>;
+  /** Défis de duel de dés en attente de réponse (rien n'est prélevé avant l'acceptation). */
+  diceDuels?: Record<Id, DiceDuelState>;
+}
+
+export interface DiceDuelState {
+  id: Id;
+  /** Clé `${bâtiment}/${module}`. */
+  key: string;
+  challenger: Id;
+  target: Id;
+  stake: number;
+  createdAt: number;
 }
 
 export type EventStatus = 'idle' | 'running' | 'paused' | 'finished';

@@ -508,6 +508,7 @@ export type ModuleDef =
   | ProductionModule
   | DialogueModule
   | DiceModule
+  | DiceDuelModule
   | ActivityModule
   | ObjectiveModule
   | CombatModule;
@@ -633,6 +634,30 @@ export interface DiceModule {
   faces: number;
   opponent: string;
   texts: { win: Text; lose: Text; draw: Text };
+}
+
+/**
+ * Duel de dés entre joueurs présents dans le bâtiment (dans le salon vocal) : chacun mise la même somme,
+ * lance ses dés, le plus gros total remporte les deux mises. Voir diceduel.ts.
+ */
+export interface DiceDuelModule {
+  type: 'diceDuel';
+  id: Id;
+  name: string;
+  emoji?: string;
+  /** Dés par joueur, et faces. */
+  dice: number;
+  faces: number;
+  /** Monnaie misée. */
+  currency: Id;
+  /** Mises proposées (défaut 5, 10, 20, 50). */
+  stakes?: number[];
+  /** Délai pour accepter un défi, en secondes (défaut 30). */
+  expireSec?: number;
+  /** Écran du jeu : un défi reçu s'affiche en bannière sur les autres écrans du bâtiment, avec un bouton pour y aller. */
+  screen?: Id;
+  /** Son joué au lancer des dés. */
+  sound?: Id;
 }
 
 /**
@@ -790,6 +815,7 @@ export type WidgetDef =
   | { kind: 'buyback.sell'; buyback: Id; accent?: number }
   | { kind: 'dialogue'; dialogue: Id; exitScreen: Id; accent?: number }
   | { kind: 'dice'; dice: Id; accent?: number }
+  | { kind: 'diceDuel'; diceDuel: Id; accent?: number }
   /** Arène : chasse aux créatures et duels entre joueurs (module de combat). */
   | {
       kind: 'combat.arena';

@@ -418,6 +418,35 @@ taverne.entrance = { text: 'La chaleur du foyer, l’odeur du ragoût et la voix
       activity('soupe', 'Bol de soupe chaude', '🥣', { locked: 'Pendant la tempête, si la récolte a été rentrée', duration: 0, cooldown: 1800, costs: [], when: all(STORM, v('recolte', 'reussie')), label: 'Ça réchauffe', actions: [stat('energie', 25)], description: 'Agathe a tout rentré à temps : la soupe est offerte pendant la tempête.' }),
     ],
   });
+  // Jeux (Louis, 25 novembre) : un bouton « Jeux » à l'accueil mène aux dés d'Edgar et au Duel entre joueurs.
+  // Duel : contre une personne présente dans le salon vocal, même mise des deux côtés, prélevée à l'acceptation ;
+  // 2 dés chacun, le plus gros total remporte les deux mises (égalité : on relance) ; 30 s pour accepter.
+  taverne.modules.push({ type: 'diceDuel', id: 'duel', name: 'Duel', emoji: '⚔️', dice: 2, faces: 6, currency: 'ecus', stakes: [5, 10, 20, 50, 100], expireSec: 30, screen: 'duel', sound: 'taverne-des' });
+  {
+    const list = acc.blocks.find((b) => b.type === 'container' && b.children.some((c) => c.type === 'text' && String(c.text).includes('Activités de la Taverne')));
+    const repas = list.children.findIndex((c) => c.type === 'section' && c.button?.rule?.onSuccess?.goto === 'repas');
+    list.children.splice(repas + 1, 0, { type: 'separator' }, section('**🎲 Jeux**\nLes dés d’Edgar · ⚔️ Duel entre joueurs (mises en écus)', go('Jeux', 'jeux', { emoji: '🎲' })));
+    taverne.screens.push(
+      {
+        id: 'jeux',
+        name: 'Jeux',
+        blocks: [
+          box([text('## 🎲 Les jeux de la Taverne\n*Des chopes qui claquent, des dés qui roulent sur le bois.*')], 0x526d52),
+          { type: 'notice' },
+          box([
+            section('**🎲 Les dés d’Edgar**\nContre Edgar, pour le plaisir : aucune mise.', go('Jouer', 'des', { emoji: '🎲' })),
+            { type: 'separator' },
+            section('**⚔️ Duel**\nContre un autre joueur présent dans le salon : chacun mise la même somme, 2 dés chacun, le plus gros total rafle tout.', go('Jouer au Duel', 'duel', { emoji: '⚔️', style: 'success' })),
+          ]),
+          buttons([go('↩️ Retour à la Taverne', 'accueil'), go('🎒 Mon inventaire', 'inventaire')]),
+        ],
+      },
+      { id: 'duel', name: 'Duel', blocks: [{ type: 'notice' }, widget({ kind: 'diceDuel', diceDuel: 'duel', accent: 0x885c34 }), buttons([go('↩️ Jeux', 'jeux'), go('🔄 Actualiser', 'duel')])] },
+    );
+    const des = taverne.screens.find((s) => s.id === 'des');
+    const back = des.blocks.at(-1).buttons.find((b) => b.rule?.onSuccess?.goto === 'accueil');
+    if (back) Object.assign(back, go('← Jeux', 'jeux'));
+  }
   // Inventaire : la fiche du joueur (endurance, ivresse, XP, quête) au-dessus du sac.
   const i = taverne.screens.findIndex((s) => s.id === 'inventaire');
   taverne.screens[i] = inventoryScreen(0x885c34);

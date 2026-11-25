@@ -6,6 +6,7 @@ export { nextRun, zoned, localToUtc, describeSchedule, rollWeather, DEFAULT_TZ }
 export { evaluate, interpolate, pickText, RuleError, type Verdict, type Ctx, type Change, type EngineEvent } from './rules.ts';
 export { buybackUnitPrice, buybackQuote, urgency, effectsLine } from './widgets.ts';
 export { strike, fighterOf, combatKey, type Fighter, type Blow } from './combat.ts';
+export { diceDuelKey } from './diceduel.ts';
 export { validateWorld, type Issue } from './validate.ts';
 export { enterCustomId, parseEnter, panelMarker, entrancePanel, DEFAULT_ENTRANCE_TEXT } from './entrance.ts';
 export { questLevel, currentOffers, questAvailable, STARS } from './quests.ts';

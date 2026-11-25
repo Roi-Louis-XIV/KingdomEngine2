@@ -13,6 +13,7 @@ import { type Ctx, type EngineEvent, RuleError, applyAction, describeChanges, ev
 import { handleWidget, renderWidget, text, type WidgetEnv } from './widgets.ts';
 import { DEFAULT_TZ, describeSchedule, nextRun, rollWeather } from './clock.ts';
 import { dropExpiredQuest, questVisit } from './quests.ts';
+import { expireDiceDuels, incomingDiceDuel } from './diceduel.ts';
 import { expireDuels } from './combat.ts';
 import type { EventDef } from './model.ts';
 import type { EventRunState } from './state.ts';
@@ -330,6 +331,7 @@ export class Engine {
     driftStats(this.world, draft, ctx.now);
     // Duels : défis sans réponse et tours non joués.
     if (draft.duels && Object.keys(draft.duels).length) expireDuels(ctx, ctx.now);
+    if (draft.diceDuels && Object.keys(draft.diceDuels).length) expireDiceDuels(ctx, ctx.now);
     const changed = before !== JSON.stringify(draft);
     if (changed || ctx.events.length) {
       draft.revision += 1;
@@ -605,6 +607,25 @@ export class Engine {
       });
     };
     renderBlocks(screen.blocks, '', components, false);
+    // Défi de duel de dés reçu : bannière en tête des autres écrans du bâtiment, avec un bouton pour y aller.
+    for (const m of b.modules) {
+      if (m.type !== 'diceDuel' || !m.screen || m.screen === screen.id || !b.screens.some((x) => x.id === m.screen)) continue;
+      const inc = incomingDiceDuel(ctx.state, b.id, m, session.player, ctx.now);
+      if (!inc) continue;
+      wakeAt = Math.min(wakeAt ?? Infinity, inc.until);
+      const cur = this.world.stats.find((x) => x.id === m.currency);
+      components.unshift({
+        type: 'container',
+        accent: 0xc9a227,
+        children: [
+          {
+            type: 'section',
+            texts: [text(`📣 **${inc.from}** te défie au ${m.name} ! Mise : **${inc.stake} ${cur?.unit ?? cur?.name ?? ''}**`.trim())],
+            accessory: { type: 'button', label: 'Voir le défi', emoji: m.emoji ?? '🎲', style: 'success', customId: [sessionId, 'g', m.screen, '0'].join(SEP) },
+          },
+        ],
+      });
+    }
     if (session.notice && !noticeShown) components.splice(Math.min(1, components.length), 0, text(session.notice));
     return { message: { components }, wakeAt };
   }
@@ -660,7 +681,8 @@ export class Engine {
         const ctx = this.ctx(draft, s);
         s.notice = undefined;
         dropExpiredQuest(ctx);
-        if (kind === 'b') this.runButton(ctx, s, screen, path);
+        if (kind === 'g') this.enter(s, screen.id); // aller à un écran (bannière d'un défi…)
+        else if (kind === 'b') this.runButton(ctx, s, screen, path);
         else if (kind === 'w') {
           const block = locate(screen.blocks, path);
           if (!block || block.type !== 'widget') throw new RuleError('Élément introuvable (contenu modifié ?).');

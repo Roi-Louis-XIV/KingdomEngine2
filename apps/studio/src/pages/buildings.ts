@@ -14,6 +14,7 @@ const MODULE_TYPES: { type: ModuleDef['type']; label: string; text: string }[] =
   { type: 'production', label: 'Atelier de production', text: 'Postes partagés, recettes par niveau, durée et expérience.' },
   { type: 'dialogue', label: 'Dialogue', text: 'Un personnage avec des sujets de conversation.' },
   { type: 'dice', label: 'Jeu de dés', text: 'Un duel de dés contre un personnage.' },
+  { type: 'diceDuel', label: 'Duel de dés entre joueurs', text: 'Deux joueurs présents misent la même somme et lancent leurs dés : le plus gros total gagne tout.' },
   { type: 'activity', label: 'Activités', text: 'Récoltes et travaux temporisés, avec résultats aléatoires et outils.' },
   { type: 'objective', label: 'Objectif collectif', text: 'Tous les joueurs apportent des ressources vers un but commun.' },
   { type: 'combat', label: 'Combat', text: 'Chasse aux créatures du bestiaire et duels entre joueurs, au tour par tour.' },
@@ -111,6 +112,8 @@ function defaultModule(type: ModuleDef['type'], b: BuildingDef, w: WorldDef): Mo
       return { type, id, name: 'Discussion', speaker: { name: b.npc?.name ?? 'Personnage', emoji: '💬' }, start: 'accueil', nodes: [{ id: 'accueil', title: '💬 Discussion', lines: ['« Bonjour, voyageur ! »'], choices: [] }] };
     case 'dice':
       return { type, id, name: 'Dés', dice: 2, faces: 6, opponent: b.npc?.name ?? 'Le tavernier', texts: { win: '🏆 **Tu as gagné !**', lose: '😤 **Perdu !**', draw: '🤝 **Égalité !**' } };
+    case 'diceDuel':
+      return { type, id, name: 'Duel', emoji: '⚔️', dice: 2, faces: 6, currency: cur, stakes: [5, 10, 20, 50], expireSec: 30 };
     case 'activity':
       return { type, id, name: 'Activités', activities: [newActivity(w, [])] };
     case 'combat': {
@@ -648,6 +651,21 @@ function moduleEditor(w: WorldDef, b: BuildingDef, m: ModuleDef, changed: () => 
         typeof m.texts.lose === 'string' ? field(m.texts, 'lose', { label: 'Texte de défaite' }, changed) : null,
         typeof m.texts.draw === 'string' ? field(m.texts, 'draw', { label: 'Texte d’égalité' }, changed) : null,
       );
+    case 'diceDuel': {
+      const stakes = h('input', { class: 'input', value: (m.stakes ?? [5, 10, 20, 50]).join(', '), onchange: (e: Event) => {
+        const list = (e.target as HTMLInputElement).value.split(/[,; ]+/).map(Number).filter((n) => n > 0);
+        m.stakes = list.length ? list : undefined;
+        changed();
+      } });
+      return h(
+        'div',
+        { class: 'form' },
+        h('p', { class: 'muted' }, 'Un joueur choisit un adversaire parmi ceux qui sont dans le salon vocal du lieu, puis une mise. L’adversaire accepte ou refuse ; à l’acceptation, les deux mises sont prélevées, chacun lance ses dés et le plus gros total remporte tout (égalité : on relance). Ce n’est pas un travail : il ne compte pas dans la limite des travaux.'),
+        h('div', { class: 'row-fields' }, name, field(m, 'emoji', { label: 'Emoji' }, changed), field(m, 'dice', { label: 'Dés par joueur', type: 'number', min: 1, max: 5 }, changed), field(m, 'faces', { label: 'Faces', type: 'number', min: 2, max: 100 }, changed)),
+        h('div', { class: 'row-fields' }, selectField('Monnaie misée', m.currency, opts.stats(w), (v) => ((m.currency = v), changed())), h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Mises proposées (séparées par des virgules)'), stakes), field(m, 'expireSec', { label: 'Délai pour accepter (secondes)', type: 'number', min: 5, max: 600 }, changed)),
+        h('div', { class: 'row-fields' }, selectField('Écran du jeu (un défi reçu s’affiche en bannière sur les autres écrans)', m.screen ?? '', b.screens.map((x) => ({ value: x.id, label: x.name })), (v) => (v ? (m.screen = v) : delete m.screen, changed()), { allowEmpty: 'Aucun' }), soundField(m, 'sound', 'Son du lancer des dés (salon vocal)', sounds, changed)),
+      );
+    }
     case 'combat':
       return combatEditor(w, b, m, changed, name, sounds);
   }
@@ -870,6 +888,7 @@ const WIDGETS: { kind: WidgetDef['kind']; label: string; needs?: ModuleDef['type
   { kind: 'buyback.sell', label: 'Vente au bâtiment', needs: 'buyback' },
   { kind: 'dialogue', label: 'Dialogue', needs: 'dialogue' },
   { kind: 'dice', label: 'Jeu de dés', needs: 'dice' },
+  { kind: 'diceDuel', label: 'Duel de dés entre joueurs', needs: 'diceDuel' },
   { kind: 'combat.arena', label: 'Arène de combat', needs: 'combat' },
   { kind: 'activity.board', label: 'Tableau des activités', needs: 'activity' },
   { kind: 'objective.board', label: 'Objectif collectif', needs: 'objective' },
@@ -905,6 +924,8 @@ function newWidget(kind: WidgetDef['kind'], b: BuildingDef, w: WorldDef, screen:
       return { kind, dialogue: mod('dialogue'), exitScreen: home };
     case 'dice':
       return { kind, dice: mod('dice') };
+    case 'diceDuel':
+      return { kind, diceDuel: mod('diceDuel') };
     case 'combat.arena':
       return { kind, combat: mod('combat') };
     case 'activity.board':
@@ -974,7 +995,7 @@ function screensTab(w: WorldDef, b: BuildingDef, changed: () => void, sounds: st
   return box;
 }
 
-const MODULE_KEYS: Record<string, ModuleDef['type']> = { shop: 'shop', production: 'production', dialogue: 'dialogue', dice: 'dice', buyback: 'buyback', activity: 'activity', objective: 'objective', combat: 'combat' };
+const MODULE_KEYS: Record<string, ModuleDef['type']> = { shop: 'shop', production: 'production', dialogue: 'dialogue', dice: 'dice', diceDuel: 'diceDuel', buyback: 'buyback', activity: 'activity', objective: 'objective', combat: 'combat' };
 
 /** Réglages d'un widget : module utilisé et écrans de destination. */
 function widgetEditor(b: BuildingDef, wd: WidgetDef, changed: () => void): HTMLElement | null {

@@ -364,6 +364,13 @@ export function validateWorld(w: WorldDef): Issue[] {
         case 'dice':
           if (m.dice < 1 || m.faces < 2) err(where, 'dés invalides');
           break;
+        case 'diceDuel':
+          if (m.dice < 1 || m.faces < 2) err(where, 'dés invalides');
+          if (!stats.has(m.currency)) err(where, `monnaie inconnue : ${m.currency}`);
+          if (m.stakes && (!m.stakes.length || m.stakes.some((n) => !(n > 0)))) err(where, 'mises invalides (nombres positifs)');
+          if (m.expireSec !== undefined && m.expireSec < 5) err(where, 'délai de réponse trop court (5 s minimum)');
+          if (m.screen) screen(m.screen, where);
+          break;
         case 'combat': {
           const hs = w.stats.find((x) => x.id === m.health);
           if (!hs) err(where, `statistique de santé inconnue : ${m.health}`);
@@ -459,6 +466,9 @@ export function validateWorld(w: WorldDef): Issue[] {
           break;
         case 'dice':
           modOf(wd.dice, 'dice', where);
+          break;
+        case 'diceDuel':
+          modOf(wd.diceDuel, 'diceDuel', where);
           break;
         case 'combat.arena':
           modOf(wd.combat, 'combat', where);
