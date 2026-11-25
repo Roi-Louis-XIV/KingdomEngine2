@@ -124,7 +124,7 @@ export class Emulator {
   private enter() {
     const p = this.players[this.current]!;
     this.engine.closeSessionsOf(p.id, this.building);
-    p.sessions[this.building] = this.engine.openSession(p.id, this.building).sessionId;
+    p.sessions[this.building] = this.engine.openSession(p.id, this.building, p.name).sessionId;
     this.notice = null;
     this.render();
   }
@@ -178,6 +178,7 @@ export class Emulator {
           h('button', { class: 'chip', onclick: () => this.advance(1), title: 'Avancer le temps d’une minute' }, '+1 min'),
           h('button', { class: 'chip', onclick: () => this.advance(10), title: 'Avancer le temps de dix minutes' }, '+10 min'),
           this.eventControls(),
+          h('button', { class: 'chip', onclick: () => this.endow(), title: 'Donne 100 de chaque monnaie, de l’XP et de l’XP de métier à tous les joueurs simulés' }, '🎁 Écus et XP à tous'),
           h('button', { class: 'chip', onclick: () => this.reset(), title: 'Repartir de zéro' }, 'Réinitialiser'),
         ),
       ),
@@ -201,6 +202,29 @@ export class Emulator {
           )
         : null,
     );
+  }
+
+  /** Pour tester : chaque joueur simulé reçoit 100 de chaque monnaie, 100 XP de quête et 50 XP dans ses métiers. */
+  private endow() {
+    const xpStat = this.world.quests?.xpStat;
+    const msgs: string[] = [];
+    for (const p of this.players) {
+      const st = this.engine.player(p.id);
+      const jobs = this.world.jobs.filter((j) => st?.activeJobs.includes(j.id) || st?.jobs[j.id]);
+      const actions = [
+        ...this.world.stats.filter((s) => s.kind === 'currency').map((s) => ({ type: 'stat.add' as const, stat: s.id, amount: 100 })),
+        ...(xpStat && !this.world.stats.some((s) => s.id === xpStat && s.kind === 'currency') ? [{ type: 'stat.add' as const, stat: xpStat, amount: 100 }] : []),
+        ...jobs.map((j) => ({ type: 'job.xp' as const, job: j.id, amount: 50 })),
+      ];
+      try {
+        const r = this.engine.adminApply(p.id, this.building, actions);
+        if (r) msgs.push(`${p.name} : ${r}`);
+      } catch (e) {
+        msgs.push(`${p.name} : ${(e as Error).message}`);
+      }
+    }
+    this.notice = msgs.join(' · ') || 'Rien à donner.';
+    this.render();
   }
 
   /** Avance l'horloge simulée minute par minute en faisant tourner le monde (météo, événements). */
