@@ -92,7 +92,13 @@ test('duel : égalité montrée, puis relance automatique sans toucher aux mises
   clock.advance(3);
   assert.match(b.refresh().text, /## 🤝 Égalité à 6 ! On relance…/);
   assert.match(b.text, /# 3️⃣ 3️⃣/);
-  clock.advance(3);
+  // Après l'égalité : nouveau compte à rebours de 3 s.
+  clock.advance(2.5);
+  assert.match(b.refresh().text, /Égalité au lancer précédent \(6 partout\) : on relance !\n# ⏳ 3…/);
+  assert.match(b.text, /# 🎲 🎲/);
+  clock.advance(1);
+  assert.match(b.refresh().text, /# ⏳ 2…/);
+  clock.advance(2);
   b.refresh();
   assert.match(b.text, /# 6️⃣ 6️⃣/);
   assert.match(b.text, /🏆 Alice remporte 20 écus/);

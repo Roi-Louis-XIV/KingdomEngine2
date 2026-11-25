@@ -34,10 +34,15 @@ const pendingMs = (mod: DiceDuelModule) => (mod.expireSec ?? DEFAULT_EXPIRE_SEC)
 const RESULT_MS = 10 * 60_000;
 /** Compte à rebours avant le lancer, durée d'affichage de chaque égalité, et du résultat dans le panneau en direct. */
 export const COUNTDOWN_MS = 3000;
-const TIE_MS = 3000;
+/** Égalité affichée avant le nouveau compte à rebours. */
+const TIE_MS = 2500;
+/** Un lancer : compte à rebours puis dévoilement ; après une égalité, on recommence (affichage de l'égalité + compte à rebours). */
+const ROUND_MS = TIE_MS + COUNTDOWN_MS;
+/** Moment où le lancer n° i est dévoilé. */
+const revealAt = (d: DiceDuelState, i: number) => (d.acceptedAt ?? 0) + COUNTDOWN_MS + i * ROUND_MS;
 const SHOW_MS = 45_000;
 /** Fin du spectacle : compte à rebours, puis chaque égalité montrée avant la relance. */
-export const finalAt = (d: DiceDuelState) => (d.acceptedAt ?? 0) + COUNTDOWN_MS + ((d.rounds?.length ?? 1) - 1) * TIE_MS;
+export const finalAt = (d: DiceDuelState) => revealAt(d, (d.rounds?.length ?? 1) - 1);
 const DEFAULT_STAKES = [5, 10, 20, 50];
 
 const text = (content: string) => ({ type: 'text' as const, content });
@@ -142,7 +147,6 @@ function livePanel(env: DiceDuelEnv, mod: DiceDuelModule, d: DiceDuelState): RTo
   const { ctx } = env;
   const now = ctx.now;
   const rounds = d.rounds ?? [];
-  const start = (d.acceptedAt ?? 0) + COUNTDOWN_MS;
   const names = [nameOf(ctx.state, d.challenger), nameOf(ctx.state, d.target)] as const;
   const head = `### 🔴 EN DIRECT · ${mod.emoji ?? '🎲'} ${mod.name}\n**${names[0]}** ⚔️ **${names[1]}**\n-# Mise ${money(ctx, mod.currency, d.stake)} chacun · 💰 Cagnotte ${money(ctx, mod.currency, d.stake * 2)}`;
   const RED = 0xc0392b;
@@ -154,22 +158,26 @@ function livePanel(env: DiceDuelEnv, mod: DiceDuelModule, d: DiceDuelState): RTo
     accent,
     children: [text(`${i === 0 ? '🟥' : '🟦'} **${names[i]}**${tag}\n# ${dice}\n${sum}`)],
   });
-  if (now < start) {
-    // Compte à rebours, une image par seconde.
-    const left = Math.ceil((start - now) / 1000);
-    env.wake(start - (left - 1) * 1000);
+  const dice = (x: number[]) => x.map(face).join(' ');
+  // Lancer en cours de dévoilement : le dernier dont le moment est passé (ou le premier, pendant son compte à rebours).
+  let i = 0;
+  while (i < rounds.length - 1 && now >= revealAt(d, i) + TIE_MS) i++;
+  const reveal = revealAt(d, i);
+  if (now < reveal) {
+    // Compte à rebours, une image par seconde (au début, et après chaque égalité).
+    const left = Math.ceil((reveal - now) / 1000);
+    env.wake(reveal - (left - 1) * 1000);
     const hidden = Array.from({ length: mod.dice }, () => '🎲').join(' ');
+    const again = i > 0 ? `\n-# Égalité au lancer précédent (${total(rounds[i - 1]!.a)} partout) : on relance !` : '';
     return [
-      { type: 'container', accent: RED, children: [text(`${head}\n# ⏳ ${left}…`)] },
+      { type: 'container', accent: RED, children: [text(`${head}${again}\n# ⏳ ${left}…`)] },
       card(0, hidden, '-# Les dés roulent…', RED),
       card(1, hidden, '-# Les dés roulent…', BLUE),
     ];
   }
-  const shown = Math.min(rounds.length - 1, Math.floor((now - start) / TIE_MS));
-  const r = rounds[shown]!;
-  const dice = (x: number[]) => x.map(face).join(' ');
-  if (shown < rounds.length - 1) {
-    env.wake(start + (shown + 1) * TIE_MS);
+  const r = rounds[i]!;
+  if (i < rounds.length - 1) {
+    env.wake(reveal + TIE_MS);
     return [
       { type: 'container', accent: RED, children: [text(`${head}\n## 🤝 Égalité à ${total(r.a)} ! On relance…`)] },
       card(0, dice(r.a), `**Total : ${total(r.a)}**`, GREY),
