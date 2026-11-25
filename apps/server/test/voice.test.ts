@@ -210,3 +210,19 @@ test('connexion vocale ratée : explication en français (droits, DAVE, délai)'
   assert.match(joinFailure(undefined, null), /impossible en 20 s :/);
   assert.match(joinFailure(4000, perms(VIEW, CONNECT, SPEAK)), /code Discord 4000/);
 });
+
+test('variantes de sons : une prise au hasard, jamais la même deux fois de suite', async () => {
+  const { VariantPicker, variantsOf, isProvided } = await import('../src/voice/variants.ts');
+  const lib = ['foret-hache-1', 'foret-hache-2', 'foret-hache-3', 'foret-hache-10', 'foret-hachette', 'mine-pioche', 'agathe-vie-1'];
+  assert.deepEqual(variantsOf('foret-hache', lib), ['foret-hache-1', 'foret-hache-2', 'foret-hache-3', 'foret-hache-10']);
+  assert.ok(isProvided('foret-hache', new Set(lib)) && isProvided('mine-pioche', new Set(lib)) && !isProvided('ferme-faux', new Set(lib)));
+  const p = new VariantPicker(() => 0);
+  assert.equal(p.pick('mine-pioche', lib), 'mine-pioche', 'la clé exacte passe avant les variantes');
+  assert.equal(p.pick('agathe-vie-1', lib), 'agathe-vie-1');
+  const seq = Array.from({ length: 6 }, () => p.pick('foret-hache', lib));
+  for (let i = 1; i < seq.length; i++) assert.notEqual(seq[i], seq[i - 1], `pas deux fois de suite : ${seq}`);
+  assert.equal(new VariantPicker().pick('ferme-faux', lib), undefined);
+  const one = new VariantPicker();
+  assert.equal(one.pick('x', ['x-1']), 'x-1');
+  assert.equal(one.pick('x', ['x-1']), 'x-1', 'une seule prise : on la rejoue');
+});

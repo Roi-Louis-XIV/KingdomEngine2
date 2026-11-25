@@ -1,4 +1,5 @@
 /** Routes de l'API du Studio. Chaque route vérifie le droit minimal sur le serveur concerné. */
+import { isProvided, variantsOf } from './voice/variants.ts';
 import { copyFileSync, mkdirSync, rmSync, statSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { urgency, validateWorld, type Action, type WorldDef } from '../../../packages/engine/src/index.ts';
@@ -503,10 +504,11 @@ export function registerApi(router: Router, deps: ApiDeps) {
     for (const b of w?.buildings ?? []) for (const m of b.modules) if (m.type === 'production' && m.startSound) used.add(m.startSound);
     const list = platform.audioList(s.id);
     const have = new Set(list.map((a) => a.key));
-    const missing = [...used].filter((k) => !have.has(k)).sort();
+    // Un son est fourni tel quel ou en variantes numérotées (« foret-hache-1 », « -2 »…), tirées au hasard au jeu.
+    const missing = [...used].filter((k) => !isProvided(k, have)).sort();
     // Sons manquants déjà fournis avec un modèle : importables d'un clic.
-    const bundled = platform.templateSounds();
-    return { sounds: list.map(({ file: _f, ...a }) => a), missing, bundled: missing.filter((k) => bundled.has(k)) };
+    const bundled = new Set(platform.templateSounds().keys());
+    return { sounds: list.map(({ file: _f, ...a }) => a), missing, bundled: missing.filter((k) => isProvided(k, bundled)) };
   });
 
   /** Importe les sons manquants fournis avec les modèles (sans jamais remplacer un son déjà importé). */
@@ -520,7 +522,7 @@ export function registerApi(router: Router, deps: ApiDeps) {
     mkdirSync(dir, { recursive: true });
     const done: string[] = [];
     for (const [key, src] of bundled) {
-      if (have.has(key) || (keys && !keys.includes(key))) continue;
+      if (have.has(key) || (keys && !keys.some((k) => k === key || variantsOf(k, [key]).length))) continue;
       const file = `${key}${src.ext}`;
       copyFileSync(src.path, join(dir, file));
       platform.db

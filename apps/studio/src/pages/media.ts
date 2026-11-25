@@ -57,7 +57,7 @@ export async function mediaPage(main: HTMLElement) {
       h(
         'header',
         { class: 'page-head' },
-        h('div', null, h('h1', null, 'Médiathèque'), h('p', { class: 'muted' }, 'Les sons joués par les Voice Workers : ambiances, voix, effets.')),
+        h('div', null, h('h1', null, 'Médiathèque'), h('p', { class: 'muted' }, 'Les sons joués par les Voice Workers : ambiances, voix, effets. Pour varier un bruitage, importe plusieurs prises numérotées (« foret-hache-1 », « foret-hache-2 »…) : une est tirée au hasard à chaque fois.')),
         manager ? h('button', { class: 'btn primary', onclick: () => upload() }, 'Importer un son') : null,
       ),
       missing.length

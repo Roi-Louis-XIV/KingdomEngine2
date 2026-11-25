@@ -4,6 +4,7 @@
  * Chaque worker mixe l'ambiance et les répliques (mixer.ts) : on parle par-dessus le fond sonore.
  * L'allocation est décidée par VoicePool (testé) ; ce fichier applique ses décisions sur Discord.
  */
+import { VariantPicker } from './variants.ts';
 import { Client, Events, GatewayIntentBits } from 'discord.js';
 import {
   generateDependencyReport,
@@ -191,9 +192,13 @@ export class VoiceWorkers implements VoiceBridge {
     for (const u of plan.update) await this.join(u.worker, u.presence, false);
   }
 
+  private variants = new VariantPicker();
   private soundPath(serverId: string, key: string | undefined, quiet = false): string | undefined {
     if (!key) return undefined;
-    const a = this.platform.audio(serverId, key);
+    // Variantes numérotées (« foret-hache-1 », « -2 »…) : une au hasard, jamais la même deux fois de suite.
+    const list = this.platform.audioList(serverId);
+    const picked = this.variants.pick(key, list.map((x) => x.key));
+    const a = picked ? list.find((x) => x.key === picked) : undefined;
     const path = a && join(this.audioDir, serverId, a.file);
     if (!path || !existsSync(path)) {
       if (quiet) return undefined;

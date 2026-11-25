@@ -200,3 +200,8 @@ Voir `packages/engine/src/model.ts`.
 
 - `scripts/content/sainte-pelle-finale.mjs` (ffmpeg) mixe la séquence d'horreur en un seul fichier, `content/sainte-pelle/sons/finale-apocalypse.mp3` : grondement synthétisé, puis Roland et les six autres PNJ qui paniquent en se chevauchant légèrement (voix harmonisées, réparties à gauche et à droite), puis le cri du monstre qui coupe tout. Son minutage est écrit dans `finale-apocalypse.json` et le générateur s'en sert pour placer les étapes (au pas de 5 s du monde) : la panique (Roland s'enfuit), le cri, puis 3 s de silence avant la musique d'attente et le message du narrateur.
 - À relancer si une des voix sources (`*-panique`, `roland-il-est-revenu`, `monstre-cri`) est réenregistrée, puis régénérer le monde.
+
+## Variantes de sons
+
+- Une clé jouée par le monde (ex. `foret-hache`) peut exister telle quelle dans la Médiathèque, ou en prises numérotées `foret-hache-1`, `foret-hache-2`… (`apps/server/src/voice/variants.ts`). La clé exacte passe d'abord ; sinon une variante est tirée au hasard, jamais la même deux fois de suite. La liste des sons manquants et l'import des sons fournis tiennent compte des variantes.
+- Bêta : bruitages de travail `foret-hache`, `mine-pioche`, `ferme-faux`, `pont-ligne`, `forge-fonte`, `forge-marteau` (coûts `audio.play` des activités) et `taverne-marmite`, `taverne-brassin` (`ProductionModule.startSound`).
