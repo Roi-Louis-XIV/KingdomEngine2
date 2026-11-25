@@ -1,6 +1,7 @@
 /** Routes de l'API du Studio. Chaque route vérifie le droit minimal sur le serveur concerné. */
 import { isProvided, variantsOf } from './voice/variants.ts';
-import { copyFileSync, mkdirSync, rmSync, statSync, writeFileSync, existsSync } from 'node:fs';
+import { copyFileSync, mkdirSync, rmSync, statSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { urgency, validateWorld, type Action, type WorldDef } from '../../../packages/engine/src/index.ts';
 import { FileReply, type Req, type Router } from './http.ts';
@@ -508,7 +509,57 @@ export function registerApi(router: Router, deps: ApiDeps) {
     const missing = [...used].filter((k) => !isProvided(k, have)).sort();
     // Sons manquants déjà fournis avec un modèle : importables d'un clic.
     const bundled = new Set(platform.templateSounds().keys());
-    return { sounds: list.map(({ file: _f, ...a }) => a), missing, bundled: missing.filter((k) => isProvided(k, bundled)) };
+    return { sounds: list.map(({ file: _f, ...a }) => a), missing, bundled: missing.filter((k) => isProvided(k, bundled)), outdated: outdatedSounds(s.id).map((x) => x.key) };
+  });
+
+  /** Empreinte d'un fichier (mémorisée par chemin, taille et date). */
+  const hashCache = new Map<string, string>();
+  const fileHash = (path: string) => {
+    const st = statSync(path);
+    const k = `${path}|${st.size}|${st.mtimeMs}`;
+    let v = hashCache.get(k);
+    if (!v) hashCache.set(k, (v = createHash('sha1').update(readFileSync(path)).digest('hex')));
+    return v;
+  };
+
+  /** Sons du serveur dont le modèle fournit une version différente (son retravaillé depuis l'import). */
+  const outdatedSounds = (serverId: string) => {
+    const bundled = platform.templateSounds();
+    const dir = join(deps.audioDir, serverId);
+    const out: { key: string; file: string; src: { path: string; ext: string } }[] = [];
+    for (const a of platform.audioList(serverId)) {
+      const src = bundled.get(a.key);
+      const path = join(dir, a.file);
+      if (!src || !existsSync(path)) continue;
+      if (statSync(path).size !== statSync(src.path).size || fileHash(path) !== fileHash(src.path)) out.push({ key: a.key, file: a.file, src });
+    }
+    return out;
+  };
+
+  /** Remplace les sons du serveur par la version actuelle fournie avec le modèle (à la demande d'un gestionnaire). */
+  const updateBundled = (serverId: string, account: Account) => {
+    const dir = join(deps.audioDir, serverId);
+    const done: string[] = [];
+    for (const o of outdatedSounds(serverId)) {
+      const file = `${o.key}${o.src.ext}`;
+      if (file !== o.file) rmSync(join(dir, o.file), { force: true });
+      copyFileSync(o.src.path, join(dir, file));
+      platform.db
+        .prepare('UPDATE audio SET file = ?, mime = ?, size = ? WHERE server_id = ? AND key = ?')
+        .run(file, EXT_MIME[o.src.ext] ?? 'audio/mpeg', statSync(o.src.path).size, serverId, o.key);
+      done.push(o.key);
+    }
+    if (done.length) {
+      platform.audit(serverId, account.id, 'audio.template', `${done.length} son(s) mis à jour depuis le modèle`);
+      deps.voice.refresh();
+    }
+    return done;
+  };
+
+  router.post('/api/servers/:id/audio/update-from-template', (r) => {
+    const s = server(r, 'manager');
+    const updated = updateBundled(s.id, me(r));
+    return { updated: updated.length, keys: updated };
   });
 
   /** Importe les sons manquants fournis avec les modèles (sans jamais remplacer un son déjà importé). */

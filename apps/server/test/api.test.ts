@@ -1,6 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp } from '../src/app.ts';
@@ -231,6 +231,16 @@ test('modèle : reprendre la dernière version d’un modèle en brouillon, prog
   await louis.del(`/api/servers/${id}/audio/wagner-vie-3`);
   assert.deepEqual((await louis.get(`/api/servers/${id}/audio`)).data.bundled, ['wagner-vie-3']);
   assert.deepEqual((await louis.post(`/api/servers/${id}/audio/from-template`, {})).data.keys, ['wagner-vie-3']);
+  // Un son retravaillé dans le modèle : signalé, puis mis à jour d'un clic (les autres ne bougent pas).
+  assert.deepEqual((await louis.get(`/api/servers/${id}/audio`)).data.outdated, []);
+  const stored = (await louis.get(`/api/servers/${id}/audio`)).data.sounds.find((a: any) => a.key === 'edgar-vie-1');
+  writeFileSync(join(tmp, 'audio', id, 'edgar-vie-1.mp3'), 'ancienne version');
+  assert.deepEqual((await louis.get(`/api/servers/${id}/audio`)).data.outdated, ['edgar-vie-1']);
+  assert.notEqual((await intrus.post(`/api/servers/${id}/audio/update-from-template`, {})).status, 200);
+  assert.deepEqual((await louis.post(`/api/servers/${id}/audio/update-from-template`, {})).data.keys, ['edgar-vie-1']);
+  const after = await louis.get(`/api/servers/${id}/audio`);
+  assert.deepEqual(after.data.outdated, []);
+  assert.equal(after.data.sounds.find((a: any) => a.key === 'edgar-vie-1').size, stored.size);
   const versions = await louis.get(`/api/servers/${id}/content`);
   assert.deepEqual(versions.data.versions.map((v: any) => v.status), ['published', 'archived'], 'l’ancienne version reste restaurable');
   assert.equal((await louis.post(`/api/servers/${id}/content/from-template`, { template: '../etc' })).status, 400);

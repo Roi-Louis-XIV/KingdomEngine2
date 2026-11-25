@@ -15,7 +15,7 @@ export async function mediaPage(main: HTMLElement) {
   const page = h('div', { class: 'page' });
   main.append(page);
   const draw = async () => {
-    const { sounds, missing, bundled = [] } = await get(`/api/servers/${s.id}/audio`);
+    const { sounds, missing, bundled = [], outdated = [] } = await get(`/api/servers/${s.id}/audio`);
     const manager = can('manager');
     const upload = (key = '') => {
       const f = { name: key, key, kind: 'ambience' };
@@ -60,6 +60,32 @@ export async function mediaPage(main: HTMLElement) {
         h('div', null, h('h1', null, 'Médiathèque'), h('p', { class: 'muted' }, 'Les sons joués par les Voice Workers : ambiances, voix, effets. Pour varier un bruitage, importe plusieurs prises numérotées (« foret-hache-1 », « foret-hache-2 »…) : une est tirée au hasard à chaque fois.')),
         manager ? h('button', { class: 'btn primary', onclick: () => upload() }, 'Importer un son') : null,
       ),
+      manager && outdated.length
+        ? h(
+            'section',
+            { class: 'block callout' },
+            h('h2', null, `🔄 Nouvelle version de ${outdated.length} son${outdated.length > 1 ? 's' : ''} du modèle`),
+            h('p', null, 'Ces sons ont été retravaillés dans le modèle depuis leur import. La mise à jour remplace ta version par celle du modèle : ', h('span', { class: 'muted' }, outdated.join(', '))),
+            h(
+              'button',
+              {
+                class: 'btn primary',
+                onclick: async (e: Event) => {
+                  (e.target as HTMLButtonElement).disabled = true;
+                  try {
+                    const r = await post<{ updated: number }>(`/api/servers/${s.id}/audio/update-from-template`, {});
+                    toast(`${r.updated} son${r.updated > 1 ? 's' : ''} mis à jour.`);
+                    void draw();
+                  } catch (err) {
+                    toast((err as Error).message, 'error');
+                    (e.target as HTMLButtonElement).disabled = false;
+                  }
+                },
+              },
+              '🔄 Mettre à jour les sons du modèle',
+            ),
+          )
+        : null,
       missing.length
         ? h(
             'section',
