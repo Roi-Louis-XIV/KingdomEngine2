@@ -204,4 +204,5 @@ Voir `packages/engine/src/model.ts`.
 ## Variantes de sons
 
 - Une clé jouée par le monde (ex. `foret-hache`) peut exister telle quelle dans la Médiathèque, ou en prises numérotées `foret-hache-1`, `foret-hache-2`… (`apps/server/src/voice/variants.ts`). La clé exacte passe d'abord ; sinon une variante est tirée au hasard, jamais la même deux fois de suite. La liste des sons manquants et l'import des sons fournis tiennent compte des variantes.
+- Les bruitages (sons joués sans personnage) se superposent dans le mixeur (`Mixer.effect`, 6 au plus par salon) : ils n'attendent pas la réplique en cours et ne la bloquent pas. Les répliques des personnages restent en file, l'une après l'autre.
 - Bêta : bruitages de travail `foret-hache`, `mine-pioche`, `ferme-faux`, `pont-ligne`, `forge-fonte`, `forge-marteau` (coûts `audio.play` des activités) et `taverne-marmite`, `taverne-brassin` (`ProductionModule.startSound`).

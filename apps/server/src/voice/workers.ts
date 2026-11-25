@@ -332,7 +332,7 @@ export class VoiceWorkers implements VoiceBridge {
 
   /**
    * Son déclenché par le jeu. Réplique d'un personnage : dite par son worker, là où il se trouve
-   * (personne ne l'entend s'il est dans un salon vide). Sinon : jouée par le worker qui tient l'ambiance du bâtiment.
+   * (personne ne l'entend s'il est dans un salon vide). Sinon (bruitage) : jouée par le worker qui tient l'ambiance du bâtiment, superposée aux autres.
    */
   private playOnce(serverId: string, building: string, sound: string, character?: string) {
     const presences = [...this.pool.workers.values()].filter((w) => w.presence?.serverId === serverId);
@@ -342,7 +342,9 @@ export class VoiceWorkers implements VoiceBridge {
     if (!w) return;
     const l = this.live.get(w.key)!;
     const path = this.soundPath(serverId, sound);
-    if (path && l.connection) this.mixer(l).say(path, l.presence?.volume ?? 0.8);
+    if (!path || !l.connection) return;
+    if (character) this.mixer(l).say(path, l.presence?.volume ?? 0.8);
+    else this.mixer(l).effect(path, l.presence?.volume ?? 0.8);
   }
 
   private async leave(workerKey: string) {

@@ -1,6 +1,7 @@
 /**
  * Mixeur audio d'un Voice Worker : l'ambiance tourne en boucle et les répliques se jouent PAR-DESSUS,
- * sans la couper. Les répliques passent l'une après l'autre (un personnage ne parle pas en même temps que lui-même).
+ * sans la couper. Les répliques passent l'une après l'autre (un personnage ne parle pas en même temps que lui-même) ;
+ * les bruitages (sons sans personnage) se superposent tous, sans attendre.
  *
  * Chaque son est décodé par ffmpeg en PCM 48 kHz stéréo 16 bits ; le mixeur additionne les échantillons
  * par trames de 20 ms et produit un flux brut que @discordjs/voice encode en Opus (StreamType.Raw).
@@ -16,6 +17,8 @@ export const CHANNELS = 2;
 export const FRAME_BYTES = (SAMPLE_RATE / 50) * CHANNELS * 2;
 /** Au-delà d'une seconde d'avance, on met ffmpeg en pause (mémoire bornée). */
 const MAX_BUFFER = SAMPLE_RATE * CHANNELS * 2;
+/** Bruitages simultanés au plus, par salon. */
+export const MAX_EFFECTS = 6;
 
 /** Ajoute `src` (×gain) dans `acc` ; pur et testé. */
 export function mixInto(acc: Int32Array, src: Int16Array, gain: number): void {
@@ -90,6 +93,8 @@ export class Mixer extends Readable {
   private ambience?: { path: string; track: Track };
   /** Répliques en file : toutes décodées d'avance (pas de blanc entre deux), seule la première est jouée. */
   private voices: Track[] = [];
+  /** Bruitages : joués tous en même temps, par-dessus l'ambiance et les répliques (deux bûcherons = deux haches). */
+  private effects: Track[] = [];
   private readonly ffmpeg: string;
   /** Terminer le flux quand il n'y a plus ni ambiance ni réplique. */
   endWhenIdle = false;
@@ -111,6 +116,12 @@ export class Mixer extends Readable {
     if (this.voices.length < 10) this.voices.push(new Track(this.ffmpeg, path, volume, false));
   }
 
+  /** Bruitage superposé, sans attendre (6 à la fois au plus : au-delà, le plus ancien s'arrête). */
+  effect(path: string, volume: number): void {
+    if (this.effects.length >= MAX_EFFECTS) this.effects.shift()!.stop();
+    this.effects.push(new Track(this.ffmpeg, path, volume, false));
+  }
+
   get speaking(): boolean {
     return this.voices.length > 0;
   }
@@ -126,12 +137,17 @@ export class Mixer extends Readable {
       if (f) mixInto(acc, f, v.volume);
       if (v.finished) this.voices.shift();
     }
+    for (const e of this.effects) {
+      const f = e.frame();
+      if (f) mixInto(acc, f, e.volume);
+    }
+    this.effects = this.effects.filter((e) => !e.finished);
     const out = clip(acc);
     return Buffer.from(out.buffer, out.byteOffset, out.byteLength);
   }
 
   get idle(): boolean {
-    return !this.ambience && !this.voices.length;
+    return !this.ambience && !this.voices.length && !this.effects.length;
   }
 
   override _read(): void {
@@ -147,6 +163,8 @@ export class Mixer extends Readable {
     this.ambience?.track.stop();
     this.voices.forEach((t) => t.stop());
     this.voices = [];
+    this.effects.forEach((t) => t.stop());
+    this.effects = [];
     cb(err);
   }
 }

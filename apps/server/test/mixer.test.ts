@@ -80,3 +80,20 @@ test('mixeur sans ambiance : le flux s’arrête après la dernière réplique (
   assert.ok(m.readableEnded, 'flux terminé');
   assert.ok(bytes >= FRAME_BYTES * 8, `la réplique a été jouée (${bytes} octets)`);
 });
+
+test('mixeur : les bruitages se superposent sans attendre la réplique en cours (deux haches = deux coups)', { skip: !hasFfmpeg && 'ffmpeg absent' }, async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'mix-'));
+  const m = new Mixer(FFMPEG);
+  t.after(() => m.destroy());
+  m.say(tone(dir, 'voix', 440, 2), 1);
+  await wait(300);
+  const voice = (await frames(m, 10)).reduce((x, y) => x + y) / 10;
+  m.effect(tone(dir, 'hache1', 660, 0.4), 1);
+  m.effect(tone(dir, 'hache2', 880, 0.4), 1);
+  await wait(300);
+  const all = (await frames(m, 10)).reduce((x, y) => x + y) / 10;
+  assert.ok(all > voice * 1.4, `bruitages joués tout de suite, par-dessus la réplique (${voice} → ${all})`);
+  assert.ok(m.speaking, 'la réplique continue');
+  for (let i = 0; i < 9; i++) m.effect(tone(dir, `e${i}`, 300, 0.4), 1);
+  assert.ok((m as any).effects.length <= 6, 'six bruitages au plus à la fois');
+});
