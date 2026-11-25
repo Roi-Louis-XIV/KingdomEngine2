@@ -432,6 +432,8 @@ taverne.entrance = { text: 'La chaleur du foyer, l’odeur du ragoût et la voix
         name: 'Jeux',
         blocks: [
           box([text('## 🎲 Les jeux de la Taverne\n*Des chopes qui claquent, des dés qui roulent sur le bois.*')], 0x526d52),
+          // Duels en cours, en direct pour tous les joueurs présents.
+          widget({ kind: 'diceDuel', diceDuel: 'duel', live: true }),
           { type: 'notice' },
           box([
             section('**🎲 Les dés d’Edgar**\nContre Edgar, pour le plaisir : aucune mise.', go('Jouer', 'des', { emoji: '🎲' })),

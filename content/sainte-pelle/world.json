@@ -8803,6 +8803,14 @@
               "accent": 5401938
             },
             {
+              "type": "widget",
+              "widget": {
+                "kind": "diceDuel",
+                "diceDuel": "duel",
+                "live": true
+              }
+            },
+            {
               "type": "notice"
             },
             {

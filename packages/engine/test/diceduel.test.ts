@@ -31,12 +31,13 @@ test('duel : seul dans le salon, on ne peut pas jouer et on sait pourquoi', () =
   assert.deepEqual(validateRendered(a.message), []);
 });
 
-test('duel : défi, bannière chez l’adversaire, mises prélevées à l’acceptation, le gagnant rafle tout', () => {
-  const { engine, arm } = setup([6, 5, 1, 2]);
+test('duel : défi, bannière, acceptation, puis panneau en direct pour toute la taverne (3 s, dés, vainqueur)', () => {
+  const { engine, clock, arm } = setup([6, 5, 1, 2]);
   const a = new Player(engine, 'alice', 'taverne', 'Alice');
   const b = new Player(engine, 'bob', 'taverne', 'Bob');
+  const c = new Player(engine, 'carla', 'taverne', 'Carla');
   a.click('Jeux').click('Jouer au Duel');
-  assert.deepEqual(a.options(/Contre qui/).map((o) => o.label), ['Bob']);
+  assert.deepEqual(a.options(/Contre qui/).map((o) => o.label).sort(), ['Bob', 'Carla']);
   a.choose(/Contre qui/, 'bob').choose(/Combien miser/, '20').click(/^Défier Bob pour 20 écus/);
   assert.match(a.text, /En attente de sa réponse/);
   assert.equal(ecus(engine, 'alice'), 100, 'rien n’est prélevé avant l’acceptation');
@@ -44,29 +45,59 @@ test('duel : défi, bannière chez l’adversaire, mises prélevées à l’acce
   b.refresh();
   assert.match(b.text, /📣 \*\*Alice\*\* te défie au Duel ! Mise : \*\*20 écus\*\*/);
   b.click('Voir le défi');
-  assert.match(b.text, /30 s pour répondre|\d+ s pour répondre/);
+  assert.match(b.text, /\d+ s pour répondre/);
   arm();
   b.click(/Accepter le duel · miser 20 écus/);
-  assert.match(b.text, /Alice\*\* : ⚅ 6 \+ ⚄ 5 = \*\*11\*\*/);
-  assert.match(b.text, /Bob\*\* : ⚀ 1 \+ ⚁ 2 = \*\*3\*\*/);
-  assert.match(b.text, /Alice\*\* remporte \*\*40 écus\*\*/);
+  // Mises engagées et réglées tout de suite, mais rien n'est dévoilé avant 3 s.
   assert.equal(ecus(engine, 'alice'), 120);
   assert.equal(ecus(engine, 'bob'), 80);
-  assert.match(a.refresh().text, /Alice\*\* remporte/, 'les deux voient le résultat');
-  assert.deepEqual(validateRendered(a.message), []);
-  assert.deepEqual(validateRendered(b.message), []);
+  assert.match(b.text, /🔴 EN DIRECT/);
+  assert.match(b.text, /mise \*\*20 écus\*\* chacun · 💰 cagnotte \*\*40 écus\*\*/);
+  assert.match(b.text, /Alice\s+Bob/);
+  assert.match(b.text, /\[\?\]  \[\?\]/);
+  assert.match(b.text, /Les dés roulent… 3/);
+  assert.doesNotMatch(b.text, /remporte la cagnotte/);
+  // Carla, spectatrice sur l'accueil : invitée à regarder, puis elle suit le compte à rebours.
+  c.refresh();
+  assert.match(c.text, /🔴 \*\*Duel en direct :\*\* Alice ⚔️ Bob · cagnotte \*\*40 écus\*\*/);
+  c.click('Regarder');
+  assert.match(c.text, /Les dés roulent… 3/);
+  clock.advance(1);
+  assert.match(c.refresh().text, /Les dés roulent… 2/);
+  assert.ok(engine.view(c.sessionId).wakeAt! <= clock.now() + 1000, 'image suivante dans la seconde');
+  clock.advance(2);
+  c.refresh();
+  assert.match(c.text, /│ +\[6\] \[5\] +│VS│ +\[1\] \[2\] +│/);
+  assert.match(c.text, /Total 11/);
+  assert.match(c.text, /Total 3/);
+  assert.match(c.text, /★ GAGNANT ★/);
+  assert.match(c.text, /🏆 \*\*Alice\*\* remporte la cagnotte de \*\*40 écus\*\*/);
+  // L'écran des jeux montre aussi le panneau en direct.
+  const d = new Player(engine, 'dan', 'taverne', 'Dan').click('Jeux');
+  assert.match(d.text, /🔴 EN DIRECT/);
+  for (const x of [a.refresh(), b.refresh(), c, d]) assert.deepEqual(validateRendered(x.message), []);
+  // Le panneau disparaît après un moment ; les duellistes gardent leur résultat.
+  clock.advance(46);
+  engine.tick();
+  assert.doesNotMatch(d.refresh().text, /EN DIRECT/);
+  assert.match(a.refresh().text, /Alice\*\* : ⚅ 6 \+ ⚄ 5 = \*\*11\*\*/);
 });
 
-test('duel : égalité, on relance sans toucher aux mises', () => {
-  const { engine, arm } = setup([3, 3, 4, 2, 6, 6, 1, 1]);
+test('duel : égalité montrée, puis relance automatique sans toucher aux mises', () => {
+  const { engine, clock, arm } = setup([3, 3, 4, 2, 6, 6, 1, 1]);
   const a = new Player(engine, 'alice', 'taverne', 'Alice');
   const b = new Player(engine, 'bob', 'taverne', 'Bob');
   a.click('Jeux').click('Jouer au Duel').choose(/Contre qui/, 'bob').choose(/Combien miser/, '10').click(/^Défier/);
   b.refresh().click('Voir le défi');
   arm();
   b.click(/Accepter le duel/);
-  assert.match(b.text, /1 égalité : on a relancé/);
-  assert.match(b.text, /Alice\*\* remporte \*\*20 écus/);
+  clock.advance(3);
+  assert.match(b.refresh().text, /Égalité à 6 !\*\* Relance automatique/);
+  clock.advance(3);
+  b.refresh();
+  assert.match(b.text, /\[6\] \[6\]/);
+  assert.match(b.text, /Alice\*\* remporte la cagnotte de \*\*20 écus/);
+  assert.match(b.text, /1 égalité avant le lancer décisif/);
   assert.equal(ecus(engine, 'alice'), 110);
   assert.equal(ecus(engine, 'bob'), 90);
 });
@@ -111,6 +142,6 @@ test('duel : pas assez d’écus pour suivre, et ce n’est pas un travail (comp
   engine.adminApply('bob', undefined, [{ type: 'stat.set', stat: 'ecus', value: 50 }]);
   arm();
   b.refresh().click(/Accepter le duel/);
-  assert.match(b.text, /Alice\*\* remporte/);
+  assert.match(b.text, /EN DIRECT/);
   assert.equal(ecus(engine, 'alice'), 120);
 });

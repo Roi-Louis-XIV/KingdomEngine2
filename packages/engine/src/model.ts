@@ -815,7 +815,8 @@ export type WidgetDef =
   | { kind: 'buyback.sell'; buyback: Id; accent?: number }
   | { kind: 'dialogue'; dialogue: Id; exitScreen: Id; accent?: number }
   | { kind: 'dice'; dice: Id; accent?: number }
-  | { kind: 'diceDuel'; diceDuel: Id; accent?: number }
+  /** live : seulement les duels en direct (pour les spectateurs, ex. écran des jeux). */
+  | { kind: 'diceDuel'; diceDuel: Id; accent?: number; live?: boolean }
   /** Arène : chasse aux créatures et duels entre joueurs (module de combat). */
   | {
       kind: 'combat.arena';

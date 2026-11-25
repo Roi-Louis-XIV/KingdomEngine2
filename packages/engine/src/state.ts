@@ -124,6 +124,12 @@ export interface DiceDuelState {
   target: Id;
   stake: number;
   createdAt: number;
+  /** pending : en attente de réponse ; live : accepté, joué (mises réglées), dévoilé en direct. */
+  status?: 'pending' | 'live';
+  acceptedAt?: number;
+  /** Lancers successifs (les égalités, puis le lancer décisif). */
+  rounds?: { a: number[]; b: number[] }[];
+  winner?: Id;
 }
 
 export type EventStatus = 'idle' | 'running' | 'paused' | 'finished';

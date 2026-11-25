@@ -6,7 +6,10 @@
  *    il accepte ou refuse. À l'acceptation, les deux mises sont prélevées ensemble, dans la même transaction
  *    que le lancer : un duel annulé avant (refus, expiration, départ, bourse vide) ne coûte rien.
  * 3. Chacun lance ses dés (tirés par le serveur) ; le plus gros total remporte les deux mises.
- *    Égalité : chacun relance, sans changer les mises.
+ *    Égalité : chacun relance, sans changer les mises. Tout est réglé à l'acceptation (argent compris).
+ * 4. Panneau en direct, visible de tous les joueurs présents dans le bâtiment (écrans portant le widget du module,
+ *    bannière « Regarder » ailleurs) : deux cases côte à côte, compte à rebours de 3 s, puis les dés, chaque
+ *    égalité montrée avant la relance, et le vainqueur. Les interfaces se redessinent seules (`wakeAt`).
  * Un défi sans réponse expire (`expireSec`, 30 s par défaut), de même si l'un des deux quitte le bâtiment.
  * Ce n'est pas un travail : il ne compte pas dans `settings.maxActivities`.
  */
@@ -29,6 +32,12 @@ const DEFAULT_EXPIRE_SEC = 30;
 const pendingMs = (mod: DiceDuelModule) => (mod.expireSec ?? DEFAULT_EXPIRE_SEC) * 1000;
 /** Durée pendant laquelle le dernier résultat reste affiché. */
 const RESULT_MS = 10 * 60_000;
+/** Compte à rebours avant le lancer, durée d'affichage de chaque égalité, et du résultat dans le panneau en direct. */
+export const COUNTDOWN_MS = 3000;
+const TIE_MS = 3000;
+const SHOW_MS = 45_000;
+/** Fin du spectacle : compte à rebours, puis chaque égalité montrée avant la relance. */
+export const finalAt = (d: DiceDuelState) => (d.acceptedAt ?? 0) + COUNTDOWN_MS + ((d.rounds?.length ?? 1) - 1) * TIE_MS;
 const DEFAULT_STAKES = [5, 10, 20, 50];
 
 const text = (content: string) => ({ type: 'text' as const, content });
@@ -55,7 +64,10 @@ function nameOf(state: WorldState, player: Id): string {
   return s?.name ?? `<@${player}>`;
 }
 
-const involved = (state: WorldState, player: Id) => Object.values(state.diceDuels ?? {}).find((d) => d.challenger === player || d.target === player);
+/** Pris dans un duel : défi en attente, ou duel dont les dés n'ont pas encore fini de rouler. */
+const involved = (state: WorldState, player: Id, now: number) =>
+  Object.values(state.diceDuels ?? {}).find((d) => (d.challenger === player || d.target === player) && (d.status !== 'live' || now < finalAt(d)));
+const isPending = (d: DiceDuelState) => d.status !== 'live';
 
 /** Contexte d'un autre joueur (pour lui rendre ou lui verser des écus). */
 const ctxFor = (ctx: Ctx, player: Id): Ctx => (player === ctx.playerId ? ctx : { ...ctx, playerId: player, player: ctx.state.players[player]!, changes: [], notes: [] });
@@ -84,6 +96,11 @@ export function expireDiceDuels(ctx: Ctx, now: number): void {
       delete ctx.state.diceDuels![d.id];
       continue;
     }
+    if (d.status === 'live') {
+      // Duel joué : le panneau en direct reste un moment, puis disparaît.
+      if (now >= finalAt(d) + SHOW_MS) delete ctx.state.diceDuels![d.id];
+      continue;
+    }
     const timeout = now - d.createdAt >= pendingMs(mod);
     if (timeout || !present(ctx.state, b!, d.challenger) || !present(ctx.state, b!, d.target)) {
       const pl = ctx.state.players[d.challenger];
@@ -96,8 +113,87 @@ export function expireDiceDuels(ctx: Ctx, now: number): void {
 /** Défi reçu par ce joueur dans ce bâtiment (pour la bannière des autres écrans). */
 export function incomingDiceDuel(state: WorldState, building: Id, mod: DiceDuelModule, player: Id, now: number): { from: string; stake: number; until: number } | undefined {
   const key = diceDuelKey(building, mod.id);
-  const d = Object.values(state.diceDuels ?? {}).find((x) => x.target === player && x.key === key && now - x.createdAt < pendingMs(mod));
+  const d = Object.values(state.diceDuels ?? {}).find((x) => isPending(x) && x.target === player && x.key === key && now - x.createdAt < pendingMs(mod));
   return d ? { from: nameOf(state, d.challenger), stake: d.stake, until: d.createdAt + pendingMs(mod) } : undefined;
+}
+
+/** Duels en direct dans ce bâtiment (dés qui roulent, ou résultat encore affiché). */
+export function liveDiceDuels(state: WorldState, building: Id, mod: DiceDuelModule, now: number): DiceDuelState[] {
+  const key = diceDuelKey(building, mod.id);
+  return Object.values(state.diceDuels ?? {}).filter((d) => d.key === key && d.status === 'live' && now < finalAt(d) + SHOW_MS);
+}
+
+/** Bannière des autres écrans : un duel dont les dés roulent encore. */
+export function rollingDiceDuel(state: WorldState, building: Id, mod: DiceDuelModule, now: number): { a: string; b: string; pot: number; until: number } | undefined {
+  const d = liveDiceDuels(state, building, mod, now).find((x) => now < finalAt(x));
+  return d ? { a: nameOf(state, d.challenger), b: nameOf(state, d.target), pot: d.stake * 2, until: finalAt(d) } : undefined;
+}
+
+/** Nom pour le tableau (police à chasse fixe) : lettres simples seulement, pour garder les cases alignées. */
+const plain = (name: string, max: number) => (name.replace(/[^\p{L}\p{N} '._-]/gu, '').replace(/[^\u0000-\u024f]/g, '').trim() || 'Joueur').slice(0, max);
+const center = (s: string, n: number) => {
+  const left = Math.floor((n - s.length) / 2);
+  return ' '.repeat(Math.max(0, left)) + s + ' '.repeat(Math.max(0, n - s.length - left));
+};
+const total = (x: number[]) => x.reduce((a, b) => a + b, 0);
+
+/** Panneau en direct d'un duel : deux cases côte à côte, compte à rebours, dés, total, vainqueur. */
+function livePanel(env: DiceDuelEnv, mod: DiceDuelModule, d: DiceDuelState, accent?: number): RContainer {
+  const { ctx } = env;
+  const now = ctx.now;
+  const rounds = d.rounds ?? [];
+  const start = (d.acceptedAt ?? 0) + COUNTDOWN_MS;
+  const nameA = nameOf(ctx.state, d.challenger);
+  const nameB = nameOf(ctx.state, d.target);
+  const W = 15; // largeur d'une case, bords compris
+  const box2 = (inner: [string, string], gap = '  ') => `│${center(inner[0], W - 2)}│${gap}│${center(inner[1], W - 2)}│`;
+  let dice: [string, string];
+  let sums: [string, string];
+  let marks: [string, string] = ['', ''];
+  let status: string;
+  if (now < start) {
+    // Compte à rebours, une image par seconde.
+    const left = Math.ceil((start - now) / 1000);
+    env.wake(start - (left - 1) * 1000);
+    dice = ['[?]  [?]', '[?]  [?]'];
+    sums = ['...', '...'];
+    status = `⏳ **Les dés roulent… ${left}**`;
+  } else {
+    const shown = Math.min(rounds.length - 1, Math.floor((now - start) / TIE_MS));
+    const r = rounds[shown]!;
+    dice = [r.a.map((n) => `[${n}]`).join(' '), r.b.map((n) => `[${n}]`).join(' ')];
+    sums = [`Total ${total(r.a)}`, `Total ${total(r.b)}`];
+    if (shown < rounds.length - 1) {
+      env.wake(start + (shown + 1) * TIE_MS);
+      status = `🤝 **Égalité à ${total(r.a)} !** Relance automatique…`;
+    } else {
+      env.wake(finalAt(d) + SHOW_MS);
+      const aWins = d.winner === d.challenger;
+      marks = aWins ? ['★ GAGNANT ★', ''] : ['', '★ GAGNANT ★'];
+      const ties = rounds.length - 1;
+      status = `🏆 **${aWins ? nameA : nameB}** remporte la cagnotte de **${money(ctx, mod.currency, d.stake * 2)}** !${ties ? `\n-# ${ties} égalité${ties > 1 ? 's' : ''} avant le lancer décisif.` : ''}`;
+    }
+  }
+  const line = '─'.repeat(W - 2);
+  const board = [
+    `${center(plain(nameA, W), W)}  ${center(plain(nameB, W), W)}`,
+    `┌${line}┐  ┌${line}┐`,
+    box2(dice, 'VS'),
+    box2(sums),
+    `└${line}┘  └${line}┘`,
+    `${center(marks[0], W)}  ${center(marks[1], W)}`.trimEnd(),
+  ]
+    .filter((x) => x.trim() || x === '')
+    .join('\n');
+  const header = `### 🔴 EN DIRECT · ${mod.emoji ?? '🎲'} ${mod.name}\n**${nameA}** contre **${nameB}** · mise **${money(ctx, mod.currency, d.stake)}** chacun · 💰 cagnotte **${money(ctx, mod.currency, d.stake * 2)}**`;
+  return { type: 'container', accent: now < finalAt(d) ? 0xc0392b : (accent ?? 0xc9a227), children: [text(header), text('```\n' + board + '\n```'), text(status)] };
+}
+
+/** Panneaux en direct seuls (écran des jeux : les spectateurs suivent le duel). */
+export function renderDiceDuelLive(env: DiceDuelEnv, mod: DiceDuelModule, accent?: number): RTopLevel[] {
+  return liveDiceDuels(env.ctx.state, env.ctx.building.id, mod, env.ctx.now)
+    .slice(0, 2)
+    .map((d) => livePanel(env, mod, d, accent));
 }
 
 export function renderDiceDuel(env: DiceDuelEnv, mod: DiceDuelModule, accent?: number): RTopLevel[] {
@@ -107,12 +203,16 @@ export function renderDiceDuel(env: DiceDuelEnv, mod: DiceDuelModule, accent?: n
   const balance = p.stats[mod.currency] ?? findStat(ctx.world, mod.currency)?.initial ?? 0;
   const st = env.local(() => ({ opponent: '', stake: 0 }));
   const out: RTopLevel[] = [];
+  const lives = liveDiceDuels(ctx.state, ctx.building.id, mod, ctx.now).slice(0, 2);
+  out.push(...lives.map((d) => livePanel(env, mod, d, accent)));
+  const watching = lives.some((d) => d.challenger === ctx.playerId || d.target === ctx.playerId);
   const rules = `### ${mod.emoji ?? '⚔️'} ${mod.name}\nChacun mise la même somme et lance ${mod.dice} dé${mod.dice > 1 ? 's' : ''} : le plus gros total remporte les deux mises. En cas d’égalité, on relance.\n-# Les mises sont prélevées seulement quand l’adversaire accepte.`;
   const lines = [rules];
-  if (p.lastDiceDuel && ctx.now - p.lastDiceDuel.at < RESULT_MS) lines.push('', p.lastDiceDuel.text);
+  // Dernier résultat personnel (pas pendant que son propre duel est encore à l'écran en direct).
+  if (!watching && p.lastDiceDuel && ctx.now >= p.lastDiceDuel.at && ctx.now - p.lastDiceDuel.at < RESULT_MS) lines.push('', p.lastDiceDuel.text);
   out.push(box(lines.join('\n'), accent));
 
-  const live = (d: DiceDuelState) => d.key === key && ctx.now - d.createdAt < pendingMs(mod);
+  const live = (d: DiceDuelState) => isPending(d) && d.key === key && ctx.now - d.createdAt < pendingMs(mod);
   const incoming = Object.values(ctx.state.diceDuels ?? {}).filter((d) => live(d) && d.target === ctx.playerId);
   const outgoing = Object.values(ctx.state.diceDuels ?? {}).find((d) => live(d) && d.challenger === ctx.playerId);
   for (const d of [...incoming, ...(outgoing ? [outgoing] : [])]) env.wake(d.createdAt + pendingMs(mod));
@@ -136,7 +236,11 @@ export function renderDiceDuel(env: DiceDuelEnv, mod: DiceDuelModule, accent?: n
     out.push(text(`🔒 **Personne d’autre n’est ici.** Pour jouer au ${mod.name}, il faut être au moins deux dans le salon vocal de ce lieu (et ton adversaire doit avoir ouvert son interface).`));
     return out;
   }
-  const free = others.filter((o) => !involved(ctx.state, o.id));
+  if (involved(ctx.state, ctx.playerId, ctx.now)) {
+    out.push(text('🎲 Les dés roulent… Résultat dans un instant.'));
+    return out;
+  }
+  const free = others.filter((o) => !involved(ctx.state, o.id, ctx.now));
   if (!free.length) {
     out.push(text('⏳ Tout le monde ici est déjà pris dans un duel. Attends un peu.'));
     return out;
@@ -182,8 +286,8 @@ export function handleDiceDuel(env: DiceDuelEnv, mod: DiceDuelModule, verb: stri
       if (!target || !stake) throw new RuleError('Choisis un adversaire et une mise.');
       if (!stakes.includes(stake)) throw new RuleError('Mise inconnue.');
       if (!presentOthers(ctx.state, ctx.building.id, ctx.playerId).some((o) => o.id === target)) throw new RuleError('Ce joueur n’est plus là.');
-      if (involved(ctx.state, ctx.playerId)) throw new RuleError('Tu as déjà un duel en cours.');
-      if (involved(ctx.state, target)) throw new RuleError('Ce joueur est déjà pris dans un duel.');
+      if (involved(ctx.state, ctx.playerId, ctx.now)) throw new RuleError('Tu as déjà un duel en cours.');
+      if (involved(ctx.state, target, ctx.now)) throw new RuleError('Ce joueur est déjà pris dans un duel.');
       if ((ctx.player.stats[mod.currency] ?? 0) < stake) throw new RuleError(`Il te faut ${money(ctx, mod.currency, stake)} pour cette mise.`);
       const id = `dd${ctx.now.toString(36)}${Math.floor(env.random() * 1e6).toString(36)}`;
       duelsOf(ctx.state)[id] = { id, key, challenger: ctx.playerId, target, stake, createdAt: ctx.now };
@@ -194,7 +298,7 @@ export function handleDiceDuel(env: DiceDuelEnv, mod: DiceDuelModule, verb: stri
     case 'cancel':
     case 'refuse': {
       const d = ctx.state.diceDuels?.[arg];
-      if (!d || d.key !== key || (verb === 'cancel' ? d.challenger : d.target) !== ctx.playerId) throw new RuleError('Ce défi n’existe plus.');
+      if (!d || !isPending(d) || d.key !== key || (verb === 'cancel' ? d.challenger : d.target) !== ctx.playerId) throw new RuleError('Ce défi n’existe plus.');
       dropDuel(ctx, d);
       if (verb === 'refuse') {
         const pl = ctx.state.players[d.challenger];
@@ -205,7 +309,7 @@ export function handleDiceDuel(env: DiceDuelEnv, mod: DiceDuelModule, verb: stri
     }
     case 'accept': {
       const d = ctx.state.diceDuels?.[arg];
-      if (!d || d.key !== key || d.target !== ctx.playerId) throw new RuleError('Ce défi n’existe plus.');
+      if (!d || !isPending(d) || d.key !== key || d.target !== ctx.playerId) throw new RuleError('Ce défi n’existe plus.');
       // Les deux doivent encore être là ; les deux mises sont prélevées maintenant (tout ou rien, avec le lancer).
       if (!present(ctx.state, ctx.building.id, d.challenger)) {
         dropDuel(ctx, d);
@@ -214,38 +318,36 @@ export function handleDiceDuel(env: DiceDuelEnv, mod: DiceDuelModule, verb: stri
       if ((ctx.state.players[d.challenger]?.stats[mod.currency] ?? 0) < d.stake) throw new RuleError(`**${nameOf(ctx.state, d.challenger)}** n’a plus assez pour suivre sa mise : duel impossible.`);
       applyAction(ctx, { type: 'stat.add', stat: mod.currency, amount: -d.stake });
       pay(ctx, d.challenger, mod.currency, -d.stake);
-      delete duelsOf(ctx.state)[d.id];
       const roll = () => Array.from({ length: mod.dice }, () => 1 + Math.floor(env.random() * mod.faces));
-      const sum = (x: number[]) => x.reduce((a, b) => a + b, 0);
-      let a: number[] = [];
-      let b: number[] = [];
-      let ties = 0;
-      do {
-        a = roll();
-        b = roll();
-        if (sum(a) === sum(b)) ties++;
-      } while (sum(a) === sum(b) && ties < 20);
+      // Tous les lancers sont tirés maintenant (côté serveur), puis dévoilés au fil du panneau en direct.
+      const rounds: { a: number[]; b: number[] }[] = [];
+      do rounds.push({ a: roll(), b: roll() });
+      while (total(rounds.at(-1)!.a) === total(rounds.at(-1)!.b) && rounds.length < 20);
+      const last = rounds.at(-1)!;
       // Après 20 égalités (impossible en pratique), le défié l'emporte.
-      const winner = sum(a) > sum(b) ? d.challenger : d.target;
+      const winner = total(last.a) > total(last.b) ? d.challenger : d.target;
       const loser = winner === d.challenger ? d.target : d.challenger;
       const pot = d.stake * 2;
       pay(ctx, winner, mod.currency, pot);
       questTag(ctxFor(ctx, winner), `diceduel:${key}:win`);
       sfx(mod.sound);
-      const line = (who: Id, dice: number[]) => `🎲 **${nameOf(ctx.state, who)}** : ${dice.map(dieFace).join(' + ')} = **${sum(dice)}**`;
+      Object.assign(d, { status: 'live', acceptedAt: ctx.now, rounds, winner });
+      const line = (who: Id, dice: number[]) => `🎲 **${nameOf(ctx.state, who)}** : ${dice.map(dieFace).join(' + ')} = **${total(dice)}**`;
+      const ties = rounds.length - 1;
       const result = [
         `### 🎲 Duel : ${nameOf(ctx.state, d.challenger)} contre ${nameOf(ctx.state, d.target)}`,
         ties ? `-# ${ties} égalité${ties > 1 ? 's' : ''} : on a relancé.` : '',
-        line(d.challenger, a),
-        line(d.target, b),
+        line(d.challenger, last.a),
+        line(d.target, last.b),
         '',
         `🏆 **${nameOf(ctx.state, winner)}** remporte **${money(ctx, mod.currency, pot)}** ! ${nameOf(ctx.state, loser)} perd sa mise.`,
       ]
         .filter((x, i) => x || i === 4)
         .join('\n');
+      // Résultat personnel, dévoilé seulement quand les dés ont fini de rouler.
       for (const who of [d.challenger, d.target]) {
         const pl = ctx.state.players[who];
-        if (pl) pl.lastDiceDuel = { text: result, at: ctx.now };
+        if (pl) pl.lastDiceDuel = { text: result, at: finalAt(d) };
       }
       return {};
     }

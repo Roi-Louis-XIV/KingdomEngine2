@@ -29,7 +29,7 @@ import {
   levelLine,
   levelTooLow,
 } from './rules.ts';
-import { renderDiceDuel, handleDiceDuel } from './diceduel.ts';
+import { renderDiceDuel, renderDiceDuelLive, handleDiceDuel } from './diceduel.ts';
 import { STARS, abandonQuest, acceptQuest, claimQuest, currentOffers, findQuest, nextLevel, questDeliver, questLevel, questTag, rerollOffers, stepDone, stepTarget } from './quests.ts';
 import type { QuestDef } from './model.ts';
 import { equipmentTotals, handleCombat, renderCombat, renderCombatSummary } from './combat.ts';
@@ -806,7 +806,7 @@ export function renderWidget(env: WidgetEnv, w: WidgetDef): RTopLevel[] {
     }
 
     case 'diceDuel':
-      return renderDiceDuel(env, findModule(ctx.building, w.diceDuel, 'diceDuel'), w.accent);
+      return (w.live ? renderDiceDuelLive : renderDiceDuel)(env, findModule(ctx.building, w.diceDuel, 'diceDuel'), w.accent);
 
     case 'combat.arena':
       return w.openScreen

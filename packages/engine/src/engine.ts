@@ -13,7 +13,7 @@ import { type Ctx, type EngineEvent, RuleError, applyAction, describeChanges, ev
 import { handleWidget, renderWidget, text, type WidgetEnv } from './widgets.ts';
 import { DEFAULT_TZ, describeSchedule, nextRun, rollWeather } from './clock.ts';
 import { dropExpiredQuest, questVisit } from './quests.ts';
-import { expireDiceDuels, incomingDiceDuel } from './diceduel.ts';
+import { expireDiceDuels, incomingDiceDuel, rollingDiceDuel } from './diceduel.ts';
 import { expireDuels } from './combat.ts';
 import type { EventDef } from './model.ts';
 import type { EventRunState } from './state.ts';
@@ -611,6 +611,24 @@ export class Engine {
     for (const m of b.modules) {
       if (m.type !== 'diceDuel' || !m.screen || m.screen === screen.id || !b.screens.some((x) => x.id === m.screen)) continue;
       const inc = incomingDiceDuel(ctx.state, b.id, m, session.player, ctx.now);
+      // Duel en direct : les autres joueurs présents sont invités à regarder (sauf sur un écran qui l'affiche déjà).
+      const showsLive = screen.blocks.some((x) => x.type === 'widget' && x.widget.kind === 'diceDuel' && x.widget.diceDuel === m.id);
+      const roll = !inc && !showsLive ? rollingDiceDuel(ctx.state, b.id, m, ctx.now) : undefined;
+      if (roll) {
+        wakeAt = Math.min(wakeAt ?? Infinity, roll.until);
+        const cur = this.world.stats.find((x) => x.id === m.currency);
+        components.unshift({
+          type: 'container',
+          accent: 0xc0392b,
+          children: [
+            {
+              type: 'section',
+              texts: [text(`🔴 **Duel en direct :** ${roll.a} ⚔️ ${roll.b} · cagnotte **${roll.pot} ${cur?.unit ?? cur?.name ?? ''}**`.trim())],
+              accessory: { type: 'button', label: 'Regarder', emoji: '👀', style: 'danger', customId: [sessionId, 'g', m.screen, '0'].join(SEP) },
+            },
+          ],
+        });
+      }
       if (!inc) continue;
       wakeAt = Math.min(wakeAt ?? Infinity, inc.until);
       const cur = this.world.stats.find((x) => x.id === m.currency);
